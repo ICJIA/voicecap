@@ -242,7 +242,7 @@ function run({ keptPerSite }: TechnicalInput): string {
       "commands",
       commands.id,
       commands.columns,
-      TECHNICAL_TEXT.commands.map(({ name, job }) => [code(name), esc(job)]),
+      TECHNICAL_TEXT.commands.map(({ name, job }) => [code(name), cellHtml(job)]),
     ),
   ]);
 }

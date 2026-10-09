@@ -321,13 +321,27 @@ describe("renderTechnical", () => {
       "Each page, three ways",
       "Safeguards on every key",
       "Flags",
-      "The person's review",
       "A sealed record",
+      "The person's review",
       "Sharing",
       "This website",
     ]);
     expect(textOf(flow)).toContain(
       "NVDA reads the page line by line, heading by heading, and control by control, and every word is saved.",
+    );
+    // The end of the run asks its question, whose answer the seal covers, then seals the record and
+    // writes the report: the person's review, and the replay of the shareable page's transcripts,
+    // come after it.
+    const [sealed = "", review = ""] = steps.slice(6, 8).map((step) => textOf(step));
+    expect(sealed).toContain("asks whether the person heard NVDA");
+    expect(sealed.indexOf("heard NVDA")).toBeLessThan(sealed.indexOf("is sealed"));
+    expect(sealed).toContain("the shareable page, and its Word copy are written");
+    expect(review).toContain("voicecap review");
+    expect(review).toContain("voicecap review --replay");
+    expect(review).not.toContain("heard NVDA");
+    // A switch to another window inside a frame is noticed only if it lasts to the step's end.
+    expect(textOf(steps[4] ?? "")).toContain(
+      "While focus is inside a frame, a switch to another window is noticed only if it lasts until the step ends.",
     );
     // No arrow is in the markup: a screen reader hears the list.
     expect(markupOf(html)).not.toMatch(/[→↓]/);
@@ -407,6 +421,10 @@ describe("renderTechnical", () => {
     const commands = codes.filter((code) => code.startsWith("voicecap "));
     expect(commands.length).toBeGreaterThan(10);
     expect(commands.flatMap(unknownIn)).toEqual([]);
+    // And every option it names on its own (`--all`, `--sitemap`) is one the command line declares.
+    const options = codes.filter((code) => code.startsWith("--"));
+    expect(options.length).toBeGreaterThan(4);
+    expect(options.flatMap((option) => unknownIn(`voicecap ${option}`))).toEqual([]);
     const files = [
       ...TECHNICAL_TEXT.code.map(({ path: file }) => file),
       ...codes.filter((code) => code.startsWith("src/")),
@@ -502,8 +520,90 @@ describe("renderTechnical", () => {
     // No IP address, and no local address.
     expect(text).not.toMatch(/\b\d{1,3}(?:\.\d{1,3}){3}\b/);
     expect(text).not.toMatch(/localhost/i);
+    // A reader of the website could take "this computer" for their own: it's the computer running
+    // the test (Ruling P8).
+    expect(text).not.toMatch(/\bthis computer\b/i);
+    expect(text).toContain("only on the computer running the test");
     // Every code span came out as code: no backtick is left in the words.
     expect(text).not.toContain("`");
+  });
+
+  it("says no more than the code does: what's fingerprinted, what verify checks, the demo's pages, the commands, and the limits", () => {
+    const text = textOf(markupOf(html));
+    // A part's words as a reader gets them, with a command in a sentence read in its place.
+    const part = (id: string): string => textOf(partOf(html, id), "");
+
+    // A run's record holds the fingerprints of each page's transcripts and screenshot and of the
+    // event log, and nothing else of the run's: not of kept tries, its report, or its comparisons.
+    expect(part("what-a-run-records")).toContain(
+      "the fingerprints of each page's transcripts and screenshot and of the event log",
+    );
+    const evidence = part("fingerprints-and-seals");
+    expect(evidence).toContain(
+      "A run's record holds the SHA-256 of each page's transcripts and screenshot, recorded as each is written, and of the event log, recorded at the end of each session.",
+    );
+    expect(evidence).toContain(
+      "Earlier tries a run kept, its own report, and its comparisons have none.",
+    );
+    expect(evidence).toContain(
+      "voicecap verify checks every seal, every chain, and every file the records list in the home, but not the page list, sitemaps, or config, which aren't in the home.",
+    );
+    for (const overstated of [
+      "fingerprint of every file",
+      "checks all of it",
+      "every transcript and screenshot",
+    ]) {
+      expect(text, overstated).not.toContain(overstated);
+    }
+
+    // The demo site's pages are published too, with a style sheet beside them and a policy of
+    // their own: what's one file under a policy of its own bytes is each of the website's own pages
+    // and each report.
+    const website = part("this-website");
+    expect(website).toContain(
+      "The pages of voicecap's own demo site, in demo-site/, from voicecap itself.",
+    );
+    expect(website).toContain(
+      "Each of the website's own pages, and each report, is one file, and loads nothing from outside.",
+    );
+    expect(website).toContain(
+      "The demo site's pages have their style sheet beside them, and a policy of their own, which allows it and no script.",
+    );
+    expect(website).toContain("the transcripts repository, which the README says to keep private");
+
+    // The commands say what their code does.
+    const jobs = Object.fromEntries(TECHNICAL_TEXT.commands.map(({ name, job }) => [name, job]));
+    expect(Object.keys(jobs)).toContain("voicecap --site <url> …");
+    expect(jobs["voicecap review --replay"]).toContain('the pages "What needs attention" names');
+    expect(jobs["voicecap review --replay"]).toContain("`--all`");
+    expect(jobs["voicecap manual add"]).toContain("for a page");
+    expect(jobs["voicecap manual add"]).toContain("a sealed record of its own");
+    for (const name of ["voicecap preflight", "voicecap setup", "voicecap doctor"]) {
+      expect(jobs[name], name).toContain("the computer it runs on");
+    }
+
+    // A run reads the sitemap only when it's given one.
+    expect(part("privacy-and-security")).toContain(
+      "A run with --sitemap, or voicecap list-urls, reads the site's sitemap.",
+    );
+    expect(part("privacy-and-security")).toContain("which the README says to keep private");
+
+    // The rules say their thresholds, and nothing they don't count.
+    expect(TECHNICAL_TEXT.rules["repeated-phrase"]).not.toContain("twice");
+
+    // The limits name frames, and the browser's port on a computer others use too.
+    const limits = part("the-limits");
+    expect(limits).toContain(
+      "While focus is inside a frame, such as an embedded video, map, or form, a switch to another window is noticed only if it lasts until the step ends.",
+    );
+    expect(limits).toContain(
+      "While a page is open, its browser's debugging port can be reached by other people signed in to the same computer at the same time.",
+    );
+
+    // Guidepup and its setup do VoiceOver's part on a Mac, too.
+    const tools = Object.fromEntries(TECHNICAL_TEXT.toolchain.map(({ tool, job }) => [tool, job]));
+    expect(tools.Guidepup).toContain("VoiceOver");
+    expect(tools["@guidepup/setup"]).toContain("VoiceOver");
   });
 
   it("draws every fact as text", () => {

@@ -197,7 +197,7 @@ export const TECHNICAL_TEXT = {
       id: "how-a-run-works",
       kicker: "a run, end to end",
       heading: "How a run works",
-      lead: "Each step of a run, in order, and what follows it: the person's review, the sealed record, sharing, and this website.",
+      lead: "Each step of a run, in order, to its sealed record, and what follows it: the person's review, sharing, and this website.",
       /** The steps, the last of which says how many shares a site keeps on this website. */
       steps: (kept: number): FlowStep[] => [
         {
@@ -241,6 +241,9 @@ export const TECHNICAL_TEXT = {
             [
               "A step during which another window came forward is thrown away, and the page tried again, with earlier tries kept.",
             ],
+            [
+              "While focus is inside a frame, a switch to another window is noticed only if it lasts until the step ends.",
+            ],
             ["Silence is never recorded for a stopped NVDA or a locked screen."],
           ],
         },
@@ -249,28 +252,28 @@ export const TECHNICAL_TEXT = {
           words: [["They point a person at moments worth a closer look."]],
         },
         {
-          title: "The person's review",
+          title: "A sealed record",
           words: [
             [
-              "When a run ends at a terminal, voicecap asks whether the person heard NVDA. Enter means No.",
+              "When a run ends at a terminal, voicecap asks whether the person heard NVDA, and Enter means No. The answer goes in the run's record.",
             ],
+            [
+              "The record is sealed when the run completes, and the report, the shareable page, and its Word copy are written.",
+            ],
+          ],
+        },
+        {
+          title: "The person's review",
+          words: [
             [
               "The person reads the transcripts, and records a decision for each page with ",
               { code: "voicecap review" },
               ".",
             ],
             [
-              "They can hear a page's saved words again with ",
+              "They can hear the shareable page's transcripts again, read aloud, with ",
               { code: "voicecap review --replay" },
               ".",
-            ],
-          ],
-        },
-        {
-          title: "A sealed record",
-          words: [
-            [
-              "The run's record is sealed when it completes, and the report, the shareable page, and its Word copy are written.",
             ],
           ],
         },
@@ -332,7 +335,7 @@ export const TECHNICAL_TEXT = {
         heading: "How NVDA's words are caught",
         points: [
           [
-            "voicecap's NVDA driver connects to NVDA's Remote Access service, on this computer only, sends each key, and receives what NVDA speaks.",
+            "voicecap's NVDA driver connects to NVDA's Remote Access service, only on the computer running the test, sends each key, and receives what NVDA speaks.",
           ],
           [
             "It silences NVDA before each key, and waits until a second passes with no more speech.",
@@ -382,7 +385,7 @@ export const TECHNICAL_TEXT = {
                     {
                       name: "run.json",
                       words: [
-                        "The run's record: its settings, each page and every failed try at it, the fingerprint of every file, and, once it completes, its seal",
+                        "The run's record: its settings, each page and every failed try at it, the fingerprints of each page's transcripts and screenshot and of the event log, and, once it completes, its seal",
                       ],
                     },
                     {
@@ -447,7 +450,7 @@ export const TECHNICAL_TEXT = {
       heading: ["Fingerprints, seals, and ", { code: "voicecap verify" }] satisfies Sentence,
       points: [
         [
-          "Fingerprints: every transcript and screenshot has its SHA-256 recorded as it's written, and the event log has its own recorded at the end of each session. A run also records the SHA-256 of its page list, or of each sitemap it read, and of its config, and ",
+          "A run's record holds the SHA-256 of each page's transcripts and screenshot, recorded as each is written, and of the event log, recorded at the end of each session. Earlier tries a run kept, its own report, and its comparisons have none. A run also records the SHA-256 of its page list, or of each sitemap it read, and of its config, and ",
           { code: "shares.json" },
           " records each shared copy's.",
         ],
@@ -459,7 +462,7 @@ export const TECHNICAL_TEXT = {
         ],
         [
           { code: "voicecap verify" },
-          ` checks all of it, and exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
+          ` checks every seal, every chain, and every file the records list in the home, but not the page list, sitemaps, or config, which aren't in the home. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
         ],
         [
           "Each report's \"Check the fingerprints\" does the same for the report's own records, in the reader's browser, with nothing sent anywhere.",
@@ -483,15 +486,25 @@ export const TECHNICAL_TEXT = {
             " records only.",
           ],
           ["A file only when its size and SHA-256 are the ones recorded when it was shared."],
+          [
+            "The pages of voicecap's own demo site, in ",
+            { code: "demo-site/" },
+            ", from voicecap itself.",
+          ],
           ["Anything else is left out, and the build names it."],
         ],
       },
       protection: {
         heading: "How each page is protected",
         points: [
-          ["It's one file, and loads nothing from outside."],
           [
-            "Its Content Security Policy is made from the SHA-256 of its own style and script, and allows no connection.",
+            "Each of the website's own pages, and each report, is one file, and loads nothing from outside.",
+          ],
+          [
+            "Each one's Content Security Policy is made from the SHA-256 of its own style and script, and allows no connection.",
+          ],
+          [
+            "The demo site's pages have their style sheet beside them, and a policy of their own, which allows it and no script.",
           ],
           [
             "The headers voicecap's ",
@@ -509,7 +522,9 @@ export const TECHNICAL_TEXT = {
         heading: "How it's built",
         /** `command` is the build command voicecap writes into netlify.toml, from its version. */
         points: (command: string): Sentence[] => [
-          ["Netlify builds it on every push to the transcripts repository, which is kept private."],
+          [
+            "Netlify builds it on every push to the transcripts repository, which the README says to keep private.",
+          ],
           [
             "The build's command is in the repository's ",
             { code: "netlify.toml" },
@@ -549,12 +564,12 @@ export const TECHNICAL_TEXT = {
       kicker: "what stays, and what goes",
       heading: "Privacy and security",
       stays: {
-        heading: "On the computer that runs voicecap",
+        heading: "On the computer running the test",
         points: [
           [
             "Everything a run makes stays there: transcripts, records, screenshots, and reports. voicecap never commits or pushes them: the person does.",
           ],
-          ["voicecap talks to NVDA and to Chrome on this computer only."],
+          ["voicecap talks to NVDA and to Chrome only on the computer running the test."],
         ] satisfies Sentence[],
       },
       goes: {
@@ -562,7 +577,9 @@ export const TECHNICAL_TEXT = {
         points: [
           ["Chrome loads each page under test, and what that page loads."],
           [
-            "A run, or ",
+            "A run with ",
+            { code: "--sitemap" },
+            ", or ",
             { code: "voicecap list-urls" },
             ", reads the site's sitemap. ",
             { code: "voicecap init" },
@@ -598,7 +615,7 @@ export const TECHNICAL_TEXT = {
             "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser.",
           ],
           [
-            "Where it lives: the transcripts repository is kept private, and this website is public to anyone with its address.",
+            "Where it lives: the transcripts repository, which the README says to keep private, and this website, which is public to anyone with its address.",
           ],
         ] satisfies Sentence[],
       },
@@ -621,6 +638,12 @@ export const TECHNICAL_TEXT = {
           "NVDA's interface is to be in English: voicecap knows a pass has ended, and raises its flags, by NVDA's English words.",
         ],
         ["The computer is voicecap's during a run, for one voicecap at a time."],
+        [
+          "While focus is inside a frame, such as an embedded video, map, or form, a switch to another window is noticed only if it lasts until the step ends.",
+        ],
+        [
+          "While a page is open, its browser's debugging port can be reached by other people signed in to the same computer at the same time.",
+        ],
         [
           `A page that talks without stopping can time out: voicecap tries it ${plural(DEFAULT_CONFIG.pageAttempts, "time")} in all, then records it as failed.`,
         ],
@@ -689,24 +712,24 @@ export const TECHNICAL_TEXT = {
     headings: "The page has no headings, or its first heading isn't level 1.",
     "tab-no-stops": "Tab reached nothing that takes focus.",
     "tab-before-main": `${count(tabBeforeMain.maxStops)} or more Tab stops come before the main content, and the first isn't a skip link, judged from what has focus, not from NVDA's words.`,
-    "repeated-phrase": `The same words ${count(repeatedPhrase.minRun)} or more times in a row: a possible focus trap, or content said twice. The read pass's repeat at the page's end doesn't count.`,
+    "repeated-phrase": `The same words ${count(repeatedPhrase.minRun)} or more times in a row: a possible focus trap, or content repeated that often. The read pass's repeat at the page's end doesn't count.`,
   } satisfies Record<BuiltInRule, string>,
   /**
    * Each command, in the order a person uses them, and what it's for: each subcommand as
-   * `voicecap <name>`, and the run by its first option, `voicecap --site …`.
+   * `voicecap <name>`, and the run by its first option, `voicecap --site <url> …`.
    */
   commands: [
     {
       name: "voicecap preflight",
-      job: "Checks this computer is ready for a run, without starting the screen reader.",
+      job: "Checks the computer it runs on is ready for a run, without starting the screen reader.",
     },
     {
       name: "voicecap setup",
-      job: "Installs and checks what voicecap needs on this computer: on Windows, voicecap's own copy of NVDA, and Chromium where Chrome isn't installed.",
+      job: "Installs and checks what voicecap needs on the computer it runs on: on Windows, voicecap's own copy of NVDA, and Chromium where Chrome isn't installed.",
     },
     {
       name: "voicecap doctor",
-      job: "Checks this computer, with a short live test of the screen reader, and prints a summary to paste into a bug report.",
+      job: "Checks the computer it runs on, with a short live test of the screen reader, and prints a summary to paste into a bug report.",
     },
     { name: "voicecap demo", job: "A guided first run, on a demo site that comes with voicecap." },
     {
@@ -718,17 +741,17 @@ export const TECHNICAL_TEXT = {
       job: "Exports a sitemap as a page list, or drafts a sample to curate.",
     },
     {
-      name: "voicecap --site …",
+      name: "voicecap --site <url> …",
       job: "The run: NVDA reads each page on the list, and every word it says is saved.",
     },
     { name: "voicecap review", job: "Adds a person's decision on a page to its review history." },
     {
       name: "voicecap review --replay",
-      job: "Reads each page's saved words aloud, at a speed a person can follow, and records each decision.",
+      job: 'Reads the saved words of the pages "What needs attention" names aloud (every page\'s, with `--all`), at a speed a person can follow, and records each decision.',
     },
     {
       name: "voicecap manual add",
-      job: "Adds a hands-on NVDA session, a Speech Viewer copy or an NVDA log, to a page's record.",
+      job: "Imports a hands-on NVDA session for a page, from a Speech Viewer copy or an NVDA log, as a sealed record of its own.",
     },
     {
       name: "voicecap report",
@@ -756,14 +779,14 @@ export const TECHNICAL_TEXT = {
     },
     {
       tool: "Guidepup",
-      job: "Starts NVDA, presses its keys, and hears what it says: voicecap's NVDA driver is built on it",
+      job: "Starts NVDA, presses its keys, and hears what it says: voicecap's NVDA driver is built on it. On a Mac, it starts VoiceOver for the live test",
       license: "MIT",
       where: "A run, and the live test",
       npm: "@guidepup/guidepup",
     },
     {
       tool: "@guidepup/setup",
-      job: "Installs NVDA's build for voicecap",
+      job: "Installs NVDA's build for voicecap, and on a Mac, the files VoiceOver needs",
       license: "MIT",
       where: "`voicecap setup`",
       npm: "@guidepup/setup",
