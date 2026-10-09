@@ -1,7 +1,8 @@
 /**
  * What the Markdown and the JSON of the report for AI tools say alike, so that the two can't differ:
- * the steps of a transcript (`stepsOf`), and the words of a record where it names the library that
- * drives the screen reader (`ownWords`). Pure.
+ * the steps of a transcript (`stepsOf`), the words of a record where it names the library that
+ * drives the screen reader (`ownWords`), a page's result as sentences (`resultOf`), and a phrase
+ * of the page's as a sentence of its own (`asSentence`). Pure.
  *
  * The steps are each step's number, the key pressed, and what NVDA said. The Markdown puts one on
  * each line of a transcript's block, and the JSON gives each as data. They are worked out from the
@@ -14,8 +15,9 @@
  * those steps are: at the start of the read pass. Words that begin like a label anywhere else are
  * what NVDA said, and are never cut.
  */
-import type { AppendixFile } from "../model.js";
+import type { AppendixFile, PageCard } from "../model.js";
 import { AI_TEXT, HOW_TEXT } from "../text.js";
+import { fromRun, sentence } from "../words.js";
 
 /** One step of a pass: its place in it, the key pressed, and what NVDA said, word for word. */
 export interface Step {
@@ -58,3 +60,21 @@ export function stepsOf(file: Pick<AppendixFile, "pass" | "text" | "lines">): St
  * title, is never changed.
  */
 export const ownWords = (words: string): string => words.replace(/guidepup/gi, AI_TEXT.driver);
+
+/**
+ * What a page's record says of how it ended and where its transcripts come from, as sentences: its
+ * status, its failure when it has one, and the run its transcripts are from when that isn't the
+ * latest. A page's status and its failure are what its run recorded, so they go through `ownWords`.
+ */
+export function resultOf(card: PageCard): string {
+  const from = fromRun(card);
+  return [
+    sentence(ownWords(card.statusText)),
+    ...(card.failure === null ? [] : [sentence(ownWords(card.failure))]),
+    ...(from === null ? [] : [sentence(from)]),
+  ].join(" ");
+}
+
+/** Words with a capital and a full stop, when they have none: a phrase of the page's as a sentence of its own. */
+export const asSentence = (words: string): string =>
+  sentence(`${words.charAt(0).toUpperCase()}${words.slice(1)}`);

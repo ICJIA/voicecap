@@ -19,16 +19,22 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { BUILT_IN_RULES } from "../src/flags/evaluate.js";
 import { RULE_WCAG } from "../src/flags/wcag.js";
-import { PASS_NAMES, type FlagResult, type ReviewsFile } from "../src/model.js";
+import {
+  PASS_NAMES,
+  type FlagResult,
+  type PageRecord,
+  type ReviewEntry,
+  type ReviewsFile,
+} from "../src/model.js";
 import { aiReportOf, renderAiJson, type AiReport } from "../src/share/ai/json.js";
 import { markdownInline, markdownText } from "../src/share/ai/escape.js";
 import { renderAiMarkdown } from "../src/share/ai/markdown.js";
-import { ownWords, stepsOf } from "../src/share/ai/shared.js";
+import { ownWords, resultOf, stepsOf } from "../src/share/ai/shared.js";
 import type { AttentionCard } from "../src/share/attention.js";
 import { attentionWords } from "../src/share/attention-words.js";
 import { axeCriteriaList } from "../src/share/axe-view.js";
 import { loadShareInput } from "../src/share/load.js";
-import { buildShareModel, type ShareModel } from "../src/share/model.js";
+import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
 import {
   AI_TEXT,
   APPENDIX_TEXT,
@@ -37,10 +43,11 @@ import {
   PAGES_TEXT,
   WORD_TEXT,
 } from "../src/share/text.js";
+import { verdictOf } from "../src/share/verdict.js";
 import { sentence } from "../src/share/words.js";
 import { rawNode, rawRule, type RawAxeRule } from "./helpers/raw-axe.js";
 import { withCards } from "./helpers/share-attention.js";
-import { failedAttempt, shareRun } from "./helpers/share-data.js";
+import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import {
   axeFilesOf,
   DEMO_ROOT,
@@ -172,6 +179,7 @@ const RULE = obj({
   impact: maybe(enumOf("critical", "serious", "moderate", "minor")),
   wcag: strs,
   bestPractice: bool,
+  tags: strs,
   elements: list(ELEMENT),
   moreElements: num,
   helpUrl: maybe(str),
@@ -214,12 +222,13 @@ const PAGE = obj({
     }),
   ),
   firstLines: strs,
-  transcriptsFrom: maybe(obj({ run: str, date: maybe(str) })),
-  passes: list(PASS),
   flags: list(FLAG),
   flagsNote: maybe(str),
+  passesNote: maybe(str),
   axe: maybe(AXE),
   review: strs,
+  transcriptsFrom: maybe(obj({ run: str, date: maybe(str) })),
+  passes: list(PASS),
 });
 const CARD = obj({
   number: num,
@@ -266,8 +275,8 @@ const PROBLEM = obj({
   label: maybe(str),
   path: str,
   attempt: maybe(num),
-  startedAt: maybe(str),
-  endedAt: maybe(str),
+  startedAt: either(str, notRecorded),
+  endedAt: either(str, notRecorded),
   kind: str,
   kindTitle: str,
   again: enumOf("no", "same", "different", "unknown"),
@@ -279,7 +288,7 @@ const PROBLEM = obj({
   verdict: str,
   effect: str,
   reportIt: maybe(str),
-  record: list(obj({ time: maybe(str), source: str, entry: str })),
+  record: list(obj({ time: either(str, notRecorded), source: str, entry: str })),
   stack: maybe(str),
   notRecorded: strs,
 });
@@ -295,7 +304,12 @@ const REPORT = obj({
   screenReader: str,
   voicecapVersion: maybe(either(str, notRecorded)),
   siteAddress: str,
-  verdict: maybe(obj({ kind: enumOf("ok", "warn", "bad"), headline: str })),
+  verdict: maybe(
+    obj({
+      kind: enumOf("nothing-needs-attention", "needs-attention", "pages-not-read"),
+      headline: str,
+    }),
+  ),
   summary: obj({ sentence: str, method: str }),
   counts: obj({
     pagesInScope: num,
@@ -333,8 +347,8 @@ const REPORT = obj({
     }),
   ),
   runsLeftOut: list(obj({ id: str, text: str })),
-  problemsLine: str,
-  problems: list(PROBLEM),
+  runProblemsLine: str,
+  runProblems: list(PROBLEM),
   fingerprints: list(obj({ run: str, page: maybe(str), file: str, bytes: num, sha256: str })),
   verifyCommand: maybe(str),
   generated: obj({ at: str, offsets: strs, text: str }),
@@ -560,15 +574,18 @@ function changesModel(): ShareModel {
   );
 }
 
-/** One page of an unexpected error whose words and stack name the library that drives the screen reader. */
-function problemModel(): ShareModel {
+/**
+ * One page of an unexpected error whose words and stack name the library that drives the screen
+ * reader. The page is labeled as `label` says: "Boom" unless a test gives another, or null for none.
+ */
+function problemModel(label: string | null = "Boom"): ShareModel {
   const run = shareRun({
     id: "r2",
     voicecapVersion: "0.16.0",
     pages: [
       {
         path: "/boom/",
-        label: "Boom",
+        ...(label === null ? {} : { label }),
         status: "failed",
         failedAttempts: [
           failedAttempt({
@@ -657,6 +674,237 @@ function hostileModel(
       ...(parts.siteName === undefined ? {} : { siteName: parts.siteName }),
     }),
   );
+}
+
+/**
+ * A report of fifteen pages whose numbers all differ: three read with no flags, five read with the
+ * generic link flag (two of them with the headings flag too), and seven that failed and were never
+ * read; and three sessions, one of ten minutes and two with no recorded end. So no number of At a
+ * glance can stand in for another's, or be left at nothing, and read as complete when it isn't.
+ */
+function countsModel(): ShareModel {
+  const read = (path: string, flags: FlagResult[] = []): SharePageSpec => ({
+    path,
+    files: TRANSCRIPTS,
+    passes: LINES,
+    flags,
+  });
+  const lost = (path: string): SharePageSpec => ({
+    path,
+    status: "failed",
+    failedAttempts: [failedAttempt({ n: 1 })],
+  });
+  const run = shareRun({
+    id: "r1",
+    voicecapVersion: "0.16.0",
+    sessions: [
+      { startedAt: "2026-09-26T14:05:00-05:00", endedAt: "2026-09-26T14:15:00-05:00" },
+      { endReason: null },
+      { endReason: null },
+    ],
+    pages: [
+      ...[1, 2, 3].map((at) => read(`/plain-${at}/`)),
+      ...[1, 2, 3, 4, 5].map((at) =>
+        read(`/flagged-${at}/`, at <= 2 ? [LINK_FLAG, HEADINGS] : [LINK_FLAG]),
+      ),
+      ...[1, 2, 3, 4, 5, 6, 7].map((at) => lost(`/lost-${at}/`)),
+    ],
+  });
+  return buildShareModel(inputOf([run], { transcripts: storeOf(), generatedAt: MADE }));
+}
+
+/**
+ * Four pages read in full, with a review of three: an issue found and fixed, an issue found and not
+ * fixed, a page reviewed with no issue, and none of the fourth: 3 of 4 reviewed, 1 of 2 fixed.
+ */
+function reviewModel(): ShareModel {
+  const run = shareRun({
+    id: "r1",
+    voicecapVersion: "0.16.0",
+    pages: ["a", "b", "c", "d"].map((name) => ({
+      path: `/${name}/`,
+      files: TRANSCRIPTS,
+      passes: LINES,
+    })),
+  });
+  const [a, b, c] = run.pages;
+  const entry = (
+    page: PageRecord | undefined,
+    status: ReviewEntry["status"],
+    at: string,
+    note: string | null = null,
+  ): [string, ReviewEntry] => {
+    const reviewed = must(page, "a page");
+    return [
+      reviewed.key,
+      {
+        status,
+        reviewer: "Pat Lee",
+        at,
+        note,
+        run: run.id,
+        url: reviewed.url,
+        files: {},
+        content: Object.fromEntries(
+          Object.entries(reviewed.passes).map(([pass, summary]) => [pass, summary.contentSha256]),
+        ),
+      },
+    ];
+  };
+  const entries = [
+    entry(a, "issue", "2026-10-06T14:00:00-05:00", "The logo has no name."),
+    entry(a, "fixed", "2026-10-06T14:05:00-05:00"),
+    entry(b, "issue", "2026-10-06T14:10:00-05:00", "The first heading is a 2."),
+    entry(c, "reviewed", "2026-10-06T14:15:00-05:00"),
+  ];
+  const reviews: ReviewsFile = {
+    schemaVersion: 1,
+    pages: Object.fromEntries(
+      [a, b, c].map((page) => {
+        const key = must(page, "a page").key;
+        return [key, entries.filter(([each]) => each === key).map(([, review]) => review)];
+      }),
+    ),
+  };
+  return buildShareModel(inputOf([run], { reviews, transcripts: storeOf(), generatedAt: MADE }));
+}
+
+/**
+ * A page read in full in two runs, which lost one line of its read pass and gained three, and whose
+ * generic link flag came in the second: a page that is new each time and one gone. `label` is the
+ * page's label in both runs, and `gone` the label of a page only the first run has.
+ */
+function newRuleModel(label?: string, gone?: string): ShareModel {
+  const before = ["alpha", "beta", "gamma"];
+  const after = ["alpha", "one", "two", "three", "gamma"];
+  const named = label === undefined ? {} : { label };
+  const first = shareRun({
+    id: "r1",
+    createdAt: "2026-09-26T14:05:00-05:00",
+    passes: ["read"],
+    pages: [
+      { path: "/", ...named, files: ["read.txt"], passes: { read: before } },
+      ...(gone === undefined
+        ? []
+        : [{ path: "/gone/", label: gone, files: ["read.txt"], passes: { read: before } }]),
+    ],
+  });
+  const second = shareRun({
+    id: "r2",
+    createdAt: "2026-09-27T14:05:00-05:00",
+    passes: ["read"],
+    pages: [
+      { path: "/", ...named, files: ["read.txt"], passes: { read: after }, flags: [LINK_FLAG] },
+    ],
+  });
+  return buildShareModel(
+    inputOf([first, second], {
+      transcripts: storeOf((_slug, run) => ({ read: run === "r1" ? before : after })),
+      generatedAt: MADE,
+    }),
+  );
+}
+
+/**
+ * Four pages whose flags are as their run recorded them, since their transcripts couldn't be read
+ * here: one says "click here", one "read more", and two "learn more", so a card is on two pages and
+ * two are on one.
+ */
+function recordedModel(): ShareModel {
+  const flagged = (path: string, item: string): SharePageSpec => ({
+    path,
+    files: TRANSCRIPTS,
+    passes: LINES,
+    flags: [
+      {
+        rule: "generic-link-text",
+        pass: "read",
+        count: 1,
+        found: [{ text: item, count: 1 }],
+        message: `Generic link text announced 1 time in the read pass: "${item}" ×1.`,
+      },
+    ],
+  });
+  const run = shareRun({
+    id: "r1",
+    voicecapVersion: "0.16.0",
+    pages: [
+      flagged("/a/", "click here"),
+      flagged("/b/", "read more"),
+      flagged("/c/", "learn more"),
+      flagged("/d/", "learn more"),
+    ],
+  });
+  return buildShareModel(
+    inputOf([run], {
+      transcripts: storeOf(),
+      flagsAsRecorded: run.pages.map((page) => ({ run: run.id, slug: page.slug })),
+      generatedAt: MADE,
+    }),
+  );
+}
+
+/** Five pages of a run from voicecap 0.16.0 whose titles are padded, blank, empty, none, and not recorded. */
+function titlesModel(): ShareModel {
+  const page = (path: string, title?: string | null): SharePageSpec => ({
+    path,
+    ...(title === undefined ? {} : { title }),
+    files: TRANSCRIPTS,
+    passes: LINES,
+  });
+  const run = shareRun({
+    id: "r1",
+    voicecapVersion: "0.16.0",
+    pages: [
+      page("/padded/", "  A padded title \t"),
+      page("/blank/", " \t "),
+      page("/empty/", ""),
+      page("/none/", null),
+      page("/unrecorded/"),
+    ],
+  });
+  return buildShareModel(inputOf([run], { transcripts: storeOf(), generatedAt: MADE }));
+}
+
+/**
+ * One page with axe's results of 1 critical, 2 serious, 3 moderate, and 4 minor issues, and 5 rules
+ * to review: no two counts alike, so none can stand for another.
+ */
+function axeCountsModel(): ShareModel {
+  const rules = (impact: string, count: number, kind = impact): RawAxeRule[] =>
+    Array.from({ length: count }, (_, at) => rawRule(`${kind}-${at + 1}`, { impact, nodes: [] }));
+  const found = keptAxe({
+    violations: [
+      ...rules("critical", 1),
+      ...rules("serious", 2),
+      ...rules("moderate", 3),
+      ...rules("minor", 4),
+    ],
+    incomplete: rules("serious", 5, "review"),
+    passes: 40,
+    inapplicable: 20,
+  });
+  const run = shareRun({
+    id: "r1",
+    voicecapVersion: "0.16.0",
+    pages: [{ path: "/", files: TRANSCRIPTS, passes: LINES, axe: found.record }],
+  });
+  return buildShareModel(
+    inputOf([run], { transcripts: storeOf(), axeFiles: axeFilesOf([run]), generatedAt: MADE }),
+  );
+}
+
+/** Two pages of a run, one whose record lists no transcript files, and one that does. */
+function noFilesModel(): ShareModel {
+  const run = shareRun({
+    id: "r1",
+    voicecapVersion: "0.16.0",
+    pages: [
+      { path: "/nofiles/", files: [], passes: LINES },
+      { path: "/", files: TRANSCRIPTS, passes: LINES },
+    ],
+  });
+  return buildShareModel(inputOf([run], { transcripts: storeOf(), generatedAt: MADE }));
 }
 
 /**
@@ -814,8 +1062,8 @@ describe("renderAiJson", () => {
         "readCopyNote",
         "runs",
         "runsLeftOut",
-        "problemsLine",
-        "problems",
+        "runProblemsLine",
+        "runProblems",
         "fingerprints",
         "verifyCommand",
         "generated",
@@ -832,6 +1080,14 @@ describe("renderAiJson", () => {
       changes: changesModel(),
       problem: problemModel(),
       axe: axeModel([IMAGE_ALT, rawRule("rule-2")], 2),
+      counts: countsModel(),
+      review: reviewModel(),
+      newRule: newRuleModel("Home", "Old page"),
+      axeCounts: axeCountsModel(),
+      recorded: recordedModel(),
+      titles: titlesModel(),
+      noFiles: noFilesModel(),
+      library: libraryModel(),
     };
 
     for (const [name, model] of Object.entries(models)) {
@@ -974,7 +1230,7 @@ describe("renderAiJson", () => {
     const report = reportOf(i2i);
 
     expect(report.verdict).toEqual({
-      kind: "warn",
+      kind: "needs-attention",
       headline: "1 problem needs attention, on 32 pages",
     });
     expect(report.summary).toEqual({
@@ -1042,6 +1298,95 @@ describe("renderAiJson", () => {
     expect(report.attention).toEqual([]);
     expect(report.voicecapVersion).toBe("0.16.0");
     expect(report.runs.map((each) => each.id)).toEqual(["r1"]);
+  });
+
+  it("gives each number of At a glance as it is, for a site whose numbers all differ: none stands in for another or reads as nothing", () => {
+    const report = reportOf(countsModel());
+
+    expect(report.counts).toEqual({
+      // Fifteen pages in scope, of which NVDA read the 8 that have transcripts.
+      pagesInScope: 15,
+      pagesRead: 8,
+      // Three cards, on 12 pages: the generic links (5 pages), the first heading (2 of those), and
+      // the pages the run couldn't read (7).
+      problems: 3,
+      problemPages: 12,
+      linesSpoken: 64,
+      // One session of ten minutes counts, and two with no recorded end don't, and are said.
+      nvdaMs: 600_000,
+      runs: 1,
+      sessionsWithoutEnd: 2,
+      // Three pages read with no problems, 5 with problems, and 7 not read.
+      ring: { readNoProblems: 3, readWithProblems: 5, notRead: 7 },
+    });
+    expect(report.attention).toHaveLength(report.counts.problems);
+    expect(
+      new Set(report.attention.flatMap((card) => card.pages.map((page) => page.number))).size,
+    ).toBe(report.counts.problemPages);
+    // The same numbers as the model's own, which the page and the Markdown say.
+    const model = countsModel();
+
+    expect(report.counts.pagesRead).toBe(model.result.read);
+    expect(report.counts.pagesInScope).toBe(model.result.pages);
+    expect(report.counts.ring.readWithProblems).toBe(model.ring.needAttention);
+    expect(renderAiMarkdown(model)).toContain("- Read, with problems: 5 pages");
+    expect(renderAiMarkdown(model)).toContain("- 8 of 15 pages read by NVDA");
+    // Of the rich model's three pages in scope, NVDA read two.
+    expect(reportOf(richModel()).counts).toMatchObject({ pagesInScope: 3, pagesRead: 2 });
+  });
+
+  it("names the verdict for its condition: nothing needs attention, something does, or pages weren't read", () => {
+    const clean = shareRun({
+      id: "r1",
+      voicecapVersion: "0.16.0",
+      pages: [{ path: "/", files: TRANSCRIPTS, passes: LINES }],
+    });
+    const nothing = buildShareModel(
+      inputOf([clean], { transcripts: storeOf(), generatedAt: MADE }),
+    );
+
+    expect(reportOf(nothing).verdict).toEqual({
+      kind: "nothing-needs-attention",
+      headline: "Nothing needs attention",
+    });
+    // NVDA read every page, and a problem is left.
+    expect(reportOf(i2i).verdict).toEqual({
+      kind: "needs-attention",
+      headline: "1 problem needs attention, on 32 pages",
+    });
+    // NVDA read fewer pages than are in scope, whatever else needs attention: the headline says that too.
+    expect(reportOf(richModel()).verdict?.kind).toBe("pages-not-read");
+    expect(reportOf(countsModel()).verdict).toEqual({
+      kind: "pages-not-read",
+      headline: "3 problems need attention, on 12 pages",
+    });
+    // Each of the model's three kinds is one of these, and no other word is a kind.
+    const named = { ok: "nothing-needs-attention", warn: "needs-attention", bad: "pages-not-read" };
+
+    for (const model of [nothing, i2i, richModel(), countsModel(), demo]) {
+      const kind = verdictOf(model.result).kind;
+
+      expect(reportOf(model).verdict?.kind).toBe(named[kind]);
+    }
+    expect(JSON.stringify(reportOf(i2i))).not.toMatch(/"(ok|warn|bad)"/);
+  });
+
+  it("gives the human review as counts out of their totals: the transcripts reviewed and the issues fixed", () => {
+    // The rich model's Grants page was reviewed, and one of its two transcribed pages is of no issue.
+    expect(reportOf(richModel()).humanReview).toEqual({
+      transcriptsReviewed: { count: 1, of: 2 },
+      issuesFixed: { count: 0, of: 0 },
+    });
+    // Three of four pages are reviewed, and one of the two issues found is fixed.
+    expect(reportOf(reviewModel()).humanReview).toEqual({
+      transcriptsReviewed: { count: 3, of: 4 },
+      issuesFixed: { count: 1, of: 2 },
+    });
+    // None counts for a site no run counts for.
+    expect(reportOf(noRunModel()).humanReview).toEqual({
+      transcriptsReviewed: { count: 0, of: 0 },
+      issuesFixed: { count: 0, of: 0 },
+    });
   });
 
   it("says each card of What needs attention in the page's words: its problem, where, how to fix it, and its pages", () => {
@@ -1142,6 +1487,42 @@ describe("renderAiJson", () => {
     expect(attention[0]?.title).toBe(words);
     expect(attention[0]?.pages[0]).toEqual({ number: 1, name: words, path: "/", detail: words });
   });
+
+  it("says why NVDA's words aren't at a place of a card whose pages' flags are as the run recorded them, for one page and for more", () => {
+    const model = recordedModel();
+    const { attention } = reportOf(model);
+    const one = "NVDA's words aren't available here: this page's transcripts couldn't be read.";
+    const many = "NVDA's words aren't available here: these pages' transcripts couldn't be read.";
+
+    // A card on two pages comes first, and says it of pages; the two on one page say it of the page.
+    expect(attention.map((card) => [card.kind, card.pages.length])).toEqual([
+      ["recorded", 2],
+      ["recorded", 1],
+      ["recorded", 1],
+    ]);
+    expect(attention.map((card) => card.places.map((place) => place.unavailable))).toEqual([
+      [many],
+      [one],
+      [one],
+    ]);
+    // They are the card's own words, and no place of such a card has a line of NVDA's to quote.
+    model.attention.forEach((card, at) => {
+      expect(attention[at]?.places.map((place) => place.unavailable)).toEqual(
+        attentionWords(card).places.map((place) => place.unavailable),
+      );
+    });
+    expect(attention.flatMap((card) => card.places.flatMap((place) => place.said))).toEqual([]);
+    // The Markdown says them where it quotes a place.
+    const markdown = renderAiMarkdown(model);
+
+    expect(markdown).toContain(many);
+    expect(markdown).toContain(one);
+    // A card with NVDA's words has none to say.
+    expect(reportOf(i2i).attention[0]?.places.map((place) => place.unavailable)).toEqual([
+      null,
+      null,
+    ]);
+  });
 });
 
 describe("the pages of renderAiJson", () => {
@@ -1165,12 +1546,13 @@ describe("the pages of renderAiJson", () => {
       "result",
       "captured",
       "firstLines",
-      "transcriptsFrom",
-      "passes",
       "flags",
       "flagsNote",
+      "passesNote",
       "axe",
       "review",
+      "transcriptsFrom",
+      "passes",
     ]);
     // Its number, name, label, and address.
     expect(grants).toMatchObject({
@@ -1315,6 +1697,51 @@ describe("the pages of renderAiJson", () => {
     expect(never.axe).toEqual({
       notRecorded: "Not checked: axe didn't check this page, since it wasn't read.",
     });
+  });
+
+  it("says a page whose record lists no transcript files in the note on its passes, as the Markdown says it, and no other page does", () => {
+    const model = noFilesModel();
+    const [none, listed] = reportOf(model).pages;
+
+    expect(none).toMatchObject({
+      path: "/nofiles/",
+      status: "transcribed",
+      passes: [],
+      passesNote: APPENDIX_TEXT.noFiles,
+      // The page's transcripts are the run's, though it lists none.
+      transcriptsFrom: { run: "r1", date: null },
+    });
+    expect(APPENDIX_TEXT.noFiles).toBe("This run's record lists no transcript files for the page.");
+    expect(listed?.passesNote).toBeNull();
+    expect(listed?.passes).toHaveLength(3);
+    expect(renderAiMarkdown(model)).toContain(APPENDIX_TEXT.noFiles);
+    // A page with no transcripts to speak of, and a page whose transcript can't be read, have none.
+    const rich = reportOf(richModel()).pages;
+
+    expect(rich.map((page) => page.passesNote)).toEqual([null, null, null]);
+    expect(reportOf(demo).pages.every((page) => page.passesNote === null)).toBe(true);
+  });
+
+  it("gives a page's title as the Markdown shows it: trimmed, and none when it is blank, empty, or null", () => {
+    const model = titlesModel();
+    const titles = reportOf(model).pages.map((page) => page.title);
+
+    expect(titles).toEqual([
+      "A padded title",
+      null,
+      null,
+      null,
+      { notRecorded: "Not recorded: this run used voicecap 0.16.0." },
+    ]);
+    // The Markdown shows a title where the JSON has one, and the same words.
+    const markdown = renderAiMarkdown(model);
+
+    expect(markdown.match(/^- Title: .*$/gm)).toEqual([
+      "- Title: A padded title",
+      "- Title: Not recorded: this run used voicecap 0.16.0.",
+    ]);
+    // The padded title the model keeps is as the record has it.
+    expect(model.pages[0]?.title).toBe("  A padded title \t");
   });
 
   it("gives every step of every transcript, a step each, as `n`, `key`, and `said`", () => {
@@ -1573,6 +2000,52 @@ describe("axe in renderAiJson", () => {
     return axe;
   }
 
+  it("gives axe's counts, each its own: the issues, how many of each impact, what needs review, and the rules passed", () => {
+    const model = axeCountsModel();
+    const axe = must(pageAt(reportOf(model), 0).axe, "axe's results");
+
+    if ("notRecorded" in axe) throw new Error("axe's results are missing.");
+    expect(axe.counts).toEqual({
+      issues: 10,
+      critical: 1,
+      serious: 2,
+      moderate: 3,
+      minor: 4,
+      needsReview: 5,
+      passes: 40,
+    });
+    // The issues most severe first, and what needs review apart, as the page has them.
+    expect(axe.issues.map((issue) => issue.id)).toEqual([
+      "critical-1",
+      "serious-1",
+      "serious-2",
+      "moderate-1",
+      "moderate-2",
+      "moderate-3",
+      "minor-1",
+      "minor-2",
+      "minor-3",
+      "minor-4",
+    ]);
+    expect(axe.needsReview).toHaveLength(5);
+    expect(axe.issues.map((issue) => issue.impact)).toEqual([
+      "critical",
+      "serious",
+      "serious",
+      "moderate",
+      "moderate",
+      "moderate",
+      "minor",
+      "minor",
+      "minor",
+      "minor",
+    ]);
+    // The Markdown says the same counts, in its words.
+    expect(renderAiMarkdown(model)).toContain(
+      "Issues: 10; Critical: 1; Serious: 2; Moderate: 3; Minor: 4; Needs review: 5; Rules passed: 40.",
+    );
+  });
+
   it("gives axe's version, the tags it ran, its counts, and its issues", () => {
     const axe = grantsAxe();
 
@@ -1627,6 +2100,7 @@ describe("axe in renderAiJson", () => {
       "impact",
       "wcag",
       "bestPractice",
+      "tags",
       "elements",
       "moreElements",
       "helpUrl",
@@ -1660,7 +2134,36 @@ describe("axe in renderAiJson", () => {
 
     for (const rule of [...axe.issues, ...axe.needsReview]) {
       expect(rule.wcag).toEqual(axeCriteriaList(must(tags.get(rule.id), `tags of ${rule.id}`)));
+      // And its own tags are those of its rule, as axe gave them: its WCAG version and level among them.
+      expect(rule.tags).toEqual(must(tags.get(rule.id), `tags of ${rule.id}`));
     }
+  });
+
+  it("gives each rule its own tags, in axe's order, which name the WCAG version and level the criteria are of", () => {
+    const axe = grantsAxe();
+    const [alt, viewport, none] = axe.issues;
+
+    expect(alt?.tags).toEqual([
+      "cat.text-alternatives",
+      "wcag2a",
+      "wcag111",
+      "wcag412",
+      "best-practice",
+      "section508",
+    ]);
+    expect(viewport?.tags).toEqual(["cat.sensory-and-visual-cues", "best-practice"]);
+    expect(none?.tags).toEqual(["cat.parsing"]);
+    expect(axe.needsReview[0]?.tags).toEqual(["cat.color", "wcag2aa", "wcag143"]);
+    // The tags of the rules axe ran are the page's, not a rule's: a rule's is a list of its own.
+    expect(axe.tags).toEqual([
+      "wcag2a",
+      "wcag2aa",
+      "wcag21a",
+      "wcag21aa",
+      "wcag22aa",
+      "best-practice",
+    ]);
+    expect(alt?.tags).not.toBe(axe.tags);
   });
 
   it("gives each element its selectors, its HTML, and axe's words on how to fix it, as the file keeps them", () => {
@@ -1789,8 +2292,8 @@ describe("what isn't recorded, for an older run", () => {
     expect(text.match(/Not recorded: this run used voicecap 0\.4\.1\./g)?.length).toBeGreaterThan(
       10,
     );
-    expect(older.problems.every((problem) => problem.notRecorded.length > 0)).toBe(true);
-    expect(older.problems[0]?.notRecorded).toContain(
+    expect(older.runProblems.every((problem) => problem.notRecorded.length > 0)).toBe(true);
+    expect(older.runProblems[0]?.notRecorded).toContain(
       "The step and the key: not recorded: this run used voicecap 0.4.1.",
     );
   });
@@ -1904,6 +2407,87 @@ describe("the details of renderAiJson", () => {
     ]);
   });
 
+  it("gives the lines a pass lost and gained as the counts they are, and the rules whose flag came, in their own parts", () => {
+    const { changes } = reportOf(newRuleModel());
+    const [page] = changes.changed;
+
+    // One line lost and three gained, which are no two counts the same: a pass can't swap them.
+    expect(page).toMatchObject({
+      label: null,
+      path: "/",
+      summary: "read: 1 line removed and 3 added",
+      rulesResolved: [],
+      rulesNew: ["generic-link-text"],
+      passes: [
+        {
+          pass: "read",
+          removed: 1,
+          added: 3,
+          lines: [
+            { kind: "same", text: "alpha" },
+            { kind: "removed", text: "beta" },
+            { kind: "added", text: "one" },
+            { kind: "added", text: "two" },
+            { kind: "added", text: "three" },
+            { kind: "same", text: "gamma" },
+          ],
+        },
+      ],
+      unreadable: [],
+      flagsNote: "Flags: generic-link-text (read pass), none before, 1 now (new).",
+    });
+    expect(changes.samePages).toBe(0);
+    expect(changes.line).toBe(
+      "Compared with the run on 26 September: 1 of 1 page sounds different, and 0 sound exactly the same.",
+    );
+    // The page's own counts, and the lines it shows, are what the Markdown shows.
+    const markdown = renderAiMarkdown(newRuleModel());
+
+    expect(markdown).toContain("#### /: read: 1 line removed and 3 added");
+    expect(markdown).toContain("`generic-link-text` new");
+  });
+
+  it("gives a page's label as the Markdown names a page by it: trimmed, and none when it is blank or missing", () => {
+    // A problem's page, a page that changed, and a page read in one run only.
+    const names = (label: string | null, gone?: string) => {
+      const report = reportOf(newRuleModel(label ?? undefined, gone));
+      const problem = reportOf(problemModel(label));
+
+      return {
+        problem: problem.runProblems[0]?.label,
+        changed: report.changes.changed[0]?.label,
+        gone: report.changes.onlyInOne[0]?.label,
+        page: report.pages[0]?.labeled,
+      };
+    };
+
+    expect(names("Home", "Old page")).toEqual({
+      problem: "Home",
+      changed: "Home",
+      gone: "Old page",
+      page: true,
+    });
+    expect(names("  Home \t", "  Old page  ")).toEqual({
+      problem: "Home",
+      changed: "Home",
+      gone: "Old page",
+      page: true,
+    });
+    // A blank label is none: the Markdown names the page by its address.
+    expect(names("   ", " \t ")).toEqual({
+      problem: null,
+      changed: null,
+      gone: null,
+      page: false,
+    });
+    expect(names("", "")).toEqual({ problem: null, changed: null, gone: null, page: false });
+    expect(names(null)).toMatchObject({ problem: null, changed: null, gone: undefined });
+    const markdown = renderAiMarkdown(newRuleModel("   ", " \t "));
+
+    expect(markdown).toContain("- **/gone/**: no longer listed, not in the latest run.");
+    expect(markdown).toContain("#### /: read: 1 line removed and 3 added");
+  });
+
   it("says there's no earlier run to compare with, as the page does, and gives the demo's two runs compared", () => {
     expect(reportOf(i2i).changes).toEqual({
       line: CHANGES_TEXT.none,
@@ -1958,10 +2542,10 @@ describe("the details of renderAiJson", () => {
   });
 
   it("gives the problems: what happened, what voicecap did, whether it happened again, and the record word for word", () => {
-    const { problems, problemsLine } = reportOf(demo);
+    const { runProblems: problems, runProblemsLine } = reportOf(demo);
     const [first] = problems;
 
-    expect(problemsLine).toBe(ownWords(demo.problems.line));
+    expect(runProblemsLine).toBe(ownWords(demo.problems.line));
     expect(problems.map((problem) => [problem.run, problem.path])).toEqual([
       ["2026-09-29_1315", "/the-report/"],
       ["2026-09-29_1402", "/how-a-run-works/"],
@@ -1977,7 +2561,10 @@ describe("the details of renderAiJson", () => {
       decided:
         "From the error's own wording, which voicecap wrote: this run was recorded before voicecap noted a cause for each failure.",
     });
-    expect(first?.record[0]).toMatchObject({ time: null, source: "run.json" });
+    expect(first?.record[0]).toMatchObject({
+      time: { notRecorded: "Not recorded" },
+      source: "run.json",
+    });
     expect(first?.record[0]?.entry).toMatch(/^read pass: /);
     expect(first?.stack).toBeNull();
     expect(first?.reportIt).toBeNull();
@@ -1997,17 +2584,22 @@ describe("the details of renderAiJson", () => {
 
   it("gives a problem's record and stack, where to report an unexpected error, and no library", () => {
     const report = reportOf(problemModel());
-    const [problem] = report.problems;
+    const [problem] = report.runProblems;
 
-    expect(report.problems).toHaveLength(1);
+    expect(report.runProblems).toHaveLength(1);
     expect(problem).toMatchObject({
       run: "r2",
       label: "Boom",
       path: "/boom/",
       attempt: 1,
+      // When its attempt began and ended, as its run recorded the times, each its own.
+      startedAt: "2026-09-26T14:05:00.000-05:00",
+      endedAt: "2026-09-26T14:05:10.000-05:00",
       kind: "unexpected",
       pass: "read",
       step: 3,
+      // A run that gave its problems' causes needn't say how a kind was decided.
+      decided: null,
     });
     expect(problem?.reportIt).toBe(
       "This could be a problem in voicecap itself. Please report it, with this record, at github.com/ICJIA/voicecap/issues.",
@@ -2025,6 +2617,30 @@ describe("the details of renderAiJson", () => {
       "Error: the screen reader driver lost it\n    at run (node_modules/@the screen reader driver/the screen reader driver/lib/x.js:1:1)\n    at ```fence```",
     );
     expect(renderAiJson(problemModel())).not.toMatch(/guidepup/i);
+  });
+
+  it("says a time an older run didn't record as not recorded, in the page's words, for a problem and for each row of its record", () => {
+    const { runProblems } = reportOf(demo);
+    const markdown = renderAiMarkdown(demo);
+
+    expect(runProblems).toHaveLength(2);
+    for (const problem of runProblems) {
+      expect(problem.startedAt).toEqual({ notRecorded: "Time not recorded." });
+      expect(problem.endedAt).toEqual({ notRecorded: "Time not recorded." });
+      expect(problem.record.length).toBeGreaterThan(0);
+      for (const row of problem.record) expect(row.time).toEqual({ notRecorded: "Not recorded" });
+    }
+    // The Markdown says the same words, on the problem's line and for the row's time.
+    expect(markdown).toContain("Time not recorded. Another window came to the front.");
+    expect(markdown).toMatch(/^Not recorded · run.json · read pass: /m);
+    // A run that recorded the times says them as instants, which are no words.
+    const [recorded] = reportOf(problemModel()).runProblems;
+
+    expect(recorded?.startedAt).toBe("2026-09-26T14:05:00.000-05:00");
+    expect(recorded?.record.map((row) => row.time)).toEqual([
+      "2026-09-26T14:05:00.000-05:00",
+      "2026-09-26T14:05:10.000-05:00",
+    ]);
   });
 
   it("gives each file of each run with its size and SHA-256, the page it is of, and the command that checks them", () => {
@@ -2216,7 +2832,7 @@ describe("the words of a record or a website in renderAiJson", () => {
     const report = reportOf(model);
     const driver = AI_TEXT.driver;
     const [first, second] = report.pages;
-    const [problem] = report.problems;
+    const [problem] = report.runProblems;
 
     expect(renderAiJson(model)).not.toMatch(/guidepup/i);
     // A run's rows, by their labels and their values.
@@ -2236,13 +2852,19 @@ describe("the words of a record or a website in renderAiJson", () => {
     expect(first?.axe).toEqual({ notRecorded: `${driver} couldn't check this page` });
     expect(second?.axe).toEqual({ notRecorded: `Not recorded: ${driver} was unavailable` });
     // A problem's questions, its record (but for its stack's row), its stack, and what it didn't record.
-    expect(report.problemsLine).toBe(`${driver} problems: none.`);
+    expect(report.runProblemsLine).toBe(`${driver} problems: none.`);
     expect(problem).toMatchObject({
       happened: `${driver} happened.`,
       did: `${driver} did.`,
       verdict: `${driver} verdict.`,
       effect: `${driver} effect.`,
-      record: [{ time: null, source: "run.json", entry: `${driver} entry\n${driver} line two` }],
+      record: [
+        {
+          time: { notRecorded: "Not recorded" },
+          source: "run.json",
+          entry: `${driver} entry\n${driver} line two`,
+        },
+      ],
       stack: `Error: ${driver}\n    at ${driver}`,
       notRecorded: [`${driver} log: not recorded`, `Not recorded: ${driver} was not looked at`],
     });
@@ -2277,7 +2899,7 @@ describe("the words of a record or a website in renderAiJson", () => {
         report.stillToDo,
         report.howComplete,
         report.coverage,
-        report.problemsLine,
+        report.runProblemsLine,
         report.generated,
         report.changes.line,
       ];
@@ -2349,6 +2971,53 @@ describe("the words of a record or a website in renderAiJson", () => {
       }
       expect(markdown).toContain(report.summary.sentence);
       expect(markdown).toContain(report.verdict?.headline ?? "");
+    }
+  });
+});
+
+describe("resultOf, which the Markdown and the JSON say a page's result by", () => {
+  it("says a page's status, its failure, and where its transcripts are from, as sentences", () => {
+    const failed = must(
+      demo.pages.find((card) => card.path === "/how-a-run-works/"),
+      "the page that failed",
+    );
+    const [grants, , never] = richModel().pages;
+
+    expect(resultOf(failed)).toBe(
+      "Failed in run 2026-09-29_1402 · transcribed in run 2026-09-29_1315. During the headings pass, another window took the screen. From run 2026-09-29_1315, on 29 September 2026.",
+    );
+    expect(resultOf(must(grants, "the Grants card"))).toBe("Transcribed.");
+    expect(resultOf(must(never, "the page never read"))).toBe(
+      "Failed in run 2026-10-09_0900 · never transcribed. During the read pass, at step 12 (Down Arrow), another window took the screen.",
+    );
+  });
+
+  it("puts a full stop only where there is none, and names no library", () => {
+    const [grants] = richModel().pages;
+    const card = must(grants, "the Grants card");
+    const said = (parts: Partial<PageCard>): string => resultOf({ ...card, ...parts });
+
+    expect(said({ statusText: "Done.", failure: null, from: null })).toBe("Done.");
+    expect(said({ statusText: "Done?", failure: "Is it!", from: null })).toBe("Done? Is it!");
+    expect(said({ statusText: "Done", failure: "It failed", from: null })).toBe("Done. It failed.");
+    expect(said({ statusText: "Guidepup status", failure: "Guidepup failure", from: null })).toBe(
+      `${AI_TEXT.driver} status. ${AI_TEXT.driver} failure.`,
+    );
+    // Where the transcripts come from is said last, as the page says it.
+    expect(
+      said({ statusText: "Done", failure: null, from: { run: "r0", date: "1 January 2026" } }),
+    ).toBe("Done. From run r0, on 1 January 2026.");
+  });
+
+  it("is the result both files say: the Markdown's line, and the JSON's own", () => {
+    for (const model of [i2i, demo, richModel(), countsModel()]) {
+      const markdown = renderAiMarkdown(model);
+      const { pages } = reportOf(model);
+
+      model.pages.forEach((card, at) => {
+        expect(pages[at]?.result).toBe(resultOf(card));
+        expect(markdown).toContain(`- ${markdownText(`${AI_TEXT.result}: ${resultOf(card)}`)}`);
+      });
     }
   });
 });

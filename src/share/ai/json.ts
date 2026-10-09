@@ -14,8 +14,10 @@
  * its address last), At a glance as `verdict`, `summary`, and `counts`, What needs attention, Every
  * page, and the details (what is still to do and how complete the test was, what changed since the
  * last run, what the results cover, the runs and their evidence, the problems during them, and the
- * fingerprints), then when it was made. A page's parts are in the spec's order: its address,
- * title, and status, its first lines, its passes' steps, its flags, axe's results, and the review.
+ * fingerprints), then when it was made. A page has its findings first and its transcripts last, as
+ * the Markdown has them, so a reader of the start of a long file sees what was found before every
+ * word NVDA said: its address, title, and status, its first lines, its flags, axe's results, and
+ * the review, then its passes' steps.
  *
  * What it leaves out is what a file of data has no use for: the page's pictures and charts, each
  * run's minute-by-minute event log, its walkthrough files, how voicecap came to be, and the
@@ -23,10 +25,11 @@
  * 50, with `moreElements` for those axe only counted), which the Markdown cuts to ten.
  *
  * Where a run didn't record a part, the value says so in the page's words as `{ notRecorded }`
- * (a title, how long a page took, axe's results, the voicecap a run used), and a part that isn't
- * there at all is `null`. No key is ever left out, which a reader could take for a part with
- * nothing to say. A page that wasn't read says so (`flagsNote`, `captured: null`, `passes: []`),
- * so no gap reads as a page with nothing to flag.
+ * (a title, how long a page took, axe's results, the voicecap a run used, the times of a problem
+ * and of each row of its record), and a part that isn't there at all is `null`. No key is ever
+ * left out, which a reader could take for a part with nothing to say. A page that wasn't read says
+ * so (`flagsNote`, `captured: null`, `passes: []`), and a page whose record lists no transcript
+ * file says so (`passesNote`), so no gap reads as a page with nothing to flag.
  *
  * Every word is plain text and is never changed: `JSON.stringify` writes it as a string, so what
  * a transcript, a title, or a record holds can't be anything but a string. What a person or a model
@@ -73,7 +76,6 @@ import {
   countsOf as changeCounts,
   decidedFrom,
   flagsLine,
-  fromRun,
   generatedLine,
   happenedLine,
   kindTitle,
@@ -82,7 +84,7 @@ import {
   readCopyNote,
   sentence,
 } from "../words.js";
-import { ownWords, stepsOf, type Step } from "./shared.js";
+import { asSentence, ownWords, resultOf, stepsOf, type Step } from "./shared.js";
 
 /**
  * A part a run didn't record, said as the page says it: "Not recorded: this run used voicecap
@@ -104,10 +106,25 @@ export interface AiOutOf {
   of: number;
 }
 
+/** The conditions a verdict is for, each named for what is so, not for how it looks. */
+export type AiVerdictKind = "nothing-needs-attention" | "needs-attention" | "pages-not-read";
+
+/** What the model's three kinds of verdict (`ok`, `warn`, and `bad`) are called here. */
+const VERDICT_KINDS: Record<VerdictKind, AiVerdictKind> = {
+  ok: "nothing-needs-attention",
+  warn: "needs-attention",
+  bad: "pages-not-read",
+};
+
 /** The verdict At a glance gives, by the one rule every place that says it uses. */
 export interface AiVerdict {
-  /** "ok" when nothing needs attention, "warn" when something does, "bad" when NVDA read fewer pages than are in scope. */
-  kind: VerdictKind;
+  /**
+   * The condition it is for: "nothing-needs-attention" when NVDA read every page and no problem is
+   * left; "needs-attention" when NVDA read every page and a problem is left; and "pages-not-read"
+   * when NVDA read fewer pages than are in scope, whatever else needs attention (the headline says
+   * that too). It says what is so of the review, and passes no judgment on any page.
+   */
+  kind: AiVerdictKind;
   /** In words, with no full stop: "2 problems need attention, on 1 page". */
   headline: string;
 }
@@ -223,6 +240,11 @@ export interface AiAxeRule {
   wcag: string[];
   /** Whether the rule is one of axe's best practices. */
   bestPractice: boolean;
+  /**
+   * The rule's own tags, as axe gave them and in its order: the WCAG version and level its criteria
+   * are of ("wcag2a", "wcag21aa"), the criteria ("wcag111"), best practice, and its categories.
+   */
+  tags: string[];
   /** Every element axe's file keeps: up to 50, in axe's order. */
   elements: AiAxeElement[];
   /** How many more elements axe found than its file keeps. */
@@ -277,7 +299,10 @@ export interface AiUnreadablePass {
   unreadable: string;
 }
 
-/** One page's card: what the page says of itself, and what NVDA and axe found on it. */
+/**
+ * One page's card: what the page says of itself, and what NVDA and axe found on it, with the
+ * findings first and the page's transcripts last.
+ */
 export interface AiPage {
   /** As the page is numbered in the Markdown: from 1. */
   number: number;
@@ -287,7 +312,10 @@ export interface AiPage {
   labeled: boolean;
   /** The page's address without the site's: "/how-a-run-works/". */
   path: string;
-  /** The title the browser reported; null when it had none, or never loaded. */
+  /**
+   * The title the browser reported, trimmed, as the Markdown shows it; null when it had none, never
+   * loaded, or was blank; `{ notRecorded }` for a run from before titles were recorded.
+   */
   title: string | AiNotRecorded | null;
   /**
    * "transcribed" when the latest run read it and its transcripts are shown; "failed" when the
@@ -309,17 +337,22 @@ export interface AiPage {
   } | null;
   /** The first lines NVDA said as it read the page, word for word. */
   firstLines: string[];
-  /** The run its transcripts are from, and its date for a run before the latest. */
-  transcriptsFrom: { run: string; date: string | null } | null;
-  /** The page's transcripts, in pass order. None for a page with none. */
-  passes: (AiTranscript | AiUnreadablePass)[];
   flags: AiFlag[];
   /** Where the flags are not the plain list: that nothing was read, none were raised, or they are as the run recorded them. */
   flagsNote: string | null;
+  /**
+   * Said when the page has transcripts and its record lists no transcript file for it, so `passes`
+   * has none to give; null otherwise.
+   */
+  passesNote: string | null;
   /** What axe found; null for a card that says nothing of axe. */
   axe: AiNotRecorded | AiAxeResults | null;
   /** The person's review as far as the records show it. Nothing for a page with none. */
   review: string[];
+  /** The run its transcripts are from, and its date for a run before the latest. */
+  transcriptsFrom: { run: string; date: string | null } | null;
+  /** The page's transcripts, in pass order, last of the page. None for a page with none. */
+  passes: (AiTranscript | AiUnreadablePass)[];
 }
 
 /** A page earlier runs tested that the latest list no longer has. */
@@ -388,8 +421,9 @@ export interface AiProblem {
   path: string;
   /** The attempt's number; null for a record that didn't number them. */
   attempt: number | null;
-  startedAt: string | null;
-  endedAt: string | null;
+  /** When its attempt began and ended, as the run recorded them; `{ notRecorded }` for a run that kept no times. */
+  startedAt: string | AiNotRecorded;
+  endedAt: string | AiNotRecorded;
   kind: ProblemKind;
   kindTitle: string;
   /** Whether it happened again. */
@@ -404,8 +438,8 @@ export interface AiProblem {
   effect: string;
   /** Where to report an error voicecap didn't expect. */
   reportIt: string | null;
-  /** The record of it, word for word, but for the stack. */
-  record: { time: string | null; source: string; entry: string }[];
+  /** The record of it, word for word, but for the stack: each entry's time as it was recorded, or `{ notRecorded }`. */
+  record: { time: string | AiNotRecorded; source: string; entry: string }[];
   stack: string | null;
   /** What the run didn't record, each as the page says it. */
   notRecorded: string[];
@@ -479,8 +513,12 @@ export interface AiReport {
   /** The runs that aren't counted in any result, each as one line that starts with its id. */
   runsLeftOut: { id: string; text: string }[];
   /** The verdict of the problems during the runs. */
-  problemsLine: string;
-  problems: AiProblem[];
+  runProblemsLine: string;
+  /**
+   * The problems during the runs: each attempt that failed, whatever came of it. They are not the
+   * problems that `counts.problems` counts, which are the cards of What needs attention.
+   */
+  runProblems: AiProblem[];
   fingerprints: AiFingerprint[];
   /** The command that checks the originals against these fingerprints. */
   verifyCommand: string | null;
@@ -510,7 +548,7 @@ function voicecapOf({ evidence }: ShareModel): AiReport["voicecapVersion"] {
 function verdictOfModel({ result }: ShareModel): AiVerdict | null {
   if (result.pages === 0) return null;
   const { kind, headline } = verdictOf(result);
-  return { kind, headline };
+  return { kind: VERDICT_KINDS[kind], headline };
 }
 
 /** The numbers At a glance gives, and the ring of the pages. */
@@ -563,19 +601,15 @@ function cardOf(card: AttentionCard, number: number, numbers: ReadonlyMap<string
 
 // Every page.
 
-/** What a page's record says of how it ended and where its transcripts come from, as sentences. */
-function resultOf(card: PageCard): string {
-  const from = fromRun(card);
-  return [
-    sentence(ownWords(card.statusText)),
-    ...(card.failure === null ? [] : [sentence(ownWords(card.failure))]),
-    ...(from === null ? [] : [sentence(from)]),
-  ].join(" ");
-}
-
-/** The title the browser reported, or that the run didn't record it: a copy, so the model's own isn't shared. */
+/**
+ * The title the browser reported, as the Markdown shows it: trimmed, and none when it is blank. A
+ * run from before titles were recorded says so, in a copy of its words, so the model's own isn't
+ * shared.
+ */
 function titleOf({ title }: PageCard): AiPage["title"] {
-  return typeof title === "object" && title !== null ? { notRecorded: title.notRecorded } : title;
+  const words = typeof title === "string" ? title.trim() : title === null ? "" : title.notRecorded;
+  if (words === "") return null;
+  return typeof title === "string" ? words : { notRecorded: words };
 }
 
 /** The page's status as one of four kinds: a page with flags and one without are both transcribed. */
@@ -627,6 +661,14 @@ function passesOf(transcripts: Transcripts | undefined): (AiTranscript | AiUnrea
   });
 }
 
+/**
+ * What the page says where its record lists no transcript file for a page that has transcripts, so
+ * a page whose transcripts aren't there for another reason never reads as one with no files.
+ */
+function passesNoteOf(transcripts: Transcripts | undefined, passes: unknown[]): string | null {
+  return transcripts !== undefined && passes.length === 0 ? APPENDIX_TEXT.noFiles : null;
+}
+
 /** What a page's flags need said beyond the list: that nothing was read, none were raised, or they are as recorded. */
 function flagsNoteOf(card: PageCard): string | null {
   if (card.counts === null) return `${WORD_TEXT.pages.nothingToFlag}.`;
@@ -650,6 +692,7 @@ function ruleOf(rule: AxeViewRule): AiAxeRule {
     impact: rule.impact,
     wcag: axeCriteriaList(rule.tags),
     bestPractice: rule.tags.includes(BEST_PRACTICE),
+    tags: [...rule.tags],
     elements: rule.nodes.map(elementOf),
     moreElements: rule.moreNodes,
     helpUrl: axeRulePage(rule.helpUrl),
@@ -686,8 +729,8 @@ function axeOf({ axe }: PageCard): AiPage["axe"] {
 }
 
 /**
- * A page, in the spec's order: its number, name, and address, its title and status, its first lines,
- * its transcripts' steps, its flags, what axe found, and the person's review.
+ * A page, findings first and transcripts last: its number, name, and address, its title and status,
+ * its first lines, its flags, what axe found, the person's review, and its transcripts' steps.
  */
 function pageOf(
   card: PageCard,
@@ -695,6 +738,7 @@ function pageOf(
   transcripts: Transcripts | undefined,
   latest: string | null,
 ): AiPage {
+  const passes = passesOf(transcripts);
   return {
     number,
     name: card.name,
@@ -706,8 +750,6 @@ function pageOf(
     result: resultOf(card),
     captured: capturedOf(card),
     firstLines: [...card.heardFirst],
-    transcriptsFrom: originOf(card, transcripts, latest),
-    passes: passesOf(transcripts),
     flags: card.flags.map((flag) => ({
       rule: flag.rule,
       pass: flag.pass ?? null,
@@ -715,8 +757,11 @@ function pageOf(
       wcag: [...wcagOf(flag.rule)],
     })),
     flagsNote: flagsNoteOf(card),
+    passesNote: passesNoteOf(transcripts, passes),
     axe: axeOf(card),
     review: [...card.reviewChips, ...card.manual.map(manualLine)],
+    transcriptsFrom: originOf(card, transcripts, latest),
+    passes,
   };
 }
 
@@ -820,6 +865,9 @@ function runOf({ run, facts, environment }: RunEvidence): AiRun {
   };
 }
 
+/** A time a run didn't record, in the page's words: a problem's, which says "Time not recorded.", as its line does. */
+const noTime = (): AiNotRecorded => ({ notRecorded: asSentence(PROBLEMS_TEXT.noTime) });
+
 /** A problem: what happened, what voicecap did, whether it happened again, and its record word for word. */
 function problemOf(problem: Problem): AiProblem {
   return {
@@ -827,8 +875,8 @@ function problemOf(problem: Problem): AiProblem {
     label: labelOf(problem.page),
     path: pagePath(problem.page.url),
     attempt: problem.n,
-    startedAt: problem.startedAt,
-    endedAt: problem.endedAt,
+    startedAt: problem.startedAt ?? noTime(),
+    endedAt: problem.endedAt ?? noTime(),
     kind: problem.kind,
     kindTitle: kindTitle(problem.kind),
     again: problem.again,
@@ -843,7 +891,12 @@ function problemOf(problem: Problem): AiProblem {
     // A stack is said apart from the record, where its lines can be read.
     record: problem.record
       .filter((entry) => entry.source !== "stack")
-      .map(({ time, source, entry }) => ({ time, source, entry: ownWords(entry) })),
+      .map(({ time, source, entry }) => ({
+        // A row of the record with no time says so, as the record's table does.
+        time: time ?? { notRecorded: PROBLEMS_TEXT.record.noTime },
+        source,
+        entry: ownWords(entry),
+      })),
     stack: problem.stack === null ? null : ownWords(problem.stack),
     notRecorded: problem.notRecorded.map((line) => notRecordedLine(ownWords(line))),
   };
@@ -907,8 +960,8 @@ export function aiReportOf(model: ShareModel): AiReport {
     readCopyNote: readCopyNote(model),
     runs: model.evidence.map(runOf),
     runsLeftOut: model.leftOut.map(({ id, text }) => ({ id, text })),
-    problemsLine: ownWords(model.problems.line),
-    problems: model.problems.problems.map(problemOf),
+    runProblemsLine: ownWords(model.problems.line),
+    runProblems: model.problems.problems.map(problemOf),
     fingerprints: fingerprintsOf(model),
     verifyCommand: model.evidence[0]?.verify ?? null,
     generated: {

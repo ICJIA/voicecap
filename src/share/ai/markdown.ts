@@ -92,7 +92,6 @@ import {
   evidenceGist,
   fileFingerprint,
   flagsLine,
-  fromRun,
   generatedLine,
   glanceNumbersOf,
   happenedLine,
@@ -131,7 +130,7 @@ import {
   markdownSentence,
   markdownText,
 } from "./escape.js";
-import { ownWords, stepsOf } from "./shared.js";
+import { asSentence, ownWords, resultOf, stepsOf } from "./shared.js";
 
 /**
  * A block of the file: one or more lines, with no blank line in it but a fence's own. The blocks are
@@ -180,10 +179,6 @@ const sentenceList = (list: readonly string[]): Block =>
 /** A list, in order, with the numbers its words don't have. */
 const numbered = (list: readonly string[]): Block =>
   list.map((words, at) => `${at + 1}. ${markdownText(words)}`).join("\n");
-
-/** Words with a full stop, when they have none. */
-const asSentence = (words: string): string =>
-  sentence(`${words.charAt(0).toUpperCase()}${words.slice(1)}`);
 
 /** A label and its value, as one line of a block of lines: the value on its own when it has no label. */
 const rowOf = ({ label: name, value }: EvidenceRow): string =>
@@ -446,16 +441,6 @@ function saidBlocks(
     }),
     ...(passes.length === 0 ? [paragraph(APPENDIX_TEXT.noFiles)] : []),
   ];
-}
-
-/** What a page's record says of how it ended and where its transcripts come from, as sentences. */
-function resultOf(card: PageCard): string {
-  const from = fromRun(card);
-  return [
-    sentence(ownWords(card.statusText)),
-    ...(card.failure === null ? [] : [sentence(ownWords(card.failure))]),
-    ...(from === null ? [] : [sentence(from)]),
-  ].join(" ");
 }
 
 /**
