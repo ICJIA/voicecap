@@ -3,8 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { AXE_LIMIT_MS, axeScript, keptAxeResults } from "../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import { GuidepupNvdaDriver, type GuidepupDriverDeps } from "../src/drivers/guidepup-nvda.js";
@@ -14,7 +15,15 @@ import { openEventLog, readEventLog } from "../src/run/events.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { createMemoryLogger, type Logger } from "../src/util/log.js";
 import { isoLocalMs } from "../src/util/time.js";
-import { FakeDesktop, FakeNvda, FakeSession, Gate, type FakePage } from "./helpers/fake-desktop.js";
+import {
+  AXE_HANGS,
+  FakeDesktop,
+  FakeNvda,
+  FakeSession,
+  Gate,
+  type FakePage,
+} from "./helpers/fake-desktop.js";
+import { rawAxe, rawRule } from "./helpers/raw-axe.js";
 
 const temps: string[] = [];
 const drivers: GuidepupNvdaDriver[] = [];
@@ -437,6 +446,93 @@ describe("opening a page", () => {
     expect(desktop.sessions).toHaveLength(2);
     expect(desktop.sessions[0]?.closed).toBe(true);
     expect(desktop.sessions[1]?.closed).toBe(false);
+  });
+});
+
+describe("checking the page with axe", () => {
+  /** Where the home page redirects. */
+  const FINAL = `${URL_HOME}home/`;
+
+  /** A started driver with the home page open, whose check with axe gives `axe`. */
+  async function opened(axe?: unknown) {
+    const made = setup({ pages: { [URL_HOME]: { finalUrl: FINAL, axe } } });
+    await made.driver.start();
+    await made.driver.openPage(URL_HOME);
+    return made;
+  }
+
+  it("checks the page it holds with axe-core's own script, only when asked, and keeps what axe found", async () => {
+    const raw = rawAxe({
+      violations: [rawRule("image-alt", { impact: "critical" })],
+      passes: 12,
+      inapplicable: 30,
+    });
+    const { driver, desktop } = await opened(raw);
+    // Opening a page doesn't check it: the run asks, once a page.
+    expect(desktop.events).not.toContain("axe");
+    // As voicecap keeps it, under the address the page ended up at.
+    expect(await driver.checkWithAxe()).toEqual(keptAxeResults(raw, FINAL));
+    expect(desktop.session.axeScripts).toEqual([await axeScript()]);
+  });
+
+  it("presses no key, and neither brings the window forward nor changes its title", async () => {
+    const { driver, desktop } = await opened();
+    const before = desktop.events.length;
+    await driver.checkWithAxe();
+    expect(desktop.events.slice(before)).toEqual(["axe"]);
+  });
+
+  it("gives an error, and keeps the page, when axe fails or takes too long", async () => {
+    const failure = new Error("page.evaluate: TypeError: axe.run is not a function");
+    const failing = await opened(failure);
+    expect(await failing.driver.checkWithAxe()).toEqual({ error: failure.message });
+    // The page is read as usual, in the browser it was opened in.
+    expect(await failing.driver.nextLine()).toBe("nextLine speech");
+    expect(failing.desktop.sessions).toHaveLength(1);
+    expect(failing.desktop.session.closed).toBe(false);
+
+    // What the page gave back isn't axe's results (a page's own script can see to that).
+    const garbled = await opened({ violations: "none" });
+    expect(await garbled.driver.checkWithAxe()).toEqual({
+      error: expect.stringMatching(/^axe's results couldn't be read/) as unknown,
+    });
+
+    const hanging = await opened(AXE_HANGS);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      let settled = false;
+      const checking = hanging.driver.checkWithAxe();
+      checking.then(
+        () => (settled = true),
+        () => (settled = true),
+      );
+      // axe-core's script is read from disk first: the limit starts once axe is under way.
+      while (!hanging.desktop.events.includes("axe")) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      await vi.advanceTimersByTimeAsync(AXE_LIMIT_MS - 1);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await checking).toEqual({ error: "timed out after 20s" });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(await hanging.driver.nextLine()).toBe("nextLine speech");
+  });
+
+  it("says the browser is gone as an environment error", async () => {
+    const gone = new EnvironmentError(
+      "Chrome closed while voicecap was using it: its window was closed, or it crashed.",
+      { failure: "browser" },
+    );
+    const { driver } = await opened(gone);
+    await expect(driver.checkWithAxe()).rejects.toBe(gone);
+  });
+
+  it("needs a page open first", async () => {
+    const { driver } = setup();
+    await driver.start();
+    await expect(driver.checkWithAxe()).rejects.toThrow("openPage() must be called first.");
   });
 });
 

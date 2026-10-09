@@ -23,6 +23,7 @@ import {
   type Response,
 } from "playwright";
 
+import { AXE_TAGS } from "../../axe/results.js";
 import type { VoicecapConfig } from "../../config/schema.js";
 import { EnvironmentError, errorMessage } from "../../util/errors.js";
 import { formatDuration } from "../../util/time.js";
@@ -405,6 +406,12 @@ interface PageDocument {
   querySelector(selector: string): { remove(): void; href?: string } | null;
 }
 
+/** The page once axe-core's script has run in it: the little of it the check touches. */
+interface PageWithAxe {
+  document: unknown;
+  axe: { run(context: unknown, options: unknown): Promise<unknown> };
+}
+
 /**
  * What Playwright says when the network won't take a navigation: the first line reads "page.goto:
  * net::ERR_NAME_NOT_RESOLVED at https://example.gov/", and a call log follows.
@@ -576,6 +583,31 @@ export class ChromeSession implements BrowserSession {
     return Buffer.from(data, "base64");
   }
 
+  /**
+   * axe-core's results for the page as it is now. `script` is axe-core's own, evaluated in the page
+   * through Playwright: it's no `<script>` added to the page, so the page's Content Security Policy
+   * doesn't stop it. Then axe runs the rules of AXE_TAGS, giving every element it finds for the
+   * violations and what needs review, and at most one for each rule that passed or didn't apply,
+   * which voicecap only counts. axe reads the page: it moves no focus, scrolls nothing, and adds no
+   * element. There's no time limit here: the driver gives axe its own.
+   */
+  runAxe(script: string): Promise<unknown> {
+    return this.onPage(async () => {
+      await this.page.evaluate(script);
+      // This function runs in the page (voicecap's own code is compiled without DOM types).
+      return this.page.evaluate(
+        (tags) => {
+          const { axe, document } = globalThis as unknown as PageWithAxe;
+          return axe.run(document, {
+            runOnly: { type: "tag", values: tags },
+            resultTypes: ["violations", "incomplete"],
+          });
+        },
+        [...AXE_TAGS],
+      );
+    });
+  }
+
   async setTitle(title: string): Promise<() => Promise<void>> {
     // These functions run in the page (voicecap's own code is compiled without DOM types).
     const previous = await this.onPage(() =>
@@ -741,7 +773,7 @@ function pixelRatio(screen: unknown, css: unknown): number {
  * `work`, or a rejection with `message` once `ms` have passed without it finishing. The work isn't
  * stopped: what it gives or throws later is ignored.
  */
-function withinLimit<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+export function withinLimit<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const limit = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error(message)), ms);

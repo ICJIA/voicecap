@@ -3,6 +3,7 @@
  * src/drivers/ touches Guidepup or Playwright. The interface is expressed in actions, not
  * keystrokes; the core (src/passes/) decides when a pass stops, from what a driver returns.
  */
+import type { AxeSummary } from "../axe/results.js";
 import type { NewRunEvent } from "../model.js";
 
 /**
@@ -65,6 +66,17 @@ export interface ScreenReaderDriver {
    */
   openPage(url: string): Promise<PageInfo>;
 
+  /**
+   * Check the page that's open with axe-core, an automated checker, and give what voicecap keeps of
+   * its results, or the reason there are none. The core asks once a page, on its first load, after
+   * openPage and before the screen reader's first key. The check moves no focus, scrolls nothing,
+   * and adds no element to the page. One that fails or runs out of time gives the reason and never
+   * fails the page; only a browser that's gone throws, as it would for any step.
+   *
+   * Optional: a driver that can't check a page leaves it out, and its run records no axe result.
+   */
+  checkWithAxe?(): Promise<AxeCapture>;
+
   /** Move to the next line in browse mode (NVDA: Down Arrow). */
   nextLine(): Promise<Speech>;
   /** Move to the next heading (NVDA: H). */
@@ -109,6 +121,13 @@ export interface PageInfo {
  * fails the page, so the reason is the answer, and the run records it.
  */
 export type PageScreenshot = { jpeg: Uint8Array } | { error: string };
+
+/**
+ * axe-core's check of a page: the text of the file the page keeps (axe.json) and what its record
+ * says of it, or the reason there's none. Not being able to check a page never fails it, so the
+ * reason is the answer, and the run records it.
+ */
+export type AxeCapture = { json: string; summary: AxeSummary } | { error: string };
 
 export interface FocusedElement {
   /** Lowercase tag name, e.g. "a". */

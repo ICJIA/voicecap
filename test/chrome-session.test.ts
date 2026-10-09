@@ -10,13 +10,17 @@ import { setTimeout as delay } from "node:timers/promises";
 import { chromium, errors, type Browser, type CDPSession, type Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { AXE_LIMIT_MS, AXE_TAGS, type KeptAxeResults } from "../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
+import { startDemoServer, type DemoServer } from "../src/demo/server.js";
+import { axeCheckOf } from "../src/drivers/guidepup-nvda.js";
 import {
   chromeArgs,
   ChromeSession,
   launchChrome,
   resolveBrowser,
 } from "../src/drivers/guidepup/chrome.js";
+import type { AxeCapture } from "../src/drivers/types.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { jpegSize } from "../src/util/jpeg.js";
 import { startFixtureServer, type FixtureServer } from "../scripts/serve-fixture.js";
@@ -307,6 +311,142 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
         }
       }
     });
+  });
+
+  // Through the driver's own check (axeCheckOf), in the browser the driver holds: voicecap's
+  // Chrome, attached over DevTools without Playwright's defaults.
+  describe("checking a page with axe", () => {
+    const image = `<img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'/%3E">`;
+    /** A page in English with a main landmark and a heading, so `body` holds what axe finds. */
+    const page = (title: string, body: string, head = "") =>
+      `<!doctype html><html lang="en"><head>${head}<title>${title}</title></head><body><main><h1>${title}</h1>${body}</main></body></html>`;
+    const pages = {
+      // The policy comes first, so it covers the page's own script, which would change the title.
+      "/strict/": page(
+        "Strict",
+        image,
+        `<meta http-equiv="Content-Security-Policy" content="script-src 'none'"><script>document.title = "Its script ran";</script>`,
+      ),
+      "/tall/": page(
+        "Tall",
+        `<p><a id="first" href="#one">First</a> <a id="second" href="#two">Second</a></p>
+        <div id="region" role="region" tabindex="0" aria-label="A region that scrolls" style="height:100px;overflow:auto"><p style="height:600px">Scrolls within itself</p></div>
+        <p style="margin-top:3000px;color:#aaa">Far down, and pale</p>
+        <p style="margin-top:3000px">Further down still</p>`,
+      ),
+      "/breaks-arrays/": page(
+        "Breaks arrays",
+        image,
+        `<script>Array.prototype.map = function () { throw new Error("This page broke arrays"); };</script>`,
+      ),
+      "/names-axe/": page("Names axe", image, "<script>window.axe = 1;</script>"),
+      "/keeps-axe/": page(
+        "Keeps axe",
+        image,
+        `<script>Object.defineProperty(window, "axe", { value: 1 });</script>`,
+      ),
+    };
+    let demo: DemoServer;
+    let served: Awaited<ReturnType<typeof servingPages>>;
+    beforeAll(async () => {
+      demo = await startDemoServer({ port: 0 });
+      served = await servingPages(pages);
+    });
+    afterAll(async () => {
+      await served.close();
+      await demo.close();
+    });
+
+    /** A new browser with the page at `url` loaded, and how long axe's check of it took. */
+    async function check(url: string) {
+      const session = await launch();
+      await session.load(url, 15_000);
+      const began = performance.now();
+      const capture = await axeCheckOf(session, url);
+      return { session, capture, tookMs: performance.now() - began };
+    }
+
+    /** What axe kept of the page, read back; it fails, with axe's reason, if there's none. */
+    function keptOf(capture: AxeCapture): KeptAxeResults {
+      if ("error" in capture) throw new Error(`axe didn't check the page: ${capture.error}`);
+      return JSON.parse(capture.json) as KeptAxeResults;
+    }
+
+    /** The rules axe found violated, by id. */
+    const violated = (capture: AxeCapture) =>
+      keptOf(capture)
+        .violations.map((rule) => rule.id)
+        .sort();
+
+    it("finds the demo site's known violations", async () => {
+      const url = `${demo.origin}/common-mistakes/`;
+      const { capture, tookMs } = await check(url);
+      expect(violated(capture)).toEqual(["button-name", "label", "page-has-heading-one"]);
+      expect(keptOf(capture)).toMatchObject({
+        schemaVersion: 1,
+        axeVersion: "4.13.0",
+        tags: [...AXE_TAGS],
+        url,
+      });
+      expect(capture).toMatchObject({
+        summary: { axeVersion: "4.13.0", counts: { violations: 3 } },
+      });
+      expect(tookMs).toBeLessThan(AXE_LIMIT_MS);
+    });
+
+    it("runs on a page whose policy allows no script", async () => {
+      const { session, capture } = await check(new URL("/strict/", served.url).href);
+      // The policy holds: the page's own script didn't run.
+      expect(await session.pageTitle()).toBe("Strict");
+      expect(violated(capture)).toEqual(["image-alt"]);
+    });
+
+    it("moves no focus, scrolls nothing, and adds nothing to the page", async () => {
+      const url = new URL("/tall/", served.url).href;
+      const session = await launch();
+      await session.load(url, 15_000);
+      await session.pressTab();
+      await session.pressTab();
+      await session["page"].evaluate(() => {
+        window.scrollTo(0, 2000);
+        document.querySelector("#region")!.scrollTop = 150;
+      });
+      /** Where focus is, how far the page and its region are scrolled, and the page's markup. */
+      const stateNow = () =>
+        session["page"].evaluate(() => ({
+          focused: document.activeElement?.id,
+          scrollX: window.scrollX,
+          scrollY: window.scrollY,
+          region: document.querySelector("#region")?.scrollTop,
+          markup: document.documentElement.outerHTML,
+        }));
+      const before = await stateNow();
+      expect(before).toMatchObject({ focused: "second", scrollY: 2000, region: 150 });
+      // axe did check it, and found the pale text far below the window.
+      const capture = await axeCheckOf(session, url);
+      expect(violated(capture)).toEqual(["color-contrast"]);
+      expect(await stateNow()).toEqual(before);
+    });
+
+    // A page's own script can break what axe relies on. Then axe gives what it found, or the reason
+    // it found nothing, well within its limit, and the page is still there to read.
+    it("survives a page that breaks arrays, or names its own axe", async () => {
+      const outcomes: Record<string, unknown> = {};
+      for (const where of ["/breaks-arrays/", "/names-axe/", "/keeps-axe/"]) {
+        const { session, capture, tookMs } = await check(new URL(where, served.url).href);
+        expect(tookMs, where).toBeLessThan(AXE_LIMIT_MS);
+        outcomes[where] = "error" in capture ? capture.error : violated(capture);
+        expect(await session.pageTitle(), where).not.toBe("");
+      }
+      expect(outcomes).toEqual({
+        // axe's own code uses the page's arrays.
+        "/breaks-arrays/": expect.stringContaining("This page broke arrays") as unknown,
+        // axe's script takes the name over.
+        "/names-axe/": ["image-alt"],
+        // A name the page won't give up: what's under it isn't axe.
+        "/keeps-axe/": expect.stringMatching(/axe\.run is not a function/) as unknown,
+      });
+    }, 60_000);
   });
 
   it("starts with nothing focused, and its first Tab reaches the skip link", async () => {
@@ -756,6 +896,7 @@ describe("a browser that closes or crashes mid-page", () => {
     ["pageTitle", (session) => session.pageTitle()],
     ["pageCanonical", (session) => session.pageCanonical()],
     ["screenshot", (session) => session.screenshot()],
+    ["runAxe", (session) => session.runAxe("void 0")],
     ["setTitle", (session) => session.setTitle("voicecap check k3m9x2")],
     ["focusState", (session) => session.focusState()],
     ["raise", (session) => session.raise()],

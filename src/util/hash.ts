@@ -19,7 +19,8 @@ export function sealOf(record: object): string {
   return hashJson(rest);
 }
 
-function sortKeys(value: unknown): unknown {
+/** `value` with every object's keys sorted (and undefined values dropped), at every level. */
+export function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys);
   if (value !== null && typeof value === "object") {
     // With no prototype, a key named "__proto__" is a key like any other. Set on a plain object,
