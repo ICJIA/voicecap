@@ -16,7 +16,6 @@ import vm from "node:vm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { DEMO_CANONICAL } from "../src/demo/server.js";
-import { fontFaceCss } from "../src/share/fonts.js";
 import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { SHARE_CSS, THEME_CSS } from "../src/share/html/style.js";
 import { ABOUT } from "../src/share/text.js";
@@ -55,7 +54,63 @@ const TRUST_PAGE_HREF = "trust.html";
 /** The words of the bar's last link, which goes to the trust page. */
 const TRUST_WORDS = "Can I trust this?";
 
-const NO_FONTS = { fontCss: "" };
+/** The system's own fonts, as the audit tool uses them: the words', and the big numbers' and commands'. */
+const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const MONO = 'ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace';
+
+/**
+ * The rules at a style's top level, each as what comes before its block (a selector, or an at-rule
+ * such as `@media print`) and what's inside it. Comments are left out.
+ */
+function cssRules(css: string): { prelude: string; body: string }[] {
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules: { prelude: string; body: string }[] = [];
+  let depth = 0;
+  let start = 0;
+  let open = 0;
+  for (let at = 0; at < text.length; at++) {
+    if (text[at] === "{") {
+      if (depth === 0) open = at;
+      depth++;
+    } else if (text[at] === "}") {
+      depth--;
+      if (depth === 0) {
+        rules.push({ prelude: text.slice(start, open).trim(), body: text.slice(open + 1, at) });
+        start = at + 1;
+      }
+    }
+  }
+  return rules;
+}
+
+/** A block's declarations, each as "name: value", with its white space made single spaces. */
+function declarationsIn(body: string): string[] {
+  return body
+    .split(";")
+    .map((declaration) => declaration.replace(/\s+/g, " ").trim())
+    .filter((declaration) => declaration !== "");
+}
+
+/** The declarations of each top-level rule of `css` whose prelude is `prelude`, in order. */
+function declarationsOf(css: string, prelude: string): string[] {
+  return cssRules(css)
+    .filter((rule) => rule.prelude === prelude)
+    .flatMap((rule) => declarationsIn(rule.body));
+}
+
+/** The declarations of each top-level rule of `css` whose list of selectors holds `selector`. */
+function declarationsFor(css: string, selector: string): string[] {
+  return cssRules(css)
+    .filter((rule) => rule.prelude.split(",").some((each) => each.trim() === selector))
+    .flatMap((rule) => declarationsIn(rule.body));
+}
+
+/** What's inside the top-level rule of `css` whose prelude is `prelude`, such as `@media print`. */
+function blockOf(css: string, prelude: string): string {
+  const rule = cssRules(css).find((each) => each.prelude === prelude);
+  if (rule === undefined) throw new Error(`The style has no ${prelude}.`);
+  return rule.body;
+}
 
 /** How a policy names the hash of `text`: 'sha256-' and its SHA-256 as base64, in single quotes. */
 function hashOf(text: string): string {
@@ -65,11 +120,6 @@ function hashOf(text: string): string {
 /** `text` as a pattern that matches only it. */
 function patternOf(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** The page with its fonts' data left out: base64 is letters, and could spell anything. */
-function withoutFontData(html: string): string {
-  return html.replace(/data:font\/woff2;base64,[A-Za-z0-9+/=]+/g, "data:font/woff2;base64,");
 }
 
 /** The page's markup, with what its style and script elements hold left out. */
@@ -223,35 +273,39 @@ function sitesAt(...shared: [folder: string, at: string][]): SiteContent {
 
 describe("renderSiteIndex", () => {
   let html: string;
-  let fontCss: string;
 
-  beforeAll(async () => {
-    html = renderSiteIndex(CONTENT, NO_FONTS);
-    fontCss = await fontFaceCss();
+  beforeAll(() => {
+    html = renderSiteIndex(CONTENT);
   });
 
   it("is one file: one style block, one script last, no style attribute, nothing from outside", () => {
-    const page = renderSiteIndex(CONTENT, { fontCss });
-    const plain = withoutFontData(page);
-
-    expect(plain.match(/<style\b/g)).toHaveLength(1);
-    expect(plain.match(/<script\b/g)).toHaveLength(1);
+    expect(html.match(/<style\b/g)).toHaveLength(1);
+    expect(html.match(/<script\b/g)).toHaveLength(1);
     // The script is the last thing in the page.
-    expect(page).toMatch(/<\/script>\n<\/body>\n<\/html>\n$/);
-    expect(plain).not.toMatch(/\sstyle\s*=/i);
-    // Nothing is loaded, linked, or framed, and the fonts are the file's own data.
-    for (const outside of ["src=", "srcset", "<link", "<iframe", "@import", "url(http"]) {
-      expect(plain, outside).not.toContain(outside);
+    expect(html).toMatch(/<\/script>\n<\/body>\n<\/html>\n$/);
+    expect(html).not.toMatch(/\sstyle\s*=/i);
+    // Nothing is loaded, linked, or framed, and no font is in the page, not even as data.
+    for (const outside of ["src=", "srcset", "<link", "<iframe", "@import", "url("]) {
+      expect(html, outside).not.toContain(outside);
     }
-    expect(plain.match(/url\(/g)).toHaveLength(9);
-    expect(plain.match(/url\(data:font\/woff2;base64,/g)).toHaveLength(9);
     // Its own code is what a Content Security Policy hashes: the one style block, and the one script.
-    expect(inlineHashes(page)).toEqual({
-      styles: [hashOf(`\n${fontCss}\n${SITE_CSS}`)],
+    expect(inlineHashes(html)).toEqual({
+      styles: [hashOf(`\n${SITE_CSS}`)],
       scripts: [hashOf(SITE_SCRIPT)],
     });
     // The commands are in <code>, so no backtick is in the page.
-    expect(plain).not.toContain("`");
+    expect(html).not.toContain("`");
+  });
+
+  it("draws the website in the system's fonts, and embeds none", () => {
+    const page = renderSiteIndex(CONTENT);
+    const style = /<style>([\s\S]*?)<\/style>/.exec(page)?.[1] ?? "";
+
+    // No font is in the page, nor loaded from anywhere: its words are in the system's own fonts.
+    expect(page).not.toContain("@font-face");
+    expect(page).not.toContain("data:font/");
+    expect(style).toContain(SANS);
+    expect(style).toContain(MONO);
   });
 
   it("is a page with a language, a title, and a meta tag that keeps it out of search results", () => {
@@ -351,25 +405,22 @@ describe("renderSiteIndex", () => {
   });
 
   it("heads a site by its name, which needn't be a folder's, and makes its section's id from the name", () => {
-    const page = renderSiteIndex(
-      {
-        demo: null,
-        sites: [
-          {
-            name: "voicecap.netlify.app",
-            folders: ["127.0.0.1_4848"],
-            reports: [reportAt("127.0.0.1_4848", "2026-10-03T10:00:00-05:00")],
-          },
-          {
-            // A name with a port: its id is made as a folder's name is, with "_" for the colon.
-            name: "dvfr.illinois.gov:8443",
-            folders: ["localhost_3000"],
-            reports: [reportAt("localhost_3000", "2026-10-02T10:00:00-05:00")],
-          },
-        ],
-      },
-      NO_FONTS,
-    );
+    const page = renderSiteIndex({
+      demo: null,
+      sites: [
+        {
+          name: "voicecap.netlify.app",
+          folders: ["127.0.0.1_4848"],
+          reports: [reportAt("127.0.0.1_4848", "2026-10-03T10:00:00-05:00")],
+        },
+        {
+          // A name with a port: its id is made as a folder's name is, with "_" for the colon.
+          name: "dvfr.illinois.gov:8443",
+          folders: ["localhost_3000"],
+          reports: [reportAt("localhost_3000", "2026-10-02T10:00:00-05:00")],
+        },
+      ],
+    });
 
     expect(textsOf(sectionOf(page, "sites"), "h3")).toEqual([
       "voicecap.netlify.app",
@@ -402,10 +453,7 @@ describe("renderSiteIndex", () => {
       reportAt("127.0.0.1_4848", "2026-10-03T10:00:00-05:00"),
       reportAt(DVFR, "2026-10-02T10:00:00-05:00"),
     ];
-    const page = renderSiteIndex(
-      { demo: null, sites: [{ name: DVFR, folders, reports }] },
-      NO_FONTS,
-    );
+    const page = renderSiteIndex({ demo: null, sites: [{ name: DVFR, folders, reports }] });
 
     expect(textsOf(sectionOf(page, "sites"), "h3")).toEqual([DVFR]);
     const site = sectionOf(page, `site-${DVFR}`);
@@ -426,10 +474,7 @@ describe("renderSiteIndex", () => {
       ...reportAt(DVFR, `2026-10-0${5 - index}T10:00:00-05:00`),
       id: `report-${DVFR}-${5 - index}`,
     }));
-    const page = renderSiteIndex(
-      { demo: null, sites: [{ name: DVFR, folders: [DVFR], reports }] },
-      NO_FONTS,
-    );
+    const page = renderSiteIndex({ demo: null, sites: [{ name: DVFR, folders: [DVFR], reports }] });
 
     const site = sectionOf(page, `site-${DVFR}`);
     expect(reportIdsOf(site)).toEqual(reports.map(({ id }) => id));
@@ -438,18 +483,15 @@ describe("renderSiteIndex", () => {
   });
 
   it("gives every id once, whatever the sites are named", () => {
-    const page = renderSiteIndex(
-      {
-        ...sitesAt(
-          ["x", "2026-10-03T10:00:00-05:00"],
-          ["x-h", "2026-10-02T10:00:00-05:00"],
-          ["demo-h", "2026-10-01T10:00:00-05:00"],
-          ["sites", "2026-09-30T10:00:00-05:00"],
-        ),
-        demo: DEMO_REPORT,
-      },
-      NO_FONTS,
-    );
+    const page = renderSiteIndex({
+      ...sitesAt(
+        ["x", "2026-10-03T10:00:00-05:00"],
+        ["x-h", "2026-10-02T10:00:00-05:00"],
+        ["demo-h", "2026-10-01T10:00:00-05:00"],
+        ["sites", "2026-09-30T10:00:00-05:00"],
+      ),
+      demo: DEMO_REPORT,
+    });
     const ids = [...page.matchAll(/\sid="([^"]*)"/g)].map(([, id = ""]) => id);
 
     expect(ids.length).toBeGreaterThan(15);
@@ -464,17 +506,14 @@ describe("renderSiteIndex", () => {
     // "example.gov:8080" is made safe as "example.gov_8080", which is the name of the folder a run
     // of that site makes, and a name can end in "-2" too.
     const names = ["example.gov:8080", "example.gov_8080", "example.gov_8080-2"];
-    const page = renderSiteIndex(
-      {
-        demo: null,
-        sites: names.map((name, index) => ({
-          name,
-          folders: [`folder-${index}`],
-          reports: [reportAt(`folder-${index}`, "2026-10-03T10:00:00-05:00")],
-        })),
-      },
-      NO_FONTS,
-    );
+    const page = renderSiteIndex({
+      demo: null,
+      sites: names.map((name, index) => ({
+        name,
+        folders: [`folder-${index}`],
+        reports: [reportAt(`folder-${index}`, "2026-10-03T10:00:00-05:00")],
+      })),
+    });
 
     const sites = [...page.matchAll(/<section class="site" id="([^"]*)">/g)].map(
       ([, id = ""]) => id,
@@ -624,13 +663,10 @@ describe("renderSiteIndex", () => {
     const withAddress = (address: string, name = DVFR): string =>
       headOf(
         sectionOf(
-          renderSiteIndex(
-            {
-              demo: null,
-              sites: [{ name, folders: [DVFR], reports: [DVFR_NEWEST], address }],
-            },
-            NO_FONTS,
-          ),
+          renderSiteIndex({
+            demo: null,
+            sites: [{ name, folders: [DVFR], reports: [DVFR_NEWEST], address }],
+          }),
           `site-${name}`,
         ),
         "site",
@@ -677,10 +713,10 @@ describe("renderSiteIndex", () => {
     expect(textsOf(headOf(sectionOf(html, "by-date"), "view"), "span")).toEqual(["3 reports"]);
     expect(headOf(sectionOf(html, "demo"), "view")).not.toContain("<span");
     // One of each is one.
-    const one = renderSiteIndex(sitesAt([DVFR, "2026-10-03T14:05:00-05:00"]), NO_FONTS);
+    const one = renderSiteIndex(sitesAt([DVFR, "2026-10-03T14:05:00-05:00"]));
     expect(textsOf(headOf(sectionOf(one, "sites"), "view"), "span")).toEqual(["1 site"]);
     // With no report shared, there's nothing to count.
-    const none = renderSiteIndex({ demo: null, sites: [] }, NO_FONTS);
+    const none = renderSiteIndex({ demo: null, sites: [] });
     expect(headOf(sectionOf(none, "sites"), "view")).not.toContain("<span");
   });
 
@@ -695,13 +731,10 @@ describe("renderSiteIndex", () => {
   it("counts a site's earlier reports beside their heading, for the eye: their list says how many to a screen reader", () => {
     const withEarlier = (...earlier: PublishedReport[]): string =>
       sectionOf(
-        renderSiteIndex(
-          {
-            demo: null,
-            sites: [{ name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST, ...earlier] }],
-          },
-          NO_FONTS,
-        ),
+        renderSiteIndex({
+          demo: null,
+          sites: [{ name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST, ...earlier] }],
+        }),
         `site-${DVFR}`,
       );
     const head = (site: string): string =>
@@ -722,13 +755,10 @@ describe("renderSiteIndex", () => {
     /** The card of a site whose only report records `result`. */
     const cardWith = (result: PublishedReport["result"]): string =>
       articleOf(
-        renderSiteIndex(
-          {
-            demo: null,
-            sites: [{ name: DVFR, folders: [DVFR], reports: [{ ...DVFR_NEWEST, result }] }],
-          },
-          NO_FONTS,
-        ),
+        renderSiteIndex({
+          demo: null,
+          sites: [{ name: DVFR, folders: [DVFR], reports: [{ ...DVFR_NEWEST, result }] }],
+        }),
         DVFR_NEWEST.id,
       );
     /** The card's verdict line: its markup, or null when it has none. */
@@ -821,22 +851,19 @@ describe("renderSiteIndex", () => {
     });
 
     it("gives no earlier report a verdict: only the current one answers for the site", () => {
-      const page = renderSiteIndex(
-        {
-          demo: null,
-          sites: [
-            {
-              name: DVFR,
-              folders: [DVFR],
-              reports: [
-                { ...DVFR_NEWEST, result: { pages: 9, read: 9, problems: 0, problemPages: 0 } },
-                { ...DVFR_OLDEST, result: { pages: 9, read: 9, problems: 3, problemPages: 2 } },
-              ],
-            },
-          ],
-        },
-        NO_FONTS,
-      );
+      const page = renderSiteIndex({
+        demo: null,
+        sites: [
+          {
+            name: DVFR,
+            folders: [DVFR],
+            reports: [
+              { ...DVFR_NEWEST, result: { pages: 9, read: 9, problems: 0, problemPages: 0 } },
+              { ...DVFR_OLDEST, result: { pages: 9, read: 9, problems: 3, problemPages: 2 } },
+            ],
+          },
+        ],
+      });
 
       expect(page.match(/class="verdict /g)).toHaveLength(1);
       expect(page.match(/class="reading"/g)).toHaveLength(1);
@@ -844,13 +871,10 @@ describe("renderSiteIndex", () => {
     });
 
     it("gives the demo's card its verdict too", () => {
-      const page = renderSiteIndex(
-        {
-          demo: { ...DEMO_REPORT, result: { pages: 7, read: 7, problems: 3, problemPages: 2 } },
-          sites: [],
-        },
-        NO_FONTS,
-      );
+      const page = renderSiteIndex({
+        demo: { ...DEMO_REPORT, result: { pages: 7, read: 7, problems: 3, problemPages: 2 } },
+        sites: [],
+      });
       const card = articleOf(page, DEMO_REPORT.id);
 
       expect(textOf(verdictOf(card) ?? "")).toBe("3 problems need attention, on 2 pages");
@@ -870,10 +894,10 @@ describe("renderSiteIndex", () => {
 
     const currentOf = (report: PublishedReport): string =>
       articleOf(
-        renderSiteIndex(
-          { demo: null, sites: [{ name: DVFR, folders: [DVFR], reports: [report] }] },
-          NO_FONTS,
-        ),
+        renderSiteIndex({
+          demo: null,
+          sites: [{ name: DVFR, folders: [DVFR], reports: [report] }],
+        }),
         report.id,
       );
     // A page that changed: only the Word copy's link, and the page's line.
@@ -936,13 +960,10 @@ describe("renderSiteIndex", () => {
       files: [published("word", DVFR, `${DVFR}_2026-09-28.docx`, 50)],
       notPublished: [{ name: `${DVFR}_2026-09-28.html`, reason: "missing" }],
     };
-    const page = renderSiteIndex(
-      {
-        demo: null,
-        sites: [{ name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST, withWord, wordOnly] }],
-      },
-      NO_FONTS,
-    );
+    const page = renderSiteIndex({
+      demo: null,
+      sites: [{ name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST, withWord, wordOnly] }],
+    });
     const separator = '<span class="sep" aria-hidden="true">·</span>';
     expect(earlierItemsOf(sectionOf(page, `site-${DVFR}`))).toEqual([
       `<li id="${DVFR_OLDEST.id}"><time datetime="2026-09-29T16:20:00-05:00">29 September 2026, 16:20</time>, prepared by Pat Lee: <a href="${DVFR}/${DVFR}_2026-09-29.html">Open the report<span class="sr">${of}</span></a> ${separator} <a href="${DVFR}/${DVFR}_2026-09-29.docx" download>Word copy<span class="sr">${of}</span></a></li>`,
@@ -986,25 +1007,22 @@ describe("renderSiteIndex", () => {
 
   it("doesn't say no walkthrough file was shared when one was, and isn't here", () => {
     const withoutWalkthrough = (reason: "changed" | "missing"): string =>
-      renderSiteIndex(
-        {
-          demo: null,
-          sites: [
-            {
-              name: DVFR,
-              folders: [DVFR],
-              reports: [
-                {
-                  ...DVFR_NEWEST,
-                  files: DVFR_NEWEST.files.filter(({ kind }) => kind !== "walkthrough"),
-                  notPublished: [{ name: `${DVFR}_2026-10-03_walkthrough.json`, reason }],
-                },
-              ],
-            },
-          ],
-        },
-        NO_FONTS,
-      );
+      renderSiteIndex({
+        demo: null,
+        sites: [
+          {
+            name: DVFR,
+            folders: [DVFR],
+            reports: [
+              {
+                ...DVFR_NEWEST,
+                files: DVFR_NEWEST.files.filter(({ kind }) => kind !== "walkthrough"),
+                notPublished: [{ name: `${DVFR}_2026-10-03_walkthrough.json`, reason }],
+              },
+            ],
+          },
+        ],
+      });
     const lines = (reason: "changed" | "missing") =>
       textsOf(sharedBlocksOf(withoutWalkthrough(reason))[0] ?? "", "p");
 
@@ -1024,10 +1042,10 @@ describe("renderSiteIndex", () => {
       files: [],
       notPublished: [{ name: `${DVFR}_2026-09-29.html`, reason: "changed" }],
     };
-    const page = renderSiteIndex(
-      { demo: null, sites: [{ name: DVFR, folders: [DVFR], reports: [empty] }] },
-      NO_FONTS,
-    );
+    const page = renderSiteIndex({
+      demo: null,
+      sites: [{ name: DVFR, folders: [DVFR], reports: [empty] }],
+    });
     const [block] = sharedBlocksOf(page);
 
     // No list with nothing in it, for a screen reader to announce.
@@ -1072,28 +1090,25 @@ describe("renderSiteIndex", () => {
   });
 
   it("lists reports by date with their sites' names, as the headings give them, not their folders'", () => {
-    const page = renderSiteIndex(
-      {
-        demo: null,
-        sites: [
-          // One site, whose reports are in two folders: a copy on a tester's computer, and the site's own.
-          {
-            name: DVFR,
-            folders: ["127.0.0.1_4848", DVFR],
-            reports: [
-              reportAt("127.0.0.1_4848", "2026-10-03T14:05:00-05:00"),
-              reportAt(DVFR, "2026-10-01T09:00:00-05:00"),
-            ],
-          },
-          {
-            name: EXAMPLE,
-            folders: ["localhost_3000"],
-            reports: [reportAt("localhost_3000", "2026-10-02T09:30:00-05:00", "Sam Rivera")],
-          },
-        ],
-      },
-      NO_FONTS,
-    );
+    const page = renderSiteIndex({
+      demo: null,
+      sites: [
+        // One site, whose reports are in two folders: a copy on a tester's computer, and the site's own.
+        {
+          name: DVFR,
+          folders: ["127.0.0.1_4848", DVFR],
+          reports: [
+            reportAt("127.0.0.1_4848", "2026-10-03T14:05:00-05:00"),
+            reportAt(DVFR, "2026-10-01T09:00:00-05:00"),
+          ],
+        },
+        {
+          name: EXAMPLE,
+          folders: ["localhost_3000"],
+          reports: [reportAt("localhost_3000", "2026-10-02T09:30:00-05:00", "Sam Rivera")],
+        },
+      ],
+    });
     const list = sectionOf(page, "by-date");
 
     expect([...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map(([, inner = ""]) => inner)).toEqual([
@@ -1112,7 +1127,6 @@ describe("renderSiteIndex", () => {
         ["b.example.gov", "2026-10-03T00:30:00-05:00"],
         ["c.example.gov", "2026-10-02T23:00:00-05:00"],
       ),
-      NO_FONTS,
     );
 
     expect(namesByDate(page)).toEqual(["b.example.gov", "c.example.gov", "a.example.gov"]);
@@ -1125,7 +1139,6 @@ describe("renderSiteIndex", () => {
         ["b.example.gov", "2026-10-03T15:00:00Z"],
         ["c.example.gov", "2026-10-03T10:00:00-05:00"],
       ),
-      NO_FONTS,
     );
 
     expect(namesByDate(page)).toEqual(["a.example.gov", "b.example.gov", "c.example.gov"]);
@@ -1138,13 +1151,10 @@ describe("renderSiteIndex", () => {
       notPublished: [{ name: `${DVFR}_2026-10-03.html`, reason: "changed" }],
     };
     // Two sites, so that there's a list by date.
-    const page = renderSiteIndex(
-      {
-        demo: null,
-        sites: [{ name: DVFR, folders: [DVFR], reports: [wordOnly] }, ...CONTENT.sites.slice(1)],
-      },
-      NO_FONTS,
-    );
+    const page = renderSiteIndex({
+      demo: null,
+      sites: [{ name: DVFR, folders: [DVFR], reports: [wordOnly] }, ...CONTENT.sites.slice(1)],
+    });
 
     const [item] = [...sectionOf(page, "by-date").matchAll(/<li>([\s\S]*?)<\/li>/g)];
     expect(item?.[1]).toBe(
@@ -1192,7 +1202,7 @@ describe("renderSiteIndex", () => {
   });
 
   it("has no demo view, and no link to one, without a demo", () => {
-    const page = renderSiteIndex({ ...CONTENT, demo: null }, NO_FONTS);
+    const page = renderSiteIndex({ ...CONTENT, demo: null });
 
     expect(page).not.toContain('id="demo"');
     expect(page).not.toContain('href="#demo"');
@@ -1211,7 +1221,7 @@ describe("renderSiteIndex", () => {
 
   it("lists reports by date, with its link in the bar, only when two sites or more have reports", () => {
     // With one site, the list would be that site's own again.
-    const one = renderSiteIndex({ demo: DEMO_REPORT, sites: CONTENT.sites.slice(0, 1) }, NO_FONTS);
+    const one = renderSiteIndex({ demo: DEMO_REPORT, sites: CONTENT.sites.slice(0, 1) });
     expect(one).not.toContain('id="by-date"');
     expect(one).not.toContain('href="#by-date"');
     expect(one).not.toContain("Every report, by date");
@@ -1231,7 +1241,7 @@ describe("renderSiteIndex", () => {
   });
 
   it("says no reports have been shared yet when there are none", () => {
-    const page = renderSiteIndex({ demo: null, sites: [] }, NO_FONTS);
+    const page = renderSiteIndex({ demo: null, sites: [] });
 
     expect(textsOf(sectionOf(page, "sites"), "p")).toEqual(["No reports have been shared yet."]);
     expect(page).not.toContain('id="by-date"');
@@ -1239,7 +1249,7 @@ describe("renderSiteIndex", () => {
     expect(textsOf(barOf(page), "a")).toEqual(["The sites", TRUST_WORDS]);
 
     // The demo isn't a site: with a demo and no site, the sites still have none.
-    const withDemo = renderSiteIndex({ demo: DEMO_REPORT, sites: [] }, NO_FONTS);
+    const withDemo = renderSiteIndex({ demo: DEMO_REPORT, sites: [] });
     expect(textsOf(sectionOf(withDemo, "sites"), "p")).toEqual([
       "No reports have been shared yet.",
     ]);
@@ -1282,21 +1292,18 @@ describe("renderSiteIndex", () => {
     // A second site, linked: a root may hold an ampersand, which URL leaves as it is. Its name is
     // its host, as the build gives a site its name, since a link goes only to the heading's host.
     const linked = { ...report, folder: "a.example.gov", id: "report-a.example.gov-1" };
-    const page = renderSiteIndex(
-      {
-        demo: null,
-        sites: [
-          { name, folders: ['a"b&c'], reports: [report] },
-          {
-            name: "a.example.gov",
-            folders: ["a.example.gov"],
-            reports: [linked],
-            address: "https://a.example.gov/a&b/",
-          },
-        ],
-      },
-      NO_FONTS,
-    );
+    const page = renderSiteIndex({
+      demo: null,
+      sites: [
+        { name, folders: ['a"b&c'], reports: [report] },
+        {
+          name: "a.example.gov",
+          folders: ["a.example.gov"],
+          reports: [linked],
+          address: "https://a.example.gov/a&b/",
+        },
+      ],
+    });
 
     const markup = markupOf(page);
     expect(markup).not.toContain("<img");
@@ -1477,7 +1484,7 @@ describe("siteBar", () => {
   );
 
   it("is how the website's own page draws its bar", () => {
-    expect(renderSiteIndex(CONTENT, NO_FONTS)).toContain(`\n${siteBar(CONTENT, "index")}\n`);
+    expect(renderSiteIndex(CONTENT)).toContain(`\n${siteBar(CONTENT, "index")}\n`);
   });
 });
 
@@ -1491,7 +1498,7 @@ describe("siteFooter", () => {
   });
 
   it("is how the website's own page draws its footer", () => {
-    expect(renderSiteIndex(CONTENT, NO_FONTS)).toContain(`\n${siteFooter()}\n`);
+    expect(renderSiteIndex(CONTENT)).toContain(`\n${siteFooter()}\n`);
   });
 });
 
@@ -1503,7 +1510,8 @@ describe("sitePage", () => {
   };
 
   it("is the shell around what it's given: the head, the skip link, the bar, the main part, the footer, and the script", () => {
-    expect(sitePage(PARTS, { fontCss: "FONTS" })).toBe(
+    // The style block is the website's style alone: no font goes ahead of it.
+    expect(sitePage(PARTS)).toBe(
       [
         "<!doctype html>",
         '<html lang="en">',
@@ -1512,7 +1520,7 @@ describe("sitePage", () => {
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         '<meta name="robots" content="noindex, nofollow, noarchive">',
         "<title>A page of the website</title>",
-        `<style>\nFONTS\n${SITE_CSS}</style>`,
+        `<style>\n${SITE_CSS}</style>`,
         "</head>",
         "<body>",
         '<a class="skip" href="#main">Skip to main content</a>',
@@ -1531,14 +1539,11 @@ describe("sitePage", () => {
   });
 
   it("escapes the title, which is text, and takes the bar and the main part as the markup they are", () => {
-    const page = sitePage(
-      {
-        title: 'Q & A <i>"x"</i>',
-        bar: "<header>The <b>bar</b></header>",
-        main: ["<h1>A &amp; B</h1>"],
-      },
-      NO_FONTS,
-    );
+    const page = sitePage({
+      title: 'Q & A <i>"x"</i>',
+      bar: "<header>The <b>bar</b></header>",
+      main: ["<h1>A &amp; B</h1>"],
+    });
 
     expect(page).toContain("<title>Q &amp; A &lt;i&gt;&quot;x&quot;&lt;/i&gt;</title>");
     expect(page).toContain("\n<header>The <b>bar</b></header>\n");
@@ -1575,6 +1580,7 @@ describe("fileKind", () => {
   });
 });
 
+// The shared reports keep their look: the website's style no longer takes their theme (see SITE_CSS).
 describe("THEME_CSS", () => {
   it("is the theme's rules, and the shareable page's style has them where they were", () => {
     expect(THEME_CSS.startsWith(":root {\n  --bg: #0b1015;")).toBe(true);
@@ -1591,20 +1597,210 @@ describe("THEME_CSS", () => {
 });
 
 describe("SITE_CSS", () => {
-  it("begins with the theme's rules, and takes the shareable page's rules for focus, the skip link, .sr, and [hidden] as they are", () => {
-    expect(SITE_CSS.startsWith(`${THEME_CSS}\n`)).toBe(true);
+  /** The audit tool's colors, as the spec gives them: each token, its dark value, and its light one. */
+  const TOKENS = [
+    ["--bg", "#0a0a0a", "#f9fafb"],
+    ["--panel", "#111111", "#ffffff"],
+    ["--panel-2", "#141414", "#f3f4f6"],
+    ["--line", "#222222", "#e5e7eb"],
+    ["--heading", "#ffffff", "#111827"],
+    ["--text", "#f5f5f5", "#1f2937"],
+    ["--text-2", "#d4d4d4", "#374151"],
+    ["--muted", "#a3a3a3", "#4b5563"],
+    ["--link", "#60a5fa", "#2563eb"],
+    ["--good", "#34d399", "#196549"],
+    ["--warn", "#fbbf24", "#705510"],
+    ["--bad", "#f87171", "#8b3f3f"],
+    ["--act", "#67e8f9", "#2c626a"],
+  ] as const;
+
+  it.each(TOKENS)(
+    "has the audit tool's colors, dark first, light when picked, light in print: %s",
+    (token, dark, light) => {
+      expect(declarationsOf(SITE_CSS, ":root")).toContain(`${token}: ${dark}`);
+      expect(declarationsOf(SITE_CSS, ':root[data-theme="light"]')).toContain(`${token}: ${light}`);
+      expect(declarationsOf(blockOf(SITE_CSS, "@media print"), ":root")).toContain(
+        `${token}: ${light}`,
+      );
+    },
+  );
+
+  it("is dark first, light when picked, and light in print, where the theme button is left out", () => {
+    expect(declarationsOf(SITE_CSS, ":root")).toContain("color-scheme: dark");
+    expect(declarationsOf(SITE_CSS, ':root[data-theme="light"]')).toContain("color-scheme: light");
+    const print = blockOf(SITE_CSS, "@media print");
+    expect(declarationsOf(print, ":root")).toContain("color-scheme: light");
+    expect(declarationsOf(print, ".theme")).toEqual(["display: none"]);
+    // The dark colors come first, and the light ones after them, which take their place.
+    expect(SITE_CSS.indexOf(":root {")).toBeLessThan(SITE_CSS.indexOf(':root[data-theme="light"]'));
+    expect(SITE_CSS.indexOf(':root[data-theme="light"]')).toBeLessThan(
+      SITE_CSS.indexOf("@media print"),
+    );
+  });
+
+  it.each(["--good", "--warn", "--bad", "--act"])(
+    "tints %s at 12%, for what sits behind a pill or a box, in whichever theme",
+    (token) => {
+      // Made from the token, on the root, so it follows the theme the token is in.
+      expect(declarationsOf(SITE_CSS, ":root")).toContain(
+        `${token}-tint: color-mix(in srgb, var(${token}) 12%, transparent)`,
+      );
+    },
+  );
+
+  it("sets headlines at weight 900 and kickers at 700, in capitals set by the style", () => {
+    expect(declarationsFor(SITE_CSS, "h1")).toEqual(
+      expect.arrayContaining([
+        "font-weight: 900",
+        "color: var(--heading)",
+        "font-size: clamp(2.125rem, 6vw, 3.875rem)",
+        "line-height: 1.05",
+      ]),
+    );
+    expect(declarationsFor(SITE_CSS, "h2")).toEqual(
+      expect.arrayContaining([
+        "font-weight: 900",
+        "color: var(--heading)",
+        "font-size: clamp(1.625rem, 4.2vw, 2.5rem)",
+      ]),
+    );
+    // A kicker is written in ordinary case, so a screen reader reads words, not letters: the
+    // capitals are the style's.
+    expect(declarationsFor(SITE_CSS, ".kicker")).toEqual(
+      expect.arrayContaining([
+        "font-size: 0.8125rem",
+        "font-weight: 700",
+        "letter-spacing: 0.14em",
+        "text-transform: uppercase",
+        "color: var(--muted)",
+      ]),
+    );
+  });
+
+  it("sets the words at the audit tool's sizes, in the system's fonts", () => {
+    expect(declarationsOf(SITE_CSS, ":root")).toEqual(
+      expect.arrayContaining([`--sans: ${SANS}`, `--mono: ${MONO}`]),
+    );
+    expect(declarationsFor(SITE_CSS, "body")).toEqual(
+      expect.arrayContaining([
+        "font-family: var(--sans)",
+        "font-size: 1.0625rem",
+        "color: var(--text)",
+        "background: var(--bg)",
+      ]),
+    );
+    expect(declarationsFor(SITE_CSS, ".lead")).toEqual(
+      expect.arrayContaining([
+        "font-size: clamp(1rem, 2vw, 1.1875rem)",
+        "color: var(--muted)",
+        "max-width: 64ch",
+      ]),
+    );
+    expect(declarationsFor(SITE_CSS, "code")).toContain("font-family: var(--mono)");
+  });
+
+  it("lets the bar scroll with the page", () => {
+    // As the audit tool's does: nothing sticks, so no room is kept clear of it either.
+    expect(SITE_CSS).not.toContain("position: sticky");
+    expect(SITE_CSS).not.toContain("scroll-padding-top");
+  });
+
+  it("draws the audit tool's parts: a card, a part of a page, a pill, a big number, a table, and a button", () => {
+    // A card: on the panel, a thin line around it, round corners, and 22 by 20 pixels inside.
+    expect(declarationsFor(SITE_CSS, ".card")).toEqual(
+      expect.arrayContaining([
+        "background: var(--panel)",
+        "border: 1px solid var(--line)",
+        "border-radius: 14px",
+        "padding: 22px 20px",
+      ]),
+    );
+    // A part: 44 pixels above and below it, and a line between it and the part before.
+    expect(declarationsFor(SITE_CSS, ".part")).toEqual(
+      expect.arrayContaining(["padding-block: 44px", "border-top: 1px solid var(--line)"]),
+    );
+    // A pill: small, in capitals, at 700, in its color on its color's tint, corners of 6 pixels.
+    expect(declarationsFor(SITE_CSS, ".pill")).toEqual(
+      expect.arrayContaining([
+        "font-weight: 700",
+        "text-transform: uppercase",
+        "border-radius: 6px",
+      ]),
+    );
+    for (const color of ["good", "warn", "bad", "act"]) {
+      expect(declarationsFor(SITE_CSS, `.pill.${color}`), color).toEqual(
+        expect.arrayContaining([`color: var(--${color})`, `background: var(--${color}-tint)`]),
+      );
+    }
+    // A law's tag is a pill in --act, and a card's words leave its color alone.
+    expect(declarationsFor(SITE_CSS, ".tag")).toEqual(
+      expect.arrayContaining(["color: var(--act)", "background: var(--act-tint)"]),
+    );
+    expect(cssRules(SITE_CSS).map(({ prelude }) => prelude)).not.toContain(".card > p");
+    // A big number: heavy, in the fixed-width font with figures of one width, sized to its card.
+    expect(declarationsFor(SITE_CSS, ".n")).toEqual(
+      expect.arrayContaining([
+        "font-weight: 900",
+        "font-family: var(--mono)",
+        "font-variant-numeric: tabular-nums",
+        "font-size: clamp(1.5rem, 17cqi, 2.375rem)",
+      ]),
+    );
+    expect(declarationsFor(SITE_CSS, ".tile")).toContain("container-type: inline-size");
+    // A table scrolls in its own box, and its header row is small, in capitals, on the second panel.
+    expect(declarationsFor(SITE_CSS, ".scroll")).toContain("overflow-x: auto");
+    expect(declarationsFor(SITE_CSS, "th")).toEqual(
+      expect.arrayContaining([
+        "text-transform: uppercase",
+        "color: var(--muted)",
+        "background: var(--panel-2)",
+      ]),
+    );
+    // A button: an outline in the line's color, with words in the headline's on the panel.
+    for (const button of [".action", ".visit"]) {
+      expect(declarationsFor(SITE_CSS, button), button).toEqual(
+        expect.arrayContaining([
+          "border: 1px solid var(--line)",
+          "color: var(--heading)",
+          "background: var(--panel)",
+        ]),
+      );
+    }
+  });
+
+  it("draws the verdicts in the audit tool's colors: green as good, amber as warn, red as bad", () => {
+    for (const [kind, color] of [
+      ["ok", "good"],
+      ["warn", "warn"],
+      ["bad", "bad"],
+    ] as const) {
+      expect(declarationsFor(SITE_CSS, `.verdict.${kind}`), kind).toEqual(
+        expect.arrayContaining([`color: var(--${color})`, `background: var(--${color}-tint)`]),
+      );
+      expect(declarationsFor(SITE_CSS, `.reading .c-${kind}`), kind).toEqual([
+        `color: var(--${color})`,
+      ]);
+    }
+  });
+
+  it("is the website's own, not the shareable page's theme, and takes that page's rules for focus, the skip link, .sr, and [hidden], focus in the website's link color", () => {
+    // It begins with its own colors, and holds none of the shareable page's theme or its names.
+    expect(SITE_CSS.startsWith(":root {\n  --bg: #0a0a0a;")).toBe(true);
+    expect(SITE_CSS).not.toContain(THEME_CSS);
+    for (const name of ["--accent", "--fg", "--ok", "--mac", "--display", "--body"]) {
+      expect(SITE_CSS, name).not.toContain(`var(${name})`);
+    }
     const shared = SHARE_CSS.split("\n");
     const mine = SITE_CSS.split("\n");
-    for (const rule of [
-      /^a \{ color: var\(--accent\); \} a:focus-visible/,
-      /^\.skip \{/,
-      /^\.sr \{/,
-      /^\[hidden\] \{/,
-    ]) {
+    for (const rule of [/^\.skip \{/, /^\.sr \{/, /^\[hidden\] \{/]) {
       const line = shared.find((candidate) => rule.test(candidate));
       expect(line, String(rule)).toBeDefined();
       expect(mine, String(rule)).toContain(line);
     }
+    // Visible keyboard focus is the same rule, in the website's link color.
+    const focus = shared.find((candidate) => candidate.startsWith("a { color: var(--accent); }"));
+    expect(focus).toMatch(/a:focus-visible, button:focus-visible, summary:focus-visible \{/);
+    expect(mine).toContain(focus?.replaceAll("var(--accent)", "var(--link)"));
   });
 
   it("holds nothing from outside, and nothing that could end the page's one style block", () => {
@@ -1613,24 +1809,24 @@ describe("SITE_CSS", () => {
     expect(SITE_CSS).toMatch(/\n$/);
   });
 
-  it("keeps the bar in view from 40em wide, which is 640 pixels at 16, and wraps what is long", () => {
-    expect(SITE_CSS).toMatch(/@media \(min-width: 40em\) \{[^}]*\.bar \{[^}]*position: sticky;/);
-    // The room kept clear below it grows faster than the text, 80 pixels at 16 and 368 at 48: at a
-    // larger size the bar's links, and then its button, take lines of their own, so the bar grows
-    // faster than the text too. The browser tests check the bar is shorter than it, up to 56.
-    expect(SITE_CSS).toContain("html { scroll-padding-top: max(5rem, 9rem - 64px); }");
-    expect(SITE_CSS).toContain("overflow-wrap: anywhere");
-    // Only from 40em wide: the bar has no position of its own before it.
-    expect(SITE_CSS.match(/position: sticky/g)).toHaveLength(1);
-    expect(SITE_CSS.indexOf("position: sticky")).toBeGreaterThan(
-      SITE_CSS.indexOf("@media (min-width: 40em)"),
+  it("widens its gutter from 40em, which is 640 pixels at 16, measures every width in em, and wraps what is long", () => {
+    // The gutter is 16 pixels on a phone and 24 from 40em, for the main part and for what's in the
+    // bars, whose content is a column of 72rem, as the main part is one of 56rem.
+    expect(blockOf(SITE_CSS, "@media (min-width: 40em)")).toContain(
+      "main { max-width: calc(56rem + 48px); padding-inline: 24px; }",
     );
-    // An em in a media query is the reader's own text size, so the bar sticks only from a window as
-    // wide, in that size, as 640 pixels is at 16: wide enough for its links. A width in pixels would
-    // stick it in a window that a larger size makes narrow, where its links wrap into so many lines
-    // that it grows taller than the room kept clear for it. The trust page's four big numbers go
-    // two across from 36em, and four from 60em, by the same measure. The one other is no width at
-    // all: `screen`, for the footer at the window's bottom, which print leaves as it was.
+    expect(declarationsFor(SITE_CSS, "main")).toEqual(
+      expect.arrayContaining(["max-width: calc(56rem + 32px)", "padding: 48px 16px 64px"]),
+    );
+    expect(declarationsFor(SITE_CSS, ".bar")).toContain(
+      "padding-inline: max(16px, calc(50% - 36rem))",
+    );
+    expect(SITE_CSS).toContain("overflow-wrap: anywhere");
+    // An em in a media query is the reader's own text size, so a reader who has made it larger gets
+    // the narrower layout in a wider window: a width in pixels would give the wider one to a window
+    // that a larger size makes narrow. The trust page's four big numbers go two across from 36em,
+    // and four from 60em, by the same measure. The one other is no width at all: `screen`, for the
+    // footer at the window's bottom, which print leaves as it was.
     const queries = [...SITE_CSS.matchAll(/@media ([^{]*)\{/g)].map(([, query = ""]) =>
       query.trim(),
     );

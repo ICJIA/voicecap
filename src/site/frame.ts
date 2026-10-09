@@ -4,10 +4,12 @@
  * (`trust.html`), and both take these from here, so the two bars, and the two footers, can't drift
  * apart.
  *
- * The shell is in the shareable page's design (see ../share/html/document.ts): one self-contained
- * file, dark by default with a switch to light, with one style block (the fonts, then SITE_CSS) and
- * one script (SITE_SCRIPT), and nothing loaded from outside it. It sets no `style` attribute, since
- * a Content Security Policy that hashes the style block and the script allows nothing else.
+ * The shell is built as the shareable page's is (see ../share/html/document.ts), in the look of the
+ * audit tool, audit.icjia.app (see ./style.ts): one self-contained file, dark by default with a
+ * switch to light, with one style block (SITE_CSS) and one script (SITE_SCRIPT), and nothing loaded
+ * from outside it, not even a font: its words are in the system's own fonts. It sets no `style`
+ * attribute, since a Content Security Policy that hashes the style block and the script allows
+ * nothing else.
  *
  * In order: the head; a skip link to the main content; the bar; `main`, which a page fills; the
  * footer; and last, the script. The bar has a link to each view of the website's own page that's
@@ -82,13 +84,9 @@ export function siteFooter(): string {
  * A page of the website, from the parts only it has: its `title`, which is plain text and is escaped
  * here; its `bar` (siteBar); and the lines of its `main` part, which go in `<main id="main">`. The
  * bar and the main part are HTML already, with whatever a record or a fact supplies through `esc`.
- * `fontCss` is the fonts' `@font-face` rules (fontFaceCss in ../share/fonts.ts), which the page's
- * style block holds ahead of its own styles. Pure.
+ * The page's one style block is SITE_CSS, which embeds no font. Pure.
  */
-export function sitePage(
-  parts: { title: string; bar: string; main: string[] },
-  assets: { fontCss: string },
-): string {
+export function sitePage(parts: { title: string; bar: string; main: string[] }): string {
   return [
     "<!doctype html>",
     '<html lang="en">',
@@ -97,7 +95,7 @@ export function sitePage(
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     '<meta name="robots" content="noindex, nofollow, noarchive">',
     `<title>${esc(parts.title)}</title>`,
-    `<style>\n${assets.fontCss}\n${SITE_CSS}</style>`,
+    `<style>\n${SITE_CSS}</style>`,
     "</head>",
     "<body>",
     `<a class="skip" href="#main">${esc(SITE_TEXT.skip)}</a>`,

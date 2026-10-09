@@ -36,7 +36,6 @@ import type { SharedFile } from "../src/model.js";
 import { parseSitemapXml } from "../src/pages/sitemap.js";
 import { esc } from "../src/report/html.js";
 import { ensureGitFiles, GITATTRIBUTES, GITIGNORE } from "../src/run/git-files.js";
-import { fontFaceCss } from "../src/share/fonts.js";
 import { shareReport } from "../src/share/share.js";
 import { readShares } from "../src/share/shares.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
@@ -612,9 +611,7 @@ describe("buildSite", () => {
     // The page is what renderSiteIndex makes of the content the result gives, drawn once.
     expect(vi.mocked(renderSiteIndex)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(renderSiteIndex).mock.calls[0]?.[0]).toBe(content);
-    expect(await readFile(path.join(out, "index.html"), "utf8")).toBe(
-      renderSiteIndex(content, { fontCss: await fontFaceCss() }),
-    );
+    expect(await readFile(path.join(out, "index.html"), "utf8")).toBe(renderSiteIndex(content));
     expect(await readFile(path.join(out, "robots.txt"), "utf8")).toBe(ROBOTS_TXT);
 
     const headers = await readFile(path.join(out, "_headers"), "utf8");
@@ -622,16 +619,17 @@ describe("buildSite", () => {
     const { first, rules } = readHeaders(headers);
     expect(first).toBe(HEADERS_FIRST_LINE);
 
-    // The index's policy allows its own style block and its one script, and nothing else.
-    const indexPolicy = contentSecurityPolicy({
-      scripts: [sourceOf(SITE_SCRIPT)],
-      styles: [sourceOf(`\n${await fontFaceCss()}\n${SITE_CSS}`)],
-    });
+    // The index's policy allows its own style block and its one script, and nothing else: no font,
+    // since it embeds none.
+    const indexPolicy = contentSecurityPolicy(
+      { scripts: [sourceOf(SITE_SCRIPT)], styles: [sourceOf(`\n${SITE_CSS}`)] },
+      { fonts: false },
+    );
     // The index at both its addresses, the trust page at both its own (each with the policy of its
     // own bytes), the demo's own pages by a rule for each address each answers at, then each
     // published file in the order the site lists them: a page at both its addresses, with the
-    // policy of its own bytes, and a Word copy or a walkthrough file as a download.
-    const trustPolicy = contentSecurityPolicy(inlineHashes(trust));
+    // policy of its own bytes, fonts and all, and a Word copy or a walkthrough file as a download.
+    const trustPolicy = contentSecurityPolicy(inlineHashes(trust), { fonts: false });
     const expected: [string, [string, string][]][] = [
       ["/", [[CSP, indexPolicy]]],
       ["/index.html", [[CSP, indexPolicy]]],
@@ -680,20 +678,19 @@ describe("buildSite", () => {
     // The page is what renderTrustPage makes of the facts it was given, the records' facts counted
     // from the content the result gives, and that content.
     const trust = await readFile(path.join(out, "trust.html"), "utf8");
-    const fontCss = await fontFaceCss();
     expect(trust).toBe(
-      renderTrustPage({ voicecap: FACTS, records: recordFactsOf(content), content }, { fontCss }),
+      renderTrustPage({ voicecap: FACTS, records: recordFactsOf(content), content }),
     );
     expect(trust).toContain(`voicecap ${FACTS.version}, released 9 October 2026`);
 
     // Each of its two addresses has the policy of the page's own bytes: its one style block and its
-    // one script, by their hashes, and nothing else.
-    const policy = contentSecurityPolicy(inlineHashes(trust));
+    // one script, by their hashes, and nothing else, no font among it.
+    const policy = contentSecurityPolicy(inlineHashes(trust), { fonts: false });
     expect(policy).toBe(
-      contentSecurityPolicy({
-        scripts: [sourceOf(SITE_SCRIPT)],
-        styles: [sourceOf(`\n${fontCss}\n${SITE_CSS}`)],
-      }),
+      contentSecurityPolicy(
+        { scripts: [sourceOf(SITE_SCRIPT)], styles: [sourceOf(`\n${SITE_CSS}`)] },
+        { fonts: false },
+      ),
     );
     const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
     expect(
@@ -717,6 +714,31 @@ describe("buildSite", () => {
     expect(trust).toContain('<a href="trust.html" aria-current="page">Can I trust this?</a>');
   });
 
+  it("gives the website's pages a policy with no font, and a report its fonts", async () => {
+    const home = await newHome();
+
+    const { out, content } = await build(home, { voicecapFacts: FACTS });
+
+    const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
+    const policyAt = (where: string): string =>
+      rules.find(([rulePath]) => rulePath === where)?.[1].find(([name]) => name === CSP)?.[1] ?? "";
+    // The website's own pages embed no font, so their policy allows none, from anywhere.
+    for (const where of ["/", "/index.html", "/trust.html", "/trust"]) {
+      expect(policyAt(where), where).toMatch(/^default-src 'none'; script-src 'sha256-/);
+      expect(policyAt(where), where).toContain("; font-src 'none';");
+      expect(policyAt(where), where).not.toContain("font-src data:");
+    }
+    // A shared report's page embeds its fonts, so its policy, at both its addresses, allows them as
+    // data: URIs, as it did when it was shared.
+    const reports = filesOf(content).filter(({ kind }) => kind === "page");
+    expect(reports.length).toBeGreaterThan(0);
+    for (const { href } of reports) {
+      for (const where of [`/${href}`, `/${href.replace(/\.html$/, "")}`]) {
+        expect(policyAt(where), where).toContain("; font-src data:;");
+      }
+    }
+  });
+
   // Today the trust page and the index hold the same style block and the same script, so their
   // policies are alike. Each is made from its own bytes all the same, and the page shows it: a trust
   // page with code of its own is given the policy of that code, and the index keeps its own.
@@ -733,11 +755,15 @@ describe("buildSite", () => {
     const { out } = await build(home, { voicecapFacts: FACTS });
 
     expect(await readFile(path.join(out, "trust.html"), "utf8")).toBe(page);
-    const own = contentSecurityPolicy({ scripts: [sourceOf(script)], styles: [sourceOf(style)] });
-    const indexPolicy = contentSecurityPolicy({
-      scripts: [sourceOf(SITE_SCRIPT)],
-      styles: [sourceOf(`\n${await fontFaceCss()}\n${SITE_CSS}`)],
-    });
+    // Either is a page of the website's own, so neither allows a font.
+    const own = contentSecurityPolicy(
+      { scripts: [sourceOf(script)], styles: [sourceOf(style)] },
+      { fonts: false },
+    );
+    const indexPolicy = contentSecurityPolicy(
+      { scripts: [sourceOf(SITE_SCRIPT)], styles: [sourceOf(`\n${SITE_CSS}`)] },
+      { fonts: false },
+    );
     expect(own).not.toBe(indexPolicy);
     const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
     expect(rules.slice(0, 4)).toEqual([
@@ -782,10 +808,11 @@ describe("buildSite", () => {
     expect(trust).toContain("not recorded in this build of voicecap");
     // It's the page of the facts voicecap reads of itself, and of the records it was built from.
     expect(trust).toBe(
-      renderTrustPage(
-        { voicecap: await readVoicecapFacts(), records: recordFactsOf(content), content },
-        { fontCss: await fontFaceCss() },
-      ),
+      renderTrustPage({
+        voicecap: await readVoicecapFacts(),
+        records: recordFactsOf(content),
+        content,
+      }),
     );
   });
 
@@ -1416,13 +1443,10 @@ describe("buildSite", () => {
       expect(existsSync(path.join(out, "trust"))).toBe(false);
       const trust = await readFile(path.join(out, "trust.html"), "utf8");
       expect(trust).toBe(
-        renderTrustPage(
-          { voicecap: FACTS, records: recordFactsOf(content), content },
-          { fontCss: await fontFaceCss() },
-        ),
+        renderTrustPage({ voicecap: FACTS, records: recordFactsOf(content), content }),
       );
       const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules;
-      const policy = contentSecurityPolicy(inlineHashes(trust));
+      const policy = contentSecurityPolicy(inlineHashes(trust), { fonts: false });
       expect(rules.filter(([rulePath]) => rulePath.startsWith("/trust"))).toEqual([
         ["/trust.html", [[CSP, policy]]],
         ["/trust", [[CSP, policy]]],

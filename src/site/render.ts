@@ -1,10 +1,10 @@
 /**
  * The website's own page, `index.html`, as a pure function of what's published: every report voicecap
- * has shared, by site and by date, with the demo's. It's in the shareable page's design (see
- * ../share/html/document.ts): one self-contained file, dark by default with a switch to light, with
- * one style block (the fonts, then SITE_CSS) and one script (SITE_SCRIPT), and nothing loaded from
- * outside it. The page sets no `style` attribute, since a Content Security Policy that hashes its
- * style block and its script allows nothing else.
+ * has shared, by site and by date, with the demo's. It's in the look of the audit tool,
+ * audit.icjia.app (see ./style.ts): one self-contained file, dark by default with a switch to light,
+ * with one style block (SITE_CSS) and one script (SITE_SCRIPT), and nothing loaded from outside it,
+ * not even a font. The page sets no `style` attribute, since a Content Security Policy that hashes
+ * its style block and its script allows nothing else.
  *
  * The head, the skip link, the bar, the footer, and the script are the website's frame (./frame.ts),
  * which its other page, the trust page, has too; this module draws what is between the bar and the
@@ -424,24 +424,20 @@ function byDateView(sites: SiteContent["sites"]): string {
 
 /**
  * The page, from what's published: its main part, in the website's frame (sitePage in ./frame.ts)
- * with the bar of its own page. `fontCss` is the fonts' `@font-face` rules (fontFaceCss in
- * ../share/fonts.ts), which the page's style block holds ahead of its own styles. Pure.
+ * with the bar of its own page. Pure.
  */
-export function renderSiteIndex(content: SiteContent, assets: { fontCss: string }): string {
-  return sitePage(
-    {
-      title: SITE_TEXT.title,
-      bar: siteBar(content, "index"),
-      main: [
-        `<h1>${esc(SITE_TEXT.title)}</h1>`,
-        `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
-        ...(content.demo === null ? [] : [demoView(content.demo)]),
-        sitesView(content.sites),
-        ...(listsByDate(content) ? [byDateView(content.sites)] : []),
-        `<p class="note">${sentenceHtml(SITE_TEXT.fingerprint)}</p>`,
-        `<p class="note">${sentenceHtml(SITE_TEXT.walkthrough)}</p>`,
-      ],
-    },
-    assets,
-  );
+export function renderSiteIndex(content: SiteContent): string {
+  return sitePage({
+    title: SITE_TEXT.title,
+    bar: siteBar(content, "index"),
+    main: [
+      `<h1>${esc(SITE_TEXT.title)}</h1>`,
+      `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
+      ...(content.demo === null ? [] : [demoView(content.demo)]),
+      sitesView(content.sites),
+      ...(listsByDate(content) ? [byDateView(content.sites)] : []),
+      `<p class="note">${sentenceHtml(SITE_TEXT.fingerprint)}</p>`,
+      `<p class="note">${sentenceHtml(SITE_TEXT.walkthrough)}</p>`,
+    ],
+  });
 }

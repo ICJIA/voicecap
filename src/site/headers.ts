@@ -6,7 +6,8 @@
  *
  * Each page was written by the voicecap version that shared it, so each is hashed from its own
  * bytes. A page holds one style block and one script, and no inline style attribute (see
- * src/share/html/document.ts), so its hashes are all its policy needs.
+ * src/share/html/document.ts), so its hashes are all its policy needs, with its fonts: a shared
+ * report embeds them, and the website's own pages embed none.
  */
 import { createHash } from "node:crypto";
 
@@ -65,18 +66,24 @@ export function inlineHashes(html: string): { styles: string[]; scripts: string[
 }
 
 /**
- * A page's Content Security Policy: its own style block and scripts by their hashes, images and
- * fonts only as data: URIs, and nothing else. No connection, no form, no <base>, and no frame
- * around the page. A kind with no hash is 'none'.
+ * A page's Content Security Policy: its own style block and scripts by their hashes, images only as
+ * data: URIs, and nothing else. No connection, no form, no <base>, and no frame around the page. A
+ * kind with no hash is 'none'.
+ *
+ * Fonts are allowed as data: URIs, as a shared report embeds its own, unless `fonts` is false: the
+ * website's own pages are in the system's fonts and embed none, so theirs allows no font at all.
  */
-export function contentSecurityPolicy(hashes: { styles: string[]; scripts: string[] }): string {
+export function contentSecurityPolicy(
+  hashes: { styles: string[]; scripts: string[] },
+  options: { fonts?: boolean } = {},
+): string {
   const sources = (list: string[]) => (list.length === 0 ? "'none'" : list.join(" "));
   return [
     "default-src 'none'",
     `script-src ${sources(hashes.scripts)}`,
     `style-src ${sources(hashes.styles)}`,
     "img-src data:",
-    "font-src data:",
+    options.fonts === false ? "font-src 'none'" : "font-src data:",
     "connect-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",

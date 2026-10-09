@@ -49,7 +49,8 @@
  * pages at their canonical address: see DEMO_CANONICAL), the site's page (index.html), the trust
  * page (trust.html: see ./trust.ts), robots.txt, _redirects, and _headers, which gives each page
  * its Content Security Policy, made from the hashes of that page's own bytes (the site's page at
- * "/" and "/index.html", and the trust page at "/trust.html" and "/trust"), the demo's pages
+ * "/" and "/index.html", and the trust page at "/trust.html" and "/trust", whose policies allow no
+ * font, since they embed none, where a report's allows the fonts it embeds), the demo's pages
  * theirs at each address they answer at (see demoSiteRules), and each download its
  * Content-Disposition. In the home it writes .gitattributes and .gitignore when they aren't there,
  * as a run does, so a home's first build keeps _site/ out of Git with the rest of what voicecap
@@ -77,7 +78,6 @@ import { plural } from "../report/html.js";
 import { ensureGitFiles } from "../run/git-files.js";
 import { linkPath, resolveHome } from "../run/paths.js";
 import { siteFolders } from "../run/site-dir.js";
-import { fontFaceCss } from "../share/fonts.js";
 import { UsageError } from "../util/errors.js";
 import { resolveUserPath } from "../util/git-bash.js";
 import { sha256 } from "../util/hash.js";
@@ -249,10 +249,9 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
     );
   }
 
-  // What can fail for want of a record, a font, a version, or the package's own facts is read
-  // before the folder is emptied. Facts that are given are never read for: they are the facts.
+  // What can fail for want of a record, a version, or the package's own facts is read before the
+  // folder is emptied. Facts that are given are never read for: they are the facts.
   const records = await readSiteRecords(home);
-  const fontCss = await fontFaceCss();
   const version = voicecapVersion();
   const voicecap = options.voicecapFacts ?? (await readVoicecapFacts());
 
@@ -341,12 +340,9 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   const content: SiteContent = { demo, sites };
   await publishDemoSite(out, demoFiles);
 
-  const index = renderSiteIndex(content, { fontCss });
+  const index = renderSiteIndex(content);
   // The trust page counts the records' facts from what was just published, so it's drawn after it.
-  const trust = renderTrustPage(
-    { voicecap, records: recordFactsOf(content), content },
-    { fontCss },
-  );
+  const trust = renderTrustPage({ voicecap, records: recordFactsOf(content), content });
   await writeFile(path.join(out, "index.html"), index);
   await writeFile(path.join(out, TRUST_FILE), trust);
   await writeFile(path.join(out, "robots.txt"), ROBOTS_TXT);
@@ -962,10 +958,11 @@ function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
 
 /**
  * The rules of _headers: the index at both its addresses, the trust page at both its own, each with
- * the policy of that page's own bytes (`pages`, the text of each), the demo's own pages' rules
- * (`demoRules`, made by demoSiteRules: a rule for each address a page answers at), then each
- * published file's, in the order the site lists them (the demo's report first, then each site's
- * reports as they're shown). A path has one rule, however many reports list its file.
+ * the policy of that page's own bytes (`pages`, the text of each), which allows no font, since the
+ * website's own pages embed none; the demo's own pages' rules (`demoRules`, made by demoSiteRules: a
+ * rule for each address a page answers at); then each published file's, in the order the site lists
+ * them (the demo's report first, then each site's reports as they're shown), a report's page
+ * allowing the fonts it embeds. A path has one rule, however many reports list its file.
  */
 function headerRules(
   content: SiteContent,
@@ -973,8 +970,8 @@ function headerRules(
   demoRules: readonly HeaderRule[],
   rulesOf: ReadonlyMap<PublishedFile, HeaderRule[]>,
 ): HeaderRule[] {
-  const indexPolicy = contentSecurityPolicy(inlineHashes(pages.index));
-  const trustPolicy = contentSecurityPolicy(inlineHashes(pages.trust));
+  const indexPolicy = contentSecurityPolicy(inlineHashes(pages.index), { fonts: false });
+  const trustPolicy = contentSecurityPolicy(inlineHashes(pages.trust), { fonts: false });
   const rules: HeaderRule[] = [
     { path: "/", headers: [[POLICY_HEADER, indexPolicy]] },
     { path: "/index.html", headers: [[POLICY_HEADER, indexPolicy]] },

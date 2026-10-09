@@ -1,12 +1,13 @@
 /**
- * The website's page as a reader gets it: written to a file by renderSiteIndex, with the fonts
- * embedded, and opened from there in headless Chromium. It's checked for accessibility (axe, in both
- * themes, and at a phone's width, with the folds of files open; and the landmarks in Chromium's own
- * accessibility tree), for fitting a window 320 pixels wide, for what the bar does (it stays in view
- * where it fits, at the reader's text size, and never hides what has focus or what a link points
- * to), for the bar the trust page has (its own link told apart from the others by more than color,
- * and its links to the views going to this page), for the theme button, and for being complete
- * without JavaScript, its folds too.
+ * The website's page as a reader gets it: written to a file by renderSiteIndex, in the system's own
+ * fonts (it embeds none), and opened from there in headless Chromium. It's checked for
+ * accessibility (axe, in both themes, and at a phone's width, with the folds of files open; and the
+ * landmarks in Chromium's own accessibility tree), for fitting a window 320 pixels wide, for its
+ * layout (the audit tool's columns and gutters), for what the bar does (it scrolls with the page,
+ * at the reader's text size too, and never hides what has focus or what a link points to), for the
+ * bar the trust page has (its own link told apart from the others by more than color, and its links
+ * to the views going to this page), for the theme button, and for being complete without
+ * JavaScript, its folds too.
  *
  * The trust page (renderTrustPage) is checked the same ways, with its facts and with none: axe in
  * both themes at 1280, 390, and 320 pixels, its fit at 320, its landmarks, what has focus never
@@ -20,7 +21,6 @@ import { pathToFileURL } from "node:url";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { fontFaceCss } from "../src/share/fonts.js";
 import { recordFactsOf } from "../src/site/facts.js";
 import { siteBar, sitePage } from "../src/site/frame.js";
 import { type PublishedReport, renderSiteIndex, type SiteContent } from "../src/site/render.js";
@@ -30,9 +30,13 @@ import { footerInTwoWindows } from "./helpers/footer.js";
 import { CONTENT, DEMO_REPORT, filesOf, published, reportsOf } from "./helpers/site-content.js";
 import { EARLIER_RELEASES, FACTS, RECORDS, RESULTS_CONTENT } from "./helpers/trust-facts.js";
 
-/** The page's background in each theme. */
-const DARK = "rgb(11, 16, 21)";
-const LIGHT = "rgb(255, 255, 255)";
+/** The page's background in each theme: the audit tool's, #0a0a0a and #f9fafb. */
+const DARK = "rgb(10, 10, 10)";
+const LIGHT = "rgb(249, 250, 251)";
+
+/** The system's own fonts, which the words are in, and the fixed-width one, the big numbers'. */
+const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const MONO = 'ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace';
 
 /**
  * A site whose names are as long as a name can be: a host of 88 characters, a person's name that is
@@ -157,14 +161,13 @@ const reported: string[] = [];
 beforeAll(async () => {
   browser = await launchBrowser();
   folder = await mkdtemp(path.join(tmpdir(), "voicecap-site-page-"));
-  const fontCss = await fontFaceCss();
   const writeHtml = async (name: string, html: string): Promise<string> => {
     const file = path.join(folder, name);
     await writeFile(file, html);
     return file;
   };
   const write = (name: string, content: SiteContent): Promise<string> =>
-    writeHtml(name, renderSiteIndex(content, { fontCss }));
+    writeHtml(name, renderSiteIndex(content));
   files = {
     page: await write("index.html", CONTENT),
     long: await write("long.html", longContent()),
@@ -175,37 +178,28 @@ beforeAll(async () => {
     // index.html, which the links of its bar go to.
     trustBar: await writeHtml(
       "trust-bar.html",
-      sitePage(
-        {
-          title: "A page with the trust page's bar",
-          bar: siteBar(CONTENT, "trust"),
-          main: ["<h1>A page with the trust page's bar</h1>"],
-        },
-        { fontCss },
-      ),
+      sitePage({
+        title: "A page with the trust page's bar",
+        bar: siteBar(CONTENT, "trust"),
+        main: ["<h1>A page with the trust page's bar</h1>"],
+      }),
     ),
     // The trust page, beside index.html, as the website has it.
     trust: await writeHtml(
       "trust.html",
-      renderTrustPage(
-        {
-          voicecap: { ...FACTS, releases: [...FACTS.releases, ...EARLIER_RELEASES] },
-          records: RECORDS,
-          content: RESULTS_CONTENT,
-        },
-        { fontCss },
-      ),
+      renderTrustPage({
+        voicecap: { ...FACTS, releases: [...FACTS.releases, ...EARLIER_RELEASES] },
+        records: RECORDS,
+        content: RESULTS_CONTENT,
+      }),
     ),
     trustBare: await writeHtml(
       "trust-bare.html",
-      renderTrustPage(
-        {
-          voicecap: { ...FACTS, release: null },
-          records: recordFactsOf({ demo: null, sites: [] }),
-          content: { demo: null, sites: [] },
-        },
-        { fontCss },
-      ),
+      renderTrustPage({
+        voicecap: { ...FACTS, release: null },
+        records: recordFactsOf({ demo: null, sites: [] }),
+        content: { demo: null, sites: [] },
+      }),
     ),
   };
 });
@@ -232,7 +226,10 @@ interface OpenOptions {
   before?: string;
 }
 
-/** A page, open from its file, with every font it declares loaded, so its layout is the final one. */
+/**
+ * A page, open from its file, with every font it declares loaded, so its layout is the final one.
+ * The website's pages declare none (see "draws its words in the system's fonts").
+ */
 async function open(file: string, options: OpenOptions = {}): Promise<Page> {
   const context = await (options.browser ?? browser).newContext({
     javaScriptEnabled: options.scripts ?? true,
@@ -274,82 +271,74 @@ async function openFolds(page: Page): Promise<void> {
   });
 }
 
+/** Where stopsUnderTheBar puts each stop before the Tab: this many pixels from the window's top. */
+const STOP_OFFSET = 10;
+
 /**
- * Tabs through every stop of the page, and says which of them ends up under the bar, one line each.
- * Each stop is tried twice. Before the Tab, the page is scrolled so that the stop is 10 pixels from
- * the top of the window, which is under the bar: a browser that doesn't know about the bar takes it
- * for a stop in view, and leaves it there. And so that it is 1 pixel inside the edge that
- * `scroll-padding-top` keeps clear: a stop that is already in view stays where it is, so a bar
- * taller than its padding covers it. What is at the middle of a stop, and at its top edge, is the
- * stop or is inside it. A bar that doesn't stick has no such edge, so each stop is tried once.
+ * Tabs through every stop of the page, and says which of them ends up under the bar, or under
+ * anything else, one line each. Before the Tab, the page is scrolled so that the stop is 10 pixels
+ * from the top of the window, where a bar that stuck would be: a browser takes a stop there for one
+ * in view, and leaves it there, so a bar that covered it would hide it. The website's bar scrolls
+ * with the page, so nothing should: what is at the middle of a stop, and at its top edge, is the
+ * stop or is inside it.
  */
 async function stopsUnderTheBar(page: Page): Promise<string[]> {
   const count = await page.evaluate(
     (selector) => document.querySelectorAll(selector).length,
     STOPS,
   );
-  const padding = await page.evaluate(() =>
-    parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
-  );
   const found: string[] = [];
-  for (const offset of Number.isFinite(padding) ? [10, padding + 1] : [10]) {
-    for (let stop = 0; stop < count; stop++) {
-      await page.evaluate(
-        ({ selector, at, offset }) => {
-          const stops = document.querySelectorAll<HTMLElement>(selector);
-          // The stop before has focus, without the page moving, so the Tab goes on from it. For the
-          // first stop, the body has it: where a Tab starts from the top of the page, even after a
-          // tour that ended at the last stop.
-          const before = stops[at - 1];
-          if (before !== undefined) {
-            before.focus({ preventScroll: true });
-          } else {
-            document.body.tabIndex = -1;
-            document.body.focus({ preventScroll: true });
-            document.body.removeAttribute("tabindex");
-          }
-          const next = stops[at];
-          // A stop in the bar is in view wherever the page is scrolled.
-          if (next === undefined || next.closest(".bar") !== null) return;
-          window.scrollTo(
-            0,
-            Math.max(0, next.getBoundingClientRect().top + window.scrollY - offset),
-          );
-        },
-        { selector: STOPS, at: stop, offset },
-      );
-      await page.keyboard.press("Tab");
+  for (let stop = 0; stop < count; stop++) {
+    await page.evaluate(
+      ({ selector, at, offset }) => {
+        const stops = document.querySelectorAll<HTMLElement>(selector);
+        // The stop before has focus, without the page moving, so the Tab goes on from it. For the
+        // first stop, the body has it: where a Tab starts from the top of the page, even after a
+        // tour that ended at the last stop.
+        const before = stops[at - 1];
+        if (before !== undefined) {
+          before.focus({ preventScroll: true });
+        } else {
+          document.body.tabIndex = -1;
+          document.body.focus({ preventScroll: true });
+          document.body.removeAttribute("tabindex");
+        }
+        const next = stops[at];
+        // A stop in the bar is where the bar is, wherever the page is scrolled.
+        if (next === undefined || next.closest(".bar") !== null) return;
+        window.scrollTo(0, Math.max(0, next.getBoundingClientRect().top + window.scrollY - offset));
+      },
+      { selector: STOPS, at: stop, offset: STOP_OFFSET },
+    );
+    await page.keyboard.press("Tab");
 
-      const problem = await page.evaluate(
-        ({ selector, at }) => {
-          const focused = document.activeElement;
-          const expected = document.querySelectorAll(selector)[at];
-          const name = (element: Element | null): string =>
-            element === null
-              ? "nothing"
-              : `${element.tagName.toLowerCase()} "${(element.textContent ?? "").trim().slice(0, 40)}"`;
-          if (focused === null || focused !== expected) {
-            return `${name(focused)} has focus, not ${name(expected ?? null)}`;
+    const problem = await page.evaluate(
+      ({ selector, at }) => {
+        const focused = document.activeElement;
+        const expected = document.querySelectorAll(selector)[at];
+        const name = (element: Element | null): string =>
+          element === null
+            ? "nothing"
+            : `${element.tagName.toLowerCase()} "${(element.textContent ?? "").trim().slice(0, 40)}"`;
+        if (focused === null || focused !== expected) {
+          return `${name(focused)} has focus, not ${name(expected ?? null)}`;
+        }
+        const box = focused.getClientRects()[0] ?? focused.getBoundingClientRect();
+        const middle = box.left + box.width / 2;
+        for (const [where, top] of [
+          ["middle", box.top + box.height / 2],
+          ["top edge", box.top + 1],
+        ] as const) {
+          const hit = document.elementFromPoint(middle, top);
+          if (hit === null || (hit !== focused && !focused.contains(hit))) {
+            return `its ${where} is under ${name(hit)}`;
           }
-          const box = focused.getClientRects()[0] ?? focused.getBoundingClientRect();
-          const middle = box.left + box.width / 2;
-          for (const [where, top] of [
-            ["middle", box.top + box.height / 2],
-            ["top edge", box.top + 1],
-          ] as const) {
-            const hit = document.elementFromPoint(middle, top);
-            if (hit === null || (hit !== focused && !focused.contains(hit))) {
-              return `its ${where} is under ${name(hit)}`;
-            }
-          }
-          return null;
-        },
-        { selector: STOPS, at: stop },
-      );
-      if (problem !== null) {
-        found.push(`stop ${stop + 1} of ${count}, ${offset} px from the top: ${problem}`);
-      }
-    }
+        }
+        return null;
+      },
+      { selector: STOPS, at: stop },
+    );
+    if (problem !== null) found.push(`stop ${stop + 1} of ${count}: ${problem}`);
   }
   return found;
 }
@@ -458,30 +447,54 @@ describe("the site's page", () => {
       page.locator("p.verdict").evaluateAll((lines) =>
         lines.map((line) => {
           const before = getComputedStyle(line, "::before");
-          return { content: before.content, color: before.color };
+          return {
+            content: before.content,
+            color: before.color,
+            words: getComputedStyle(line).color,
+          };
         }),
       );
+    // The audit tool's colors: green as --good, amber as --warn, and red as --bad, in each theme.
+    const colors = {
+      dark: ["rgb(52, 211, 153)", "rgb(251, 191, 36)", "rgb(248, 113, 113)"],
+      light: ["rgb(25, 101, 73)", "rgb(112, 85, 16)", "rgb(139, 63, 63)"],
+    };
 
-    for (const theme of ["dark", "light"]) {
+    for (const theme of ["dark", "light"] as const) {
       const seen = await signs();
       // The sign, with no words for a screen reader to read: the line's own words say it.
       expect(
         seen.map(({ content }) => content),
         theme,
       ).toEqual(['"✓" / ""', '"⚠" / ""', '"⚠" / ""']);
-      expect(new Set(seen.map(({ color }) => color)).size, theme).toBe(3);
+      // The sign and the words are in the verdict's color.
+      expect(
+        seen.map(({ color }) => color),
+        theme,
+      ).toEqual(colors[theme]);
+      expect(
+        seen.map(({ words }) => words),
+        theme,
+      ).toEqual(colors[theme]);
       if (theme === "dark") await page.locator("#theme-toggle").click();
     }
-    // What Chromium's accessibility tree gives a screen reader for each line: its words alone.
+    // What Chromium's accessibility tree gives a screen reader for each line: its words alone, with no
+    // sign. A verdict is a pill, in capitals that the style sets, and Chromium gives a screen reader
+    // the words as they're drawn, in those capitals, as it does a kicker's.
     const client = await page.context().newCDPSession(page);
     try {
       const { nodes } = await client.send("Accessibility.getFullAXTree");
       const texts = nodes
+        .filter((node) => node.role?.value === "StaticText")
         .map((node): unknown => node.name?.value)
         .filter((name): name is string => typeof name === "string")
-        .filter((name) => /needs? attention/.test(name));
+        .filter((name) => /needs? attention/i.test(name));
       expect(texts.some((name) => /[✓⚠]/.test(name))).toBe(false);
-      expect(texts).toContain("Nothing needs attention");
+      expect(texts).toEqual([
+        "NOTHING NEEDS ATTENTION",
+        "1 PROBLEM NEEDS ATTENTION, ON 32 PAGES",
+        "2 PROBLEMS NEED ATTENTION, ON 2 PAGES",
+      ]);
     } finally {
       await client.detach();
     }
@@ -559,25 +572,97 @@ describe("the site's page", () => {
     ).resolves.toBe(1);
   });
 
-  it("ends the footer's lines where the notes' lines end, on a wide window", async () => {
+  it("draws its words in the system's fonts, and its big numbers in the fixed-width one, and loads no font, on both pages", async () => {
+    for (const [which, number] of [
+      ["page", ".view-head > .count b"],
+      ["trust", ".tile > .n"],
+    ] as const) {
+      const page = await open(files[which]);
+
+      const fonts = await page.evaluate(
+        (selector) => ({
+          declared: document.fonts.size,
+          words: getComputedStyle(document.body).fontFamily,
+          number: getComputedStyle(document.querySelector(selector) ?? document.body).fontFamily,
+        }),
+        number,
+      );
+
+      // No font is in the page, nor loaded from anywhere.
+      expect(fonts, which).toEqual({ declared: 0, words: SANS, number: MONO });
+    }
+  });
+
+  it("lays the page out in the audit tool's columns: what's in the bars in 72rem, the main part in 56rem, across the window's middle, with a gutter of 16 pixels, and 24 from 40em", async () => {
+    const page = await open(files.page, { width: 1600 });
+    /** Where the content of the bar, of the footer, and of the main part starts and ends. */
+    const columns = () =>
+      page.evaluate(() => {
+        const contentOf = (selector: string) => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`The page has no ${selector}.`);
+          const box = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          const left = box.left + parseFloat(style.paddingLeft);
+          const right = box.right - parseFloat(style.paddingRight);
+          return { left, right, width: right - left };
+        };
+        return {
+          window: document.documentElement.clientWidth,
+          parts: { bar: contentOf(".bar"), footer: contentOf("footer"), main: contentOf("main") },
+        };
+      });
+
+    // At 16 pixels, the browser's own text size, 72rem is 1152 pixels, and 56rem 896.
+    const wide = await columns();
+    expect(wide.parts.bar.width).toBe(1152);
+    expect(wide.parts.footer.width).toBe(1152);
+    expect(wide.parts.main.width).toBe(896);
+    for (const [name, part] of Object.entries(wide.parts)) {
+      expect(Math.abs((part.left + part.right) / 2 - wide.window / 2), name).toBeLessThanOrEqual(
+        0.5,
+      );
+    }
+    // Narrower than its column, each starts and ends a gutter from the window's edges: 16 pixels on
+    // a phone, and 24 from 40em, which is 640 pixels at 16.
+    for (const [width, gutter] of [
+      [320, 16],
+      [639, 16],
+      [640, 24],
+      [900, 24],
+    ] as const) {
+      await page.setViewportSize({ width, height: 800 });
+      const narrow = await columns();
+      for (const [name, part] of Object.entries(narrow.parts)) {
+        expect(part.left, `${name}, ${width} px`).toBe(gutter);
+        expect(narrow.window - part.right, `${name}, ${width} px`).toBe(gutter);
+      }
+    }
+  });
+
+  it("centers the footer's lines under the page, each no longer to read than a note's, on a wide window", async () => {
     const page = await open(files.page, { width: 1600 });
 
-    // Both start where the main part's words do, so their widths say where their lines end.
-    const width = await page.evaluate(() => {
-      const widest = (selector: string): number =>
-        Math.max(
-          ...[...document.querySelectorAll(selector)].map(
-            (element) => element.getBoundingClientRect().width,
-          ),
-        );
-      return { notes: widest("p.note"), footer: widest("footer > p") };
+    const { middle, lines, notes } = await page.evaluate(() => {
+      const boxes = (selector: string) =>
+        [...document.querySelectorAll(selector)].map((element) => element.getBoundingClientRect());
+      return {
+        middle: document.documentElement.clientWidth / 2,
+        lines: boxes("footer > p").map(({ left, right, width }) => ({
+          centre: (left + right) / 2,
+          width,
+        })),
+        notes: Math.max(...boxes("p.note").map(({ width }) => width)),
+      };
     });
 
-    // The footer's smaller text keeps the notes' measure, so a line of it is no longer to read: its
-    // 80 characters are as wide as their 72. Where a character's width is rounded to a whole pixel,
-    // as in Chromium on Linux, the footer's can come out up to 2% short of theirs, but never wider.
-    expect(width.footer).toBeLessThanOrEqual(width.notes + 1);
-    expect(width.footer).toBeGreaterThanOrEqual(width.notes * 0.98);
+    // As the audit tool's footer is: each line across the window's middle. A line is 80 characters
+    // of its smaller text at the most, so it's no longer to read than a note's 72.
+    expect(lines).toHaveLength(2);
+    for (const line of lines) {
+      expect(Math.abs(line.centre - middle)).toBeLessThanOrEqual(0.5);
+      expect(line.width).toBeLessThanOrEqual(notes + 1);
+    }
   });
 
   it.each([
@@ -601,13 +686,20 @@ describe("the site's page", () => {
   it.each([
     ["with no report at all", "empty"],
     ["with the demo and two sites", "page"],
-  ] as const)("keeps the main part as wide as its box allows, %s", async (_, which) => {
+  ] as const)("keeps the main part as wide as its column, %s", async (_, which) => {
     const page = await open(files[which]);
 
-    const width = await page.locator("main").evaluate((main) => main.getBoundingClientRect().width);
+    const width = await page.locator("main").evaluate((main) => {
+      const style = getComputedStyle(main);
+      return (
+        main.getBoundingClientRect().width -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight)
+      );
+    });
 
-    // 1120 pixels in a window 1280 wide, however little is in it.
-    expect(width).toBe(1120);
+    // 56rem, 896 pixels at the browser's own text size, in a window 1280 wide, however little is in it.
+    expect(width).toBe(896);
   });
 
   it("prints as before: the page is no flex column in print", async () => {
@@ -685,7 +777,7 @@ describe("the site's page", () => {
     const here = links.filter(({ current }) => current === "page");
     const others = links.filter(({ current }) => current !== "page");
 
-    // Only the link to the trust page is the page the reader is on. The others are medium, with the
+    // Only the link to the trust page is the page the reader is on. The others are regular, with the
     // browser's own underline (`auto`, which grows with the text); it is bold, with a heavier one,
     // 0.15 of its text's size thick, so that it stays heavier as the text grows.
     expect(here.map(({ words }) => words)).toEqual(["Can I trust this?"]);
@@ -696,7 +788,7 @@ describe("the site's page", () => {
       expect.closeTo(0.15, 3),
     ]);
     expect(others.map(look)).toEqual(
-      Array.from({ length: 3 }, () => ({ weight: "500", line: "underline", thickness: "auto" })),
+      Array.from({ length: 3 }, () => ({ weight: "400", line: "underline", thickness: "auto" })),
     );
   });
 
@@ -712,16 +804,10 @@ describe("the site's page", () => {
     expect(await page.locator("#sites > .view-head > .title > h2").textContent()).toBe("The sites");
   });
 
-  it("keeps the bar in view from 640 pixels wide, and scrolls it away on a narrower window", async () => {
-    // At the browser's own text size, 16 pixels, 40em is 640 pixels.
+  it("lets the bar scroll away with the page, at any width", async () => {
     const page = await open(files.page, { width: 1100, height: 600 });
 
-    for (const [width, sticks] of [
-      [1100, true],
-      [640, true],
-      [639, false],
-      [320, false],
-    ] as const) {
+    for (const width of [1100, 640, 639, 320]) {
       await page.setViewportSize({ width, height: 600 });
       const bar = await page.evaluate(() => {
         window.scrollTo(0, 400);
@@ -729,21 +815,17 @@ describe("the site's page", () => {
         return {
           position: header === null ? "" : getComputedStyle(header).position,
           top: header?.getBoundingClientRect().top ?? NaN,
-          height: header?.getBoundingClientRect().height ?? NaN,
-          padding: parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
+          padding: getComputedStyle(document.documentElement).scrollPaddingTop,
           scrolled: window.scrollY,
         };
       });
 
+      // As the audit tool's bar does: it's in the page's flow, so it went up with the page, and no
+      // room is kept clear for it.
       expect(bar.scrolled, `${width} px`).toBe(400);
-      expect(bar.position, `${width} px`).toBe(sticks ? "sticky" : "static");
-      if (sticks) {
-        expect(bar.top, `${width} px`).toBe(0);
-        // The bar is one line even at 640 pixels, and what has focus is kept below all of it.
-        expect(bar.height, `${width} px`).toBeLessThan(bar.padding);
-      } else {
-        expect(bar.top, `${width} px`).toBeLessThan(0);
-      }
+      expect(bar.position, `${width} px`).toBe("static");
+      expect(bar.top, `${width} px`).toBeLessThan(0);
+      expect(bar.padding, `${width} px`).toBe("auto");
     }
   });
 
@@ -991,6 +1073,37 @@ describe("the trust page", () => {
     expect(thickness).toBeCloseTo(0.15, 3);
   });
 
+  it("draws its parts in the audit tool's colors, in both themes: a law's tag in --act, and a card's heading, its link, and a big number in --good", async () => {
+    const page = await open(files.trust);
+    const colors = () =>
+      page.evaluate(() => {
+        const color = (selector: string): string => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`The page has no ${selector}.`);
+          return getComputedStyle(element).color;
+        };
+        return {
+          tag: color(".card > .tag"),
+          heading: color(".card > h3"),
+          headingLink: color(".card > h3 > a"),
+          number: color(".tile > .n:not(.none)"),
+        };
+      });
+
+    // #67e8f9 and #34d399, dark; #2c626a and #196549, light.
+    const good = { dark: "rgb(52, 211, 153)", light: "rgb(25, 101, 73)" };
+    const act = { dark: "rgb(103, 232, 249)", light: "rgb(44, 98, 106)" };
+    for (const theme of ["dark", "light"] as const) {
+      expect(await colors(), theme).toEqual({
+        tag: act[theme],
+        heading: good[theme],
+        headingLink: good[theme],
+        number: good[theme],
+      });
+      if (theme === "dark") await page.locator("#theme-toggle").click();
+    }
+  });
+
   it("has the page's landmarks, and a region for each of its sections", async () => {
     const landmarks: Landmark[] = [
       ["banner", ""],
@@ -1060,8 +1173,8 @@ describe("the bar at a larger default text size", () => {
    * Sizes a reader can set the browser's text to, in pixels: its own is 16. A browser starts a page
    * at that size, and an em in a media query is that size too, so each of these is a browser of its
    * own, started with the size set. They go to three and a half times the default size: past twice
-   * it the bar's links, and then its button, take lines of their own, and the bar has to stay
-   * shorter than the room kept clear for it all the same.
+   * it the bar's links, and then its button, take lines of their own, and the bar still scrolls with
+   * the page, and covers nothing.
    */
   const SIZES = [24, 32, 40, 48, 56];
   const sized = new Map<number, Browser>();
@@ -1077,30 +1190,26 @@ describe("the bar at a larger default text size", () => {
   });
 
   it.each(SIZES)(
-    "sticks from 40em wide, is shorter than the room kept clear for it, and hides nothing that has focus, at %i pixels",
+    "scrolls with the page, and hides nothing that has focus, at %i pixels",
     async (size) => {
       const own = sized.get(size);
       if (own === undefined) throw new Error(`No browser was started for a text size of ${size}.`);
-      // The bar sticks from 40em wide: 640 pixels at 16, and wider as the text gets larger.
-      const sticksFrom = 40 * size;
 
-      for (const width of [640, sticksFrom - 1, sticksFrom]) {
+      // 640 pixels, and 40em, where the gutter widens: 640 pixels at 16, and wider as the text gets
+      // larger.
+      for (const width of [640, 40 * size]) {
         const page = await open(files.page, { browser: own, width, height: 500 });
         const bar = await page.evaluate(() => {
           const header = document.querySelector(".bar");
           return {
             text: getComputedStyle(document.documentElement).fontSize,
             position: header === null ? "" : getComputedStyle(header).position,
-            height: header?.getBoundingClientRect().height ?? NaN,
-            padding: parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
           };
         });
         const where = `${width} px wide, text at ${size} px`;
 
         expect(bar.text, where).toBe(`${size}px`);
-        expect(bar.position, where).toBe(width >= sticksFrom ? "sticky" : "static");
-        // Where it sticks it's shorter than the room kept clear for it, however many lines it takes.
-        if (width >= sticksFrom) expect(bar.height, where).toBeLessThan(bar.padding);
+        expect(bar.position, where).toBe("static");
         expect(await stopsUnderTheBar(page), where).toEqual([]);
       }
     },

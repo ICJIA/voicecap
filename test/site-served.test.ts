@@ -192,16 +192,22 @@ describe("the site, served as Netlify serves it", () => {
   it("runs every page under its own policy, with no violation", async () => {
     const page = await newPage();
 
-    // The site's page, at the site's top.
-    expect(await visit(page, server.url)).toMatch(A_HASHED_POLICY);
+    // The site's page, at the site's top: under the policy of its own bytes, which allows no font,
+    // since the page embeds none.
+    const index = await readFile(path.join(built.out, "index.html"), "utf8");
+    const indexPolicy = await visit(page, server.url);
+    expect(indexPolicy).toMatch(A_HASHED_POLICY);
+    expect(indexPolicy).toBe(contentSecurityPolicy(inlineHashes(index), { fonts: false }));
+    expect(indexPolicy).toContain("; font-src 'none';");
     expect(await page.locator("#theme-toggle").isVisible()).toBe(true);
     await page.locator("#theme-toggle").click();
     expect(await violationsOf(page), "the site's page").toEqual([]);
 
     // The trust page, at both its addresses: under the policy of its own bytes, which the page's
-    // style block and script run under, and its theme button works.
+    // style block and script run under, and which allows no font, since the page embeds none; and
+    // its theme button works.
     const trust = await readFile(path.join(built.out, "trust.html"), "utf8");
-    const trustPolicy = contentSecurityPolicy(inlineHashes(trust));
+    const trustPolicy = contentSecurityPolicy(inlineHashes(trust), { fonts: false });
     for (const where of ["trust", "trust.html"]) {
       expect(await visit(page, new URL(where, server.url).href), where).toMatch(A_HASHED_POLICY);
       const response = await page.request.get(new URL(where, server.url).href);

@@ -12,7 +12,6 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { fontFaceCss } from "../src/share/fonts.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import {
   recordFactsOf,
@@ -28,8 +27,6 @@ import { renderTrustPage, type TrustInput } from "../src/site/trust.js";
 import { decode, textOf } from "./helpers/share-html.js";
 import { CONTENT, DEMO_REPORT, DVFR, DVFR_NEWEST } from "./helpers/site-content.js";
 import { EARLIER_RELEASES, FACTS, RECORDS, RESULTS_CONTENT } from "./helpers/trust-facts.js";
-
-const NO_FONTS = { fontCss: "" };
 
 const GITHUB = "https://github.com/ICJIA/voicecap";
 const CHANGELOG = "https://github.com/ICJIA/voicecap/blob/main/CHANGELOG.md";
@@ -57,7 +54,7 @@ const INPUT: TrustInput = { voicecap: FACTS, records: RECORDS, content: RESULTS_
 
 /** The page, with some of its input changed. */
 function pageWith(changes: Partial<TrustInput> = {}): string {
-  return renderTrustPage({ ...INPUT, ...changes }, NO_FONTS);
+  return renderTrustPage({ ...INPUT, ...changes });
 }
 
 /** The release facts of FACTS, which the tests change a part of. */
@@ -78,11 +75,6 @@ const NO_REPORTS: RecordFacts = recordFactsOf({ demo: null, sites: [] });
 /** How a policy names the hash of `text`: 'sha256-' and its SHA-256 as base64, in single quotes. */
 function hashOf(text: string): string {
   return `'sha256-${createHash("sha256").update(text, "utf8").digest("base64")}'`;
-}
-
-/** The page with its fonts' data left out: base64 is letters, and could spell anything. */
-function withoutFontData(html: string): string {
-  return html.replace(/data:font\/woff2;base64,[A-Za-z0-9+/=]+/g, "data:font/woff2;base64,");
 }
 
 /** The page's markup, with what its style and script elements hold left out. */
@@ -224,22 +216,20 @@ function numbersIn(text: string): string[] {
 describe("renderTrustPage", () => {
   const html = pageWith();
 
-  it("is one file, under its own policy: one style block, one script last, no style attribute, nothing from outside", async () => {
-    const fontCss = await fontFaceCss();
-    const page = renderTrustPage(INPUT, { fontCss });
-    const plain = withoutFontData(page);
-
-    expect(plain.match(/<style\b/g)).toHaveLength(1);
-    expect(plain.match(/<script\b/g)).toHaveLength(1);
+  it("is one file, under its own policy: one style block, one script last, no style attribute, nothing from outside", () => {
+    expect(html.match(/<style\b/g)).toHaveLength(1);
+    expect(html.match(/<script\b/g)).toHaveLength(1);
     // The script is the last thing in the page.
-    expect(page).toMatch(/<\/script>\n<\/body>\n<\/html>\n$/);
-    expect(plain).not.toMatch(/\sstyle\s*=/i);
-    for (const outside of ["src=", "srcset", "<link", "<iframe", "@import", "url(http"]) {
-      expect(plain, outside).not.toContain(outside);
+    expect(html).toMatch(/<\/script>\n<\/body>\n<\/html>\n$/);
+    expect(html).not.toMatch(/\sstyle\s*=/i);
+    // Nothing is loaded, linked, or framed, and no font is in the page, not even as data: its words
+    // are in the system's own fonts.
+    for (const outside of ["src=", "srcset", "<link", "<iframe", "@import", "url(", "@font-face"]) {
+      expect(html, outside).not.toContain(outside);
     }
     // Its own code is what a Content Security Policy hashes: the one style block, and the script.
-    expect(inlineHashes(page)).toEqual({
-      styles: [hashOf(`\n${fontCss}\n${SITE_CSS}`)],
+    expect(inlineHashes(html)).toEqual({
+      styles: [hashOf(`\n${SITE_CSS}`)],
       scripts: [hashOf(SITE_SCRIPT)],
     });
   });

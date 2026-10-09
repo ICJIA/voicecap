@@ -8,9 +8,10 @@
  * number that isn't there is a "—", which a screen reader hears as "not recorded".
  *
  * It's the website's other page, in the website's frame (./frame.ts): the same head, with one style
- * block (the fonts, then SITE_CSS) and one script (SITE_SCRIPT); the skip link; the bar, whose link
- * to this page says it's the page the reader is on; and the footer. It sets no `style` attribute,
- * since a Content Security Policy that hashes its style block and its script allows nothing else.
+ * block (SITE_CSS, which embeds no font) and one script (SITE_SCRIPT); the skip link; the bar, whose
+ * link to this page says it's the page the reader is on; and the footer. It sets no `style`
+ * attribute, since a Content Security Policy that hashes its style block and its script allows
+ * nothing else.
  *
  * Its main part, in order:
  * - its banner, in the website's banner style (`view-head`): the shield, in its circle, and the
@@ -321,30 +322,25 @@ function links(version: string): string {
 
 /**
  * The page, from the facts it states: its main part, in the website's frame (sitePage in
- * ./frame.ts), with the bar of this page, whose links to the views follow `content`. `fontCss` is
- * the fonts' `@font-face` rules (fontFaceCss in ../share/fonts.ts), which the page's style block
- * holds ahead of its own styles. Pure.
+ * ./frame.ts), with the bar of this page, whose links to the views follow `content`. Pure.
  */
-export function renderTrustPage(input: TrustInput, assets: { fontCss: string }): string {
+export function renderTrustPage(input: TrustInput): string {
   const { voicecap, records, content } = input;
   const { does, nvda, limits } = TRUST_TEXT;
-  return sitePage(
-    {
-      title: TRUST_TEXT.title,
-      bar: siteBar(content, "trust"),
-      main: [
-        hero(input),
-        part(PARTS.does, does, [`<p class="lead">${esc(does.text)}</p>`]),
-        part(PARTS.nvda, nvda, [`<p class="lead">${esc(nvda.text)}</p>`]),
-        law(),
-        evidence(records.files),
-        tested(voicecap.release),
-        part(PARTS.limits, limits, [points(limits.items.map((words) => ({ words })))]),
-        builder(voicecap),
-        history(voicecap.releases),
-        links(voicecap.version),
-      ],
-    },
-    assets,
-  );
+  return sitePage({
+    title: TRUST_TEXT.title,
+    bar: siteBar(content, "trust"),
+    main: [
+      hero(input),
+      part(PARTS.does, does, [`<p class="lead">${esc(does.text)}</p>`]),
+      part(PARTS.nvda, nvda, [`<p class="lead">${esc(nvda.text)}</p>`]),
+      law(),
+      evidence(records.files),
+      tested(voicecap.release),
+      part(PARTS.limits, limits, [points(limits.items.map((words) => ({ words })))]),
+      builder(voicecap),
+      history(voicecap.releases),
+      links(voicecap.version),
+    ],
+  });
 }
