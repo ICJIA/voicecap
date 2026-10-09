@@ -87,7 +87,7 @@ The recording never changes the verdict, the ring, the numbers, or "What needs a
 
 - **The record.** `page.voice`, kept apart from the page's `files` as the screenshot's and axe's are, so a review never copies it, and covered by the run's seal. It holds either:
   - `{ sha256, bytes, seconds, lostMs, recordedAt }`; or
-  - `{ error, ranAt }`, with the first line of what went wrong, cut at 300 characters.
+  - `{ error, recordedAt }`, with the first line of what went wrong, cut at 300 characters.
 - **`voicecap verify`** names a `voice.webm` that's missing, changed, or not recorded by the run. A run from before 0.17.0 passes.
 - **The version.** One constant, `keepsVoice` at 0.17.0, gates the reasons: a run from before it says "Not recorded: this run used voicecap 0.16.0."
 

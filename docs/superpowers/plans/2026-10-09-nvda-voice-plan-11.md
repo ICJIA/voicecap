@@ -246,14 +246,16 @@
 - Modify:
   - `src/share/check.ts` (recordings in the check's data, and `audio[data-file]` hashed as `img[data-file]` is);
   - `src/share/text.ts` (`VOICE_TEXT`);
-  - `src/share/html/style.ts` (the player's few rules, in the one style block).
+  - `src/share/html/style.ts` (the player's few rules, in the one style block);
+  - `src/share/run-evidence.ts` (`KEEPS_VOICE_FROM`, beside `keepsAxe`).
 - Test: `test/share-browser.test.ts`, `test/share-check.test.ts`.
 
 **Interfaces:**
 - Consumes: the share's model and `voiceRecordOf` (Task 3).
 - Produces:
   - `renderVoicePage(model: ShareModel, recordings: ReadonlyMap<string, Uint8Array>): string | null`, keyed `<run>/<slug>`. It gives null when no page has a recording.
-  - `voiceAnchor(slug: string): string`, the section's id.
+  - `voiceAnchor(slug: string): string`, the section's id;
+  - `KEEPS_VOICE_FROM = "0.17.0"`.
 - **The text,** fixed in `VOICE_TEXT`:
   - **The title:** `NVDA's voice: <site name>, <date and time>`.
   - **The lead:** "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast; choose a slower speed, and the pitch stays the same. The transcripts on the shareable page are the record of what was reviewed."
@@ -290,7 +292,7 @@
   - `src/share/share.ts` (write `${stem}.voice.html`, and list it among the copies);
   - `src/share/cards.ts` and `src/share/html/pages.ts` (the card's line);
   - `src/share/html/details.ts` and `src/share/word/details.ts` (the paragraph);
-  - `src/share/run-evidence.ts` (`KEEPS_VOICE_FROM`; `voice.webm` in the fingerprints);
+  - `src/share/run-evidence.ts` (`voice.webm` in the fingerprints);
   - `src/share/text.ts`.
 - Test:
   - `test/share-load.test.ts`;
@@ -300,11 +302,10 @@
   - `test/share-document.test.ts`.
 
 **Interfaces:**
-- Consumes: `renderVoicePage` and `voiceAnchor` (Task 4).
+- Consumes: `renderVoicePage`, `voiceAnchor`, and `KEEPS_VOICE_FROM` (Task 4).
 - Produces:
   - `ShareInput.recordings: Map<string, Uint8Array>`, keyed `<run>/<slug>`;
-  - `PageCard.voice: { seconds: number; href: string } | null`;
-  - `KEEPS_VOICE_FROM = "0.17.0"`.
+  - `PageCard.voice: { seconds: number; href: string } | null`.
 - **The text:**
   - **The card's line:** "NVDA's voice: {length}, on the voice page", linking to `${stem}.voice.html#${voiceAnchor(slug)}`.
   - **The details' paragraph:** "NVDA's voice: what NVDA said aloud on each page is recorded and sealed with the run, and the voice page plays it at slower speeds." It's followed by a link to the voice page, or by the reason there's none.
