@@ -29,6 +29,9 @@ import { EVENT_LOG } from "./events.js";
  *   <date>/<time>/pages/<slug>/axe.json         (what axe-core found on the page as it loaded, for a
  *                                                driver that checks pages: kept and recorded as the
  *                                                screenshot is)
+ *   <date>/<time>/pages/<slug>/voice.webm       (what NVDA said aloud while the page's last attempt
+ *                                                read it, for a driver that records: kept and
+ *                                                recorded as the screenshot is)
  *   <date>/<time>/attempts/<slug>/<n>/<pass>.{txt,json}     (an earlier attempt, kept, n = 1, 2, ...)
  *   <date>/<time>/compare/<base-id>/<slug>/<pass>.diff.txt   (diffs made when the run completed)
  *   <date>/<time>_manual_<slug>/session.{txt,json}  <date>/<time>_manual_<slug>/raw/<format>.txt

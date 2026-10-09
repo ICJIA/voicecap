@@ -80,6 +80,18 @@ export interface ScreenReaderDriver {
    */
   checkWithAxe?(): Promise<AxeCapture>;
 
+  /**
+   * Start recording what the screen reader says aloud, and no other sound, from now until the
+   * recording is ended. The core asks for one at the start of each attempt at a page, before the
+   * attempt's first step, and ends it, with `stop()` or `discard()`, before it asks for the next.
+   * A recording that couldn't start (the recorder can't run, or the screen reader's process isn't
+   * found) gives its reason at `stop()`, never here: not being able to record never fails a page, so
+   * the reason is the answer, and the run records it.
+   *
+   * Optional: a driver that can't record leaves it out, and its run records no voice.
+   */
+  recordVoice?(): Promise<VoiceRecording>;
+
   /** Move to the next line in browse mode (NVDA: Down Arrow). */
   nextLine(): Promise<Speech>;
   /** Move to the next heading (NVDA: H). */
@@ -136,6 +148,35 @@ export type PageScreenshot = { jpeg: Uint8Array } | { error: string };
  */
 export type AxeCapture =
   { json: string; summary: AxeSummary } | { error: string; leftRunning?: true };
+
+/**
+ * What a recording of the screen reader's voice was: the file of its sound, or the reason there's
+ * none. Not being able to record never fails a page, so the reason is the answer, and the run records
+ * it.
+ *
+ * `pcm` is the file: 16 kHz, mono, 16-bit samples, little-endian, which the core reads, encodes, and
+ * deletes. `frames` is how many samples it holds; its first is at `startedAt`, a UTC ISO time such as
+ * "2026-10-09T14:03:07.215Z". `lostMs` is the sound lost because the recorder fell behind, in whole
+ * milliseconds, normally 0. `peak` is the loudest sample, from 0 to 32,768.
+ */
+export type VoiceCapture =
+  | { pcm: string; frames: number; lostMs: number; peak: number; startedAt: string }
+  | { error: string };
+
+/**
+ * One recording of the screen reader's voice, made from when the driver gave it. It ends with
+ * `stop()` or `discard()`, whichever is called first, and ending it again is harmless. A driver
+ * that is stopped meanwhile ends it too: it discards it.
+ */
+export interface VoiceRecording {
+  /**
+   * End the recording and say what it was. The sound's file is the core's to delete. Never rejects
+   * for want of a recording: its reason is the answer.
+   */
+  stop(): Promise<VoiceCapture>;
+  /** End the recording and keep nothing: its sound is deleted. For an attempt that isn't kept. */
+  discard(): Promise<void>;
+}
 
 export interface FocusedElement {
   /** Lowercase tag name, e.g. "a". */

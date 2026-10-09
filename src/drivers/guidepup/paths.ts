@@ -5,6 +5,15 @@ import path from "node:path";
 /** Profile folders the driver's browsers use (in the temp folder); any left by a crashed run are deleted. */
 export const PROFILE_PREFIX = "voicecap-chrome-";
 
+/**
+ * The folder one voicecap process's recordings of NVDA's voice are written to before they're
+ * encoded (in the temp folder, outside every run's folders), named for the process: its sound is
+ * deleted once the run has read it, and the folder when the recorder is closed.
+ */
+export function voiceFolder(tmpDir: string, pid: number): string {
+  return path.join(tmpDir, `voicecap-voice-${pid}`);
+}
+
 /** The installed @guidepup/guidepup (voicecap's pinned dependency). */
 export interface GuidepupPackage {
   version: string;

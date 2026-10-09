@@ -847,6 +847,9 @@ function applyOutcome(
   // The same for axe's results: an earlier attempt's axe.json was moved aside with the files.
   if (outcome.axe) page.axe = outcome.axe;
   else delete page.axe;
+  // And for the recording of NVDA's voice: an earlier attempt's voice.webm was moved aside too.
+  if (outcome.voice) page.voice = outcome.voice;
+  else delete page.voice;
   page.errors = outcome.errors;
   page.flags = outcome.status === "done" ? evaluateFlags(outcome.results, config.flags) : [];
   if (outcome.finalUrl !== undefined) page.finalUrl = outcome.finalUrl;

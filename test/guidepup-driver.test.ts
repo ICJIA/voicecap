@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -9,12 +9,16 @@ import { AXE_LIMIT_MS, axeScript, keptAxeResults } from "../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import { GuidepupNvdaDriver, type GuidepupDriverDeps } from "../src/drivers/guidepup-nvda.js";
+import { voiceFolder } from "../src/drivers/guidepup/paths.js";
+import type { Recorder, RecorderStop } from "../src/drivers/guidepup/voice-recorder.js";
 import { ForegroundError, type EventRecorder } from "../src/drivers/types.js";
 import type { NewRunEvent } from "../src/model.js";
+import { runAudit } from "../src/run/audit.js";
 import { openEventLog, readEventLog } from "../src/run/events.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { createMemoryLogger, type Logger } from "../src/util/log.js";
 import { isoLocalMs } from "../src/util/time.js";
+import { verifyHome } from "../src/verify.js";
 import {
   AXE_HANGS,
   FakeDesktop,
@@ -24,6 +28,12 @@ import {
   type FakePage,
 } from "./helpers/fake-desktop.js";
 import { rawAxe, rawRule } from "./helpers/raw-axe.js";
+import {
+  config as runConfig,
+  options as runOptions,
+  setup as setupRun,
+} from "./helpers/run-site.js";
+import { busySound } from "./helpers/voice-signal.js";
 
 const temps: string[] = [];
 const drivers: GuidepupNvdaDriver[] = [];
@@ -31,6 +41,106 @@ afterEach(async () => {
   for (const driver of drivers.splice(0)) await driver.stop();
   for (const dir of temps.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
+
+/**
+ * The recorder's helper (src/drivers/guidepup/voice-recorder.ts), faked: it keeps each command it's
+ * given, makes the file it's asked to record into, and answers as scripted. As the real helper does,
+ * it forgets its target as soon as it's sent another, whether or not it takes it, and refuses a
+ * start when it has none; and as the real client does, it throws when a command comes while another
+ * waits for its answer.
+ */
+class FakeRecorder implements Recorder {
+  /** Each command, as it's given: "target 5150 <image>", "start <file>", "stop", "close". */
+  readonly calls: string[] = [];
+  closed = false;
+  /** What each stop answers, when its target hasn't exited. */
+  stopped: RecorderStop = {
+    frames: 16_000,
+    lostMs: 0,
+    peak: 1_200,
+    firstSampleAt: "2026-10-09T14:03:07.215Z",
+    targetExited: false,
+  };
+  /** The reasons the next targets are refused with, one each; after them, targets are taken. */
+  refusals: string[] = [];
+  /** The sound each recording holds, as 16 kHz samples, once it has stopped (default: none). */
+  sound: Int16Array | null = null;
+  /** Why the next start is refused, once. */
+  startRefusal: string | null = null;
+  /** Why the next stop fails, once. */
+  stopFailure: string | null = null;
+  /** Process ids that have exited: a stop of a recording of one says so. */
+  readonly exited = new Set<number>();
+  /** Holds each start's answer until the gate is opened, when set. */
+  startGate: Gate | null = null;
+  /** Holds each stop's answer until the gate is opened, when set. */
+  stopGate: Gate | null = null;
+  /** The process it records, until it's sent another target. */
+  private pointedAt: number | null = null;
+  private busy = false;
+
+  /** Runs one command as the real client does: one at a time, and answered a moment later. */
+  private async command<T>(line: string, run: () => T | Promise<T>): Promise<T> {
+    if (this.busy) throw new Error("The recorder is already answering a command.");
+    this.busy = true;
+    this.calls.push(line);
+    try {
+      await new Promise((resolve) => setImmediate(resolve));
+      return await run();
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  target(pid: number, image: string): Promise<void> {
+    return this.command(`target ${pid} ${image}`, () => {
+      this.pointedAt = null;
+      const refusal = this.refusals.shift();
+      if (refusal !== undefined) throw new EnvironmentError(refusal);
+      this.pointedAt = pid;
+    });
+  }
+
+  start(pcmPath: string): Promise<void> {
+    return this.command(`start ${pcmPath}`, async () => {
+      await this.startGate?.wait();
+      if (this.pointedAt === null) {
+        throw new EnvironmentError("the recorder has no program to record");
+      }
+      if (this.startRefusal !== null) {
+        const refusal = this.startRefusal;
+        this.startRefusal = null;
+        throw new EnvironmentError(refusal);
+      }
+      const sound = this.sound;
+      writeFileSync(
+        pcmPath,
+        sound === null ? "" : new Uint8Array(sound.buffer, sound.byteOffset, sound.byteLength),
+      );
+    });
+  }
+
+  stop(): Promise<RecorderStop> {
+    return this.command("stop", async () => {
+      await this.stopGate?.wait();
+      if (this.stopFailure !== null) {
+        const failure = this.stopFailure;
+        this.stopFailure = null;
+        throw new EnvironmentError(failure);
+      }
+      return {
+        ...this.stopped,
+        targetExited: this.pointedAt !== null && this.exited.has(this.pointedAt),
+      };
+    });
+  }
+
+  close(): Promise<void> {
+    this.calls.push("close");
+    this.closed = true;
+    return Promise.resolve();
+  }
+}
 
 interface Setup {
   platform?: NodeJS.Platform;
@@ -63,6 +173,12 @@ function setup(options: Setup = {}) {
   const orphanCleanups: string[] = [];
   const lockChecks: boolean[] = [];
   const awake = { requests: 0, held: 0 };
+  // The recorder's helper, and the folder its sound goes in, which the driver makes and removes.
+  const voiceRoot = mkdtempSync(path.join(os.tmpdir(), "voicecap-driver-voice-"));
+  temps.push(voiceRoot);
+  const voiceDir = path.join(voiceRoot, "voicecap-voice-4242");
+  const voiceRecorder = new FakeRecorder();
+  const recorderStarts = { count: 0 };
   const deps: GuidepupDriverDeps = {
     platform: options.platform ?? "win32",
     loadNvda: () => Promise.resolve(nvda),
@@ -133,11 +249,28 @@ function setup(options: Setup = {}) {
     sleep: () => new Promise((resolve) => setImmediate(resolve)),
     marker: () => "k3m9x2",
     now: () => new Date(),
+    startRecorder: () => {
+      recorderStarts.count++;
+      return Promise.resolve(voiceRecorder);
+    },
+    voiceDir,
   };
   const config = { ...DEFAULT_CONFIG, ...options.config };
   const driver = new GuidepupNvdaDriver({ config, logger }, deps);
   drivers.push(driver);
-  return { driver, desktop, nvda, logger: memory, deps, orphanCleanups, lockChecks, awake };
+  return {
+    driver,
+    desktop,
+    nvda,
+    logger: memory,
+    deps,
+    orphanCleanups,
+    lockChecks,
+    awake,
+    voiceRecorder,
+    recorderStarts,
+    voiceDir,
+  };
 }
 
 /** A recorder that keeps what it's given. */
@@ -2089,5 +2222,429 @@ describe("the program that took the foreground", () => {
     const step = driver.nextLine();
     await expect(step).rejects.toMatchObject({ failure: "foreground", program: "Microsoft Teams" });
     expect(only(recorder.events, "foreground-lost")).toEqual([TEAMS]);
+  });
+});
+
+// What NVDA says aloud is recorded by a helper the driver starts at the run's first recording, one
+// recording at a time: the run asks for one as each attempt at a page begins, and ends it.
+describe("recording NVDA's voice", () => {
+  /** The nvda.exe the driver started, which each target names. */
+  const exeOf = (deps: GuidepupDriverDeps) => deps.install.nvdaExe;
+
+  it("keeps each recording's sound in a folder of the temp folder named for the process", () => {
+    expect(voiceFolder("C:\\Users\\pat\\AppData\\Local\\Temp", 4242)).toBe(
+      path.join("C:\\Users\\pat\\AppData\\Local\\Temp", "voicecap-voice-4242"),
+    );
+  });
+
+  it("starts the helper once, at the first recording, and not before", async () => {
+    const { driver, recorderStarts } = setup();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    expect(recorderStarts.count).toBe(0);
+
+    await (await driver.recordVoice()).stop();
+    expect(recorderStarts.count).toBe(1);
+    await (await driver.recordVoice()).stop();
+    // A mid-run restart doesn't start another: it's one helper for the run.
+    await driver.stop({ restarting: true });
+    await driver.start();
+    await (await driver.recordVoice()).stop();
+    expect(recorderStarts.count).toBe(1);
+  });
+
+  it("targets each NVDA it starts, with the nvda.exe it started", async () => {
+    const { driver, voiceRecorder, deps, voiceDir } = setup();
+    await driver.start();
+    await (await driver.recordVoice()).stop();
+    await (await driver.recordVoice()).stop();
+    expect(voiceRecorder.calls).toEqual([
+      `target 5150 ${exeOf(deps)}`,
+      `start ${path.join(voiceDir, "1.pcm")}`,
+      "stop",
+      // The same NVDA: it isn't targeted again.
+      `start ${path.join(voiceDir, "2.pcm")}`,
+      "stop",
+    ]);
+  });
+
+  it("retargets after a restart, so the next page's recording is the new NVDA's", async () => {
+    const { driver, voiceRecorder, deps, voiceDir } = setup();
+    await driver.start();
+    await (await driver.recordVoice()).stop();
+    // The restart: the NVDA the helper was pointed at is gone, as its process is, and the new one
+    // has a process of its own. A recording of the old process would be silence.
+    await driver.stop({ restarting: true });
+    voiceRecorder.exited.add(5150);
+    deps.screenReaderPid = () => Promise.resolve(6260);
+    await driver.start();
+    const capture = await (await driver.recordVoice()).stop();
+
+    expect(voiceRecorder.calls).toEqual([
+      `target 5150 ${exeOf(deps)}`,
+      `start ${path.join(voiceDir, "1.pcm")}`,
+      "stop",
+      `target 6260 ${exeOf(deps)}`,
+      `start ${path.join(voiceDir, "2.pcm")}`,
+      "stop",
+    ]);
+    // It's a recording, not the old NVDA's exit.
+    expect(capture).toMatchObject({ pcm: path.join(voiceDir, "2.pcm"), frames: 16_000 });
+    // And the restart didn't end the helper.
+    expect(voiceRecorder.closed).toBe(false);
+  });
+
+  it("targets the new NVDA again after a refusal, rather than take it for a target taken", async () => {
+    const { driver, voiceRecorder, deps } = setup();
+    await driver.start();
+    await (await driver.recordVoice()).stop();
+    await driver.stop({ restarting: true });
+    voiceRecorder.refusals.push("process 6260 can't be opened (Windows error 5)");
+    deps.screenReaderPid = () => Promise.resolve(6260);
+    await driver.start();
+
+    // Refused: the recording says why, and nothing was started without a target.
+    const refused = await (await driver.recordVoice()).stop();
+    expect(refused).toEqual({ error: "process 6260 can't be opened (Windows error 5)" });
+    expect(voiceRecorder.calls.slice(3)).toEqual([`target 6260 ${exeOf(deps)}`]);
+
+    // The refusal isn't kept as a target taken: the next recording targets again, and records.
+    const next = await (await driver.recordVoice()).stop();
+    expect(next).toMatchObject({ frames: 16_000 });
+    expect(voiceRecorder.calls.slice(4).map((call) => call.split(" ")[0])).toEqual([
+      "target",
+      "start",
+      "stop",
+    ]);
+  });
+
+  describe("when the helper won't start", () => {
+    const reason =
+      "the recorder didn't start: PowerShell couldn't compile its C#: Add-Type isn't allowed";
+
+    it("gives its reason at each stop, never when asked to record, and doesn't start it again", async () => {
+      const { driver, deps, recorderStarts } = setup();
+      deps.startRecorder = () => {
+        recorderStarts.count++;
+        return Promise.reject(new EnvironmentError(reason));
+      };
+      await driver.start();
+      for (let page = 0; page < 3; page++) {
+        const recording = await driver.recordVoice();
+        expect(await recording.stop()).toEqual({ error: reason });
+      }
+      expect(recorderStarts.count).toBe(1);
+      // Nothing is left to end, and the driver stops as usual.
+      await driver.stop();
+    });
+
+    it("gives the reason a helper that stopped answering gave, at each stop after it", async () => {
+      const { driver, voiceRecorder } = setup();
+      // Once the real client has ended a helper, every command rejects with why.
+      voiceRecorder.target = () =>
+        Promise.reject(new EnvironmentError("the recorder stopped answering"));
+      await driver.start();
+      for (let page = 0; page < 2; page++) {
+        const recording = await driver.recordVoice();
+        expect(await recording.stop()).toEqual({ error: "the recorder stopped answering" });
+      }
+    });
+  });
+
+  it("says NVDA's process wasn't found when there's no process id for it, and starts nothing", async () => {
+    const { driver, deps, voiceRecorder, recorderStarts } = setup();
+    deps.screenReaderPid = () => Promise.resolve(null);
+    await driver.start();
+    const recording = await driver.recordVoice();
+    expect(await recording.stop()).toEqual({ error: "NVDA's process wasn't found" });
+    expect(recorderStarts.count).toBe(0);
+    expect(voiceRecorder.calls).toEqual([]);
+  });
+
+  it("says the same when NVDA isn't running", async () => {
+    const { driver } = setup();
+    // Never started.
+    const recording = await driver.recordVoice();
+    expect(await recording.stop()).toEqual({ error: "NVDA's process wasn't found" });
+  });
+
+  it("gives what the recorder says of a recording, and where its sound is, for the run to read", async () => {
+    const { driver, voiceRecorder, voiceDir } = setup();
+    voiceRecorder.stopped = {
+      frames: 32_000,
+      lostMs: 12,
+      peak: 900,
+      firstSampleAt: "2026-10-09T14:03:07.215Z",
+      targetExited: false,
+    };
+    await driver.start();
+    expect(existsSync(voiceDir)).toBe(false);
+    const recording = await driver.recordVoice();
+    // The folder is made as the first recording begins.
+    expect(existsSync(voiceDir)).toBe(true);
+    const capture = await recording.stop();
+    expect(capture).toEqual({
+      pcm: path.join(voiceDir, "1.pcm"),
+      frames: 32_000,
+      lostMs: 12,
+      peak: 900,
+      startedAt: "2026-10-09T14:03:07.215Z",
+    });
+    // The sound is the run's now: it's there to be read, and the run deletes it.
+    expect(existsSync(path.join(voiceDir, "1.pcm"))).toBe(true);
+  });
+
+  it("gives a recording whose NVDA ended as the reason, with no sound", async () => {
+    const { driver, voiceRecorder, voiceDir } = setup();
+    await driver.start();
+    const recording = await driver.recordVoice();
+    voiceRecorder.exited.add(5150);
+    expect(await recording.stop()).toEqual({ error: "NVDA's process ended during the recording" });
+    expect(existsSync(path.join(voiceDir, "1.pcm"))).toBe(false);
+  });
+
+  it("gives the reason a start is refused with, and records again at the next", async () => {
+    const { driver, voiceRecorder, voiceDir } = setup();
+    voiceRecorder.startRefusal = "the recording couldn't start: Windows never answered";
+    await driver.start();
+    const refused = await driver.recordVoice();
+    expect(await refused.stop()).toEqual({
+      error: "the recording couldn't start: Windows never answered",
+    });
+    // Nothing was recording, so nothing was stopped.
+    expect(voiceRecorder.calls).not.toContain("stop");
+
+    const next = await (await driver.recordVoice()).stop();
+    expect(next).toMatchObject({ pcm: path.join(voiceDir, "2.pcm") });
+  });
+
+  it("gives the reason a stop fails with, and deletes the sound", async () => {
+    const { driver, voiceRecorder, voiceDir } = setup();
+    await driver.start();
+    const recording = await driver.recordVoice();
+    voiceRecorder.stopFailure = "the recording failed: the sound device changed or went away";
+    expect(await recording.stop()).toEqual({
+      error: "the recording failed: the sound device changed or went away",
+    });
+    expect(existsSync(path.join(voiceDir, "1.pcm"))).toBe(false);
+
+    // The next page records again.
+    expect(await (await driver.recordVoice()).stop()).toMatchObject({ frames: 16_000 });
+  });
+
+  it("stops a recording that's discarded, and deletes its sound", async () => {
+    const { driver, voiceRecorder, voiceDir } = setup();
+    await driver.start();
+    const recording = await driver.recordVoice();
+    expect(existsSync(path.join(voiceDir, "1.pcm"))).toBe(true);
+    await recording.discard();
+    expect(voiceRecorder.calls.at(-1)).toBe("stop");
+    expect(existsSync(path.join(voiceDir, "1.pcm"))).toBe(false);
+    // Ending it again is harmless, and a stop after a discard has no sound to give.
+    await recording.discard();
+    expect(voiceRecorder.calls.filter((call) => call === "stop")).toHaveLength(1);
+    expect(await recording.stop()).toEqual({ error: "the recording was discarded" });
+  });
+
+  it("discards a recording that was never ended when the next one begins", async () => {
+    const { driver, voiceRecorder, voiceDir } = setup();
+    await driver.start();
+    await driver.recordVoice();
+    const second = await driver.recordVoice();
+    expect(voiceRecorder.calls.map((call) => call.split(" ")[0])).toEqual([
+      "target",
+      "start",
+      "stop",
+      "start",
+    ]);
+    expect(existsSync(path.join(voiceDir, "1.pcm"))).toBe(false);
+    expect(await second.stop()).toMatchObject({ pcm: path.join(voiceDir, "2.pcm") });
+  });
+
+  describe("stopping the driver", () => {
+    it("ends a recording under way, closes the helper at the final stop, and removes the folder", async () => {
+      const { driver, voiceRecorder, voiceDir } = setup();
+      await driver.start();
+      const recording = await driver.recordVoice();
+      expect(existsSync(voiceDir)).toBe(true);
+      await driver.stop();
+      expect(voiceRecorder.calls.slice(-2)).toEqual(["stop", "close"]);
+      expect(voiceRecorder.closed).toBe(true);
+      expect(existsSync(voiceDir)).toBe(false);
+      // The recording was discarded with it.
+      expect(await recording.stop()).toEqual({ error: "the recording was discarded" });
+    });
+
+    it("keeps the helper through a restart's stop, and ends the recording under way", async () => {
+      const { driver, voiceRecorder, voiceDir } = setup();
+      await driver.start();
+      await driver.recordVoice();
+      await driver.stop({ restarting: true });
+      expect(voiceRecorder.calls.at(-1)).toBe("stop");
+      expect(voiceRecorder.closed).toBe(false);
+      expect(existsSync(path.join(voiceDir, "1.pcm"))).toBe(false);
+      await driver.start();
+      await (await driver.recordVoice()).stop();
+      await driver.stop();
+      expect(voiceRecorder.closed).toBe(true);
+    });
+
+    it("closes the helper when the final stop joins a restart's", async () => {
+      const { driver, voiceRecorder } = setup();
+      await driver.start();
+      await (await driver.recordVoice()).stop();
+      const restarting = driver.stop({ restarting: true });
+      const final = driver.stop();
+      await Promise.all([restarting, final]);
+      expect(voiceRecorder.closed).toBe(true);
+    });
+
+    it("starts a new helper when a driver that has been stopped records again", async () => {
+      const { driver, recorderStarts, voiceDir } = setup();
+      await driver.start();
+      await (await driver.recordVoice()).stop();
+      await driver.stop();
+      expect(existsSync(voiceDir)).toBe(false);
+      await driver.start();
+      expect(await (await driver.recordVoice()).stop()).toMatchObject({ frames: 16_000 });
+      expect(recorderStarts.count).toBe(2);
+    });
+
+    it("stops the recorder once for a recording that the run and the driver both end", async () => {
+      const { driver, voiceRecorder } = setup();
+      await driver.start();
+      const recording = await driver.recordVoice();
+      // The recorder is slow to answer the stop, and the driver stops meanwhile.
+      const slow = new Gate();
+      voiceRecorder.stopGate = slow;
+      const discarding = recording.discard();
+      await until(() => voiceRecorder.calls.includes("stop"));
+      const stopping = driver.stop();
+      slow.open();
+      await Promise.all([discarding, stopping]);
+      // One stop for the one recording, however many ended it, and none was sent while another
+      // waited (the fake throws at that, as the real client does).
+      expect(voiceRecorder.calls.filter((call) => call === "stop")).toHaveLength(1);
+      expect(voiceRecorder.closed).toBe(true);
+    });
+
+    it("ends a recording that's still beginning when the driver stops, once it has begun", async () => {
+      const { driver, voiceRecorder } = setup();
+      await driver.start();
+      // The recorder is slow to answer the start, and the driver stops meanwhile.
+      const slow = new Gate();
+      voiceRecorder.startGate = slow;
+      const beginning = driver.recordVoice();
+      await until(() => voiceRecorder.calls.some((call) => call.startsWith("start")));
+      const stopping = driver.stop();
+      slow.open();
+      const [recording] = await Promise.all([beginning, stopping]);
+      // It began, so the recorder was told to stop it, after its start was answered; then the helper
+      // was closed. The commands took their turns: the stop didn't pass the start.
+      expect(voiceRecorder.calls.map((call) => call.split(" ")[0])).toEqual([
+        "target",
+        "start",
+        "stop",
+        "close",
+      ]);
+      expect(await recording.stop()).toEqual({ error: "the recording was discarded" });
+    });
+
+    it("doesn't wait for a helper that's still starting to be ready, and closes it when it is", async () => {
+      const { driver, deps, voiceRecorder } = setup();
+      const ready = new Gate();
+      deps.startRecorder = async () => {
+        await ready.wait();
+        return voiceRecorder;
+      };
+      await driver.start();
+      // The run gave up on the recording that was starting the helper, as it does at Ctrl+C.
+      const beginning = driver.recordVoice();
+      await until(() => ready.waiting === 1);
+      await driver.stop();
+      expect(voiceRecorder.closed).toBe(false);
+      // Once it's ready, nothing is left to use it: it's closed, whenever that is, and the
+      // recording that was waiting for it never begins.
+      ready.open();
+      await until(() => voiceRecorder.closed);
+      const recording = await beginning;
+      expect(await recording.stop()).toEqual({ error: "the recording was discarded" });
+      expect(voiceRecorder.calls).toEqual(["close"]);
+    });
+  });
+
+  it("closes the helper at once, and removes the folder, when the process is exiting", async () => {
+    const { driver, voiceRecorder, voiceDir } = setup();
+    await driver.start();
+    await driver.recordVoice();
+    expect(existsSync(voiceDir)).toBe(true);
+    driver.abandon();
+    // Without waiting: closing sends its quit as it's called.
+    expect(voiceRecorder.closed).toBe(true);
+    expect(existsSync(voiceDir)).toBe(false);
+  });
+
+  it("holds the exit hook while the helper runs, through a restart's stop, and lets go at the final stop", async () => {
+    const { driver } = setup();
+    const before = process.listenerCount("exit");
+    await driver.start();
+    await (await driver.recordVoice()).stop();
+    // NVDA and the browser are down, and the helper isn't: a process that exits must end it.
+    await driver.stop({ restarting: true });
+    expect(process.listenerCount("exit")).toBeGreaterThan(before);
+    await driver.stop();
+    expect(process.listenerCount("exit")).toBe(before);
+  });
+});
+
+// The run and the driver together, with NVDA, the browser, and the recorder's helper faked: what each
+// page's recording is of, across the restarts a run makes.
+describe("a run through the Guidepup driver, recording each page", () => {
+  it("records each page with the NVDA that read it, after every restart", async () => {
+    const { driver, deps, voiceRecorder, voiceDir } = setup();
+    voiceRecorder.sound = busySound(1);
+    // Each NVDA has a process of its own, and the ones before it are gone: a recording of one of
+    // them would be silence, which the fake says as the real helper does, as an exit.
+    const pids = [5150, 5151, 5152];
+    let started = 0;
+    deps.screenReaderPid = () => {
+      const pid = pids[started++]!;
+      for (const earlier of pids.slice(0, started - 1)) voiceRecorder.exited.add(earlier);
+      return Promise.resolve(pid);
+    };
+
+    // The screen reader and browser start again before each page after the first.
+    const dir = await setupRun(["/", "/about", "/resources"]);
+    const run = await runAudit(
+      runOptions(dir, undefined, { driver, config: runConfig({ restartEvery: 1 }) }),
+    );
+    expect(run.outcome).toBe("completed");
+    expect(started).toBe(3);
+
+    // One helper, pointed at each NVDA in turn before the recording of the page it read.
+    const commands = voiceRecorder.calls.map((call) => call.split(" ").slice(0, 2).join(" "));
+    expect(commands).toEqual([
+      "target 5150",
+      `start ${path.join(voiceDir, "1.pcm")}`,
+      "stop",
+      "target 5151",
+      `start ${path.join(voiceDir, "2.pcm")}`,
+      "stop",
+      "target 5152",
+      `start ${path.join(voiceDir, "3.pcm")}`,
+      "stop",
+      "close",
+    ]);
+    // Each page has its recording, and none is of an NVDA that had gone.
+    expect(run.run.pages).toHaveLength(3);
+    for (const page of run.run.pages) {
+      expect(page.voice, page.url).toMatchObject({ seconds: 1, lostMs: 0 });
+      expect(page.voice).toHaveProperty("sha256");
+    }
+    // The helper ended with the run, and its folder went, with no sound left in it.
+    expect(voiceRecorder.closed).toBe(true);
+    expect(existsSync(voiceDir)).toBe(false);
+    const home = path.join(dir, "transcripts");
+    expect((await verifyHome({ home, logger: createMemoryLogger() })).problems).toBe(0);
   });
 });

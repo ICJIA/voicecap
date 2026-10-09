@@ -3,7 +3,7 @@
  * voicecap, or an edit, can give a field another shape than this version writes, and the page must
  * still be made, saying what it can't read, rather than stop. Pure.
  */
-import type { AxeRecord, FileHash, PageRecord, ScreenshotRecord } from "../model.js";
+import type { AxeRecord, FileHash, PageRecord, ScreenshotRecord, VoiceRecord } from "../model.js";
 
 /** Whether a value is a file's fingerprint as voicecap records one: its SHA-256 and its size. */
 export function isFileHash(value: unknown): value is FileHash {
@@ -40,5 +40,20 @@ export function axeRecordOf(page: PageRecord): AxeRecord | "unreadable" | undefi
   if (record === undefined) return undefined;
   if (typeof record !== "object" || record === null || Array.isArray(record)) return "unreadable";
   if ("error" in record || isFileHash(record)) return record as AxeRecord;
+  return "unreadable";
+}
+
+/**
+ * A page's voice record (PageRecord.voice), read as screenshotRecordOf reads a screenshot's:
+ * undefined when the page has none; the record, when it's of a kind voicecap writes, the reason
+ * there's no recording (an object with `error`, whose reason is read where it's said) or the
+ * recording's fingerprint (whose length and lost time are read where they're shown); and
+ * "unreadable" for anything else, which the page says it couldn't read, and which names no file.
+ */
+export function voiceRecordOf(page: PageRecord): VoiceRecord | "unreadable" | undefined {
+  const record: unknown = page.voice;
+  if (record === undefined) return undefined;
+  if (typeof record !== "object" || record === null || Array.isArray(record)) return "unreadable";
+  if ("error" in record || isFileHash(record)) return record as VoiceRecord;
   return "unreadable";
 }

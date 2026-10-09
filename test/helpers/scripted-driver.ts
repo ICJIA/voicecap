@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 import type {
   AxeCapture,
   EnvironmentInfo,
@@ -7,8 +11,23 @@ import type {
   PageScreenshot,
   ScreenReaderDriver,
   Speech,
+  VoiceCapture,
+  VoiceRecording,
 } from "../../src/drivers/types.js";
 import { canonicalKey } from "../../src/pages/url.js";
+import { peakOf } from "../../src/voice/encode.js";
+
+/**
+ * What a recording of a page gives at stop(), as the Guidepup driver's recorder gives it: `samples`,
+ * the sound as 16 kHz samples (the driver writes them to a PCM file), with the time the recorder
+ * lost to falling behind; `bytes`, a file that isn't whole samples (an odd count, or none); `missing`,
+ * a file that isn't there when the run reads it; or the reason there's no sound.
+ */
+export type ScriptedVoice =
+  | { samples: Int16Array; lostMs?: number }
+  | { bytes: Uint8Array; peak?: number }
+  | { missing: true }
+  | { error: string };
 
 /** A page as the scripted driver emulates it: NVDA's view of the document. */
 export interface ScriptedPage {
@@ -36,6 +55,14 @@ export interface ScriptedPage {
    * were scripted for this page" }`.
    */
   axe?: AxeCapture;
+  /**
+   * What a recording of the page gives at stop(): see ScriptedVoice. An array gives one for each
+   * recording stopped while the page is open, the last repeating, for a page that's tried more than
+   * once. A driver none of whose pages has one can't record, and has no recordVoice, as a driver
+   * that doesn't record leaves it out. In a driver that can, a page with none gives the reason `no
+   * recording was scripted for this page`.
+   */
+  voice?: ScriptedVoice | readonly ScriptedVoice[];
   /** Browse-mode lines, top to bottom. */
   lines?: string[];
   /** What Ctrl+End says (default: the last line). */
@@ -56,6 +83,9 @@ export interface ScriptedPage {
 export type Command =
   | "openPage"
   | "checkWithAxe"
+  | "recordVoice"
+  | "stopVoice"
+  | "discardVoice"
   | "toTop"
   | "toBottom"
   | "nextLine"
@@ -87,9 +117,20 @@ export class ScriptedDriver implements ScreenReaderDriver {
   recorder: EventRecorder | null = null;
   /** Only a driver with a page that has axe results to report can check one: see ScriptedPage.axe. */
   checkWithAxe?: () => Promise<AxeCapture>;
+  /** Only a driver with a page that has a recording to give can record one: see ScriptedPage.voice. */
+  recordVoice?: () => Promise<VoiceRecording>;
+  /**
+   * The PCM file of every recording this driver began, in order. A recording makes its file as it
+   * begins, as the recorder's helper does, and whoever ends the recording deletes it: the run when
+   * it's stopped (once it has read the file), the driver when it's discarded.
+   */
+  readonly pcmFiles: string[] = [];
 
   private readonly pages = new Map<string, ScriptedPage>();
   private page: ScriptedPage | null = null;
+  private voiceDir: string | null = null;
+  /** How many recordings have been stopped while each page was open. */
+  private readonly voicesGiven = new Map<ScriptedPage, number>();
   private line = 0;
   private heading = 0;
   private stopIndex = 0;
@@ -110,6 +151,9 @@ export class ScriptedDriver implements ScreenReaderDriver {
           "checkWithAxe",
           () => this.page?.axe ?? { error: "no axe results were scripted for this page" },
         );
+    }
+    if (pages.some((page) => page.voice !== undefined)) {
+      this.recordVoice = () => this.call("recordVoice", () => this.beginRecording());
     }
   }
 
@@ -236,6 +280,59 @@ export class ScriptedDriver implements ScreenReaderDriver {
 
   private lines(): string[] {
     return this.page?.lines ?? [];
+  }
+
+  /** A recording begins: its PCM file is made, empty, as the recorder's helper makes it. */
+  private beginRecording(): VoiceRecording {
+    this.voiceDir ??= mkdtempSync(path.join(os.tmpdir(), "voicecap-scripted-voice-"));
+    const pcm = path.join(this.voiceDir, `${this.pcmFiles.length + 1}.pcm`);
+    this.pcmFiles.push(pcm);
+    writeFileSync(pcm, new Uint8Array(0));
+    return {
+      stop: () => this.call("stopVoice", () => this.endRecording(pcm)),
+      discard: () => this.call("discardVoice", () => rmSync(pcm, { force: true })),
+    };
+  }
+
+  /** A recording stops: the page open now says what its file holds. */
+  private endRecording(pcm: string): VoiceCapture {
+    const voice = this.nextVoice();
+    if ("error" in voice) {
+      rmSync(pcm, { force: true });
+      return { error: voice.error };
+    }
+    const startedAt = "2026-10-09T14:03:07.215Z";
+    if ("missing" in voice) {
+      rmSync(pcm, { force: true });
+      return { pcm, frames: 16_000, lostMs: 0, peak: 1_000, startedAt };
+    }
+    if ("bytes" in voice) {
+      writeFileSync(pcm, voice.bytes);
+      const frames = Math.floor(voice.bytes.length / 2);
+      return { pcm, frames, lostMs: 0, peak: voice.peak ?? 1_000, startedAt };
+    }
+    const { samples } = voice;
+    writeFileSync(pcm, new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength));
+    return {
+      pcm,
+      frames: samples.length,
+      lostMs: voice.lostMs ?? 0,
+      peak: peakOf(samples),
+      startedAt,
+    };
+  }
+
+  /** What the page open now gives for the recording being stopped: see ScriptedPage.voice. */
+  private nextVoice(): ScriptedVoice {
+    const page = this.page;
+    const voice = page?.voice;
+    if (page === undefined || page === null || voice === undefined) {
+      return { error: "no recording was scripted for this page" };
+    }
+    if (!Array.isArray(voice)) return voice as ScriptedVoice;
+    const given = this.voicesGiven.get(page) ?? 0;
+    this.voicesGiven.set(page, given + 1);
+    return (voice as readonly ScriptedVoice[])[Math.min(given, voice.length - 1)]!;
   }
 
   private call<T>(command: Command, action: () => T): Promise<T> {
