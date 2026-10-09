@@ -396,7 +396,10 @@ const STOP_OFFSET = 10;
  * in view, and leaves it there, so a bar that covered it would hide it. The website's bar scrolls
  * with the page, so nothing should: what is at the middle of a stop, and at its top edge, is the
  * stop or is inside it. A stop taller than the window (a table's box) is checked at the middle of
- * what's in view of it, since no point below the window's bottom is anything's.
+ * what's in view of it, since no point below the window's bottom is anything's, and at the top of
+ * what's in view of it: Chromium brings such a box into view with its inside at the window's top,
+ * so its line, a pixel wide, can end up above the window, by a fraction of a pixel more or less as
+ * the page's layout falls.
  */
 async function stopsUnderTheBar(page: Page): Promise<string[]> {
   const count = await page.evaluate(
@@ -444,7 +447,7 @@ async function stopsUnderTheBar(page: Page): Promise<string[]> {
         const inView = Math.min(box.bottom, window.innerHeight);
         for (const [where, top] of [
           ["middle", (box.top + inView) / 2],
-          ["top edge", box.top + 1],
+          ["top edge", Math.max(box.top, 0) + 1],
         ] as const) {
           const hit = document.elementFromPoint(middle, top);
           if (hit === null || (hit !== focused && !focused.contains(hit))) {
