@@ -13,6 +13,26 @@ import { speechItems } from "./speech.js";
 
 export type FlagRules = VoicecapConfig["flags"];
 
+/**
+ * The ids of voicecap's built-in rules, the one list of them, in the order evaluateFlags raises
+ * them: each is a flag's `rule`, and its settings are in the config's `flags` under its name in
+ * camelCase (generic-link-text's are `flags.genericLinkText`). The website's Technical details page
+ * takes its table of the rules, and how many there are, from it. A custom rule (`flags.custom`) is
+ * no built-in one: it raises its own id.
+ */
+export const BUILT_IN_RULES = [
+  "generic-link-text",
+  "unlabeled",
+  "read-not-finished",
+  "headings",
+  "tab-no-stops",
+  "tab-before-main",
+  "repeated-phrase",
+] as const;
+
+/** A built-in rule's id. */
+export type BuiltInRule = (typeof BUILT_IN_RULES)[number];
+
 /** The parts of a pass the rules look at. TranscriptJson and PassResult both fit. */
 export interface PassData {
   steps: StepRecord[];

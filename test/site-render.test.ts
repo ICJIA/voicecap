@@ -1875,14 +1875,17 @@ describe("SITE_CSS", () => {
     // An em in a media query is the reader's own text size, so a reader who has made it larger gets
     // the narrower layout in a wider window: a width in pixels would give the wider one to a window
     // that a larger size makes narrow. The trust page's four big numbers go two across from 36em,
-    // and four from 60em, by the same measure. The one other is no width at all: `screen`, for the
-    // footer at the window's bottom, which print leaves as it was.
+    // and four from 60em, and Technical details' steps of a run two a row from 36em, and three
+    // from 60em, by the same measure. The one other is no width at all: `screen`, for the footer at
+    // the window's bottom, which print leaves as it was.
     const queries = [...SITE_CSS.matchAll(/@media ([^{]*)\{/g)].map(([, query = ""]) =>
       query.trim(),
     );
     expect(queries).toEqual([
       "print",
       "(min-width: 40em)",
+      "(min-width: 36em)",
+      "(min-width: 60em)",
       "(min-width: 36em)",
       "(min-width: 60em)",
       "screen",

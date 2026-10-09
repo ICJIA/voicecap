@@ -39,7 +39,7 @@ import { ensureGitFiles, GITATTRIBUTES, GITIGNORE } from "../src/run/git-files.j
 import { shareReport } from "../src/share/share.js";
 import { readShares } from "../src/share/shares.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
-import { buildSite, type BuildSiteOptions } from "../src/site/build.js";
+import { buildSite, KEPT_PER_SITE, type BuildSiteOptions } from "../src/site/build.js";
 import { readVoicecapFacts, recordFactsOf } from "../src/site/facts.js";
 import {
   contentSecurityPolicy,
@@ -54,6 +54,8 @@ import type * as RecordsModule from "../src/site/records.js";
 import { renderSiteIndex } from "../src/site/render.js";
 import type * as RenderModule from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
+import { renderTechnical } from "../src/site/technical.js";
+import type * as TechnicalModule from "../src/site/technical.js";
 import { renderTrustPage } from "../src/site/trust.js";
 import type * as TrustModule from "../src/site/trust.js";
 import { renderWhatsNew } from "../src/site/whats-new.js";
@@ -113,6 +115,10 @@ vi.mock("../src/site/whats-new.js", async (importOriginal) => {
   const actual = await importOriginal<typeof WhatsNewModule>();
   return { ...actual, renderWhatsNew: vi.fn(actual.renderWhatsNew) };
 });
+vi.mock("../src/site/technical.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof TechnicalModule>();
+  return { ...actual, renderTechnical: vi.fn(actual.renderTechnical) };
+});
 
 /** The folders these tests made, which are taken away after each test. */
 const roots: string[] = [];
@@ -138,6 +144,7 @@ afterEach(async () => {
   vi.mocked(renderSiteIndex).mockReset();
   vi.mocked(renderTrustPage).mockReset();
   vi.mocked(renderWhatsNew).mockReset();
+  vi.mocked(renderTechnical).mockReset();
   await Promise.all(
     roots.splice(0).map((dir) => rm(dir, { recursive: true, force: true }).catch(() => {})),
   );
@@ -472,6 +479,7 @@ describe("buildSite", () => {
         "_redirects",
         "index.html",
         "robots.txt",
+        "technical-details.html",
         "trust.html",
         "whats-new.html",
         ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
@@ -616,6 +624,7 @@ describe("buildSite", () => {
     const { out, content } = await build(home);
     const trust = await readFile(path.join(out, "trust.html"), "utf8");
     const whatsNew = await readFile(path.join(out, "whats-new.html"), "utf8");
+    const technical = await readFile(path.join(out, "technical-details.html"), "utf8");
 
     // The page is what renderSiteIndex makes of the content the result gives, drawn once.
     expect(vi.mocked(renderSiteIndex)).toHaveBeenCalledTimes(1);
@@ -634,13 +643,14 @@ describe("buildSite", () => {
       { scripts: [sourceOf(SITE_SCRIPT)], styles: [sourceOf(`\n${SITE_CSS}`)] },
       { fonts: false },
     );
-    // The index at both its addresses, the trust page and What's New at both their own (each with
-    // the policy of its own bytes), the demo's own pages by a rule for each address each answers
-    // at, then each published file in the order the site lists them: a page at both its addresses,
-    // with the policy of its own bytes, fonts and all, and a Word copy or a walkthrough file as a
-    // download.
+    // The index at both its addresses, the trust page, What's New, and Technical details at both
+    // their own (each with the policy of its own bytes), the demo's own pages by a rule for each
+    // address each answers at, then each published file in the order the site lists them: a page
+    // at both its addresses, with the policy of its own bytes, fonts and all, and a Word copy or a
+    // walkthrough file as a download.
     const trustPolicy = contentSecurityPolicy(inlineHashes(trust), { fonts: false });
     const whatsNewPolicy = contentSecurityPolicy(inlineHashes(whatsNew), { fonts: false });
+    const technicalPolicy = contentSecurityPolicy(inlineHashes(technical), { fonts: false });
     const expected: [string, [string, string][]][] = [
       ["/", [[CSP, indexPolicy]]],
       ["/index.html", [[CSP, indexPolicy]]],
@@ -648,6 +658,8 @@ describe("buildSite", () => {
       ["/trust", [[CSP, trustPolicy]]],
       ["/whats-new.html", [[CSP, whatsNewPolicy]]],
       ["/whats-new", [[CSP, whatsNewPolicy]]],
+      ["/technical-details.html", [[CSP, technicalPolicy]]],
+      ["/technical-details", [[CSP, technicalPolicy]]],
       ...DEMO_RULES,
     ];
     for (const file of filesOf(content)) {
@@ -663,9 +675,9 @@ describe("buildSite", () => {
       }
     }
     expect(rules).toEqual(expected);
-    // The index, the trust page, and What's New at two addresses each, the demo's twenty-three
-    // addresses, four pages at two addresses each, and ten downloads.
-    expect(rules).toHaveLength(2 + 2 + 2 + 23 + 4 * 2 + 4 + 6);
+    // The index, the trust page, What's New, and Technical details at two addresses each, the
+    // demo's twenty-three addresses, four pages at two addresses each, and ten downloads.
+    expect(rules).toHaveLength(2 + 2 + 2 + 2 + 23 + 4 * 2 + 4 + 6);
 
     // A page's policy is its own: the page written by hand has a script and a style no other has.
     const written = rules.find(
@@ -807,6 +819,87 @@ describe("buildSite", () => {
     ]);
   });
 
+  it("writes Technical details, with its own policy at both its addresses", async () => {
+    const home = await newHome();
+
+    const { out, content } = await build(home, { voicecapFacts: FACTS });
+
+    // The page is what renderTechnical makes of the facts it was given, the records' facts counted
+    // from the content the result gives, that content, and how many shares a site keeps, drawn
+    // once, and it's a file beside the other three pages.
+    const input = {
+      voicecap: FACTS,
+      records: recordFactsOf(content),
+      content,
+      keptPerSite: KEPT_PER_SITE,
+    };
+    expect(vi.mocked(renderTechnical)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(renderTechnical).mock.calls[0]?.[0]).toEqual(input);
+    const page = await readFile(path.join(out, "technical-details.html"), "utf8");
+    expect(page).toBe(renderTechnical(input));
+    expect(page).toContain("<h1>How voicecap works</h1>");
+    expect(page).toContain(`Each site&#39;s newest ${KEPT_PER_SITE} shares`);
+
+    // Each of its two addresses has the policy of the page's own bytes: its one style block and its
+    // one script, by their hashes, and nothing else, no font among it.
+    const policy = contentSecurityPolicy(inlineHashes(page), { fonts: false });
+    expect(policy).toBe(
+      contentSecurityPolicy(
+        { scripts: [sourceOf(SITE_SCRIPT)], styles: [sourceOf(`\n${SITE_CSS}`)] },
+        { fonts: false },
+      ),
+    );
+    expect(policy).toContain("; font-src 'none';");
+    const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
+    expect(rules.filter(([rulePath]) => rulePath.startsWith("/technical-details"))).toEqual([
+      ["/technical-details.html", [[CSP, policy]]],
+      ["/technical-details", [[CSP, policy]]],
+    ]);
+    // They come after What's New's two rules, and before the demo's.
+    expect(rules.slice(0, 9).map(([rulePath]) => rulePath)).toEqual([
+      "/",
+      "/index.html",
+      "/trust.html",
+      "/trust",
+      "/whats-new.html",
+      "/whats-new",
+      "/technical-details.html",
+      "/technical-details",
+      DEMO_ADDRESSES[0],
+    ]);
+  });
+
+  it("gives Technical details the policy of its own bytes", async () => {
+    const home = await newHome();
+    const script = 'document.documentElement.dataset.technical = "ran";';
+    const style = "body { margin: 6rem; }";
+    const page = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Technical</title><style>${style}</style></head>
+<body><p>A technical page with code of its own.</p><script>${script}</script></body></html>
+`;
+    vi.mocked(renderTechnical).mockReturnValueOnce(page);
+
+    const { out } = await build(home, { voicecapFacts: FACTS });
+
+    expect(await readFile(path.join(out, "technical-details.html"), "utf8")).toBe(page);
+    const own = contentSecurityPolicy(
+      { scripts: [sourceOf(script)], styles: [sourceOf(style)] },
+      { fonts: false },
+    );
+    const whatsNewPolicy = contentSecurityPolicy(
+      { scripts: [sourceOf(SITE_SCRIPT)], styles: [sourceOf(`\n${SITE_CSS}`)] },
+      { fonts: false },
+    );
+    expect(own).not.toBe(whatsNewPolicy);
+    const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
+    expect(rules.slice(4, 8)).toEqual([
+      ["/whats-new.html", [[CSP, whatsNewPolicy]]],
+      ["/whats-new", [[CSP, whatsNewPolicy]]],
+      ["/technical-details.html", [[CSP, own]]],
+      ["/technical-details", [[CSP, own]]],
+    ]);
+  });
+
   it("writes the same What's New for the same records and facts, whatever the day", async () => {
     const home = await newHome();
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -870,6 +963,8 @@ describe("buildSite", () => {
       "/trust",
       "/whats-new.html",
       "/whats-new",
+      "/technical-details.html",
+      "/technical-details",
     ]) {
       expect(policyAt(where), where).toMatch(/^default-src 'none'; script-src 'sha256-/);
       expect(policyAt(where), where).toContain("; font-src 'none';");
@@ -921,19 +1016,22 @@ describe("buildSite", () => {
     ]);
   });
 
-  it("writes the same trust page for the same records and facts, whatever the day", async () => {
+  it("writes the same four pages for the same records and facts, whatever the day", async () => {
     const home = await newHome();
+    const pages = ["index.html", "trust.html", "whats-new.html", "technical-details.html"];
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
       vi.setSystemTime(new Date(2020, 0, 2, 3, 4));
       const first = await build(home, { voicecapFacts: FACTS });
-      const written = await readFile(path.join(first.out, "trust.html"));
+      const written = await Promise.all(pages.map((page) => readFile(path.join(first.out, page))));
       const headers = await readFile(path.join(first.out, "_headers"), "utf8");
 
       vi.setSystemTime(new Date(2031, 11, 30, 23, 59));
       const second = await build(home, { voicecapFacts: FACTS });
 
-      expect(await readFile(path.join(second.out, "trust.html"))).toEqual(written);
+      for (const [index, page] of pages.entries()) {
+        expect(await readFile(path.join(second.out, page)), page).toEqual(written[index]);
+      }
       expect(await readFile(path.join(second.out, "_headers"), "utf8")).toBe(headers);
     } finally {
       vi.useRealTimers();
@@ -1640,6 +1738,56 @@ describe("buildSite", () => {
       expect(rules.filter(([rulePath]) => rulePath.startsWith("/whats-new"))).toEqual([
         ["/whats-new.html", [[CSP, policy]]],
         ["/whats-new", [[CSP, policy]]],
+      ]);
+      // The rest of the site is built as ever.
+      expect(await readFile(path.join(out, "robots.txt"), "utf8")).toBe(ROBOTS_TXT);
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        `${REDIRECTS_FIRST_LINE}\n`,
+      );
+    });
+
+    // The same for Technical details: a folder named technical-details.html would take the page's
+    // place, and one named technical-details would be served at the page's short address.
+    it("leaves out a site folder named technical-details", async () => {
+      const home = await newHome();
+      for (const folder of ["technical-details.html", "technical-details"]) {
+        const siteDir = path.join(home, folder);
+        const page = Buffer.from(`<!doctype html><title>${folder}</title>`);
+        await mkdir(path.join(siteDir, "2027-01-12"), { recursive: true });
+        await mkdir(path.join(siteDir, "share"), { recursive: true });
+        await writeFile(path.join(siteDir, "share", `${folder}_1.html`), page);
+        await writeRecord(siteDir, [
+          sealedEntry(1, EXAMPLE_AT, [recordOf(`${folder}_1.html`, page)]),
+        ]);
+      }
+
+      const { out, content, leftOut, logger } = await build(home, { voicecapFacts: FACTS });
+
+      expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
+      const lines = ["technical-details", "technical-details.html"].map(
+        (folder) =>
+          `${folder}: not published: a site folder named ${folder} would take the place of the site's own ${folder}`,
+      );
+      expect(leftOut).toEqual(lines);
+      expect(warned(logger)).toEqual(lines);
+      // Neither folder's report is published: there's no technical-details/ folder, and
+      // technical-details.html is Technical details, a file (a folder of that name would have taken
+      // its place), with the page's own rules.
+      expect(existsSync(path.join(out, "technical-details"))).toBe(false);
+      const page = await readFile(path.join(out, "technical-details.html"), "utf8");
+      expect(page).toBe(
+        renderTechnical({
+          voicecap: FACTS,
+          records: recordFactsOf(content),
+          content,
+          keptPerSite: KEPT_PER_SITE,
+        }),
+      );
+      const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules;
+      const policy = contentSecurityPolicy(inlineHashes(page), { fonts: false });
+      expect(rules.filter(([rulePath]) => rulePath.startsWith("/technical-details"))).toEqual([
+        ["/technical-details.html", [[CSP, policy]]],
+        ["/technical-details", [[CSP, policy]]],
       ]);
       // The rest of the site is built as ever.
       expect(await readFile(path.join(out, "robots.txt"), "utf8")).toBe(ROBOTS_TXT);
@@ -2825,13 +2973,14 @@ describe("buildSite", () => {
       );
       // Only the site's own files, and the demo's own pages, which are the site's whether or not
       // any report is shared; and each page's policy at its two addresses (the site's, the trust
-      // page's, then What's New's), then each of the demo's.
+      // page's, What's New's, then Technical details'), then each of the demo's.
       expect(await filesUnder(out)).toEqual(
         [
           "_headers",
           "_redirects",
           "index.html",
           "robots.txt",
+          "technical-details.html",
           "trust.html",
           "whats-new.html",
           ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
@@ -2848,11 +2997,17 @@ describe("buildSite", () => {
         "/trust",
         "/whats-new.html",
         "/whats-new",
+        "/technical-details.html",
+        "/technical-details",
         ...DEMO_ADDRESSES,
       ]);
-      // It still has its page: a website with no report yet draws What's New whole.
+      // It still has its pages: a website with no report yet draws What's New and Technical
+      // details whole.
       expect(await readFile(path.join(out, "whats-new.html"), "utf8")).toContain(
         '<ol class="updates" role="list">',
+      );
+      expect(await readFile(path.join(out, "technical-details.html"), "utf8")).toContain(
+        "No site&#39;s report has been shared yet.",
       );
       expect(logger.entries.at(-1)).toEqual({
         level: "info",
@@ -3532,6 +3687,7 @@ describe("buildSite", () => {
           `${NAME}/${page}`,
           "index.html",
           "robots.txt",
+          "technical-details.html",
           "trust.html",
           "whats-new.html",
           ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
@@ -3552,7 +3708,7 @@ describe("buildSite", () => {
         expect((await readFile(path.join(out, folder, ...rest))).equals(shared), href).toBe(true);
       }
       // And each page has its own rules in _headers, at both its addresses, after the index's, the
-      // trust page's, What's New's, and the demo's own pages'.
+      // trust page's, What's New's, Technical details', and the demo's own pages'.
       const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
         ([rulePath]) => rulePath,
       );
@@ -3563,6 +3719,8 @@ describe("buildSite", () => {
         "/trust",
         "/whats-new.html",
         "/whats-new",
+        "/technical-details.html",
+        "/technical-details",
         ...DEMO_ADDRESSES,
         `/${NAME}/${page}`,
         `/${NAME}/${page.replace(/\.html$/, "")}`,

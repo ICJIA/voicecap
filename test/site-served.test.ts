@@ -239,6 +239,27 @@ describe("the site, served as Netlify serves it", () => {
       expect(await violationsOf(page), where).toEqual([]);
     }
 
+    // Technical details, at both its addresses: under the policy of its own bytes, which the page's
+    // style block and script run under, and which allows no font, since the page embeds none; and
+    // its theme button works. Its tables' boxes take focus, as a keyboard reaches them.
+    const technical = await readFile(path.join(built.out, "technical-details.html"), "utf8");
+    const technicalPolicy = contentSecurityPolicy(inlineHashes(technical), { fonts: false });
+    expect(technicalPolicy).toContain("; font-src 'none';");
+    for (const where of ["technical-details", "technical-details.html"]) {
+      expect(await visit(page, new URL(where, server.url).href), where).toMatch(A_HASHED_POLICY);
+      const response = await page.request.get(new URL(where, server.url).href);
+      expect(response.headers()["content-security-policy"], where).toBe(technicalPolicy);
+      expect(await response.text(), where).toBe(technical);
+      expect(await page.title(), where).toBe("Technical details · Screen reader test results");
+      const before = await theme(page);
+      expect(await page.locator("#theme-toggle").isVisible(), where).toBe(true);
+      await page.locator("#theme-toggle").click();
+      expect(await theme(page), where).not.toBe(before);
+      await page.locator(".scroll").first().focus();
+      expect(await page.evaluate(() => document.activeElement?.className), where).toBe("scroll");
+      expect(await violationsOf(page), where).toEqual([]);
+    }
+
     // Each page of a report: the three shared, and the one written by hand.
     const pages = pagesOf(built.content);
     expect(pages.toSorted()).toEqual(

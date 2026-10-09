@@ -108,6 +108,22 @@
  *   the quieter color; its headline is a smaller, heavy heading of the card's, in the headline's
  *   color; its points are a list in the card's words' color; and the link to its entry ends it, in
  *   bold, as a card's link does;
+ * - Technical details (./technical.ts): its head is What's New's, with the version it's from under
+ *   the lead, in the quieter color. "On this page" is a card of numbered links to its parts, in two
+ *   columns where each has 17rem, and a part a link goes to keeps its kicker in view above its
+ *   heading. A part's points are a list in the card's words' color, no wider than 72 characters,
+ *   and a heading of the third level is set apart from what comes before it. How a run works is an
+ *   ordered list of boxes, each a card with its number, which only repeats the list's own, drawn
+ *   before it: three a row from 60em, two from 36em, and one under another on a phone, with an
+ *   arrow after each box but the last, pointing on, or down on a phone. The arrows and the numbers
+ *   are the style's, with no words for a screen reader (`content: "→" / ""`), so it hears the list.
+ *   The transcripts home is a tree, a card of lists in lists along a line, each name in the
+ *   fixed-width font, in the headline's color, with what it holds under it. A table's first cell
+ *   names its row: in the words' size, bold, and in the headline's color, not in the header row's
+ *   small capitals. A command or a name in a table keeps to one line, and each table has a width
+ *   its columns can be read at, so on a phone it scrolls in its box. Related documents is a card of
+ *   four cards, two a row where each has 19rem, each on the second panel, with a small label, its
+ *   title, a link in the headline's color, and a line in the quieter one;
  * - the footer has a line above it, and its lines are small, in the quieter color, and centered in
  *   the bars' column, as the audit tool's are, each no longer than 80 characters, so a line is no
  *   longer to read than a note's.
@@ -332,6 +348,52 @@ details.fold > .inside { padding: 0 20px 20px; display: grid; gap: 18px; }
 .update > h2 { font-size: 1.3125rem; font-weight: 800; line-height: 1.25; }
 .update > ul { list-style: disc; margin: 0; padding-left: 1.25rem; color: var(--text-2); }
 .update > ul > li + li { margin-top: 6px; }
+/* Technical details: the version it's from, quieter, under the lead; "On this page", a card of numbered links, two columns where each has 17rem, with room under it */
+.version-line { color: var(--muted); font-variant-numeric: tabular-nums; }
+.toc { margin-bottom: 44px; }
+.toc ol { margin: 0; padding-left: 1.75em; columns: 17rem 2; column-gap: 40px; }
+.toc li { break-inside: avoid; padding-block: 3px; }
+/* a card's kicker keeps the kicker's quieter color, where a card's words are --text-2 */
+.card > p.kicker { color: var(--muted); }
+/* a part a link of "On this page" goes to keeps its kicker in view above its heading; a heading of the third level is set apart from what comes before it; a part's paragraphs and points are in the card's words' color, no wider than 72 characters */
+.part > h2[id] { scroll-margin-top: 44px; }
+.part > h3 { margin-top: 12px; }
+.part > p:not([class]) { color: var(--text-2); max-width: 72ch; }
+.list { margin: 0; padding-left: 1.25rem; color: var(--text-2); max-width: 72ch; }
+.list > li + li { margin-top: 8px; }
+/* how a run works: an ordered list of boxes, each a card with its number before it, which only repeats the list's own; one under another on a phone, with an arrow down after each but the last; two a row from 36em, and three from 60em, with an arrow on after each but the last, and the last as wide as the others. The arrows and the numbers have no words for a screen reader, which hears the list. */
+.flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; counter-reset: step; }
+.flow > li { display: flex; flex-direction: column; min-width: 0; counter-increment: step; }
+.flow > li > .box { flex: 1 1 auto; gap: 6px; padding: 16px 18px; }
+.flow > li > .box::before { content: counter(step); content: counter(step) / ""; font-family: var(--mono); font-size: 0.9375rem; font-weight: 900; color: var(--act); }
+.card.box > p.step-title { color: var(--heading); font-weight: 700; }
+.flow > li:not(:last-child)::after { content: "↓"; content: "↓" / ""; align-self: center; padding-top: 6px; color: var(--muted); font-size: 1.25rem; line-height: 1; }
+@media (min-width: 36em) {
+  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 0; }
+  .flow > li { flex-direction: row; }
+  .flow > li:not(:last-child)::after { content: "→"; content: "→" / ""; flex: none; width: 28px; padding-top: 0; text-align: center; }
+  .flow > li:last-child { padding-right: 28px; }
+}
+@media (min-width: 60em) { .flow { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* the transcripts home, as a tree: a card of lists in lists, along a line down the side, each name in the fixed-width font and the headline's color, with what it holds under it */
+.tree { list-style: none; margin: 0; }
+.tree ul { list-style: none; margin: 8px 0 0; padding-left: 18px; border-left: 2px solid var(--line); display: grid; gap: 10px; }
+.tree li { min-width: 0; }
+.tree li > code { color: var(--heading); font-weight: 700; }
+.tree li > p { color: var(--text-2); }
+/* a table's first cell names its row: in the words' size, bold, and in the headline's color, not in the header row's small capitals. A command or a name in a table keeps to one line, and a word to itself, and each table has a width its columns can be read at, so on a phone it scrolls in its box. */
+tbody th { font-size: inherit; font-weight: 700; line-height: inherit; letter-spacing: normal; font-variant-caps: normal; color: var(--heading); background: none; }
+.scroll :where(th, td) :where(a, code) { overflow-wrap: normal; }
+.scroll :where(th, td) code { white-space: nowrap; }
+table.commands, table.defaults, table.rules { min-width: 32rem; }
+table.passes { min-width: 40rem; }
+table.toolchain { min-width: 48rem; }
+/* related documents: a card of four cards, two a row where each has 19rem, each on the second panel, with its small label, its title, a link in the headline's color, and a line in the quieter one */
+.related-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr)); gap: 12px; }
+.related-cards > .card { gap: 4px; padding: 16px 18px; border-radius: 10px; background: var(--panel-2); }
+.related-cards > .card > .kicker { font-size: calc(0.75rem * var(--caps-scale)); }
+.related-cards > .card > h3 { color: var(--heading); font-size: 1.0625rem; font-weight: 700; }
+.related-cards > .card > p:not(.kicker) { color: var(--muted); font-size: 0.9375rem; }
 /* the line of links to voicecap, at the end of the page's main part */
 .links { color: var(--muted); }
 /* the footer: a line above it, and its lines small, quieter, and centered, each no longer than 80 characters */

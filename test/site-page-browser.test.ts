@@ -16,6 +16,11 @@
  * What's New (renderWhatsNew) is checked the same ways too, with its releases, with words as long as
  * words can be, and with no release: axe in both themes at 1280, 390, and 320 pixels, its fit at 320,
  * its landmarks, what has focus never under the bar, and complete without JavaScript.
+ *
+ * So is Technical details (renderTechnical), with its facts, with none and no report, and with a
+ * version as long as one can be: axe in both themes at 1280, 390, and 320 pixels, its fit at 320,
+ * where its tables scroll in their boxes, which a keyboard reaches and a screen reader hears named,
+ * the flow of a run drawn across and down, its landmarks, and complete without JavaScript.
  */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,6 +33,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { recordFactsOf, type ReleaseItem, type VoicecapFacts } from "../src/site/facts.js";
 import { siteBar, sitePage } from "../src/site/frame.js";
 import { type PublishedReport, renderSiteIndex, type SiteContent } from "../src/site/render.js";
+import { renderTechnical } from "../src/site/technical.js";
+import { TECHNICAL_TEXT } from "../src/site/technical-text.js";
 import { renderTrustPage } from "../src/site/trust.js";
 import { TRUST_TEXT } from "../src/site/trust-text.js";
 import { renderWhatsNew } from "../src/site/whats-new.js";
@@ -209,6 +216,9 @@ let files: {
   whatsNew: string;
   whatsNewLong: string;
   whatsNewBare: string;
+  technical: string;
+  technicalBare: string;
+  technicalLong: string;
 };
 const contexts: BrowserContext[] = [];
 /** What each page opened in a test reported going wrong: errors thrown, and errors in its console. */
@@ -274,6 +284,35 @@ beforeAll(async () => {
         content: { demo: null, sites: [] },
       }),
     ),
+    // Technical details, beside index.html, as the website has it: with its facts; with no release
+    // facts, no release date, and no report; and with a version as long as one can be.
+    technical: await writeHtml(
+      "technical-details.html",
+      renderTechnical({
+        voicecap: FACTS,
+        records: RECORDS,
+        content: RESULTS_CONTENT,
+        keptPerSite: 3,
+      }),
+    ),
+    technicalBare: await writeHtml(
+      "technical-details-bare.html",
+      renderTechnical({
+        voicecap: { ...FACTS, released: null, release: null },
+        records: recordFactsOf({ demo: null, sites: [] }),
+        content: { demo: null, sites: [] },
+        keptPerSite: 3,
+      }),
+    ),
+    technicalLong: await writeHtml(
+      "technical-details-long.html",
+      renderTechnical({
+        voicecap: { ...FACTS, version: LONG_VERSION },
+        records: RECORDS,
+        content: RESULTS_CONTENT,
+        keptPerSite: 3,
+      }),
+    ),
   };
 });
 
@@ -333,9 +372,11 @@ const stored = (page: Page): Promise<string | null> =>
 
 /**
  * What the Tab key reaches: the page's links, but those in a closed fold, its button once the script
- * has shown it, and each fold's summary.
+ * has shown it, each fold's summary, and each box a table scrolls in, which takes focus so a
+ * keyboard can scroll it (Technical details' tables).
  */
-const STOPS = "a[href]:not(details:not([open]) > :not(summary) a), button:not([hidden]), summary";
+const STOPS =
+  'a[href]:not(details:not([open]) > :not(summary) a), button:not([hidden]), summary, [tabindex="0"]';
 
 /** Open every fold of the page, so that what's in it is drawn, and checked. */
 async function openFolds(page: Page): Promise<void> {
@@ -353,7 +394,8 @@ const STOP_OFFSET = 10;
  * from the top of the window, where a bar that stuck would be: a browser takes a stop there for one
  * in view, and leaves it there, so a bar that covered it would hide it. The website's bar scrolls
  * with the page, so nothing should: what is at the middle of a stop, and at its top edge, is the
- * stop or is inside it.
+ * stop or is inside it. A stop taller than the window (a table's box) is checked at the middle of
+ * what's in view of it, since no point below the window's bottom is anything's.
  */
 async function stopsUnderTheBar(page: Page): Promise<string[]> {
   const count = await page.evaluate(
@@ -398,8 +440,9 @@ async function stopsUnderTheBar(page: Page): Promise<string[]> {
         }
         const box = focused.getClientRects()[0] ?? focused.getBoundingClientRect();
         const middle = box.left + box.width / 2;
+        const inView = Math.min(box.bottom, window.innerHeight);
         for (const [where, top] of [
-          ["middle", box.top + box.height / 2],
+          ["middle", (box.top + inView) / 2],
           ["top edge", box.top + 1],
         ] as const) {
           const hit = document.elementFromPoint(middle, top);
@@ -1598,6 +1641,275 @@ describe("What's New", () => {
     await page.emulateMedia({ media: "print" });
     expect(await background(page)).toBe(LIGHT);
     expect(await page.locator("#theme-toggle").isVisible()).toBe(false);
+  });
+});
+
+describe("Technical details", () => {
+  /** The headings of its parts, in order: the page's h2s. */
+  const PART_HEADINGS = [
+    "What voicecap does",
+    "How a run works",
+    "NVDA's three passes",
+    "What a run records",
+    "The flags: what voicecap points out for a person to check",
+    "Fingerprints, seals, and voicecap verify",
+    "How this website is built and protected",
+    "The toolchain",
+    "Privacy and security",
+    "What it can't do: the limits",
+    "Verify for yourself",
+    "Related documents",
+  ];
+  /** Each table's box, by the heading that names it, in order. */
+  const BOXES = [
+    "The commands",
+    "NVDA's three passes",
+    "voicecap's defaults",
+    "The 7 built-in rules",
+    "The toolchain",
+  ];
+
+  /**
+   * What in a page runs past the right edge of a window 320 pixels wide, but for what's in a
+   * table's box, which scrolls when the table is wider: the box itself counts.
+   */
+  async function widerOutsideTheBoxes(page: Page): Promise<string[]> {
+    return page.evaluate(() =>
+      [...document.querySelectorAll("body *")]
+        .filter((element) => !element.closest(".skip, .sr"))
+        .filter((element) => element.parentElement?.closest(".scroll") == null)
+        .filter((element) => element.getBoundingClientRect().right > 320 + 0.5)
+        .map((element) => `${element.tagName.toLowerCase()}.${element.className}`),
+    );
+  }
+
+  it.each([
+    ["with its facts", 1280, "technical"],
+    ["with its facts", 390, "technical"],
+    ["with its facts", 320, "technical"],
+    ["with no release facts and no report", 1280, "technicalBare"],
+    ["with no release facts and no report", 390, "technicalBare"],
+    ["with no release facts and no report", 320, "technicalBare"],
+    ["with a version as long as one can be", 320, "technicalLong"],
+  ] as const)(
+    "passes axe with zero violations, dark and light, %s, at %i pixels",
+    async (_, width, which) => {
+      const page = await open(files[which], { width });
+
+      expect(await theme(page)).toBe("dark");
+      expect(await axeFindings(page, width), "dark").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await theme(page)).toBe("light");
+      expect(await axeFindings(page, width), "light").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it("has no two links that read alike and go to different places", async () => {
+    const page = await open(files.technical);
+
+    expect(await identicalLinks(page)).toEqual([]);
+  });
+
+  it("fits a window 320 pixels wide, its wide tables scrolling in their boxes", async () => {
+    for (const which of ["technical", "technicalBare", "technicalLong"] as const) {
+      const page = await open(files[which], { width: 320 });
+      const width = (): Promise<number> =>
+        page.evaluate(() => document.documentElement.scrollWidth);
+
+      expect(await width(), `${which}, dark`).toBeLessThanOrEqual(320);
+      await page.locator("#theme-toggle").click();
+      expect(await width(), `${which}, light`).toBeLessThanOrEqual(320);
+      // Nothing outside a table's box is wider than the window, and each box fits it: what's
+      // wider than the box is its table, which scrolls in it.
+      expect(await widerOutsideTheBoxes(page), which).toEqual([]);
+      const boxes = await page.locator(".scroll").evaluateAll((all) =>
+        all.map((box) => ({
+          fits: box.getBoundingClientRect().right <= 320.5,
+          scrolls: box.scrollWidth > box.clientWidth,
+        })),
+      );
+      expect(boxes, which).toHaveLength(BOXES.length);
+      expect(
+        boxes.every(({ fits }) => fits),
+        which,
+      ).toBe(true);
+      expect(
+        boxes.every(({ scrolls }) => scrolls),
+        which,
+      ).toBe(true);
+    }
+  });
+
+  it("lets a keyboard reach and scroll each table's box, which a screen reader hears named by its heading", async () => {
+    const page = await open(files.technical, { width: 320 });
+
+    // Each box is a region named by its table's heading, as Chromium's accessibility tree has it.
+    for (const name of BOXES) {
+      expect(await page.getByRole("region", { name, exact: true }).count(), name).toBe(1);
+    }
+    // Tab reaches each box in turn, after the links before it, and its focus is drawn.
+    const boxes = page.locator(".scroll");
+    await page.locator("nav.toc a").last().focus();
+    for (let index = 0; index < BOXES.length; index++) {
+      for (let presses = 0; presses < 40; presses++) {
+        await page.keyboard.press("Tab");
+        if (await boxes.nth(index).evaluate((box) => box === document.activeElement)) break;
+      }
+      const box = boxes.nth(index);
+      expect(
+        await box.evaluate((element) => element === document.activeElement),
+        BOXES[index],
+      ).toBe(true);
+      expect(
+        await box.evaluate((element) => getComputedStyle(element).outlineStyle),
+        BOXES[index],
+      ).toBe("solid");
+      // An arrow key scrolls the table in its box.
+      const before = await box.evaluate((element) => element.scrollLeft);
+      await page.keyboard.press("ArrowRight");
+      await expect
+        .poll(() => box.evaluate((element) => element.scrollLeft), { timeout: 2_000 })
+        .toBeGreaterThan(before);
+    }
+  });
+
+  it("draws how a run works as an ordered list, with an arrow on after each box at 1280 and down at 320, which a screen reader doesn't hear", async () => {
+    const arrows = async (width: number): Promise<string[]> => {
+      const page = await open(files.technical, { width });
+      return page
+        .locator("ol.flow > li")
+        .evaluateAll((items) => items.map((item) => getComputedStyle(item, "::after").content));
+    };
+
+    const across = await arrows(1280);
+    expect(across).toHaveLength(10);
+    for (const content of across.slice(0, -1)) expect(content).toContain("→");
+    expect(across.at(-1)).toBe("none");
+    const down = await arrows(320);
+    for (const content of down.slice(0, -1)) expect(content).toContain("↓");
+    expect(down.at(-1)).toBe("none");
+
+    // Three boxes a row at 1280, and one under another at 320.
+    const rows = async (width: number): Promise<number> => {
+      const page = await open(files.technical, { width });
+      const tops = await page
+        .locator("ol.flow > li > .box")
+        .evaluateAll((boxes) => boxes.map((box) => Math.round(box.getBoundingClientRect().top)));
+      return new Set(tops).size;
+    };
+    expect(await rows(1280)).toBe(4);
+    expect(await rows(320)).toBe(10);
+
+    // A screen reader hears a list of ten, and neither the arrows nor the boxes' numbers.
+    const page = await open(files.technical);
+    const snapshot = await page.locator("ol.flow").ariaSnapshot();
+    expect(snapshot).toMatch(/^- list:/);
+    expect(snapshot.match(/- listitem:/g)).toHaveLength(10);
+    const texts = await spokenTexts(page);
+    expect(texts.filter((text) => /[→↓]/.test(text))).toEqual([]);
+    expect(texts).not.toContain("1");
+  });
+
+  it("is complete without JavaScript: every part is there and in view, and the page is dark with no button", async () => {
+    const page = await open(files.technical, { scripts: false });
+
+    expect(await page.locator("main h1").allTextContents()).toEqual(["How voicecap works"]);
+    expect(await page.locator("main h2").allTextContents()).toEqual(PART_HEADINGS);
+    for (const heading of await page.locator("main h2").all()) {
+      expect(await heading.isVisible()).toBe(true);
+    }
+    for (const table of await page.locator("main table").all()) {
+      expect(await table.isVisible()).toBe(true);
+    }
+    expect(await page.locator("#theme-toggle").isVisible()).toBe(false);
+    expect(await background(page)).toBe(DARK);
+  });
+
+  it("has the page's landmarks: its two navigations, and a region for each table's box", async () => {
+    const landmarks: Landmark[] = [
+      ["banner", ""],
+      ["navigation", "This website"],
+      ["navigation", "On this page"],
+      ["main", ""],
+      ...BOXES.map((name): Landmark => ["region", name]),
+      ["contentinfo", ""],
+    ];
+
+    for (const which of ["technical", "technicalBare"] as const) {
+      const page = await open(files[which]);
+      expect(await landmarksOf(page), which).toEqual([...landmarks].sort(byRoleThenName));
+    }
+  });
+
+  it("gives a screen reader its kickers' words as they're written, not in the capitals they're drawn in", async () => {
+    const page = await open(files.technical);
+
+    const texts = await spokenTexts(page);
+
+    const written = [
+      TECHNICAL_TEXT.kicker,
+      TECHNICAL_TEXT.parts.does.kicker,
+      TECHNICAL_TEXT.parts.related.heading,
+      ...TECHNICAL_TEXT.related.map(({ label }) => label),
+    ];
+    for (const words of written) {
+      expect(texts, words).toContain(words);
+      expect(texts, words).not.toContain(words.toUpperCase());
+    }
+  });
+
+  it("brings a part a link of 'On this page' goes to into view with its kicker", async () => {
+    const page = await open(files.technical, { width: 1100, height: 400 });
+
+    for (const name of ["The toolchain", "Verify for yourself"]) {
+      await page.locator("nav.toc a", { hasText: name }).click();
+      const kicker = await page.evaluate((heading) => {
+        const target = [...document.querySelectorAll("main h2")].find(
+          (element) => element.textContent === heading,
+        );
+        const box = target?.previousElementSibling?.getBoundingClientRect();
+        return box === undefined ? null : { top: box.top, bottom: box.bottom };
+      }, name);
+      expect(kicker, name).not.toBeNull();
+      expect(kicker?.top, name).toBeGreaterThanOrEqual(0);
+      expect(kicker?.bottom, name).toBeLessThanOrEqual(400);
+    }
+  });
+
+  it("never hides what has focus under the bar, 1100 pixels wide", async () => {
+    const page = await open(files.technical, { width: 1100, height: 500 });
+
+    expect(await stopsUnderTheBar(page)).toEqual([]);
+  });
+
+  it("has the bar of its page, in which no link is the page the reader is on, and whose views go to the website's own page", async () => {
+    const page = await open(files.technical);
+
+    expect(await page.locator('.bar nav a[aria-current="page"]').count()).toBe(0);
+    await page.locator(".bar nav a", { hasText: "The sites" }).click();
+    const url = new URL(page.url());
+    expect(url.pathname.endsWith("/index.html")).toBe(true);
+    expect(url.hash).toBe("#sites");
+  });
+
+  it("switches the theme and keeps the choice, and is light in print, without the theme button", async () => {
+    const page = await open(files.technical);
+    const toggle = page.locator("#theme-toggle");
+
+    expect(await theme(page)).toBe("dark");
+    await toggle.click();
+    expect(await theme(page)).toBe("light");
+    expect(await background(page)).toBe(LIGHT);
+    expect(await stored(page)).toBe("light");
+    await page.reload();
+    expect(await theme(page)).toBe("light");
+
+    const printed = await open(files.technical);
+    expect(await background(printed)).toBe(DARK);
+    await printed.emulateMedia({ media: "print" });
+    expect(await background(printed)).toBe(LIGHT);
+    expect(await printed.locator("#theme-toggle").isVisible()).toBe(false);
   });
 });
 
