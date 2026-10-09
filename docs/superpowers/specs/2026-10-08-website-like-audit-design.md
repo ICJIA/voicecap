@@ -53,7 +53,7 @@ All four share the audit tool's look, a top bar, and a bottom bar.
 
 As the audit tool's:
 - a near-black page, with its main part in one centered column;
-- a small, spaced-out line in capitals (the kicker) over a very heavy headline, then a quieter lead;
+- a small, spaced-out line in small capitals (the kicker) over a very heavy headline, then a quieter lead;
 - cards with thin borders and rounded corners;
 - a line between the parts of a page;
 - big numbers in a fixed-width font.
@@ -107,18 +107,19 @@ Each of the four colors after `--link` also has a tint, at 12%, for what sits be
 
 - **A kicker:**
   - 0.8125rem, weight 700, letter-spacing 0.14em, in `--muted`;
-  - in capitals, set by the style: it's written in ordinary case, so a screen reader reads words and not letters;
+  - in small capitals, set by the style (`font-variant-caps: all-small-caps`, and never `text-transform`, which changes the words a screen reader gets): it's written in ordinary case, so a screen reader reads words and not letters;
+  - drawn at `--caps-scale` (1.4) times that size, with its letter-spacing and its line height divided by the scale, so its small capitals stand as tall as capitals of the size above, and its spacing and its box are the spec's;
   - the words that matter in it are in `--act`.
 - **A headline** is at weight 900, in `--heading`. A page's h1 may have a second line in `--good`, as the trust page's "See for yourself." does.
 - **A lead** is in `--muted`, at most 64 characters a line.
 - **A card** has `--panel` behind it, a 1px border in `--line`, corners of 14 pixels, and 22 by 20 pixels inside.
 - **A part of a page** has 44 pixels above and below it, and a line between it and the part before.
-- **A pill** is small, in capitals, at weight 700, in its color on its color's tint, with corners of 6 pixels.
+- **A pill** is small, at weight 700, in its color on its color's tint, with corners of 6 pixels. A law's tag is in small capitals at the caps scale, as a kicker is. A version's is digits, which small capitals leave as they are. The verdict is a sentence, in ordinary case: a sentence in capitals reads worse for everyone, and its digits clash with small capitals. The small capitals are for short labels without digits: a kicker, a law's tag, and a table's header row.
 - **A big number:**
   - weight 900, in the fixed-width font, in a color of its own;
   - sized to its card, not the window, as the audit tool's (`clamp(1.5rem, 17cqi, 2.375rem)`), so a long number never runs out of its card.
 - **A table:**
-  - its header row is small, in capitals, in `--muted`, on `--panel-2`, and lines divide its rows;
+  - its header row is small, in small capitals at the caps scale, in `--muted`, on `--panel-2`, and lines divide its rows;
   - a table wider than a phone scrolls in its own box, which can take focus and is named by the table's heading, so the page itself is never wider than 320 pixels.
 - **A button,** such as a report's "Open" or a site's "Visit the site", is an outline in `--line`, with words in `--heading` on `--panel`.
 
@@ -252,7 +253,7 @@ Each part has an h2 with an id, and h3s inside it where it needs them. The words
      - tab: Tab, from nothing focused. The first Tab goes to the browser itself, so a skip link isn't passed over, and the rest go through NVDA. It ends when focus leaves the page, which the browser reports, not NVDA's words.
    - **Every pass** also stops at its step cap or at its repeat limit, and records why. The reasons are end-reached, no-next-heading, left-document, repeat-limit, step-cap, timeout, and error.
    - **How NVDA's words are caught,** without naming Guidepup, which the toolchain table names:
-     - voicecap's NVDA driver connects to NVDA's Remote Access service, on this computer only, sends each key, and receives what NVDA speaks;
+     - voicecap's NVDA driver connects to NVDA's Remote Access service, only on the computer running the test, sends each key, and receives what NVDA speaks;
      - it silences NVDA before each key, and waits until a second passes with no more speech;
      - a step's words are what NVDA said for that key, and a step where NVDA said nothing is written `[no speech]`.
    - **The run's record** keeps NVDA's settings that differ from NVDA's own defaults.
