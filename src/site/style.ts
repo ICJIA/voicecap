@@ -204,7 +204,7 @@ main :where(h1, h2, h3, h4, p, li, a, span, code), .bar a, footer li { overflow-
 .bar nav a:hover, footer a:hover, .back:hover { color: var(--heading); }
 /* the page the reader is on, in either bar: in the headline's color, bold, and underlined more heavily than the other links, which the browser underlines too, so it is told apart by more than its color; the line is in proportion to the text, as the browser's own is. On the front page, it's the website's name, which is drawn as ever. */
 .bar nav a[aria-current="page"], footer a[aria-current="page"] { color: var(--heading); font-weight: 700; text-decoration: underline; text-decoration-thickness: 0.15em; }
-/* the theme button: an icon, in the quieter color, turning the headline's under the pointer, with a line around it then, and 32 pixels square at the browser's own text size. It shows the sun in the dark theme and the moon in the light one; its words are its label. Its focus keeps its corners. */
+/* the theme button: an icon, in the quieter color, turning the headline's under the pointer, with a line around it then, and 34 pixels square at the browser's own text size. It shows the sun in the dark theme and the moon in the light one; its words are its label. Its focus keeps its corners. */
 .theme { padding: 6px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--muted); line-height: 0; cursor: pointer; }
 .theme:hover { color: var(--heading); border-color: var(--line); }
 .theme:focus-visible { border-radius: 8px; }
@@ -228,8 +228,8 @@ main > .lead { margin-bottom: 8px; }
 /* A version's pill is digits, which small capitals leave as they are, at the spec's size. A verdict is a sentence, in ordinary case: in capitals it reads worse, and its digits would stand above small-cap letters. */
 .pill, .verdict { font-size: 0.8125rem; line-height: 1.4; letter-spacing: 0.06em; }
 .pill { font-variant-caps: all-small-caps; }
-/* a law's tag, a short label: in small capitals as tall as the spec's 0.8125rem capitals, at the caps scale, with the spec's spacing of 0.06em and line of 1.4 kept. Its text's box is taller than that line (Segoe UI's is 1.33 times its size, 25 pixels here), and the tag has a color of its own behind it, so it's 4 pixels inside above and below, a pixel more than a pill: the text's box stays on the tag's color, where axe can tell what each letter is drawn on. */
-.tag { font-size: calc(0.8125rem * var(--caps-scale)); line-height: calc(1.4 / var(--caps-scale)); letter-spacing: calc(0.06em / var(--caps-scale)); font-variant-caps: all-small-caps; padding-block: 4px; }
+/* a law's tag, a short label: in small capitals as tall as the spec's 0.8125rem capitals, at the caps scale, with the spec's spacing of 0.06em and line of 1.4 kept. Its text's box is taller than that line (Segoe UI's is 1.33 times its size, 25 pixels here), and the tag has a color of its own behind it, so it's 0.22em inside above and below, 4 pixels at the browser's own text size, a pixel more than a pill, and more as the reader's text grows: the text's box stays on the tag's color, where axe can tell what each letter is drawn on. */
+.tag { font-size: calc(0.8125rem * var(--caps-scale)); line-height: calc(1.4 / var(--caps-scale)); letter-spacing: calc(0.06em / var(--caps-scale)); font-variant-caps: all-small-caps; padding-block: 0.22em; }
 .pill.good, .verdict.ok { color: var(--good); background: var(--good-tint); }
 .pill.warn, .verdict.warn { color: var(--warn); background: var(--warn-tint); }
 .pill.bad, .verdict.bad { color: var(--bad); background: var(--bad-tint); }

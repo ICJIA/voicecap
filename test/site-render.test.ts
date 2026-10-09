@@ -2028,15 +2028,16 @@ describe("SITE_CSS", () => {
   it("draws its short labels, a kicker, a law's tag, and a table's header, at the caps scale, 1.4 times the spec's size, with the spec's spacing and line", () => {
     // One scale for all three, on the root.
     expect(declarationsOf(SITE_CSS, ":root")).toContain("--caps-scale: 1.4");
-    // A law's tag: the spec's 0.8125rem and 0.06em, a line of 1.4, and a pixel more inside above
-    // and below than a pill, so its text's box, taller than its line, stays on its own color.
+    // A law's tag: the spec's 0.8125rem and 0.06em, a line of 1.4, and 0.22em inside above and
+    // below, a pixel more than a pill at the browser's own text size and more as the text grows,
+    // so its text's box, taller than its line, stays on its own color at any size.
     expect(declarationsFor(SITE_CSS, ".tag")).toEqual(
       expect.arrayContaining([
         "font-size: calc(0.8125rem * var(--caps-scale))",
         "letter-spacing: calc(0.06em / var(--caps-scale))",
         "line-height: calc(1.4 / var(--caps-scale))",
         "font-variant-caps: all-small-caps",
-        "padding-block: 4px",
+        "padding-block: 0.22em",
       ]),
     );
     // A table's header: the spec's 0.75rem and 0.08em, and the body's line of 1.55, which it

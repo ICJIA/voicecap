@@ -672,6 +672,8 @@ describe("the site's page", () => {
     ["names as long as they can be", 320, "long"],
     ["each kind of verdict", 320, "verdicts"],
     ["a banner whose words are as long as they can be", 320, "bannerLong"],
+    ["no report at all", 390, "empty"],
+    ["no report at all", 320, "empty"],
   ] as const)(
     "passes axe with zero violations, dark and light, at a phone's width: %s, %i px",
     async (_, width, which) => {
@@ -1663,25 +1665,35 @@ describe("the trust page", () => {
     });
 
     // A tag has a color of its own behind it, so its text's box, which is taller than its line,
-    // stays inside the tag, where axe can tell what each letter is drawn on.
-    const outside = await page.locator(".tag").evaluateAll((tags) =>
-      tags.flatMap((tag) => {
-        const box = tag.getBoundingClientRect();
-        const range = document.createRange();
-        range.selectNodeContents(tag);
-        return [...range.getClientRects()].flatMap((text) =>
-          text.top < box.top ||
-          text.bottom > box.bottom ||
-          text.left < box.left ||
-          text.right > box.right
-            ? [
-                `${tag.textContent ?? ""}: its text runs from ${text.top} to ${text.bottom}, the tag from ${box.top} to ${box.bottom}`,
-              ]
-            : [],
-        );
-      }),
-    );
-    expect(outside).toEqual([]);
+    // stays inside the tag, where axe can tell what each letter is drawn on: at the browser's own
+    // text size, 16 pixels, and at the larger ones a reader may set, 20, 24, and 32, since the room
+    // above and below its words grows with them.
+    for (const size of ["100%", "125%", "150%", "200%"]) {
+      await page.evaluate((percent) => {
+        document.documentElement.style.fontSize = percent;
+      }, size);
+      const outside = await page.locator(".tag").evaluateAll((tags) =>
+        tags.flatMap((tag) => {
+          const box = tag.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(tag);
+          return [...range.getClientRects()].flatMap((text) =>
+            text.top < box.top ||
+            text.bottom > box.bottom ||
+            text.left < box.left ||
+            text.right > box.right
+              ? [
+                  `${tag.textContent ?? ""}: its text runs from ${text.top} to ${text.bottom}, the tag from ${box.top} to ${box.bottom}`,
+                ]
+              : [],
+          );
+        }),
+      );
+      expect(outside, size).toEqual([]);
+    }
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "";
+    });
 
     // In a window 320 pixels wide, the banner's kicker takes two lines or more, inside the window.
     await page.setViewportSize({ width: 320, height: 800 });
