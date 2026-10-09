@@ -55,7 +55,7 @@ const COLLECT_VIOLATIONS = `
 const DEMO_POLICY =
   "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 /** The demo's canonical address: the website's /demo-site/, which each of its pages names. */
-const DEMO_CANONICAL = "https://voicecap.netlify.app/demo-site/";
+const DEMO_CANONICAL = "https://voicecap.icjia.app/demo-site/";
 /** The demo's pages by their path under /demo-site/ ("" is the home page): the tour's, then the form's answer. */
 const DEMO_PAGE_PATHS = [
   "",

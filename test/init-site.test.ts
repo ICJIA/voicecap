@@ -172,7 +172,7 @@ describe("checkSite's canonical address", () => {
   });
 
   it.each([
-    ["the demo's root", "https://voicecap.netlify.app/demo-site/"],
+    ["the demo's root", "https://voicecap.icjia.app/demo-site/"],
     ["another page of the site", "https://dvfr.illinois.gov/about/"],
     ["a language folder", "https://dvfr.illinois.gov/en/"],
   ])("is null for a home page's tag that names a root with a path: %s", async (_what, href) => {
@@ -193,8 +193,8 @@ describe("checkSite's canonical address", () => {
 
     it("is offered when the home page's tag names a root with a path", async () => {
       expect(
-        await checked("http://127.0.0.1:4848", tag("https://voicecap.netlify.app/demo-site/")),
-      ).toEqual({ canonical: null, offered: "https://voicecap.netlify.app/demo-site/" });
+        await checked("http://127.0.0.1:4848", tag("https://voicecap.icjia.app/demo-site/")),
+      ).toEqual({ canonical: null, offered: "https://voicecap.icjia.app/demo-site/" });
       expect(
         await checked("http://localhost:3000", tag("https://dvfr.illinois.gov/about/")),
       ).toEqual({ canonical: null, offered: "https://dvfr.illinois.gov/about/" });
@@ -233,12 +233,12 @@ describe("checkSite's canonical address", () => {
         "http://127.0.0.1:4848/": () =>
           redirectedTo(
             "http://127.0.0.1:4848/en/",
-            `<html><head>${tag("https://voicecap.netlify.app/demo-site/en/")}</head></html>`,
+            `<html><head>${tag("https://voicecap.icjia.app/demo-site/en/")}</head></html>`,
           ),
       });
       const result = await checkSite(new URL("http://127.0.0.1:4848"), fetch);
       if (!result.ok) throw new Error(`expected ok, got reason: ${result.reason}`);
-      expect(result.canonical).toBe("https://voicecap.netlify.app/demo-site/");
+      expect(result.canonical).toBe("https://voicecap.icjia.app/demo-site/");
       expect(result.offered).toBeNull();
     });
   });
@@ -249,12 +249,12 @@ describe("checkSite's canonical address", () => {
       "http://127.0.0.1:4848/": () =>
         redirectedTo(
           "http://127.0.0.1:4848/en/",
-          `<html><head>${tag("https://voicecap.netlify.app/demo-site/en/")}</head></html>`,
+          `<html><head>${tag("https://voicecap.icjia.app/demo-site/en/")}</head></html>`,
         ),
     });
     const result = await checkSite(new URL("http://127.0.0.1:4848"), fetch);
     if (!result.ok) throw new Error(`expected ok, got reason: ${result.reason}`);
-    expect(result.canonical).toBe("https://voicecap.netlify.app/demo-site/");
+    expect(result.canonical).toBe("https://voicecap.icjia.app/demo-site/");
   });
 
   it("reads a relative tag against the page's address, as a browser does", async () => {

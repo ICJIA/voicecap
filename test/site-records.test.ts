@@ -231,7 +231,7 @@ describe("readSiteRecords", () => {
         sealed(1, JAN_15, files, { site: CANONICAL }),
         // An entry from before 0.10.0 has no site, and is published all the same.
         sealed(2, JAN_16, files),
-        sealed(3, JAN_17, files, { site: "https://voicecap.netlify.app/demo-site/" }),
+        sealed(3, JAN_17, files, { site: "https://voicecap.icjia.app/demo-site/" }),
       ]);
 
       const { sites, leftOut } = await readSiteRecords(home);
@@ -239,7 +239,7 @@ describe("readSiteRecords", () => {
       expect(kept(sites).map(({ seq, site }) => [seq, site])).toEqual([
         [1, CANONICAL],
         [2, null],
-        [3, "https://voicecap.netlify.app/demo-site/"],
+        [3, "https://voicecap.icjia.app/demo-site/"],
       ]);
       expect(leftOut).toEqual([]);
     });
@@ -344,13 +344,13 @@ describe("readSiteRecords", () => {
       const demo = await siteFolder("127.0.0.1_4848", demoRoot());
       await record(demo, [
         sealed(1, JAN_15, copies("127.0.0.1_4848_2027-01-15"), {
-          site: "https://voicecap.netlify.app/demo-site/",
+          site: "https://voicecap.icjia.app/demo-site/",
         }),
       ]);
 
       expect((await readSiteRecords(home)).demo).toMatchObject({
         seq: 1,
-        site: "https://voicecap.netlify.app/demo-site/",
+        site: "https://voicecap.icjia.app/demo-site/",
       });
     });
   });

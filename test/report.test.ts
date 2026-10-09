@@ -504,16 +504,16 @@ describe("generateReport", () => {
       const copy = (run: RunJson): RunJson => ({
         ...run,
         site: "http://127.0.0.1:4848",
-        canonical: "https://voicecap.netlify.app/demo-site/",
+        canonical: "https://voicecap.icjia.app/demo-site/",
       });
       const live = await subtitleOf(copy);
       const snapshot = await subtitleOf(copy, "snapshot");
 
       expect(live).toMatch(
-        /^Live report for run <span class="mono">2026-09-26_1405<\/span> of <a href="https:\/\/voicecap\.netlify\.app\/demo-site\/">voicecap\.netlify\.app<\/a>, with reviews and manual sessions as of <time /,
+        /^Live report for run <span class="mono">2026-09-26_1405<\/span> of <a href="https:\/\/voicecap\.icjia\.app\/demo-site\/">voicecap\.icjia\.app<\/a>, with reviews and manual sessions as of <time /,
       );
       expect(snapshot).toMatch(
-        /^Snapshot of run <span class="mono">2026-09-26_1405<\/span> of <a href="https:\/\/voicecap\.netlify\.app\/demo-site\/">voicecap\.netlify\.app<\/a>, taken when the run completed \(<time /,
+        /^Snapshot of run <span class="mono">2026-09-26_1405<\/span> of <a href="https:\/\/voicecap\.icjia\.app\/demo-site\/">voicecap\.icjia\.app<\/a>, taken when the run completed \(<time /,
       );
       expect(live).not.toMatch(/127\.0\.0\.1|localhost/);
       expect(snapshot).not.toMatch(/127\.0\.0\.1|localhost/);

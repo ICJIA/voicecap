@@ -4,6 +4,11 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **The demo's pages name `https://voicecap.icjia.app/demo-site/` as their canonical address,** the website's own domain, in place of `https://voicecap.netlify.app/demo-site/`. A demo run made with this voicecap learns it, and a share of the demo is named for it, such as `voicecap.icjia.app_2026-10-02.html`, where it was `voicecap.netlify.app_2026-10-02.html`. The website still publishes the pages in `demo-site/`, now with a `sitemap.xml` of their new addresses, and the demo's view links to them with the words `voicecap.icjia.app/demo-site/`. The README's addresses for the website, the demo, and a site's own section (`voicecap.icjia.app/#site-sfs.icjia.illinois.gov`) are the new ones.
+  - **A demo run or share made before keeps the name it recorded,** `voicecap.netlify.app`: nothing already written changes. To name the demo's report by the new address, run the demo again with `npx @icjia/voicecap@latest demo`, or share its runs with `report.canonical` set to the new address, as the README's "Publishing it, and the demo" says.
+
 ## [0.16.1] - 2026-10-09
 
 The What's New banner now opens the website's front page, above its heading, as the audit tool's front page has it.
