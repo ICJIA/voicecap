@@ -1450,4 +1450,11 @@ export const AI_TEXT = {
    * no library, and this stands in its place.
    */
   driver: "the screen reader driver",
+  /**
+   * The sentence the JSON file adds to the note (`about`), after the sentences both files carry:
+   * what the WCAG criteria in its `wcag` lists are, and that whether a finding relates to any of
+   * them is for a person to decide. The Markdown has no list of voicecap's own to say it of.
+   */
+  wcagNote:
+    "The WCAG success criteria in a `wcag` list are the ones a finding may relate to, taken from a table voicecap keeps for its flags and from axe's own tags for its issues; whether a finding relates to any of them is for a person to decide.",
 };
