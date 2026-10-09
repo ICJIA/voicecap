@@ -183,7 +183,7 @@ In order:
   - its headline;
   - "Released 8 October 2026 · See all updates", with "See all updates" a link to `whats-new.html`.
 - **It isn't dismissible.** Dismissing it would need storage, and it's short and always current.
-- **A build whose CHANGELOG records no release** (a developer's) has no banner.
+- **A build whose CHANGELOG is missing, or records no release,** has no banner.
 
 ## Can I trust this?
 
@@ -223,7 +223,7 @@ Each part has an h2 with an id, and h3s inside it where it needs them. The words
    - Where voicecap runs:
      - real NVDA runs need Windows;
      - reviews, reports, sharing, this website, and `voicecap verify` work on any computer;
-     - VoiceOver on a Mac comes later.
+     - VoiceOver runs on a Mac come later.
 2. **How a run works.**
    - **The diagram:** an ordered list drawn as a flow of boxes, with an arrow from each to the next, and one under another on a phone. The arrows are the style's, so a screen reader hears the list. These are the steps:
      1. **The page list:** a sitemap, a page list, pages named one by one, or a walkthrough file. It's cleaned up first: one address a page, and pages off the site or not HTML left out.
@@ -236,16 +236,18 @@ Each part has an h2 with an id, and h3s inside it where it needs them. The words
      5. **Safeguards on every key:**
         - focus is checked before and after each key;
         - a step during which another window came forward is thrown away, and the page tried again, with earlier tries kept;
+        - while focus is inside a frame, a switch to another window is noticed only if it lasts until the step ends;
         - silence is never recorded for a stopped NVDA or a locked screen.
      6. **Flags** point a person at moments worth a closer look.
-     7. **The person's review:**
-        - at a run's end, voicecap asks whether the person heard NVDA (Enter means No);
+     7. **A sealed record:**
+        - when a run ends at a terminal, voicecap asks whether the person heard NVDA (Enter means No), and the answer goes in the run's record;
+        - the record is sealed when the run completes, and the report, the shareable page, and its Word copy are written.
+     8. **The person's review:**
         - the person reads the transcripts, and records a decision for each page (`voicecap review`);
-        - they can hear a page's saved words again with `voicecap review --replay`.
-     8. **A sealed record:** the run's record is sealed when it completes, and the report, the shareable page, and its Word copy are written.
+        - they can hear the shareable page's transcripts again, read aloud, with `voicecap review --replay`.
      9. **Sharing:** `voicecap share` makes a dated copy, with each run's walkthrough file, recorded in a sealed, chained `shares.json`.
      10. **This website:** `voicecap site` publishes each site's newest shares, every file checked against its fingerprint.
-   - **The commands,** in a table: each command, and what it's for, in the order a person uses them (from `preflight` and `setup` to `site` and `verify`).
+   - **The commands,** in a table: each command, and what it's for, in the order a person uses them (from `preflight` and `setup` to `site` and `verify`). `voicecap review --replay` reads aloud the saved words of the pages "What needs attention" names, and every page's with `--all`.
 3. **NVDA's three passes.**
    - **A table of the passes:** each pass, its key, where it starts, and what ends it.
      - read: Down Arrow, from the top. It ends when the last line is spoken and the next steps repeat it, since NVDA has no message for the end of a page.
@@ -265,11 +267,12 @@ Each part has an h2 with an id, and h3s inside it where it needs them. The words
      - how often NVDA and the browser restart;
      - how many failed pages in a row stop a run.
 4. **What a run records.**
-   - **The transcripts home, as a tree,** each entry with a line on what it holds:
+   - **The transcripts home's main parts, as a tree,** each entry with a line on what it holds:
      - `run.json`, the run's record;
      - `events.jsonl`, the event log, one line for each event as it happens;
      - `pages/<page>/`: `read.txt`, `headings.txt`, and `tab.txt`, each with its `.json` of every step (the key, the words, its timing), and `screenshot.jpg`;
      - `attempts/`, the earlier tries, kept;
+     - `<date>/<time>_manual_<page>/`, a hands-on NVDA session on a page, from `voicecap manual add`: `session.txt`, its transcript; `session.json`, its record, with the fingerprints of the transcript and of the file it came from, and its seal; and `raw/`, that file as it was, when it's kept, which voicecap keeps out of Git;
      - `reviews.json`, the review history;
      - `share/`: the shareable page, its Word copy, the dated copies, the walkthrough files, and `shares.json`.
    - **What a run's record of the computer keeps:** the system, processor, memory, display, browser window, time zone, language, and versions.
@@ -280,11 +283,11 @@ Each part has an h2 with an id, and h3s inside it where it needs them. The words
    - **Flags never fail a page or change the exit code,** and they match NVDA's English wording.
    - **On the shareable page,** "What needs attention" turns them into cards with a suggested fix. The person decides.
 6. **Fingerprints, seals, and `voicecap verify`.**
-   - **What's fingerprinted:** the SHA-256 of every transcript, screenshot, event log, page list, config, and shared copy, recorded as each is written.
+   - **What's fingerprinted:** a run's record holds the SHA-256 of each page's transcripts and screenshot, recorded as each is written, and of the event log, recorded at the end of each session. Earlier tries a run kept, its own report, and its comparisons have none. A run also records the SHA-256 of its page list, or of each sitemap it read, and of its config, and `shares.json` records each shared copy's.
    - **A seal** is the SHA-256 of the record itself, with its seal left out. Each completed run, manual session, review, and share has one. A completed run's folder is never written again.
    - **The chains:** each review, and each share, carries the seal of the one before it, in one chain of reviews a site and one of shares a site folder.
-   - **`voicecap verify`** checks all of it, and exits 0 when everything matches, 3 when something doesn't.
-   - **Each report's "Check the fingerprints"** does the same for the report's own records, in the reader's browser, with nothing sent anywhere.
+   - **`voicecap verify`** checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there. An incomplete run is listed, and its files aren't checked: they can change until it's sealed. It exits 0 when everything matches, 3 when something doesn't.
+   - **Each report's "Check the fingerprints"** checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, run seals, and review chain the report carries. It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.
    - **What no check can catch:**
      - someone who edits a record and seals it, and every record after it, again;
      - someone who deletes the newest records.
@@ -293,13 +296,15 @@ Each part has an h2 with an id, and h3s inside it where it needs them. The words
    - **What's published:**
      - each site's newest shares, from their sealed `shares.json` records only (how many a site keeps, generated);
      - a file only when its size and SHA-256 are the ones recorded when it was shared;
+     - the pages of voicecap's own demo site, in `demo-site/`, from voicecap itself;
      - anything else is left out, and the build names it.
    - **How each page is protected:**
-     - it's one file, and loads nothing from outside;
-     - its Content Security Policy is made from the SHA-256 of its own style and script, and it allows no connection.
+     - each of the website's own pages, and each report, is one file, and loads nothing from outside;
+     - each one's Content Security Policy is made from the SHA-256 of its own style and script, and allows no connection;
+     - the demo site's pages have their style sheet beside them, and a policy of their own, which allows it and no script.
    - **The headers** voicecap's `netlify.toml` asks Netlify for: no indexing, no referrer, no sniffing, no framing, no camera or microphone, HTTPS only, and the same-origin rules.
    - **Who can see it:** `robots.txt` asks every crawler away. That's a request, not a lock: anyone with the address can read the website.
-   - **How it's built:** Netlify builds it from the transcripts repo, a private repository, with `npx @icjia/voicecap@<version> site` on each push.
+   - **How it's built:** Netlify builds it on every push to the transcripts repository, which the README says to keep private, with the command in the repository's `netlify.toml`, which voicecap writes once (`npx --yes @icjia/voicecap@<major.minor> site --home . --out _site`, generated from the version).
    - **This website, now:** its sites, reports, and files published (generated, as on the trust page).
 8. **The toolchain:** a table of each tool, its job, its license, and where it's used, as the audit tool's "The Open-Source Toolchain at a Glance":
    - NVDA (GPL-2.0), and Guidepup and `@guidepup/setup` (MIT);
@@ -316,7 +321,7 @@ Each part has an h2 with an id, and h3s inside it where it needs them. The words
      - voicecap talks to NVDA and to Chrome on that computer only.
    - **What goes out:**
      - Chrome loads each page under test, and what it loads;
-     - the page list reads the site's sitemap and `robots.txt`;
+     - a run with `--sitemap`, or `voicecap list-urls`, reads the site's sitemap; `voicecap init` reads the site's front page, its `robots.txt`, and its sitemap, to find its pages;
      - `voicecap setup` downloads NVDA's build from GitHub, checked by its SHA-256, and Chromium when Chrome isn't there.
      - Nothing else.
    - **Nothing voicecap doesn't need:**
@@ -327,15 +332,17 @@ Each part has an h2 with an id, and h3s inside it where it needs them. The words
      - a window's title, which can hold private text, is kept only in the event log, never on a page or in a Word copy;
      - an NVDA log from a manual session can hold every keystroke, so voicecap warns, can redact typed text, and never commits the raw copy.
    - **Walkthrough files** may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser.
-   - **Where it lives:** the transcripts repo is private; this website is public to anyone with its address.
+   - **Where it lives:** the transcripts repository, which the README says to keep private, and this website, which is public to anyone with its address.
 10. **What it can't do: the limits.** Technical ones, as the README's Known limitations:
     - NVDA speaks very fast during a run, and the transcripts have every word;
     - a run is timing-sensitive, so runs are compared with care;
     - NVDA is voicecap's own copy, with its own settings, in one browser;
     - NVDA's interface must be in English;
     - the computer is voicecap's during a run, for one voicecap at a time;
+    - while focus is inside a frame, such as an embedded video, map, or form, a switch to another window is noticed only if it lasts until the step ends;
+    - while a page is open, its browser's debugging port can be reached by other people signed in to the same computer at the same time;
     - a page that talks without stopping can time out;
-    - VoiceOver runs come later.
+    - VoiceOver runs on a Mac come later.
 11. **Verify for yourself.**
     - **Links to the code that built this website,** at its version's tag (generated from the version):
       - the NVDA driver, `src/drivers/`;
