@@ -591,9 +591,20 @@ describe("renderTechnical", () => {
       "fingerprint of every file",
       "checks all of it",
       "every transcript and screenshot",
+      "does the same",
     ]) {
       expect(text, overstated).not.toContain(overstated);
     }
+    // A report's own check recomputes what the report carries: its transcripts' and screenshots'
+    // fingerprints, its runs' seals, and its review entries' seals and their chain, and nothing
+    // else of the home's, such as a manual session or a share. It shows only that the page agrees
+    // with itself (src/share/check.ts).
+    expect(evidence).toContain(
+      "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, run seals, and review chain the report carries.",
+    );
+    expect(evidence).toContain(
+      "It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",
+    );
 
     // The demo site's pages are published too, with a style sheet beside them and a policy of
     // their own: what's one file under a policy of its own bytes is each of the website's own pages

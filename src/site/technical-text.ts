@@ -468,7 +468,7 @@ export const TECHNICAL_TEXT = {
           ` checks every seal, every chain, and every file the records list in the home, but not the page list, sitemaps, or config, which aren't in the home. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
         ],
         [
-          "Each report's \"Check the fingerprints\" does the same for the report's own records, in the reader's browser, with nothing sent anywhere.",
+          "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, run seals, and review chain the report carries. It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",
         ],
         [
           "What no check can catch: someone who edits a record and seals it, and every record after it, again; and someone who deletes the newest records, or a whole run. The Git history, pushed to a protected branch, shows both.",
