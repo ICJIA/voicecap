@@ -387,6 +387,15 @@ export const AXE_TEXT = {
   element: "Element",
   html: "Its HTML",
   fix: "How to fix it, in axe's words",
+  /**
+   * The label of axe's words on how to fix a rule's elements, said once for the rule when every
+   * element listed shares them (`axeSharedFix`): of the elements listed, never of the ones a file
+   * counts and doesn't keep ("and 350 more elements"), whose words it doesn't have.
+   */
+  fixShared: (elements: number): string =>
+    elements === 1
+      ? "How to fix the element listed, in axe's words"
+      : "How to fix each element listed, in axe's words",
   /** After a rule's elements, those its file counts and doesn't keep: "and 350 more elements". */
   more: (elements: number): string => `and ${plural(elements, "more element", "more elements")}`,
   /**

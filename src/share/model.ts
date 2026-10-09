@@ -334,7 +334,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
     // What the fingerprint check checks: the records of the runs drawn on and the transcripts shown,
     // exactly as recorded, which screenshots the page shows (their fingerprints are in the records:
     // the page carries no picture a third time), the text of each axe file whose results a card
-    // shows (carried once, here, and drawn from in the card's fold), and the review entries.
+    // shows (carried once, here, which the check holds the card's fold to), and the review entries.
     check: {
       runs: standing.drawnOn.map(recordOf),
       files: standing.pages.flatMap((page) =>
@@ -343,7 +343,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
         ),
       ),
       screenshots: embeddedOf(standing, pages),
-      axe: axeCheckedOf(standing, pages),
+      axe: axeCheckedOf(pages),
       reviews: Object.keys(input.reviews.pages).length === 0 ? null : input.reviews.pages,
     },
     flagRulesSha256: input.flagRulesSha256,

@@ -4,10 +4,14 @@
  * automated checker; what it found is evidence beside the person's review, never its verdict.
  *
  * The page reads the file it carries, never the page's record of it: the record's fingerprint names
- * the file, the fingerprint check checks the file's text, and the fold is drawn from that same
- * text, so a check that passes vouches for what the fold shows. A file is data, as a record is: one
- * that isn't axe's results as voicecap keeps them (src/axe/results.ts) is read as none, and the
- * card says so rather than stop. Pure.
+ * the file, and the fold is drawn from the file's text. The page's fingerprint check holds that text
+ * to the record, then holds what the fold shows to the text, as the fold draws it with these rules:
+ * the counts, the card's chip, and each rule's heading, most severe first, its elements' selectors
+ * and HTML, and axe's words on how to fix them, said once when every element shares them
+ * (`axeSharedFix`). So a check that passes vouches for those; the rest of the fold (the version, a
+ * rule's impact and criteria, its link) is drawn from the same text, and not compared. A file is
+ * data, as a record is: one that isn't axe's results as voicecap keeps them (src/axe/results.ts) is
+ * read as none, and the card says so rather than stop. Pure.
  */
 import { z } from "zod";
 
@@ -202,6 +206,20 @@ export function axeFix(summary: string): { lead: string; items: string[] }[] {
         .filter((line) => line !== ""),
     )
     .flatMap(([lead, ...items]) => (lead === undefined ? [] : [{ lead, items }]));
+}
+
+/**
+ * axe's words on how to fix a rule's elements when every element its file keeps has the same, word
+ * for word (an empty summary that every element shares, too, which is no words to show), so a copy
+ * can say them once for the rule. Null when any two differ, and for a rule with no element kept.
+ * Only the kept elements are read: the ones a file counts and doesn't keep may say anything.
+ */
+export function axeSharedFix(rule: AxeViewRule): string | null {
+  const [first, ...rest] = rule.nodes;
+  if (first === undefined) return null;
+  return rest.every((node) => node.failureSummary === first.failureSummary)
+    ? first.failureSummary
+    : null;
 }
 
 /**

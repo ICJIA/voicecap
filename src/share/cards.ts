@@ -119,14 +119,17 @@ export interface PageCard {
   /**
    * What axe found on the page, checked as it first loaded, before the screen reader read it, of
    * the record the card speaks for, as its screenshot is: the file's results (`view`), its exact
-   * text, which the page's fingerprint check carries and checks, and its size and SHA-256 as its
-   * run recorded them. Where there's none, the words that say why (AXE_TEXT): the run's voicecap
+   * text, which the page's fingerprint check carries and checks, its size and SHA-256 as its run
+   * recorded them, and the run and the page's slug it is filed under, which name it on the card's
+   * fold for that check. Where there's none, the words that say why (AXE_TEXT): the run's voicecap
    * didn't check pages with axe (from before 0.16.0), its driver doesn't, the page wasn't read,
    * axe couldn't check it, or the file isn't as the run recorded it, or isn't axe's results.
    * Evidence beside the person's review, never its verdict: nothing that counts reads it. Absent
    * from a card a model didn't make, which says nothing of axe.
    */
-  axe?: { view: AxeView; text: string; bytes: number; sha256: string } | { notRecorded: string };
+  axe?:
+    | { view: AxeView; text: string; bytes: number; sha256: string; run: string; slug: string }
+    | { notRecorded: string };
   /** When the shown transcripts come from an older run than the latest: its id, and its date. */
   from: { run: string; date: string } | null;
   /** The latest run's failure, or why it skipped the page, in plain words; home replaced. */
@@ -369,7 +372,7 @@ function axeOf(
   if (text === undefined) return { notRecorded: AXE_TEXT.changed };
   const view = axeViewOf(text);
   if (view === null) return { notRecorded: AXE_TEXT.notResults };
-  return { view, text, bytes: record.bytes, sha256: record.sha256 };
+  return { view, text, bytes: record.bytes, sha256: record.sha256, run: run.id, slug: page.slug };
 }
 
 /**
@@ -418,17 +421,16 @@ export function embeddedOf(standing: Standing, cards: PageCard[]): CheckData["sc
 /**
  * The axe files the page carries, as its fingerprint check names them: the run and the page of each
  * file whose results a card shows, in the order of the cards, with the file's exact text. The page
- * carries each once, in its data, and draws the card's fold from the same text, so a check that
- * passes vouches for what the fold shows.
+ * carries each once, in its data. The check holds that text to its run's record, then holds what
+ * the card's fold shows (its counts, the card's chip, and each rule's heading, elements, and words
+ * on how to fix them) to the same text, so a check that passes vouches for those.
  */
-export function axeCheckedOf(standing: Standing, cards: PageCard[]): CheckData["axe"] {
-  return standing.pages.flatMap((page, index) => {
-    const source = cardRecord(page);
-    const axe = cards[index]?.axe;
-    return source !== null && axe !== undefined && "view" in axe
-      ? [{ run: source.run.id, slug: source.page.slug, name: AXE_FILE, text: axe.text }]
-      : [];
-  });
+export function axeCheckedOf(cards: PageCard[]): CheckData["axe"] {
+  return cards.flatMap(({ axe }) =>
+    axe !== undefined && "view" in axe
+      ? [{ run: axe.run, slug: axe.slug, name: AXE_FILE, text: axe.text }]
+      : [],
+  );
 }
 
 function statusOf(

@@ -1598,8 +1598,10 @@ describe("what axe found, on a page's card", () => {
     const [card = ""] = cardsOf(run);
     const slug = run.pages[0]?.slug ?? "";
 
+    // The fold names its file, as a transcript's section does, for the fingerprint check to compare
+    // what it shows with the file the page carries.
     expect(card).toContain(
-      `<details class="fold axe-page" id="axe-${idFragment(slug)}"><summary><span class="what">What axe found<span class="sr"> on /about/</span></span></summary><div class="inside">`,
+      `<details class="fold axe-page" id="axe-${idFragment(slug)}" data-run="r1" data-slug="${slug}" data-file="axe.json"><summary><span class="what">What axe found<span class="sr"> on /about/</span></span></summary><div class="inside">`,
     );
     // After what NVDA said first, its numbers, and its strip, and before its full transcript.
     const order = [
@@ -1667,11 +1669,11 @@ describe("what axe found, on a page's card", () => {
     expect(contrast).toContain('<p class="sub">Impact: serious · WCAG 2.0 AA 1.4.3</p>');
     expect(region).toContain('<p class="sub">Impact: moderate · best practice</p>');
     // Each element: its selector and its HTML in the fixed-width font, and axe's words on how to
-    // fix it, each lead with what's under it.
+    // fix it, each lead with what's under it (the two elements' words differ, so each has its own).
     expect(button).toContain(
       '<li><dl class="axe-node"><div><dt>Element</dt><dd><code>#menu</code></dd></div>' +
         "<div><dt>Its HTML</dt><dd><code>&lt;button id=&quot;menu&quot;&gt;&lt;/button&gt;</code></dd></div>" +
-        "<div><dt>How to fix it, in axe&#39;s words</dt><dd>" +
+        '<div><dt>How to fix it, in axe&#39;s words</dt><dd class="axe-words">' +
         "<p>Fix any of the following:</p><ul><li>Element does not have inner text that is visible to screen readers</li><li>aria-label attribute does not exist or is empty</li></ul>" +
         "<p>Fix all of the following:</p><ul><li>Element is in tab order and does not have accessible text</li></ul>" +
         "</dd></div></dl></li>",
@@ -1741,6 +1743,94 @@ describe("what axe found, on a page's card", () => {
     expect(reasonOf(cardsOf(noDriver)[0] ?? "")).toBe(
       esc("Not checked: this run's driver doesn't check pages with axe."),
     );
+    // A fold that says why names no file: the page carries none for it to be checked against.
+    for (const card of [...cardsOf(run).slice(1), ...cardsOf(older), ...cardsOf(noDriver)]) {
+      expect(axeFoldIn(card)).toMatch(/^<details class="fold axe-page" id="axe-[^"]+"><summary>/);
+    }
+  });
+
+  describe("axe's words on how to fix a rule's elements", () => {
+    /** axe's words on how to fix an image with no text, as every element of a rule can share them. */
+    const SHARED =
+      "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty";
+    /** The markup of those words, as a fix's are set out: the lead, then the list under it. */
+    const SHARED_HTML =
+      "<p>Fix any of the following:</p><ul><li>Element does not have an alt attribute</li><li>aria-label attribute does not exist or is empty</li></ul>";
+
+    /** The inside of the fold of a page whose one rule found elements with these words each. */
+    const insideWith = (...summaries: string[]): string => {
+      const nodes = summaries.map((failureSummary, at) =>
+        rawNode(`#img-${at}`, { html: `<img src="/${at}.jpg">`, failureSummary }),
+      );
+      const rule = rawRule("image-alt", {
+        impact: "critical",
+        help: "Images must have alt",
+        nodes,
+      });
+      return insideOf(
+        cardsOf(runOf([done("/", { axe: keptAxe({ violations: [rule] }).record })]))[0] ?? "",
+      );
+    };
+
+    /** An element as a card lists it when its rule says the words once: its selector and HTML. */
+    const plainElement = (at: number): string =>
+      `<li><dl class="axe-node"><div><dt>Element</dt><dd><code>#img-${at}</code></dd></div>` +
+      `<div><dt>Its HTML</dt><dd><code>&lt;img src=&quot;/${at}.jpg&quot;&gt;</code></dd></div></dl></li>`;
+
+    it("says them once, after the rule's impact line and before its elements, when every element shares them", () => {
+      const inside = insideWith(SHARED, SHARED, SHARED);
+
+      expect(inside).toContain(
+        '<h5>Images must have alt</h5><p class="sub">Impact: critical · WCAG 2.0 A 4.1.2</p>' +
+          '<dl class="axe-fix"><div><dt>How to fix each element listed, in axe&#39;s words</dt>' +
+          `<dd class="axe-words">${SHARED_HTML}</dd></div></dl>` +
+          `<ol class="axe-nodes">${[0, 1, 2].map(plainElement).join("")}</ol>`,
+      );
+      expect(inside.match(/How to fix/g)).toHaveLength(1);
+      expect(inside.match(/class="axe-words"/g)).toHaveLength(1);
+    });
+
+    it("says one element's words once too, before it, as the words for the element listed", () => {
+      const inside = insideWith(SHARED);
+
+      expect(inside).toContain(
+        '<dl class="axe-fix"><div><dt>How to fix the element listed, in axe&#39;s words</dt>' +
+          `<dd class="axe-words">${SHARED_HTML}</dd></div></dl>` +
+          `<ol class="axe-nodes">${plainElement(0)}</ol>`,
+      );
+    });
+
+    it("keeps each element's words with it when they differ", () => {
+      const other = "Fix all of the following:\n  Element is in tab order and has no text";
+      const inside = insideWith(SHARED, other, SHARED);
+
+      expect(inside).not.toContain('class="axe-fix"');
+      expect(
+        inside.match(/<dt>How to fix it, in axe&#39;s words<\/dt><dd class="axe-words">/g),
+      ).toHaveLength(3);
+      expect(inside).toContain(
+        '<dd class="axe-words"><p>Fix all of the following:</p><ul><li>Element is in tab order and has no text</li></ul></dd>',
+      );
+    });
+
+    it("says nothing on how to fix when every element's words are none", () => {
+      const inside = insideWith("", "", "");
+
+      expect(inside).not.toContain("How to fix");
+      expect(inside).not.toContain("axe-words");
+      expect(inside).toContain(
+        `<ol class="axe-nodes">${[0, 1, 2].map(plainElement).join("")}</ol>`,
+      );
+    });
+
+    it("says them once for 50 kept of 400 elements that share them, and doesn't claim the 350 not kept", () => {
+      const inside = insideWith(...Array.from({ length: 400 }, () => SHARED));
+
+      expect(inside.match(/<dl class="axe-node">/g)).toHaveLength(MAX_NODES);
+      expect(inside.match(/How to fix/g)).toEqual(["How to fix"]);
+      expect(inside).toContain("How to fix each element listed, in axe&#39;s words");
+      expect(inside).toContain(`${plainElement(49)}</ol><p class="sub">and 350 more elements</p>`);
+    });
   });
 
   it("draws everything axe supplies as text", () => {

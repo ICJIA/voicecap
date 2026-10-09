@@ -250,6 +250,22 @@ describe("fold", () => {
       '<details class="fold"><summary><span>Run 1402</span></summary><div class="inside run-inside"><p>Body</p></div></details>',
     );
   });
+
+  it("can name its file with data attributes, after its id, each value escaped, and refuses a name that isn't one", () => {
+    expect(
+      fold("<span>What axe found</span>", "", {
+        id: "axe-home",
+        data: { run: "r1", slug: 'a"b<c', file: "axe.json" },
+      }),
+    ).toBe(
+      '<details class="fold" id="axe-home" data-run="r1" data-slug="a&quot;b&lt;c" data-file="axe.json"><summary><span>What axe found</span></summary><div class="inside"></div></details>',
+    );
+    for (const name of ["Run", "x y", 'run" onclick="a', "", "1st"]) {
+      expect(() => fold("<span>Why</span>", "", { data: { [name]: "v" } }), name).toThrow(
+        /^Not a data attribute's name/,
+      );
+    }
+  });
 });
 
 describe("chip", () => {

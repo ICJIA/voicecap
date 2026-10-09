@@ -345,6 +345,11 @@ describe("the fixed text", () => {
     );
     expect(AXE_TEXT.version("4.13.0", "")).toBe("axe-core 4.13.0.");
     expect(AXE_TEXT.none).toBe("axe found no issues on this page.");
+    // axe's words on how to fix an element: each element's, or, said once for a rule whose kept
+    // elements all share them, words that claim no more than the elements listed.
+    expect(AXE_TEXT.fix).toBe("How to fix it, in axe's words");
+    expect(AXE_TEXT.fixShared(1)).toBe("How to fix the element listed, in axe's words");
+    expect(AXE_TEXT.fixShared(50)).toBe("How to fix each element listed, in axe's words");
     expect(AXE_TEXT.reviewLead).toBe(
       "axe couldn't decide these, so each needs a person to check it.",
     );

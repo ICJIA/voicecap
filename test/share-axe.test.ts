@@ -18,7 +18,15 @@ import type { AxeCapture } from "../src/drivers/types.js";
 import type { AxeRecord, RunJson } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
 import { pageDir, runJsonPath } from "../src/run/paths.js";
-import { axeCriteria, axeFix, axeRulesRun, axeSelector, axeViewOf } from "../src/share/axe-view.js";
+import {
+  axeCriteria,
+  axeFix,
+  axeRulesRun,
+  axeSelector,
+  axeSharedFix,
+  axeViewOf,
+  type AxeViewRule,
+} from "../src/share/axe-view.js";
 import { renderAttention } from "../src/share/html/attention.js";
 import { renderGlance } from "../src/share/html/top.js";
 import { loadShareInput } from "../src/share/load.js";
@@ -299,6 +307,47 @@ describe("the words of what axe found", () => {
   });
 });
 
+describe("axeSharedFix", () => {
+  const FIX = "Fix any of the following:\n  Element does not have an alt attribute";
+  /** A rule, as a file keeps it, whose elements say these words on how to fix each. */
+  const ruleWith = (...summaries: string[]): AxeViewRule => {
+    const nodes = summaries.map((failureSummary, at) => rawNode(`#e-${at}`, { failureSummary }));
+    const view = axeViewOf(keptAxe({ violations: [rawRule("image-alt", { nodes })] }).text);
+    const [rule] = view?.violations ?? [];
+    if (rule === undefined) throw new Error("No rule.");
+    return rule;
+  };
+
+  it("gives the words every kept element of a rule shares", () => {
+    expect(axeSharedFix(ruleWith(FIX, FIX, FIX))).toBe(FIX);
+  });
+
+  it("gives none when any element's words differ, by a character or by their spaces", () => {
+    expect(axeSharedFix(ruleWith(FIX, FIX, `${FIX}.`))).toBeNull();
+    expect(axeSharedFix(ruleWith(FIX, FIX.replace("  ", " ")))).toBeNull();
+    // Word for word, so even a line ending more is other words.
+    expect(axeSharedFix(ruleWith(FIX, `${FIX}\n`))).toBeNull();
+    expect(axeSharedFix(ruleWith(FIX, ""))).toBeNull();
+  });
+
+  it("gives one element's words as its own, and none for a rule with no element kept", () => {
+    expect(axeSharedFix(ruleWith(FIX))).toBe(FIX);
+    expect(axeSharedFix({ ...ruleWith(FIX), nodes: [] })).toBeNull();
+  });
+
+  it("gives an empty summary that every element shares as it is, which is no words to show", () => {
+    expect(axeSharedFix(ruleWith("", "", ""))).toBe("");
+  });
+
+  it("reads only the elements the file keeps: 50 of 400 that share their words", () => {
+    const rule = ruleWith(...Array.from({ length: 400 }, () => FIX));
+
+    expect(rule.nodes).toHaveLength(MAX_NODES);
+    expect(rule.moreNodes).toBe(350);
+    expect(axeSharedFix(rule)).toBe(FIX);
+  });
+});
+
 describe("loadShareInput: each page's axe results", () => {
   /** What axe found on the scripted site's two pages, as the Guidepup driver keeps it. */
   const captures = {
@@ -445,6 +494,9 @@ describe("a page's axe results, on its card", () => {
     expect(axe.view).toEqual(axeViewOf(kept.text));
     expect(axe).toMatchObject({ bytes: kept.record.bytes, sha256: fileHash(kept.text).sha256 });
     expect(axe.bytes).toBe(Buffer.byteLength(kept.text));
+    // The run and the page its file is filed under, which name it on the card's fold for the
+    // fingerprint check, as they name it in the check's data.
+    expect(axe).toMatchObject({ run: "r1", slug: run.pages[0]?.slug });
   });
 
   it("are drawn from the file alone: the record's own counts are never read, so odd ones change nothing", () => {
