@@ -20,7 +20,7 @@ They also set the priority:
 
 So the recording is evidence, not a way to review. The transcripts stay the key to the person's review: NVDA speaks too fast to follow, so the person reads what it said. The recording is there for whoever later asks what NVDA actually did. It's the sound of the same run the transcripts came from, sealed with them.
 
-The release order is plan 12 (0.15.0), plan 10 (0.16.0), then this (0.17.0).
+The release order is plan 12 (0.15.0), plan 10 (0.16.0), plan 6c (0.17.0), then this (0.18.0). It was 0.17.0, before plan 6c, until 6c was ready first.
 
 **This spec was written on 2026-10-09 from my recommendations,** at the owner's word: "your recommendations are fine for questions" and "push forward to get as much done as possible". Every choice the owner didn't make is listed under "Choices for the owner to confirm".
 
@@ -88,8 +88,8 @@ The recording never changes the verdict, the ring, the numbers, or "What needs a
 - **The record.** `page.voice`, kept apart from the page's `files` as the screenshot's and axe's are, so a review never copies it, and covered by the run's seal. It holds either:
   - `{ sha256, bytes, seconds, lostMs, recordedAt }`; or
   - `{ error, recordedAt }`, with the first line of what went wrong, cut at 300 characters.
-- **`voicecap verify`** names a `voice.webm` that's missing, changed, or not recorded by the run. A run from before 0.17.0 passes.
-- **The version.** One constant, `keepsVoice` at 0.17.0, gates the reasons: a run from before it says "Not recorded: this run used voicecap 0.16.0."
+- **`voicecap verify`** names a `voice.webm` that's missing, changed, or not recorded by the run. A run from before 0.18.0 passes.
+- **The version.** One constant, `keepsVoice` at 0.18.0, gates the reasons: a run from before it says "Not recorded: this run used voicecap 0.17.0."
 
 ## The voice page
 
@@ -106,7 +106,7 @@ The recording never changes the verdict, the ring, the numbers, or "What needs a
 - **The shareable page.**
   - A recorded page's card gets one line: "NVDA's voice: 2 min 14 s, on the voice page", linking to that page's section.
   - "The details, for reviewers and auditors" gets one paragraph on the voice page, with a link.
-  - Nothing else changes, and nothing is added for a run from before 0.17.0.
+  - Nothing else changes, and nothing is added for a run from before 0.18.0.
 - **The Word copy.**
   - The fingerprints table lists each `voice.webm` with its size and SHA-256.
   - The details say the recordings are on the voice page and in the run's folder.
@@ -173,9 +173,9 @@ The owner then plays one page at 0.5× and decides whether 12 kbps is clear enou
 ## Docs and release
 
 - **The README:** a section, "NVDA's voice", covering what's recorded and how, its limits, its sizes, the voice page, and verify.
-- **The CHANGELOG entry** for 0.17.0.
+- **The CHANGELOG entry** for 0.18.0.
 - **Technical details:** a toolchain row for `libopus-wasm`, a line on Windows' process loopback, and the voice page in what each share holds.
-- **The timeline row** for 0.17.0, in Prepare.
+- **The timeline row** for 0.18.0, in Prepare.
 
 ## Choices for the owner to confirm
 

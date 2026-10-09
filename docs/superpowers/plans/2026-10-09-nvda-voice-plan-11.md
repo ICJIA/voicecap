@@ -39,7 +39,7 @@
 - **The record:**
   - `pages/<slug>/voice.webm`, and `page.voice?` apart from `files`, sealed with the run.
   - `voicecap verify` checks it.
-  - One constant, `KEEPS_VOICE_FROM = "0.17.0"`, gates the reasons.
+  - One constant, `KEEPS_VOICE_FROM = "0.18.0"`, gates the reasons.
   - No `schemaVersion` bump, no new run setting, and no change to walkthrough files.
 - **The voice page:**
   - `${stem}.voice.html` beside the pair, written only when a shared run has a recording.
@@ -218,7 +218,7 @@
     - "retargets after a restart, so the next page's recording is the new NVDA's" (Review Focus 1);
     - "a recorder that won't start gives its reason at each stop";
     - "closes the helper at shutdown and on abandon".
-  - `verify`: "reports a missing, changed, or unrecorded voice.webm"; "passes a run from before 0.17.0".
+  - `verify`: "reports a missing, changed, or unrecorded voice.webm"; "passes a run from before 0.18.0".
 - [ ] **Step 2:** Run `pnpm exec vitest run test/run-voice.test.ts test/verify.test.ts test/guidepup-driver.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement it.**
   - **In `processPage`'s loop:**
@@ -255,7 +255,7 @@
 - Produces:
   - `renderVoicePage(model: ShareModel, recordings: ReadonlyMap<string, Uint8Array>): string | null`, keyed `<run>/<slug>`. It gives null when no page has a recording.
   - `voiceAnchor(slug: string): string`, the section's id;
-  - `KEEPS_VOICE_FROM = "0.17.0"`.
+  - `KEEPS_VOICE_FROM = "0.18.0"`.
 - **The text,** fixed in `VOICE_TEXT`:
   - **The title:** `NVDA's voice: <site name>, <date and time>`.
   - **The lead:** "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast; choose a slower speed, and the pitch stays the same. The transcripts on the shareable page are the record of what was reviewed."
@@ -315,7 +315,7 @@
   - "writes the voice page beside the pair when a run has a recording, and lists it with its size and SHA-256": the share's result and the record of what was sent.
   - "writes no voice page when no run has one".
   - "gives a recorded page's card the line, linked to its section".
-  - "adds no line, and no change, for a run from before 0.17.0": the page is byte-identical to before for the i2i fixture.
+  - "adds no line, and no change, for a run from before 0.18.0": the page is byte-identical to before for the i2i fixture.
   - "lists voice.webm in the Word copy's fingerprints, after the page's axe.json".
   - "keeps the shareable page's size": a 32-page share with recordings is no larger than without them, but for the lines.
 - [ ] **Step 2:** Run the files above. Expected: FAIL.
@@ -379,14 +379,14 @@ The controller merges main (0.16.0) into this branch first (D5).
    - run sfs (9 pages) with a build of this branch, and share it;
    - check the spec's five points;
    - the owner plays one page at 0.5× and settles 12 or 16 kbps.
-3. Merge into main (`--no-ff`). Then make "Prepare 0.17.0":
+3. Merge into main (`--no-ff`). Then make "Prepare 0.18.0":
    - the CHANGELOG heading and links;
-   - the timeline row under `both`: `<b>0.17.0</b>: NVDA's voice: a recording of what NVDA said on each page, sealed with the run, and a voice page that plays it at slower speeds.`;
+   - the timeline row under `both`: `<b>0.18.0</b>: NVDA's voice: a recording of what NVDA said on each page, sealed with the run, and a voice page that plays it at slower speeds.`;
    - the Word copy test's days;
    - the handoff.
 4. Push, and wait for CI to go green.
 5. Run `./publish.sh --dry-run minor`.
 6. Run `npm whoami`. Then, with the owner's 2FA code: `npm version minor --no-git-tag-version && npm publish --access public --ignore-scripts --otp <code>`.
-7. Commit "Release v0.17.0", tag it, and push.
-8. After the tarball wait, set `netlify.toml` to `@0.17` (the standing OK). Re-share sfs, then do the live check.
+7. Commit "Release v0.18.0", tag it, and push.
+8. After the tarball wait, set `netlify.toml` to `@0.18` (the standing OK). Re-share sfs, then do the live check.
 9. Update the handoff and the memories. Add `libopus-wasm` and the recorder helper to the PC security audit's list.
