@@ -865,13 +865,19 @@ describe("spokenAsLogged: what NVDA logged (its entries' items), against the tra
     [[["the permissions macOS asks for."]], "the permissions mac OS asks for.", "a word split"],
     [[["Done! Next"]], "Done bang! Next", "a symbol said by name, and kept"],
     [[["Up 5% today"]], "Up 5 percent today", "a symbol after a digit, said by name"],
-    [[["Read the guide."]], "Read the guide.", "a symbol that ends an item, kept"],
-    [[["Read the guide."]], "Read the guide", "a symbol that ends an item, left out"],
+    [[["Read the guide."]], "Read the guide.", "a sentence's last mark that ends an item, kept"],
+    [[["Read the guide."]], "Read the guide", "a sentence's last mark that ends an item, left out"],
+    [[["Read more..."]], "Read more", "an ellipsis that ends an item, left out"],
+    [[["Your name:"]], "Your name", "a phrase's last mark that ends an item, left out"],
     [
       [["Read the guide ."]],
       "Read the guide dot",
-      "a symbol that ends an item after a space, said by name",
+      "a mark that ends an item after a space, said by name",
     ],
+    // Any other symbol that ends an item can still be said by name, as NVDA says it.
+    [[["Up 5%"]], "Up 5 percent", "a symbol that ends an item after a digit, said by name"],
+    [[["Name*"]], "Name star", "a symbol that ends an item after a letter, said by name"],
+    [[["Name*", "edit"]], "Name star, edit", "a symbol that ends an item, then an item"],
     // The words for a symbol inside an item are any one to four whole words: they aren't compared
     // with NVDA's own names for it, so these agree though NVDA never says them.
     [[["Price: 10"]], "Price is not 10", "a symbol inside an item, as any few words"],
@@ -907,9 +913,9 @@ describe("spokenAsLogged: what NVDA logged (its entries' items), against the tra
     [[["A", "", "B"]], "A, X, B", "a word for an empty item"],
     [[["Next"], ["•"]], "Next", "an entry that's only a symbol, gone"],
     [[["A"], [], ["B"]], "A B", "no joiner at all between two entries"],
-    // A symbol that ends an item right after a letter or digit is kept or left out, never said by
-    // name: words after a line's last mark are words the log doesn't have. NVDA's own name for one
-    // is no exception, so such a line is listed as a difference, never taken to agree.
+    // A sentence's or a phrase's mark (. , ; : ! ? or an ellipsis) that ends an item right after a
+    // letter or digit is kept or left out, never said by name: NVDA's usual symbol level doesn't
+    // say these, and words after a line's last mark are words the log doesn't have.
     [[["Read the guide."]], "Read the guide now please", "words after an item's last mark"],
     [[["Read the guide."]], "Read the guide now", "a word after an item's last mark"],
     [
@@ -917,8 +923,12 @@ describe("spokenAsLogged: what NVDA logged (its entries' items), against the tra
       "Read the guide now, link",
       "a word after a mark, then an item",
     ],
-    [[["Done!"]], "Done bang!", "a symbol that ends an item, said by name and kept"],
-    [[["Up 5%"]], "Up 5 percent", "a symbol that ends an item after a digit, said by name"],
+    [[["Read more…"]], "Read more now please", "words after an ellipsis that ends an item"],
+    [[["Read more..."]], "Read more now please", "words after three dots that end an item"],
+    [[["Your name:"]], "Your name is not", "words after a phrase's last mark"],
+    // NVDA says "!" by name only at its highest symbol level, and here it is the sentence's mark:
+    // so this is a difference, even though NVDA could have said it.
+    [[["Done!"]], "Done bang!", "a sentence's mark that ends an item, said by name and kept"],
     [[["Hello - World"]], "Hello one two three four five World", "five words for one symbol"],
   ])("differs: %j and %j (%s)", (logged, spoken) => {
     expect(spokenAsLogged(logged, spoken)).toBe(false);

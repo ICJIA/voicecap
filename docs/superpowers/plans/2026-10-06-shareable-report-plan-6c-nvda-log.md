@@ -379,7 +379,7 @@ Real runs need the owner's OK and the warning every time: hands off the keyboard
 **How it was built (2026-10-06 to 2026-10-09):**
 - Built task by task, each task reviewed, with a scoped re-review of each round of fixes: one round for Task 1, one for Task 2, and two for Task 3. Tasks 4 to 6 needed none.
 - Paused after Task 2 on 2026-10-06, while plan 7 shipped as 0.12.0, and resumed on 2026-10-09 with main (0.14.0) merged in.
-- A final whole-branch review found 0 Critical, 2 Important, and 13 Minor. One round of fixes followed (R15, R16). Main is merged in again before the session at the PC (At the PC, step 0).
+- A final whole-branch review found 0 Critical, 2 Important, and 13 Minor. One round of fixes followed (R15 to R17). Main is merged in again before the session at the PC (At the PC, step 0).
 
 **Rulings** (what, why where it isn't plain, and what it costs if wrong):
 - **R1:** the work stays on `plan-6c-nvda-log`, as plans 5, 5b, and 6 did: in place at first, and from 2026-10-09 in a worktree of its own. *If wrong:* none.
@@ -398,12 +398,13 @@ Real runs need the owner's OK and the warning every time: hands off the keyboard
 - **R14:** 6c ships as 0.17.0, before plan 11 (0.18.0), so `KEEPS_NVDA_LOG_FROM` is "0.17.0" and the release steps say 0.17.0. *If wrong:* one constant and the docs' version, swapped back at Prepare.
 - **R15:** the final review's fixes: the check's words when some steps weren't checked (Important 1), this plan at 0.17.0 with main merged first (Important 2), and Minors 3 to 11 and 14; Minors 12 and 13 wait. *If wrong:* those wait.
 - **R16:** the timeline's "Next" PC row names plan 11, the next work on the PC: "NVDA's voice: a recording of what NVDA said on each page, sealed with the run." It replaces Task 6's security review, which follows plans 11 and 13. *If wrong:* one row's words.
+- **R17:** the tail rule of Minor 4 holds for the marks that end a sentence or a phrase only (`.` `,` `;` `:` `!` `?`, and the ellipsis), which NVDA's usual symbol level doesn't say; any other symbol that ends an item may be named again, so "Up 5%" agrees with "Up 5 percent", and "Name*" with "Name star". *Why:* false differences on real sites cost more than the rare false agreement the wider rule stopped. *If wrong:* a word added after a `%`, `*`, or `$` that ends an item can agree.
 
 **What the final review changed:**
 - **I1:** when some steps weren't checked, the part says them straight under its tiles, its first tile counts the lines that were checked, it says `Every line that was checked agrees.`, and its line on the speech outside the steps includes theirs.
 - **I2:** this plan at 0.17.0, and step 0 of At the PC: merge main first.
 - **M3:** a run whose record lists no copy gives each NVDA session's reason, from its event log.
-- **M4:** a symbol that ends an item right after a letter or digit is kept or left out, never named; the README, the spec, and the code say that a symbol's words are any one to four.
+- **M4:** a sentence's or a phrase's mark that ends an item right after a letter or digit is kept or left out, never named (R17 narrowed the rule to those marks); the README, the spec, and the code say that a symbol's words are any one to four.
 - **M5:** each of a problem's NVDA rows starts with its level.
 - **M6:** a log older than its NVDA session's start is no copy, with why.
 - **M7:** the comparison's refusal is a `CantCheckError`, told by its class.

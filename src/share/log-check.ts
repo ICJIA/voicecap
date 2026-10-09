@@ -581,11 +581,18 @@ const NAME_WORDS = 4;
  * under it (2,000 characters a side is about 4 million places); a longer one is compared as it is.
  */
 const MOST_PLACES = 4_000_000;
+/**
+ * The marks that end a sentence or a phrase, which NVDA doesn't say at its usual symbol level: an
+ * item that ends with one, or with an ellipsis written as three dots (ELLIPSIS), right after a
+ * letter or digit, ends with its `tail`.
+ */
+const CLOSING: ReadonlySet<string> = new Set([".", ",", ";", ":", "!", "?", "…"]);
+const ELLIPSIS = "...";
 
 /**
  * One character of what NVDA logged, for spokenAsLogged: a character of an item, or a joiner
  * between items (", ") or between entries (". "), which must appear from `min` to `max` times. A
- * character is a `tail` when it's a symbol that ends its item right after a letter or digit.
+ * character is a `tail` when it's the sentence's or phrase's mark that ends its item (CLOSING).
  */
 type Token =
   | { joiner: false; ch: string; tail: boolean }
@@ -602,10 +609,10 @@ type Token =
  *   whole words (a name, perhaps with the symbol after it). The words aren't compared with NVDA's
  *   own names for symbols, which the comparison doesn't know: any one to four words can stand for
  *   a symbol, so "Price: 10" agrees with "Price is not 10";
- * - except a symbol that ends an item right after a letter or digit (a sentence's last mark, say):
- *   it can be there or not, never said by name, so words after a line's last mark always differ.
- *   That holds for one NVDA does say by name ("Up 5%" as "Up 5 percent"), which is then listed as a
- *   difference, never taken to agree;
+ * - except a sentence's or a phrase's mark (`.` `,` `;` `:` `!` `?`, or an ellipsis) that ends an
+ *   item right after a letter or digit: NVDA's usual symbol level doesn't say these, so it can be
+ *   there or not, never said by name, and words after a line's last mark always differ. Any other
+ *   symbol that ends an item may be said by name, as NVDA says it ("Up 5%" as "Up 5 percent");
  * - the ", " between items and the ". " between entries come from voicecap's capture, not from
  *   NVDA, so each must be there, as it is. Only an entry with no text (NVDA's commands alone) may
  *   or may not have come through: the ". " beside it can be there or not;
@@ -654,7 +661,7 @@ export function spokenAsLogged(logged: readonly (readonly string[])[], spoken: s
     }
     go(i + 1, j); // left out
     if (heard[j] === ch) go(i + 1, j + 1); // kept
-    if (token.tail) continue; // a symbol that ends its item is never said by name
+    if (token.tail) continue; // the mark that ends its item is never said by name
     for (const end of nameEnds(heard, j)) {
       go(i + 1, end); // said by name
       const after = pastSpaces(heard, end);
@@ -666,8 +673,8 @@ export function spokenAsLogged(logged: readonly (readonly string[])[], spoken: s
 
 /**
  * The characters of a step's entries, with the joiners voicecap's capture puts between them. An
- * entry with no text makes no characters, and the ". " it would bring may be there or not. A symbol
- * that ends its item right after a letter or digit, with no space between, is the item's `tail`.
+ * entry with no text makes no characters, and the ". " it would bring may be there or not. The
+ * sentence's or phrase's mark that ends an item is its `tail` (see closingFrom).
  */
 function tokensOf(utterances: readonly (readonly string[])[]): Token[] {
   const tokens: Token[] = [];
@@ -688,16 +695,27 @@ function tokensOf(utterances: readonly (readonly string[])[]): Token[] {
       if (k > 0) tokens.push({ joiner: true, ch: ",", min: 1, max: 1 });
       const chars = Array.from(item);
       const end = chars.findLastIndex((ch) => !SPACE.test(ch));
+      const closing = closingFrom(chars, end);
       chars.forEach((ch, at) => {
-        if (SPACE.test(ch)) return;
-        const tail = at === end && !WORD.test(ch) && WORD.test(chars[at - 1] ?? "");
-        tokens.push({ joiner: false, ch, tail });
+        if (!SPACE.test(ch)) tokens.push({ joiner: false, ch, tail: at >= closing });
       });
     });
   }
   const trailing = begun ? empty : empty - 1;
   if (trailing > 0) tokens.push({ joiner: true, ch: ".", min: 0, max: trailing });
   return tokens;
+}
+
+/**
+ * Where the mark that ends an item begins, among its characters, `end` being its last that isn't a
+ * space: an ellipsis written as three dots, or one mark of CLOSING, right after a letter or digit
+ * with no space between ("guide." and "more...", not "guide ."). Past `end` when it has none.
+ */
+function closingFrom(chars: readonly string[], end: number): number {
+  const afterWord = (at: number) => WORD.test(chars[at - 1] ?? "");
+  const dots = end - ELLIPSIS.length + 1;
+  if (dots >= 0 && chars.slice(dots, end + 1).join("") === ELLIPSIS && afterWord(dots)) return dots;
+  return CLOSING.has(chars[end] ?? "") && afterWord(end) ? end : end + 1;
 }
 
 /** Where a name could end if one starts at j: after each of up to NAME_WORDS whole words. */
