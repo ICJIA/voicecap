@@ -42,17 +42,18 @@
  *   has loaded, before the browser is brought to the front and before any key, so it shows the page
  *   as the screen reader finds it, and taking it doesn't move the window. One that can't be taken
  *   is returned as the reason, and never fails the page.
- * - A page is checked with axe-core only when the core asks (checkWithAxe), in the page the browser
- *   holds: axe-core's own script, evaluated through Playwright, so nothing is added to the page.
- *   The check presses no key and leaves the window as it is. One that fails or takes over 20
- *   seconds is returned as the reason, and never fails the page.
+ * - A page is checked with axe-core only when the core asks (checkWithAxe), through the browser's
+ *   DevTools connection, in an isolated world of axe's own on the page's main frame: axe-core's own
+ *   script runs there, so nothing is added to the page's own world, and the page's scripts can't
+ *   break axe. The check presses no key and leaves the window as it is. One that fails or takes over
+ *   20 seconds is returned as the first line of its reason, and never fails the page.
  */
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { AXE_LIMIT_MS, axeScript, keptAxeResults } from "../axe/results.js";
+import { AXE_LIMIT_MS, axeErrorReason, axeScript, keptAxeResults } from "../axe/results.js";
 import type { VoicecapConfig } from "../config/schema.js";
 import { isHtmlContentType } from "../pages/url.js";
 import { EnvironmentError, errorMessage } from "../util/errors.js";
@@ -163,9 +164,10 @@ export interface BrowserSession {
    */
   screenshot(): Promise<Uint8Array>;
   /**
-   * axe-core's results for the page as it is now, as axe gives them: `script` is axe-core's own,
-   * run in the page without adding anything to it. It never brings the window forward or presses a
-   * key, and it has no time limit of its own.
+   * axe-core's results for the page as it is now, as axe gives them. `script`, axe-core's own, runs
+   * through the browser's DevTools connection in an isolated world of its own on the page's main
+   * frame, so nothing is added to the page's own world, and the page's scripts can't reach it. It
+   * never brings the window forward or presses a key, and it has no time limit of its own.
    */
   runAxe(script: string): Promise<unknown>;
   /** Set the page's title (the window title follows it); returns a function that restores it. */
@@ -1119,10 +1121,10 @@ interface Current {
 
 /**
  * axe-core's check of the page `session` holds, which is at `url`: what voicecap keeps of axe's
- * results, or the reason there are none. axe gets AXE_LIMIT_MS; a check still under way then can't
- * be stopped, so it's left behind. Neither a check that fails nor one that runs out of time fails
- * the page: axe's results are evidence beside the transcripts, not part of them. Only a browser
- * that's gone fails it, as it would any step.
+ * results, or the reason there are none (its first line: see axeErrorReason). axe gets
+ * AXE_LIMIT_MS; a check still under way then can't be stopped, so it's left behind. Neither a check
+ * that fails nor one that runs out of time fails the page: axe's results are evidence beside the
+ * transcripts, not part of them. Only a browser that's gone fails it, as it would any step.
  */
 export async function axeCheckOf(session: BrowserSession, url: string): Promise<AxeCapture> {
   try {
@@ -1134,7 +1136,7 @@ export async function axeCheckOf(session: BrowserSession, url: string): Promise<
     return keptAxeResults(raw, url);
   } catch (error) {
     if (error instanceof EnvironmentError && error.failure === "browser") throw error;
-    return { error: errorMessage(error) };
+    return { error: axeErrorReason(error) };
   }
 }
 

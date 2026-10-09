@@ -3,7 +3,12 @@ import { createRequire } from "node:module";
 
 import { describe, expect, it } from "vitest";
 
-import { axeScript, keptAxeResults, type KeptAxeResults } from "../src/axe/results.js";
+import {
+  axeErrorReason,
+  axeScript,
+  keptAxeResults,
+  type KeptAxeResults,
+} from "../src/axe/results.js";
 import { rawAxe, rawNode, rawRule, type RawAxeNode } from "./helpers/raw-axe.js";
 
 const URL_HOME = "http://127.0.0.1:4747/";
@@ -53,11 +58,13 @@ describe("what voicecap keeps of axe's results", () => {
     expect(file.incomplete[0]?.moreNodes).toBe(1);
   });
 
-  it("cuts an element's HTML to 300 characters", () => {
+  it("cuts an element's HTML to 300 UTF-16 code units, never splitting a character", () => {
     const long = `<p class="intro">${"word ".repeat(200)}</p>`;
     const exactly = "x".repeat(300);
-    // A character written with two UTF-16 units counts as one, and isn't cut in two.
-    const smiling = `${"x".repeat(299)}\u{1F600}${"y".repeat(10)}`;
+    // A character written with two code units (an emoji) at the boundary: one that would end at
+    // unit 301 is left out whole, and one that ends at unit 300 is kept whole.
+    const across = `${"x".repeat(299)}\u{1F600}${"y".repeat(10)}`;
+    const within = `${"x".repeat(298)}\u{1F600}${"y".repeat(10)}`;
     const file = keptFile(
       rawAxe({
         violations: [
@@ -66,18 +73,22 @@ describe("what voicecap keeps of axe's results", () => {
               rawNode(".long", { html: long }),
               rawNode(".exactly", { html: exactly }),
               rawNode(".short", { html: "<p>Short</p>" }),
-              rawNode(".smiling", { html: smiling }),
+              rawNode(".across", { html: across }),
+              rawNode(".within", { html: within }),
             ],
           }),
         ],
       }),
     );
-    expect(file.violations[0]?.nodes.map((node) => node.html)).toEqual([
+    const kept = file.violations[0]?.nodes.map((node) => node.html) ?? [];
+    expect(kept).toEqual([
       long.slice(0, 300),
       exactly,
       "<p>Short</p>",
-      `${"x".repeat(299)}\u{1F600}`,
+      "x".repeat(299),
+      `${"x".repeat(298)}\u{1F600}`,
     ]);
+    for (const html of kept) expect(html.length).toBeLessThanOrEqual(300);
   });
 
   it("counts violations, needs review, passes, and rules that didn't apply, and violations by impact", () => {
@@ -273,6 +284,39 @@ describe("what voicecap keeps of axe's results", () => {
         /^axe's results couldn't be read/,
       );
     }
+  });
+});
+
+describe("why a page has no result from axe", () => {
+  // It goes into the sealed record and onto the shareable page: a line of words, not a stack.
+  it("keeps the first line of what went wrong, without the stack after it", () => {
+    expect(
+      axeErrorReason(
+        new Error(
+          "page.evaluate: Error: This page broke arrays\n    at Array.map (http://127.0.0.1:4747/:1:88)\n    at wo (eval at evaluate (:311:30), <anonymous>:12:114897)",
+        ),
+      ),
+    ).toBe("page.evaluate: Error: This page broke arrays");
+    expect(axeErrorReason(new Error("Error: refused\r\n    at <anonymous>:1:38"))).toBe(
+      "Error: refused",
+    );
+    expect(axeErrorReason("timed out after 20s")).toBe("timed out after 20s");
+  });
+
+  it("takes the first line that has words, when the first has none", () => {
+    expect(axeErrorReason(new Error("\n   \nTypeError: axe.run is not a function\n    at x"))).toBe(
+      "TypeError: axe.run is not a function",
+    );
+    expect(axeErrorReason(new Error(""))).toBe("no reason was given");
+    expect(axeErrorReason(new Error(" \n\t\n"))).toBe("no reason was given");
+  });
+
+  it("keeps at most 300 UTF-16 code units of it, never splitting a character", () => {
+    expect(axeErrorReason(new Error("x".repeat(500)))).toBe("x".repeat(300));
+    expect(axeErrorReason(new Error(`${"x".repeat(299)}\u{1F600}`))).toBe("x".repeat(299));
+    expect(axeErrorReason(new Error(`${"x".repeat(298)}\u{1F600}y`))).toBe(
+      `${"x".repeat(298)}\u{1F600}`,
+    );
   });
 });
 

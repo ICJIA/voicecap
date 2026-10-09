@@ -68,10 +68,11 @@ export interface ScreenReaderDriver {
 
   /**
    * Check the page that's open with axe-core, an automated checker, and give what voicecap keeps of
-   * its results, or the reason there are none. The core asks once a page, on its first load, after
-   * openPage and before the screen reader's first key. The check moves no focus, scrolls nothing,
-   * and adds no element to the page. One that fails or runs out of time gives the reason and never
-   * fails the page; only a browser that's gone throws, as it would for any step.
+   * its results, or the reason there are none. The core asks once a page, on its first load: after
+   * openPage, which has already pressed its own keys to put the screen reader at the top, and
+   * before the first pass's first key. The check moves no focus, scrolls nothing, and adds nothing
+   * to the page. One that fails or runs out of time gives the reason and never fails the page; only
+   * a browser that's gone throws, as it would for any step.
    *
    * Optional: a driver that can't check a page leaves it out, and its run records no axe result.
    */

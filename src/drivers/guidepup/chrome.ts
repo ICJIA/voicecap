@@ -406,11 +406,20 @@ interface PageDocument {
   querySelector(selector: string): { remove(): void; href?: string } | null;
 }
 
-/** The page once axe-core's script has run in it: the little of it the check touches. */
-interface PageWithAxe {
-  document: unknown;
-  axe: { run(context: unknown, options: unknown): Promise<unknown> };
-}
+/** The isolated world axe runs in, on the page's main frame, apart from the page's own scripts. */
+const AXE_WORLD = "voicecap-axe";
+
+/**
+ * Called in axe's world once axe-core's script has run there: axe checks the page's document with
+ * the rules of `tags`. Its results come back as JSON made with that world's own JSON, which the
+ * page's scripts can't reach. As one string, they come back whole, however deeply they nest.
+ */
+const RUN_AXE = `function (tags) {
+  return axe.run(document, {
+    runOnly: { type: "tag", values: tags },
+    resultTypes: ["violations", "incomplete"],
+  }).then((results) => JSON.stringify(results));
+}`;
 
 /**
  * What Playwright says when the network won't take a navigation: the first line reads "page.goto:
@@ -584,27 +593,47 @@ export class ChromeSession implements BrowserSession {
   }
 
   /**
-   * axe-core's results for the page as it is now. `script` is axe-core's own, evaluated in the page
-   * through Playwright: it's no `<script>` added to the page, so the page's Content Security Policy
-   * doesn't stop it. Then axe runs the rules of AXE_TAGS, giving every element it finds for the
-   * violations and what needs review, and at most one for each rule that passed or didn't apply,
-   * which voicecap only counts. axe reads the page: it moves no focus, scrolls nothing, and adds no
-   * element. There's no time limit here: the driver gives axe its own.
+   * axe-core's results for the page as it is now. Everything goes through the DevTools connection,
+   * in an isolated world of axe's own on the page's main frame: it shares the page's document, but
+   * not its scripts' globals.
+   * - Nothing is added to the page's own world: no `axe`, none of axe's listeners, and no module
+   *   registered with a loader of the page's.
+   * - The page's own scripts can't break axe there, by changing what JavaScript's built-ins do or
+   *   holding the name `axe`.
+   * - `script`, axe-core's own, is the expression DevTools runs, not a `<script>` added to the page
+   *   or a string evaluated in it, so neither a Content Security Policy nor Trusted Types stops it.
+   *
+   * Then axe runs the rules of AXE_TAGS. It gives every element it finds for the violations and
+   * what needs review, and at most one for each rule that passed or didn't apply, which voicecap
+   * only counts. axe reads the page: it moves no focus, scrolls nothing, and adds no element.
+   *
+   * A script that throws, and an axe whose promise is rejected, fail with what the page's world
+   * said. There's no time limit here: the driver gives axe its own.
    */
   runAxe(script: string): Promise<unknown> {
     return this.onPage(async () => {
-      await this.page.evaluate(script);
-      // This function runs in the page (voicecap's own code is compiled without DOM types).
-      return this.page.evaluate(
-        (tags) => {
-          const { axe, document } = globalThis as unknown as PageWithAxe;
-          return axe.run(document, {
-            runOnly: { type: "tag", values: tags },
-            resultTypes: ["violations", "incomplete"],
-          });
-        },
-        [...AXE_TAGS],
-      );
+      const { frameTree } = await this.cdp.send("Page.getFrameTree");
+      const { executionContextId } = await this.cdp.send("Page.createIsolatedWorld", {
+        frameId: frameTree.frame.id,
+        worldName: AXE_WORLD,
+      });
+      // DevTools answers a script that threw, or a promise that was rejected, with its details.
+      const loaded = await this.cdp.send("Runtime.evaluate", {
+        expression: script,
+        contextId: executionContextId,
+      });
+      if (loaded.exceptionDetails) throw thrownIn(loaded.exceptionDetails);
+      const ran = await this.cdp.send("Runtime.callFunctionOn", {
+        functionDeclaration: RUN_AXE,
+        executionContextId,
+        arguments: [{ value: [...AXE_TAGS] }],
+        awaitPromise: true,
+        returnByValue: true,
+      });
+      if (ran.exceptionDetails) throw thrownIn(ran.exceptionDetails);
+      const json: unknown = ran.result.value;
+      if (typeof json !== "string") throw new Error("axe's results didn't come back");
+      return JSON.parse(json) as unknown;
     });
   }
 
@@ -752,6 +781,15 @@ export class ChromeSession implements BrowserSession {
 
 function axString(value: AxValue | undefined): string | null {
   return typeof value?.value === "string" ? value.value : null;
+}
+
+/**
+ * What a script threw in the page, or why its promise was rejected, as DevTools describes it
+ * ("TypeError: …", with the page's stack), or in DevTools' own words when what was thrown has no
+ * description ("Uncaught (in promise) undefined").
+ */
+function thrownIn(details: { text: string; exception?: { description?: string } }): Error {
+  return new Error(details.exception?.description || details.text);
 }
 
 /**

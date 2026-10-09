@@ -13,6 +13,7 @@ import { createRequire } from "node:module";
 
 import { z } from "zod";
 
+import { errorMessage } from "../util/errors.js";
 import { sortKeys } from "../util/hash.js";
 
 /**
@@ -32,8 +33,13 @@ export const AXE_TAGS: readonly string[] = Object.freeze([
 export const AXE_LIMIT_MS = 20_000;
 /** The most elements kept for one rule; the rest are counted. */
 export const MAX_NODES = 50;
-/** The most characters kept of an element's HTML. */
+/**
+ * The most of an element's HTML kept: 300 UTF-16 code units, what a string's length counts. A cut
+ * never splits a character written with two of them, so a kept HTML's length is never more.
+ */
 export const MAX_HTML = 300;
+/** The most of the reason a page has no result from axe kept, counted as MAX_HTML is. */
+export const MAX_REASON = 300;
 
 const IMPACTS = ["critical", "serious", "moderate", "minor"] as const;
 
@@ -57,7 +63,10 @@ export interface KeptNode {
    * selector, then " >>> " and the next, ending with its own.
    */
   target: string[];
-  /** Its HTML, cut to MAX_HTML characters. */
+  /**
+   * Its HTML: at most MAX_HTML UTF-16 code units, so its length is never more than 300. A character
+   * written with two units that would cross the limit is left out whole.
+   */
   html: string;
   /** axe's words on how to fix it ("" when axe gives none). */
   failureSummary: string;
@@ -169,9 +178,28 @@ function keptRule(rule: AxeRule): KeptRule {
   };
 }
 
-/** The first `most` characters of `text`, a character written with two UTF-16 units counting as one. */
+/**
+ * The reason a page has no result from axe, as its record keeps it and the shareable page shows it:
+ * the first line of what went wrong (the first with words in it, when the first has none), without
+ * the stack that may follow, cut to MAX_REASON.
+ */
+export function axeErrorReason(error: unknown): string {
+  const line = errorMessage(error)
+    .split(/\r?\n|\r/)
+    .map((text) => text.trim())
+    .find((text) => text !== "");
+  return line === undefined ? "no reason was given" : cut(line, MAX_REASON);
+}
+
+/**
+ * `text` cut to at most `most` UTF-16 code units, never splitting a character written with two (a
+ * surrogate pair): one that would end past the limit is left out whole.
+ */
 function cut(text: string, most: number): string {
-  return text.length <= most ? text : Array.from(text).slice(0, most).join("");
+  if (text.length <= most) return text;
+  const last = text.charCodeAt(most - 1);
+  const startsPair = last >= 0xd800 && last <= 0xdbff;
+  return text.slice(0, startsPair ? most - 1 : most);
 }
 
 /** What the first thing wrong is, and where: "violations: Invalid input: expected array, …". */

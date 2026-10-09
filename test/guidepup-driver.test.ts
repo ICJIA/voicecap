@@ -483,9 +483,14 @@ describe("checking the page with axe", () => {
   });
 
   it("gives an error, and keeps the page, when axe fails or takes too long", async () => {
-    const failure = new Error("page.evaluate: TypeError: axe.run is not a function");
+    const failure = new Error(
+      "TypeError: Cannot read properties of undefined (reading 'run')\n    at <anonymous>:3:16",
+    );
     const failing = await opened(failure);
-    expect(await failing.driver.checkWithAxe()).toEqual({ error: failure.message });
+    // Its first line: the reason goes into the sealed record and onto the shareable page.
+    expect(await failing.driver.checkWithAxe()).toEqual({
+      error: "TypeError: Cannot read properties of undefined (reading 'run')",
+    });
     // The page is read as usual, in the browser it was opened in.
     expect(await failing.driver.nextLine()).toBe("nextLine speech");
     expect(failing.desktop.sessions).toHaveLength(1);

@@ -327,6 +327,12 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
         image,
         `<meta http-equiv="Content-Security-Policy" content="script-src 'none'"><script>document.title = "Its script ran";</script>`,
       ),
+      // The page's own script shows the policy holds: a string put into its HTML is refused.
+      "/trusted-types/": page(
+        "Trusted",
+        `<p id="note">A note</p>${image}<script>try { document.getElementById("note").innerHTML = "<b>Changed</b>"; document.title = "Not enforced"; } catch { document.title = "Trusted Types held"; }</script>`,
+        `<meta http-equiv="Content-Security-Policy" content="require-trusted-types-for 'script'">`,
+      ),
       "/tall/": page(
         "Tall",
         `<p><a id="first" href="#one">First</a> <a id="second" href="#two">Second</a></p>
@@ -401,6 +407,12 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
       expect(violated(capture)).toEqual(["image-alt"]);
     });
 
+    it("runs on a page that requires Trusted Types", async () => {
+      const { session, capture } = await check(new URL("/trusted-types/", served.url).href);
+      expect(await session.pageTitle()).toBe("Trusted Types held");
+      expect(violated(capture)).toEqual(["image-alt"]);
+    });
+
     it("moves no focus, scrolls nothing, and adds nothing to the page", async () => {
       const url = new URL("/tall/", served.url).href;
       const session = await launch();
@@ -411,7 +423,10 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
         window.scrollTo(0, 2000);
         document.querySelector("#region")!.scrollTop = 150;
       });
-      /** Where focus is, how far the page and its region are scrolled, and the page's markup. */
+      /**
+       * Where focus is, how far the page and its region are scrolled, the page's markup, and
+       * whether the page's own scripts see anything named axe.
+       */
       const stateNow = () =>
         session["page"].evaluate(() => ({
           focused: document.activeElement?.id,
@@ -419,32 +434,44 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
           scrollY: window.scrollY,
           region: document.querySelector("#region")?.scrollTop,
           markup: document.documentElement.outerHTML,
+          axe: "axe" in window,
         }));
       const before = await stateNow();
-      expect(before).toMatchObject({ focused: "second", scrollY: 2000, region: 150 });
+      expect(before).toMatchObject({ focused: "second", scrollY: 2000, region: 150, axe: false });
       // axe did check it, and found the pale text far below the window.
       const capture = await axeCheckOf(session, url);
       expect(violated(capture)).toEqual(["color-contrast"]);
       expect(await stateNow()).toEqual(before);
     });
 
-    // A page's own script can break what axe relies on. Then axe gives what it found, or the reason
-    // it found nothing, well within its limit, and the page is still there to read.
+    // A page's own script can break what axe would rely on in the page's world, or hold the name
+    // axe takes there. axe runs in a world of its own, so it checks such a page as any other, well
+    // within its limit, and the page's world stays as its scripts left it.
     it("survives a page that breaks arrays, or names its own axe", async () => {
       const outcomes: Record<string, unknown> = {};
       for (const where of ["/breaks-arrays/", "/names-axe/", "/keeps-axe/"]) {
         const { session, capture, tookMs } = await check(new URL(where, served.url).href);
         expect(tookMs, where).toBeLessThan(AXE_LIMIT_MS);
-        outcomes[where] = "error" in capture ? capture.error : violated(capture);
-        expect(await session.pageTitle(), where).not.toBe("");
+        outcomes[where] = {
+          found: violated(capture),
+          ...(await session["page"].evaluate(() => {
+            const own = window as unknown as { axe?: unknown };
+            let arrays = "work";
+            try {
+              [1].map((item) => item);
+            } catch (error) {
+              arrays = (error as Error).message;
+            }
+            return { axe: "axe" in window ? own.axe : "none", arrays };
+          })),
+        };
+        // One browser at a time: memory on this PC is tight.
+        await session.close();
       }
       expect(outcomes).toEqual({
-        // axe's own code uses the page's arrays.
-        "/breaks-arrays/": expect.stringContaining("This page broke arrays") as unknown,
-        // axe's script takes the name over.
-        "/names-axe/": ["image-alt"],
-        // A name the page won't give up: what's under it isn't axe.
-        "/keeps-axe/": expect.stringMatching(/axe\.run is not a function/) as unknown,
+        "/breaks-arrays/": { found: ["image-alt"], axe: "none", arrays: "This page broke arrays" },
+        "/names-axe/": { found: ["image-alt"], axe: 1, arrays: "work" },
+        "/keeps-axe/": { found: ["image-alt"], axe: 1, arrays: "work" },
       });
     }, 60_000);
   });
@@ -1103,6 +1130,139 @@ describe("a screenshot's DevTools commands", () => {
     const refusal = new Error("Protocol error (Page.captureScreenshot): Cannot take screenshot");
     const { session } = withDevTools({ "Page.captureScreenshot": () => Promise.reject(refusal) });
     await expect(session.screenshot()).rejects.toBe(refusal);
+  });
+});
+
+// The commands a check with axe sends to the browser, without a browser: what each asks for, and
+// what's made of the answers. The real browser's checks are above.
+describe("a check with axe's DevTools commands", () => {
+  const RESULTS = {
+    testEngine: { name: "axe-core", version: "4.13.0" },
+    violations: [],
+    incomplete: [],
+    passes: [],
+    inapplicable: [],
+  };
+  /** What each command answers: a function is called to answer, and so can fail. */
+  const answers: Record<string, unknown> = {
+    "Page.getFrameTree": {
+      frameTree: { frame: { id: "MAIN" }, childFrames: [{ frame: { id: "AN-AD" } }] },
+    },
+    "Page.createIsolatedWorld": { executionContextId: 7 },
+    "Runtime.evaluate": { result: { type: "boolean", value: true } },
+    "Runtime.callFunctionOn": { result: { type: "string", value: JSON.stringify(RESULTS) } },
+  };
+
+  /**
+   * A session whose DevTools connection answers as `changed` says, in place of `answers`, and the
+   * commands it was sent. Its page can do nothing: a check may use only the connection.
+   */
+  function withDevTools(changed: Record<string, unknown> = {}) {
+    const sent: { method: string; params?: unknown }[] = [];
+    const cdp = {
+      send: (method: string, params?: unknown) => {
+        sent.push({ method, params });
+        const answer = { ...answers, ...changed }[method];
+        return typeof answer === "function" ? (answer as () => unknown)() : Promise.resolve(answer);
+      },
+    };
+    const session = new ChromeSession(
+      { name: "Chrome", path: "chrome.exe" },
+      {} as ChildProcess,
+      "unused",
+      { version: () => "153.0.0.0", isConnected: () => true } as unknown as Browser,
+      { on: () => {}, isClosed: () => false } as unknown as Page,
+      cdp as unknown as CDPSession,
+    );
+    return { session, sent };
+  }
+
+  /** How DevTools answers a script that threw (or whose promise was rejected) in the page. */
+  const threw = (text: string, exception: Record<string, unknown>) => ({
+    result: { type: "object", subtype: "error" },
+    exceptionDetails: { exceptionId: 1, text, lineNumber: 0, columnNumber: 0, exception },
+  });
+
+  it("runs axe-core's script as it is in a world of its own on the main frame, then axe with voicecap's rules, and reads its results back as JSON", async () => {
+    const { session, sent } = withDevTools();
+    expect(await session.runAxe("/*! axe v4.13.0 */ window.axe = {};")).toEqual(RESULTS);
+    expect(sent).toEqual([
+      { method: "Page.getFrameTree" },
+      {
+        method: "Page.createIsolatedWorld",
+        params: { frameId: "MAIN", worldName: "voicecap-axe" },
+      },
+      // The script is the expression itself: no eval in the page, which a policy could refuse.
+      {
+        method: "Runtime.evaluate",
+        params: { expression: "/*! axe v4.13.0 */ window.axe = {};", contextId: 7 },
+      },
+      {
+        method: "Runtime.callFunctionOn",
+        params: {
+          functionDeclaration: expect.stringMatching(
+            /axe\.run\(document, \{[\s\S]*runOnly: \{ type: "tag", values: tags \},[\s\S]*resultTypes: \["violations", "incomplete"\],[\s\S]*JSON\.stringify/,
+          ) as unknown,
+          executionContextId: 7,
+          arguments: [{ value: [...AXE_TAGS] }],
+          awaitPromise: true,
+          returnByValue: true,
+        },
+      },
+    ]);
+  });
+
+  it("throws what the page's world threw, from axe-core's script or from axe", async () => {
+    const atLoad = withDevTools({
+      "Runtime.evaluate": threw("Uncaught", {
+        type: "object",
+        subtype: "error",
+        description: "SyntaxError: Unexpected token '<'\n    at <anonymous>:1:1",
+      }),
+    });
+    await expect(atLoad.session.runAxe("<html>")).rejects.toThrow(
+      "SyntaxError: Unexpected token '<'\n    at <anonymous>:1:1",
+    );
+    expect(atLoad.sent.map(({ method }) => method)).not.toContain("Runtime.callFunctionOn");
+
+    const atRun = withDevTools({
+      "Runtime.callFunctionOn": threw("Uncaught (in promise) Error: refused", {
+        type: "object",
+        subtype: "error",
+        description: "Error: refused\n    at <anonymous>:1:38",
+      }),
+    });
+    await expect(atRun.session.runAxe("")).rejects.toThrow(
+      "Error: refused\n    at <anonymous>:1:38",
+    );
+
+    // Something thrown with no description of its own: DevTools' words for it.
+    const bare = withDevTools({
+      "Runtime.callFunctionOn": threw("Uncaught (in promise) undefined", { type: "undefined" }),
+    });
+    await expect(bare.session.runAxe("")).rejects.toThrow("Uncaught (in promise) undefined");
+  });
+
+  it("refuses an answer that isn't axe's results as JSON", async () => {
+    const none = withDevTools({ "Runtime.callFunctionOn": { result: { type: "undefined" } } });
+    await expect(none.session.runAxe("")).rejects.toThrow("axe's results didn't come back");
+    const garbled = withDevTools({
+      "Runtime.callFunctionOn": { result: { type: "string", value: "{ not JSON" } },
+    });
+    await expect(garbled.session.runAxe("")).rejects.toThrow(SyntaxError);
+  });
+
+  // A page that navigates while axe runs takes axe's world with it: an error of axe's, not the
+  // browser's, so the driver's check gives the reason, and the page is read as usual.
+  it("leaves a world that a navigation took away as an error of its own, not the browser's", async () => {
+    const destroyed = new Error(
+      "Protocol error (Runtime.callFunctionOn): Execution context was destroyed.",
+    );
+    const { session } = withDevTools({ "Runtime.callFunctionOn": () => Promise.reject(destroyed) });
+    await expect(session.runAxe("")).rejects.toBe(destroyed);
+    expect(await axeCheckOf(session, "https://example.gov/")).toEqual({
+      error: destroyed.message,
+    });
   });
 });
 
