@@ -1,8 +1,9 @@
 /**
  * voicecap's CHANGELOG as the website reads it (src/site/changelog.ts): each dated release, with
  * its date, its headline, and its items (the bold words that begin each bullet of its entry, at the
- * first two levels); what is skipped; how a line's words are made plain, with a code span set apart
- * and a link as its words; and the address of a release's entry on GitHub.
+ * first two levels, before its first heading or under a kind of change's); what is skipped; how a
+ * line's words are made plain, with a code span set apart and a link as its words; and the address
+ * of a release's entry on GitHub.
  *
  * What the pages do with a release is in test/site-whats-new.test.ts and test/site-trust.test.ts.
  */
@@ -113,9 +114,11 @@ describe("parseChangelog", () => {
     }
   });
 
-  it("gives the real CHANGELOG's items as words and code, with no empty piece and no link left in", async () => {
+  it("gives the real CHANGELOG's items as words and code, with no empty piece, and no Markdown left in the words: no link, no bold, and no backtick", async () => {
     const text = await readFile(new URL("../CHANGELOG.md", import.meta.url), "utf8");
-    const releases = parseChangelog(text);
+    // The entry still to be released is read as the release it will be, so its points are held to
+    // the same before they reach What's New.
+    const releases = parseChangelog(text.replace("## [Unreleased]", "## [99.0.0] - 2099-01-01"));
     const pairs = releases.flatMap((release) => release.items.map((item) => ({ release, item })));
     // Most releases have points of their own.
     expect(pairs.length).toBeGreaterThan(releases.length);
@@ -126,7 +129,8 @@ describe("parseChangelog", () => {
       for (const piece of item) {
         if (typeof piece === "string") {
           expect(piece, where).not.toBe("");
-          expect(piece, where).not.toMatch(/\]\(/);
+          // A link's marks, bold's, or a backtick would be printed as they are on What's New.
+          expect(piece, where).not.toMatch(/\]\(|\*\*|`/);
         } else {
           expect(piece.code, where).not.toBe("");
           expect(piece.code, where).not.toContain("`");
@@ -138,6 +142,19 @@ describe("parseChangelog", () => {
       if (typeof first === "string") expect(first, where).toBe(first.trimStart());
       if (typeof last === "string") expect(last, where).toBe(last.trimEnd());
     }
+  });
+
+  it("gives the real 0.1.0 what it added as its points, and not what it said wasn't in it yet", async () => {
+    const text = await readFile(new URL("../CHANGELOG.md", import.meta.url), "utf8");
+    const first = parseChangelog(text).find(({ version }) => version === "0.1.0");
+    const points = (first?.items ?? []).map((item) =>
+      item.map((piece) => (typeof piece === "string" ? piece : piece.code)).join(""),
+    );
+
+    // Its "### Not yet" names the Guidepup NVDA driver, setup, and doctor, which came in 0.2.0.
+    expect(points.length).toBeGreaterThan(10);
+    expect(points.filter((point) => point.includes("Guidepup NVDA driver"))).toEqual([]);
+    expect(points[points.length - 1]).toBe("publish.sh");
   });
 
   it("skips [Unreleased] and any heading that isn't a dated release", () => {
@@ -396,22 +413,36 @@ describe("parseChangelog", () => {
       ).toEqual([["One"], ["A space in"], ["Two spaces in"]]);
     });
 
-    it("counts the bullets of every part of an entry, whatever its heading, in order", () => {
+    it("counts the bullets before the entry's first heading, and under each of Keep a Changelog's kinds of change, in order", () => {
       const text = [
         "## [0.2.0] - 2026-09-27",
-        "",
-        "### Added",
         "",
         "- **A.** x",
         "  - **A one.** x",
         "",
-        "### Changed",
+        "### Added",
         "",
         "- **B.** x",
         "",
-        "### Fixed",
+        "### Changed",
         "",
         "- **C.** x",
+        "",
+        "### Deprecated",
+        "",
+        "- **D.** x",
+        "",
+        "### Removed",
+        "",
+        "- **E.** x",
+        "",
+        "### Fixed",
+        "",
+        "- **F.** x",
+        "",
+        "### Security",
+        "",
+        "- **G.** x",
         "",
       ].join("\n");
 
@@ -420,8 +451,57 @@ describe("parseChangelog", () => {
         date: "2026-09-27",
         headline: "A",
         // The first bullet gave the headline; every other counts.
-        items: [["A one"], ["B"], ["C"]],
+        items: [["A one"], ["B"], ["C"], ["D"], ["E"], ["F"], ["G"]],
       });
+    });
+
+    it("counts no bullet under a heading that isn't a kind of change, such as 0.1.0's 'Not yet', until the next heading that is, or the next release", () => {
+      const text = [
+        "## [0.1.0] - 2026-09-26",
+        "",
+        "### Added",
+        "",
+        "- **The first.** x",
+        "- **A point.** x",
+        "",
+        "### Not yet",
+        "",
+        "- The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).",
+        "  - **Nor this.** x",
+        "",
+        "### Notes",
+        "",
+        "- **Nor a note.** x",
+        "",
+        "### Fixed",
+        "",
+        "- **A fix.** x",
+        "",
+        "### Not yet",
+        "",
+        "- **Not this either.** x",
+        "",
+        "## [0.0.9] - 2026-09-20",
+        "",
+        "- **An earlier release.** x",
+        "- **Its point.** x",
+        "",
+      ].join("\n");
+
+      expect(parseChangelog(text)).toEqual([
+        {
+          version: "0.1.0",
+          date: "2026-09-26",
+          headline: "The first",
+          items: [["A point"], ["A fix"]],
+        },
+        {
+          version: "0.0.9",
+          date: "2026-09-20",
+          headline: "An earlier release",
+          items: [["Its point"]],
+        },
+      ]);
     });
 
     it("takes the first bullet as the headline's, and counts every bullet when the headline is a paragraph", () => {

@@ -372,9 +372,9 @@ In order:
 3. **One card for each dated release,** newest first, in an ordered list, as the audit tool's update archive:
    - **The card's first line:** the version as a pill in `--good`, then the date ("8 October 2026"). On the version that built the website, it adds "the current version".
    - **The release's headline** (as the trust page's facts word it), as the card's h2.
-   - **Its items,** as a list: the bold words that begin each bullet of the entry, at its first two levels, other than the bullet that gave the headline. A bullet that doesn't begin with bold words gives its words up to its first ": " or ". ", as a headline does.
+   - **Its items,** as a list: the bold words that begin each bullet of the entry, at its first two levels, before the entry's first heading or under one of Keep a Changelog's kinds of change (`### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed`, `### Security`), other than the bullet that gave the headline. A bullet that doesn't begin with bold words gives its words up to its first ": " or ". ", as a headline does.
    - **Last, "The full entry in the CHANGELOG":** a link to the entry's heading on GitHub. A screen reader hears its version with it ("The full entry for 0.13.1 in the CHANGELOG"), so no two cards' links sound alike.
-- **What it skips:** `## [Unreleased]` and any heading that isn't a dated release.
+- **What it skips:** `## [Unreleased]` and any heading that isn't a dated release; and the bullets under any other heading in an entry, such as 0.1.0's `### Not yet`, which lists what wasn't in it.
 - **Every word is plain text, escaped.** Code spans are in the fixed-width font, a link is its words, and nothing else from the CHANGELOG becomes markup.
 - **A CHANGELOG with no release** says so: "No release is recorded in this build of voicecap."
 - **Guidepup, as the owner confirmed ("Allow it there"):**
@@ -434,7 +434,7 @@ Every page follows voicecap's rules:
   - the version, and what a screen reader hears of it;
   - neither bar is sticky.
 - **The CHANGELOG:**
-  - releases with their dates, headlines, and items (two levels; the bold words; the headline's own bullet skipped);
+  - releases with their dates, headlines, and items (two levels; the bold words; the headline's own bullet skipped; only before the entry's first heading or under a kind of change's, so not 0.1.0's "Not yet");
   - code spans;
   - a `<script>` in a line comes out escaped;
   - `## [Unreleased]` is skipped;

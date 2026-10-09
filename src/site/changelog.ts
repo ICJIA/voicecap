@@ -16,7 +16,9 @@
  *     (see `headlineOf`);
  *   - its items, from the entry's bullets at its first two levels: the words that begin each one,
  *     as plain text with each code span set apart (see `itemOf`), other than the headline's own
- *     line, which is no item.
+ *     line, which is no item. A bullet counts before the entry's first heading, or under one of
+ *     Keep a Changelog's kinds of change (`### Added`, `### Fixed`); under any other heading, such
+ *     as 0.1.0's `### Not yet`, it's no point of the release (see KINDS_OF_CHANGE).
  *
  * Nothing here reads a clock, the network, or the computer: the same text gives the same releases.
  * ./facts.ts runs this module, which imports nothing but types, so a copy of the two stands alone
@@ -32,6 +34,20 @@ export const CHANGELOG_URL = "https://github.com/ICJIA/voicecap/blob/main/CHANGE
 
 /** A release's heading in the CHANGELOG: `## [0.13.1] - 2026-10-08`. */
 const RELEASE_HEADING = /^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$/;
+
+/**
+ * The kinds of change Keep a Changelog heads the parts of an entry with (`### Added`). The bullets
+ * under one of these, or before an entry's first heading, are a release's points; those under any
+ * other heading, such as 0.1.0's `### Not yet`, which lists what wasn't in it, are not.
+ */
+const KINDS_OF_CHANGE: ReadonlySet<string> = new Set([
+  "Added",
+  "Changed",
+  "Deprecated",
+  "Removed",
+  "Fixed",
+  "Security",
+]);
 
 /** A line that starts with bold words, with the bullet's mark before them or not. */
 const BOLD_FIRST = /^(?:[-*+]\s+)?\*\*(.+?)\*\*/;
@@ -181,14 +197,17 @@ function itemOf(line: string): ReleaseItem | null {
  *
  * The headline is the first line under the heading that isn't blank or a heading, as `headlineOf`
  * words it. The items are every other line of the entry that `itemOf` gives one: the bullets at
- * its first two levels, whatever part of the entry (`### Added`, `### Changed`) they're in. The
- * headline's own line is no item, whether it's a bullet or a paragraph.
+ * its first two levels, before the entry's first heading or under a kind of change's
+ * (KINDS_OF_CHANGE), each heading holding until the next. The headline's own line is no item,
+ * whether it's a bullet or a paragraph.
  */
 export function parseChangelog(text: string): VoicecapRelease[] {
   const releases: VoicecapRelease[] = [];
-  // The release whose entry is being read, and whether its first line is still to come.
+  // The release whose entry is being read, whether its first line is still to come, and whether
+  // the part of it being read gives points.
   let release: VoicecapRelease | undefined;
   let looking = false;
+  let counts = true;
   for (const line of text.split(/\r?\n/)) {
     if (line.startsWith("## ")) {
       const [, version, date] = RELEASE_HEADING.exec(line) ?? [];
@@ -198,11 +217,13 @@ export function parseChangelog(text: string): VoicecapRelease[] {
           : undefined;
       if (release !== undefined) releases.push(release);
       looking = true;
+      counts = true;
     } else if (release !== undefined) {
+      if (line.startsWith("### ")) counts = KINDS_OF_CHANGE.has(line.slice(4).trim());
       if (looking && line.trim() !== "" && !line.startsWith("### ")) {
         release.headline = headlineOf(line);
         looking = false;
-      } else {
+      } else if (counts) {
         const item = itemOf(line);
         if (item !== null) release.items.push(item);
       }

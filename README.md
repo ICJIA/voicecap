@@ -1718,10 +1718,10 @@ Here is the top of the page, in the dark theme it opens in, through its first tw
 
 - **Its first line:** the version as a green pill, then its day ("8 October 2026"). On the version that built the website, "the current version" follows the day.
 - **Its headline,** as the card's heading: the first line of its CHANGELOG entry, as the trust page and the front page's banner say it.
-- **Its points,** as a list: the bold words that begin each bullet of the entry, at its first two levels (a bullet indented by two spaces or fewer), other than the bullet that gave the headline. A bullet that doesn't begin with bold words gives its words up to its first `: ` or `. `, as a headline does. A `.`, `,`, or `:` that ends the bold words isn't kept.
+- **Its points,** as a list: the bold words that begin each bullet of the entry, at its first two levels (a bullet indented by two spaces or fewer), before the entry's first heading or under one of Keep a Changelog's kinds of change (`### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed`, or `### Security`), other than the bullet that gave the headline. A bullet that doesn't begin with bold words gives its words up to its first `: ` or `. `, as a headline does. A `.`, `,`, or `:` that ends the bold words isn't kept.
 - **"The full entry in the CHANGELOG":** a link to the entry's heading in the CHANGELOG on GitHub. A screen reader hears the version after the words ("The full entry in the CHANGELOG for 0.13.1"), so no two cards' links sound alike.
 
-**What it skips:** `## [Unreleased]`, and any heading that isn't a dated release, that is `## [x.y.z] - YYYY-MM-DD`, of a day the calendar has. A CHANGELOG with no release says "No release is recorded in this build of voicecap."
+**What it skips:** `## [Unreleased]`, and any heading that isn't a dated release, that is `## [x.y.z] - YYYY-MM-DD`, of a day the calendar has; and the bullets under any other heading in an entry, such as 0.1.0's `### Not yet`, which lists what wasn't in it. A CHANGELOG with no release says "No release is recorded in this build of voicecap."
 
 **Every word is plain text.** A code span is in the fixed-width font, a link is its words, and nothing else from the CHANGELOG becomes markup: a line with a `<script>` in it is text on the page, and never runs.
 

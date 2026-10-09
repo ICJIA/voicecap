@@ -76,8 +76,8 @@ export interface VoicecapRelease {
   headline: string;
   /**
    * What its entry says, a point each, in order: the words that begin each bullet at its first two
-   * levels, other than the bullet that gave the headline (see `parseChangelog`). None for an entry
-   * with no bullet.
+   * levels, before its first heading or under a kind of change's (`### Added`), other than the
+   * bullet that gave the headline (see `parseChangelog`). None for an entry with no such bullet.
    */
   items: ReleaseItem[];
 }
