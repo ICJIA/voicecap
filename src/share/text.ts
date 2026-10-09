@@ -1181,6 +1181,13 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.15.0</b>: the website in the look of the audit tool (audit.icjia.app): a top bar and a bottom bar on each of its own pages, a banner of the newest release on the front page, and two new pages, Technical details and What's New.",
   },
   {
+    date: "2026-10-09",
+    release: "0.16.0",
+    pc: null,
+    mac: null,
+    both: "<b>0.16.0</b>: axe on each page: what axe, an open-source accessibility checker, found on the page, in a fold on its card, beside what NVDA said, and sealed with the run.",
+  },
+  {
     date: null,
     release: null,
     pc: "NVDA's own log, checked against the transcripts, recorded at the PC.",

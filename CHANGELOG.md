@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-09
+
+Each page's card now shows what axe, an open-source accessibility checker, found on the page, beside what NVDA said, sealed with the run.
+
 ### Added
 
 - **axe on each page: what an automated checker finds, in a fold on each page's card, beside what NVDA said, and sealed with the run.** During a run, voicecap checks each page with [axe-core](https://github.com/dequelabs/axe-core), the open-source checker that Lighthouse's accessibility audits are built on, and shows what it found on the page's card. axe is an automated checker: it tests a page's code against rules, and finds what code can find. A person's review finds the rest, so what axe found sits beside what NVDA said and never changes the verdict. The README's "What voicecap does on each page" describes it.
@@ -600,7 +604,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/ICJIA/voicecap/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/ICJIA/voicecap/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/ICJIA/voicecap/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/ICJIA/voicecap/compare/v0.13.1...v0.13.2
