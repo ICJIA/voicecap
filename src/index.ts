@@ -63,6 +63,7 @@ export { DEFAULT_CONFIG } from "./config/defaults.js";
 export { evaluateFlags } from "./flags/evaluate.js";
 export { ReplayDriver } from "./drivers/replay.js";
 export type {
+  AxeCapture,
   CaptureMode,
   EnvironmentInfo,
   EventRecorder,
@@ -72,6 +73,9 @@ export type {
   ScreenReaderDriver,
   Speech,
 } from "./drivers/types.js";
+// What a page's record keeps of axe's check of it (`PageRecord.axe`), and what a driver's check
+// gives beside the file's text (`AxeCapture`).
+export type { AxeSummary } from "./axe/results.js";
 export { ForegroundError } from "./drivers/types.js";
 export * from "./model.js";
 export {

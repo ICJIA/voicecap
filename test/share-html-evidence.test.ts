@@ -417,7 +417,7 @@ describe("renderEvidence", () => {
 
       expect(model.evidence[0]?.verify).toBe("npx @icjia/voicecap verify");
       expect(textOf(withoutData(html))).toContain(
-        "What the check proves: this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too.",
+        "What the check proves: this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list, and where a card shows axe's results, its chip and its fold of what axe found show its axe file's counts, and each rule's heading, impact, elements, words on how to fix them, and number of elements not listed. The rest of that fold isn't compared: its version line, each rule's criteria, its links, and the line with the file's size and SHA-256. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too.",
       );
       expect(html).toContain("<code>Get-FileHash &lt;file&gt;</code> in PowerShell");
       expect(html).toContain("<code>shasum -a 256 &lt;file&gt;</code> on a Mac");
@@ -431,7 +431,7 @@ describe("renderEvidence", () => {
       expect(verify).toBe("npx @icjia/voicecap verify");
       // The whole paragraph, as the page writes it: what the check proves, then what's stronger.
       expect(renderEvidence(model)).toContain(
-        `<p class="sub fp-limit"><b>What the check proves:</b> this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can&#39;t prove the page itself wasn&#39;t changed, since whoever changed it could change the fingerprints too. For that, compare this file&#39;s own fingerprint with the one its sender recorded: <code>voicecap share</code> prints it, ready for the email that sends the file, and <code>Get-FileHash &lt;file&gt;</code> in PowerShell, or <code>shasum -a 256 &lt;file&gt;</code> on a Mac, shows it for the file you received. Or run <code>${verify}</code> on the transcripts folder.</p>`,
+        `<p class="sub fp-limit"><b>What the check proves:</b> this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list, and where a card shows axe&#39;s results, its chip and its fold of what axe found show its axe file&#39;s counts, and each rule&#39;s heading, impact, elements, words on how to fix them, and number of elements not listed. The rest of that fold isn&#39;t compared: its version line, each rule&#39;s criteria, its links, and the line with the file&#39;s size and SHA-256. It can&#39;t prove the page itself wasn&#39;t changed, since whoever changed it could change the fingerprints too. For that, compare this file&#39;s own fingerprint with the one its sender recorded: <code>voicecap share</code> prints it, ready for the email that sends the file, and <code>Get-FileHash &lt;file&gt;</code> in PowerShell, or <code>shasum -a 256 &lt;file&gt;</code> on a Mac, shows it for the file you received. Or run <code>${verify}</code> on the transcripts folder.</p>`,
       );
     });
 

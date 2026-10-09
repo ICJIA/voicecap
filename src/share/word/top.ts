@@ -18,6 +18,7 @@ import type { Line } from "../line.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
+  AXE_TEXT,
   GLANCE_TEXT,
   HOW_STEPS,
   HOW_TEXT,
@@ -307,13 +308,14 @@ function whenBlocks(): Block[] {
 }
 
 /**
- * "How voicecap works": the lead, the six steps as a table, a sample of what NVDA said on this
- * site, and when to run voicecap.
+ * "How voicecap works": the lead, the line on axe's check of each page, the six steps as a table,
+ * a sample of what NVDA said on this site, and when to run voicecap.
  */
 export function wordHow(model: ShareModel): Block[] {
   return [
     heading(1, HOW_TEXT.title),
     para(...howLead()),
+    para(AXE_TEXT.how),
     stepsTable(),
     ...heardBlocks(model.heard),
     ...whenBlocks(),

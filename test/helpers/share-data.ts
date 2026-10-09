@@ -7,6 +7,7 @@
 import {
   PASS_NAMES,
   type AttemptRecord,
+  type AxeRecord,
   type EnvironmentRecord,
   type FileHash,
   type FlagResult,
@@ -77,6 +78,12 @@ export interface SharePageSpec {
    * for a run whose driver took no screenshots.
    */
   screenshot?: ScreenshotRecord;
+  /**
+   * What axe found on the page, as the record's `axe` (see test/helpers/share-model.ts's
+   * keptAxe). No file is written: a test that shows the results gives the model the file's text.
+   * Default: none, as for a run whose driver doesn't check pages with axe.
+   */
+  axe?: AxeRecord;
 }
 
 /** One session of a run (see ShareRunSpec.sessions). */
@@ -299,6 +306,7 @@ function sharePage(page: SharePageSpec, site: string): PageRecord {
     passes: passSummaries(page.passes, page.stopped),
     files: Object.fromEntries((page.files ?? []).map((name) => [name, PLACEHOLDER_FILE])),
     ...(page.screenshot === undefined ? {} : { screenshot: page.screenshot }),
+    ...(page.axe === undefined ? {} : { axe: page.axe }),
     flags: page.flags ?? [],
     errors: page.errors ?? [],
   };

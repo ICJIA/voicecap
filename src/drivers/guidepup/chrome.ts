@@ -23,6 +23,7 @@ import {
   type Response,
 } from "playwright";
 
+import { AXE_TAGS } from "../../axe/results.js";
 import type { VoicecapConfig } from "../../config/schema.js";
 import { EnvironmentError, errorMessage } from "../../util/errors.js";
 import { formatDuration } from "../../util/time.js";
@@ -405,6 +406,21 @@ interface PageDocument {
   querySelector(selector: string): { remove(): void; href?: string } | null;
 }
 
+/** The isolated world axe runs in, on the page's main frame, apart from the page's own scripts. */
+const AXE_WORLD = "voicecap-axe";
+
+/**
+ * Called in axe's world once axe-core's script has run there: axe checks the page's document with
+ * the rules of `tags`. Its results come back as JSON made with that world's own JSON, which the
+ * page's scripts can't reach. As one string, they come back whole, however deeply they nest.
+ */
+const RUN_AXE = `function (tags) {
+  return axe.run(document, {
+    runOnly: { type: "tag", values: tags },
+    resultTypes: ["violations", "incomplete"],
+  }).then((results) => JSON.stringify(results));
+}`;
+
 /**
  * What Playwright says when the network won't take a navigation: the first line reads "page.goto:
  * net::ERR_NAME_NOT_RESOLVED at https://example.gov/", and a call log follows.
@@ -576,6 +592,52 @@ export class ChromeSession implements BrowserSession {
     return Buffer.from(data, "base64");
   }
 
+  /**
+   * axe-core's results for the page as it is now. Everything goes through the DevTools connection,
+   * in an isolated world of axe's own on the page's main frame: it shares the page's document, but
+   * not its scripts' globals.
+   * - Nothing is added to the page's own world: no `axe`, none of axe's listeners, and no module
+   *   registered with a loader of the page's.
+   * - The page's own scripts can't change the built-ins axe uses there, or take the name `axe`. A
+   *   page can still hold up the thread it shares with axe, or answer axe's messages to its frames
+   *   from a frame of its own origin.
+   * - `script`, axe-core's own, is the expression DevTools runs, not a `<script>` added to the page
+   *   or a string evaluated in it, so neither a Content Security Policy nor Trusted Types stops it.
+   *
+   * Then axe runs the rules of AXE_TAGS. It gives every element it finds for the violations and
+   * what needs review, and at most one for each rule that passed or didn't apply, which voicecap
+   * only counts. axe reads the page: it moves no focus, scrolls nothing, and adds no element.
+   *
+   * A script that throws, and an axe whose promise is rejected, fail with what axe's world said.
+   * There's no time limit here: the driver gives axe its own.
+   */
+  runAxe(script: string): Promise<unknown> {
+    return this.onPage(async () => {
+      const { frameTree } = await this.cdp.send("Page.getFrameTree");
+      const { executionContextId } = await this.cdp.send("Page.createIsolatedWorld", {
+        frameId: frameTree.frame.id,
+        worldName: AXE_WORLD,
+      });
+      // DevTools answers a script that threw, or a promise that was rejected, with its details.
+      const loaded = await this.cdp.send("Runtime.evaluate", {
+        expression: script,
+        contextId: executionContextId,
+      });
+      if (loaded.exceptionDetails) throw thrownIn(loaded.exceptionDetails);
+      const ran = await this.cdp.send("Runtime.callFunctionOn", {
+        functionDeclaration: RUN_AXE,
+        executionContextId,
+        arguments: [{ value: [...AXE_TAGS] }],
+        awaitPromise: true,
+        returnByValue: true,
+      });
+      if (ran.exceptionDetails) throw thrownIn(ran.exceptionDetails);
+      const json: unknown = ran.result.value;
+      if (typeof json !== "string") throw new Error("axe's results didn't come back");
+      return JSON.parse(json) as unknown;
+    });
+  }
+
   async setTitle(title: string): Promise<() => Promise<void>> {
     // These functions run in the page (voicecap's own code is compiled without DOM types).
     const previous = await this.onPage(() =>
@@ -723,6 +785,15 @@ function axString(value: AxValue | undefined): string | null {
 }
 
 /**
+ * What a script threw in the page, or why its promise was rejected, as DevTools describes it
+ * ("TypeError: …", with the page's stack), or in DevTools' own words when what was thrown has no
+ * description ("Uncaught (in promise) undefined").
+ */
+function thrownIn(details: { text: string; exception?: { description?: string } }): Error {
+  return new Error(details.exception?.description || details.text);
+}
+
+/**
  * The screen's pixels for each CSS pixel of the page, 1 at 100% and 1.5 at 150%: the viewport's
  * width in the screen's pixels (`screen`, the layout metrics' own) over its width in CSS pixels
  * (`css`), as the browser reports them. Never the page's `devicePixelRatio`, which the page's own
@@ -738,13 +809,24 @@ function pixelRatio(screen: unknown, css: unknown): number {
 }
 
 /**
- * `work`, or a rejection with `message` once `ms` have passed without it finishing. The work isn't
- * stopped: what it gives or throws later is ignored.
+ * What `withinLimit` rejects with when the time it gave the work has passed: the work wasn't
+ * stopped, so it may still be under way.
  */
-function withinLimit<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+export class LimitReachedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LimitReachedError";
+  }
+}
+
+/**
+ * `work`, or a rejection with `message` (a LimitReachedError) once `ms` have passed without it
+ * finishing. The work isn't stopped: what it gives or throws later is ignored.
+ */
+export function withinLimit<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const limit = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(message)), ms);
+    timer = setTimeout(() => reject(new LimitReachedError(message)), ms);
   });
   return Promise.race([work, limit]).finally(() => clearTimeout(timer));
 }

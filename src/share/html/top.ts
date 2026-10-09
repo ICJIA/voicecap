@@ -24,6 +24,7 @@ import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
   ATTENTION_TEXT,
+  AXE_TEXT,
   DETAILS_TEXT,
   GLANCE_TEXT,
   HOW_STEPS,
@@ -353,15 +354,18 @@ function when(): string {
 }
 
 /**
- * "How voicecap works": the lead, the six steps with their pictures, a sample of what NVDA said on
- * this site (folded), and when to run voicecap. It is built with its own h2 and h3, as every
- * section is; the details set it a level down (`demoted`) to be one of its parts.
+ * "How voicecap works": the lead; the line that says each page is checked with axe, an automated
+ * checker, before NVDA reads it, as evidence beside the person's review, never its verdict; the six
+ * steps with their pictures; a sample of what NVDA said on this site (folded); and when to run
+ * voicecap. It is built with its own h2 and h3, as every section is; the details set it a level
+ * down (`demoted`) to be one of its parts.
  */
 export function renderHow(model: ShareModel): string {
   return [
     `<section aria-labelledby="how-h">`,
     `  <h2 id="how-h">${esc(HOW_TEXT.title)}</h2>`,
     `  <p class="gist">${lineHtml(howLead())}</p>`,
+    `  <p class="gist">${esc(AXE_TEXT.how)}</p>`,
     `  ${steps()}`,
     `  ${heard(model.heard)}`,
     `  ${when()}`,

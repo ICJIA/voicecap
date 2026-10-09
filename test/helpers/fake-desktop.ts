@@ -7,6 +7,10 @@ import type {
 import type { ForegroundWindow } from "../../src/drivers/guidepup/windows.js";
 import type { CaptureMode, FocusedElement, Speech } from "../../src/drivers/types.js";
 import { TINY_JPEG } from "./jpeg.js";
+import { rawAxe } from "./raw-axe.js";
+
+/** For FakePage's axe: a check that never finishes. */
+export const AXE_HANGS = Symbol("axe never finishes");
 
 /** Holds whoever waits on it until the test opens it: for work still in progress at a given moment. */
 export class Gate {
@@ -354,6 +358,11 @@ export interface FakePage {
    * with (default: a tiny picture).
    */
   screenshot?: Uint8Array | Error;
+  /**
+   * What checking the page with axe gives: what the page hands back (default: axe's results, with
+   * nothing found), the Error the browser fails with, or AXE_HANGS, for a check that never finishes.
+   */
+  axe?: unknown;
 }
 
 export class FakeSession implements BrowserSession {
@@ -379,6 +388,8 @@ export class FakeSession implements BrowserSession {
   inToolbar = false;
   /** Tabs pressed inside the page through Chrome rather than NVDA. */
   chromeTabs = 0;
+  /** The script each check with axe ran in the page, in order. */
+  readonly axeScripts: string[] = [];
   lastSpoken: Speech = "";
   focused: FocusedElement | null = null;
   /** Called when a Tab moves focus; return true to put focus in the toolbar. */
@@ -432,6 +443,20 @@ export class FakeSession implements BrowserSession {
     if (url === undefined) return Promise.reject(new Error("No page has loaded yet."));
     const shot = this.pages[url]?.screenshot ?? TINY_JPEG;
     return shot instanceof Error ? Promise.reject(shot) : Promise.resolve(shot);
+  }
+
+  /**
+   * axe's check of the page loaded last, with the script it was given to run there: asked before a
+   * page has loaded, it fails. It never brings the window forward or presses a key.
+   */
+  runAxe(script: string): Promise<unknown> {
+    this.desktop.events.push("axe");
+    this.axeScripts.push(script);
+    const url = this.loaded.at(-1);
+    if (url === undefined) return Promise.reject(new Error("No page has loaded yet."));
+    const answer = this.pages[url]?.axe ?? rawAxe();
+    if (answer === AXE_HANGS) return new Promise(() => {});
+    return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer);
   }
 
   setTitle(title: string): Promise<() => Promise<void>> {

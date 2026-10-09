@@ -13,9 +13,9 @@
  *
  * The home folder is replaced in everything the page shows: flags' and reviewers' words here, and
  * the description of a custom rule, which names its card; the problems' in problemsOf, the
- * evidence's in evidenceOf, the reason a screenshot couldn't be taken in cardsOf. The run records
- * and transcripts the page embeds for its fingerprint check are exactly as recorded, since a seal
- * covers every field.
+ * evidence's in evidenceOf, the reason a screenshot couldn't be taken, or axe couldn't check a page,
+ * in cardsOf. The run records, transcripts, and axe files the page embeds for its fingerprint check
+ * are exactly as recorded, since a seal covers every field.
  *
  * A site is named by its canonical address, and every address the page shows for one of its pages
  * is the page on that address: `shown`, made here, maps the address voicecap read onto it, and the
@@ -40,6 +40,7 @@ import { redactHome } from "../run/failure.js";
 import { extractBody, MAIN_COMMAND, stepLine } from "../transcripts/format.js";
 import { attentionCards, type AttentionCard, type AttentionPage } from "./attention.js";
 import {
+  axeCheckedOf,
   cardsOf,
   embeddedOf,
   HEARD,
@@ -269,6 +270,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
     flagsAsRecorded: input.flagsAsRecorded,
     name: nameOf,
     screenshots: input.screenshots,
+    axeFiles: input.axeFiles,
     screenReader: (run) => wordsFor(run).screenReader,
     redact,
   });
@@ -331,7 +333,8 @@ export function buildShareModel(input: ShareInput): ShareModel {
     appendix: appendixOf(standing, input.transcripts, nameOf),
     // What the fingerprint check checks: the records of the runs drawn on and the transcripts shown,
     // exactly as recorded, which screenshots the page shows (their fingerprints are in the records:
-    // the page carries no picture a third time), and the review entries.
+    // the page carries no picture a third time), the text of each axe file whose results a card
+    // shows (carried once, here, which the check holds the card's fold to), and the review entries.
     check: {
       runs: standing.drawnOn.map(recordOf),
       files: standing.pages.flatMap((page) =>
@@ -340,6 +343,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
         ),
       ),
       screenshots: embeddedOf(standing, pages),
+      axe: axeCheckedOf(pages),
       reviews: Object.keys(input.reviews.pages).length === 0 ? null : input.reviews.pages,
     },
     flagRulesSha256: input.flagRulesSha256,

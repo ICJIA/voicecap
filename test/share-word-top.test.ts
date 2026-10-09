@@ -12,6 +12,7 @@ import { lineText } from "../src/share/line.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
 import {
+  AXE_TEXT,
   HOW_LEAD,
   HOW_STEPS,
   HOW_TEXT,
@@ -641,6 +642,12 @@ describe("wordHow", () => {
     expect(head).toEqual(heading(1, "How voicecap works"));
     expect(lead?.kind === "para" ? lineText(lead.line) : "").toBe(HOW_LEAD);
     expect(lead?.kind === "para" ? boldIn(lead.line) : []).toEqual([HOW_TEXT.leadBold]);
+  });
+
+  it("says, after the lead, that each page is checked with axe before NVDA reads it, as the page does", async () => {
+    const [, , axe] = wordHow(await demoModel());
+
+    expect(axe).toEqual(para(AXE_TEXT.how));
   });
 
   it("has the six steps as a numbered table, and the stages as four columns", async () => {

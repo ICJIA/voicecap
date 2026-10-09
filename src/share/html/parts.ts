@@ -44,7 +44,15 @@ export interface FoldOptions {
   className?: string;
   /** More classes for the inside box, after "inside". */
   insideClassName?: string;
+  /**
+   * Data attributes for the details element, after its id, each name as it follows "data-" ("run"
+   * for `data-run`): what names a fold for the page's fingerprint check. Each value is escaped.
+   */
+  data?: Record<string, string>;
 }
+
+/** A data attribute's name, as it follows "data-": lowercase letters, digits, and hyphens. */
+const DATA_NAME = /^[a-z][a-z0-9-]*$/;
 
 /**
  * A `<details>` whose `<summary>` is one line that says what's inside, and whose body is in an
@@ -71,7 +79,11 @@ export function fold(summary: string, body: string, options: FoldOptions = {}): 
   const classes = options.className ? `fold ${options.className}` : "fold";
   const insideClasses = options.insideClassName ? `inside ${options.insideClassName}` : "inside";
   const id = options.id === undefined ? "" : ` id="${esc(options.id)}"`;
-  return `<details class="${esc(classes)}"${id}${options.open ? " open" : ""}${options.hidden ? " hidden" : ""}><summary>${summary}</summary><div class="${esc(insideClasses)}">${body}</div></details>`;
+  const data = Object.entries(options.data ?? {}).map(([name, value]) => {
+    if (!DATA_NAME.test(name)) throw new Error(`Not a data attribute's name: ${name}`);
+    return ` data-${name}="${esc(value)}"`;
+  });
+  return `<details class="${esc(classes)}"${id}${data.join("")}${options.open ? " open" : ""}${options.hidden ? " hidden" : ""}><summary>${summary}</summary><div class="${esc(insideClasses)}">${body}</div></details>`;
 }
 
 /**

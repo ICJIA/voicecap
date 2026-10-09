@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { keptAxeResults } from "../src/axe/results.js";
 import { addManualSession } from "../src/manual-add.js";
 import type {
   ManualSessionJson,
@@ -34,6 +35,7 @@ import { sealOf, sha256 } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
 import { TINY_JPEG } from "./helpers/jpeg.js";
+import { rawAxe, rawRule } from "./helpers/raw-axe.js";
 import { homeWithCountedRun, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -185,21 +187,21 @@ describe("verifyHome", () => {
     expect(result.problems).toBe(3);
   });
 
+  /** A copy of the home, with the record of the page in folder `slug` changed, and the run sealed again. */
+  async function changingPage(slug: string, edit: (page: RunJson["pages"][number]) => void) {
+    const home = await copyOfHome();
+    await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+      edit(run.pages.find((page) => page.slug === slug)!);
+      run.seal = sealOf(run);
+    });
+    return home;
+  }
+
   describe("a page's screenshot", () => {
     const SHOT = `${RUN}/pages/home/screenshot.jpg`;
     const TAKEN_AT = "2026-09-27T11:02:05.000-05:00";
     const ONE_PROBLEM = `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`;
     const recorded = { ...fileHash(TINY_JPEG), takenAt: TAKEN_AT, width: 16, height: 12 };
-
-    /** A copy of the home, with the record of the page in folder `slug` changed, and the run sealed again. */
-    async function changingPage(slug: string, edit: (page: RunJson["pages"][number]) => void) {
-      const home = await copyOfHome();
-      await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
-        edit(run.pages.find((page) => page.slug === slug)!);
-        run.seal = sealOf(run);
-      });
-      return home;
-    }
 
     /** A copy of the home whose home page has a screenshot, in its folder and in its record. */
     async function withScreenshot(): Promise<string> {
@@ -271,6 +273,108 @@ describe("verifyHome", () => {
         `${SHOT}: not recorded by the run`,
         `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 2 problems.`,
       ]);
+    });
+  });
+
+  describe("a page's axe results", () => {
+    const AXE = `${RUN}/pages/home/axe.json`;
+    const RAN_AT = "2026-09-27T11:02:05.000-05:00";
+    const ONE_PROBLEM = `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`;
+    const found = keptAxeResults(
+      rawAxe({ violations: [rawRule("image-alt")], passes: 30, inapplicable: 60 }),
+      `${SITE}/`,
+    );
+    const recorded = { ...fileHash(found.json), ranAt: RAN_AT, ...found.summary };
+
+    /** A copy of the home whose home page has axe results, in its folder and in its record. */
+    async function withAxe(): Promise<string> {
+      const home = await changingPage("home", (page) => {
+        page.axe = recorded;
+      });
+      await writeFile(at(home, AXE), found.json);
+      return home;
+    }
+
+    it("finds nothing wrong with results that are as the run recorded them", async () => {
+      expect((await verify(await withAxe())).lines).toEqual([MATCHES]);
+    });
+
+    it("names results that were edited, whether or not their size changed", async () => {
+      const added = await withAxe();
+      await appendFile(at(added, AXE), "\n");
+      expect((await verify(added)).lines).toEqual([
+        `${AXE}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+
+      // One word for another of the same length: the file's size is as it was.
+      const sameSize = await withAxe();
+      const edited = found.json.replace("image-alt", "image-alx");
+      expect(edited).not.toBe(found.json);
+      expect(edited).toHaveLength(found.json.length);
+      await writeFile(at(sameSize, AXE), edited);
+      expect((await verify(sameSize)).lines).toEqual([
+        `${AXE}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+    });
+
+    it("names results that were removed", async () => {
+      const home = await withAxe();
+      await rm(at(home, AXE));
+      expect((await verify(home)).lines).toEqual([`${AXE}: missing`, ONE_PROBLEM]);
+    });
+
+    it("names a file the run doesn't record, as it does any", async () => {
+      // A page with no axe in its record, and one whose record says why it has none.
+      for (const axe of [undefined, { error: "timed out after 20s", ranAt: RAN_AT }]) {
+        const home = await changingPage("home", (page) => {
+          if (axe) page.axe = axe;
+        });
+        await writeFile(at(home, AXE), found.json);
+        expect((await verify(home)).lines).toEqual([
+          `${AXE}: not recorded by the run`,
+          ONE_PROBLEM,
+        ]);
+      }
+    });
+
+    it("finds nothing wrong with a record of why there's none", async () => {
+      const home = await changingPage("home", (page) => {
+        page.axe = { error: "timed out after 20s", ranAt: RAN_AT };
+      });
+      expect((await verify(home)).lines).toEqual([MATCHES]);
+    });
+
+    it("is filed in its own page's folder", async () => {
+      // The flawed page records some, with no file in its folder; the file is in the home page's.
+      const flawed = "flawed-68c5de39bc";
+      const home = await changingPage(flawed, (page) => {
+        page.axe = recorded;
+      });
+      await writeFile(at(home, AXE), found.json);
+      expect((await verify(home)).lines).toEqual([
+        `${RUN}/pages/${flawed}/axe.json: missing`,
+        `${AXE}: not recorded by the run`,
+        `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 2 problems.`,
+      ]);
+    });
+
+    it("passes a run that records none, as every run from before voicecap 0.16.0 does", async () => {
+      const run = JSON.parse(await readFile(at(untouched, `${RUN}/run.json`), "utf8")) as RunJson;
+      expect(run.pages.length).toBeGreaterThan(0);
+      for (const page of run.pages) expect(page).not.toHaveProperty("axe");
+      expect(existsSync(at(untouched, AXE))).toBe(false);
+      expect((await verify(untouched)).lines).toEqual([MATCHES]);
+    });
+
+    it("passes the i2i fixture, a sealed run from voicecap 0.11.0", async () => {
+      const home = fixture("i2i-v3-run");
+      const { result, lines } = await verify(home);
+      expect(lines).toEqual([
+        "v3--i2i.netlify.app: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.",
+      ]);
+      expect(result.problems).toBe(0);
     });
   });
 
