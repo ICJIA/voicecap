@@ -44,9 +44,13 @@
  *   is returned as the reason, and never fails the page.
  * - A page is checked with axe-core only when the core asks (checkWithAxe), through the browser's
  *   DevTools connection, in an isolated world of axe's own on the page's main frame: axe-core's own
- *   script runs there, so nothing is added to the page's own world, and the page's scripts can't
- *   break axe. The check presses no key and leaves the window as it is. One that fails or takes over
- *   20 seconds is returned as the first line of its reason, and never fails the page.
+ *   script runs there, so nothing is added to the page's own world, and a world apart keeps the
+ *   page's scripts from changing the built-ins axe uses, or its name. A page can still hold up the
+ *   thread axe shares with it, or answer axe's messages to its frames from a frame of its own
+ *   origin. The check presses no key and leaves the window as it is. One that fails is returned as
+ *   the first line of its reason. So is one that takes over 20 seconds, which can't be stopped, and
+ *   says it's still under way in the page (leftRunning): the core opens the page again, and that
+ *   load's fresh browser closes this one, ending the check with it. Neither fails the page.
  */
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -60,7 +64,7 @@ import { EnvironmentError, errorMessage } from "../util/errors.js";
 import { acquireLockFile, isStale, readLockHolder } from "../util/lock-file.js";
 import type { Logger } from "../util/log.js";
 import { formatDuration } from "../util/time.js";
-import { launchChrome, withinLimit } from "./guidepup/chrome.js";
+import { launchChrome, LimitReachedError, withinLimit } from "./guidepup/chrome.js";
 import { loadGuidepupNvda } from "./guidepup/nvda.js";
 import {
   guidepupInstall,
@@ -711,7 +715,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   /**
    * axe-core's check of the page that's open, in the browser that holds it, under the address the
    * page loaded at: see axeCheckOf. It presses no key, and leaves the window and its title as they
-   * are.
+   * are. One left running at its limit ends when the page is next opened, with its browser.
    */
   async checkWithAxe(): Promise<AxeCapture> {
     const { session } = this.onPage();
@@ -920,7 +924,8 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   /**
    * The browser for the next load. The browser launched at start serves the first load; after
    * that each load gets a new one. The new one launches before the old one closes, so Windows
-   * hands the foreground from the old window to the new one.
+   * hands the foreground from the old window to the new one. Closing the old one ends what it still
+   * had under way, with its page: a check with axe that ran out of time (see axeCheckOf) included.
    */
   private async freshSession(generation: number): Promise<BrowserSession> {
     if (this.session && !this.sessionUsed) {
@@ -1122,9 +1127,11 @@ interface Current {
 /**
  * axe-core's check of the page `session` holds, which is at `url`: what voicecap keeps of axe's
  * results, or the reason there are none (its first line: see axeErrorReason). axe gets
- * AXE_LIMIT_MS; a check still under way then can't be stopped, so it's left behind. Neither a check
- * that fails nor one that runs out of time fails the page: axe's results are evidence beside the
- * transcripts, not part of them. Only a browser that's gone fails it, as it would any step.
+ * AXE_LIMIT_MS. A check still under way then can't be stopped, so its reason says it's left running
+ * in the page (`leftRunning`): the core opens the page again before any key, and the fresh browser
+ * that load gets (`freshSession`) closes this one, which ends the check. Neither a check that fails
+ * nor one that runs out of time fails the page: axe's results are evidence beside the transcripts,
+ * not part of them. Only a browser that's gone fails it, as it would any step.
  */
 export async function axeCheckOf(session: BrowserSession, url: string): Promise<AxeCapture> {
   try {
@@ -1136,7 +1143,10 @@ export async function axeCheckOf(session: BrowserSession, url: string): Promise<
     return keptAxeResults(raw, url);
   } catch (error) {
     if (error instanceof EnvironmentError && error.failure === "browser") throw error;
-    return { error: axeErrorReason(error) };
+    const reason = axeErrorReason(error);
+    return error instanceof LimitReachedError
+      ? { error: reason, leftRunning: true }
+      : { error: reason };
   }
 }
 

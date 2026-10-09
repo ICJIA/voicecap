@@ -41,6 +41,7 @@ During a run, voicecap checks each page with axe-core, the open-source accessibi
 - **Bounded, and never a failure:**
   - It has its own limit of 20 seconds. Past the limit, or on any error, it gives `{ error }`, as the screenshot does: the first line of what went wrong, cut to 300 UTF-16 code units, so the reason holds no stack.
   - The page is read as usual, and its record says why axe has no result.
+  - A check still under way at the limit can't be stopped, and it would hold up the first pass's keys, so its `{ error }` adds `leftRunning: true`, and the runner opens the page again before the first pass's first key, with the first open's time limit and failure handling (a later load's address only warns). The Guidepup driver's fresh browser for that load closes the old one, which ends the check. axe doesn't check the new load, and the page's record keeps the reason.
   - A browser that's gone is still the environment error it is today.
 - **What's kept of axe's results,** in `pages/<slug>/axe.json`. axe's full output repeats every element that passed, so only this is kept:
   - `schemaVersion: 1`, the axe-core version, the tags run, and `url`;
@@ -127,6 +128,7 @@ The files and fingerprints table gains the `axe.json` rows.
   - axe runs once a page, on the first load, after `openPage` and before the first pass's first key;
   - `axe.json` is written and recorded;
   - an `{ error }` is recorded and the page is read as usual;
+  - a check left running at its limit has the page opened again before the first key, and a check that answered or failed sooner doesn't; a page that won't open again fails the attempt as one that wouldn't open does;
   - no axe on a skipped page, a 4xx, or a 5xx;
   - a driver without the method records no `axe`.
 - **The record and verify:**

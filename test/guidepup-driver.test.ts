@@ -518,11 +518,41 @@ describe("checking the page with axe", () => {
       await vi.advanceTimersByTimeAsync(AXE_LIMIT_MS - 1);
       expect(settled).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
-      expect(await checking).toEqual({ error: "timed out after 20s" });
+      // The check is still under way in the page: it says so, for the core to open the page again.
+      expect(await checking).toStrictEqual({ error: "timed out after 20s", leftRunning: true });
     } finally {
       vi.useRealTimers();
     }
     expect(await hanging.driver.nextLine()).toBe("nextLine speech");
+  });
+
+  it("says a check that failed before its limit isn't under way any more", async () => {
+    const failing = await opened(new Error("axe is not defined"));
+    expect(await failing.driver.checkWithAxe()).toStrictEqual({ error: "axe is not defined" });
+    const garbled = await opened({ violations: "none" });
+    expect(await garbled.driver.checkWithAxe()).not.toHaveProperty("leftRunning");
+  });
+
+  it("closes the browser a check was left running in when the page is opened again", async () => {
+    const { driver, desktop } = await opened(AXE_HANGS);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const checking = driver.checkWithAxe();
+      while (!desktop.events.includes("axe")) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      await vi.advanceTimersByTimeAsync(AXE_LIMIT_MS);
+      expect(await checking).toMatchObject({ leftRunning: true });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // The load after it is in a browser of its own, and the one the check was in is closed.
+    await driver.openPage(URL_HOME);
+    expect(desktop.sessions).toHaveLength(2);
+    expect(desktop.sessions[0]?.closed).toBe(true);
+    expect(desktop.sessions[1]?.closed).toBe(false);
+    expect(desktop.session.loaded).toEqual([URL_HOME]);
   });
 
   it("says the browser is gone as an environment error", async () => {

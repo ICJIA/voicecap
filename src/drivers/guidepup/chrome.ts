@@ -808,13 +808,24 @@ function pixelRatio(screen: unknown, css: unknown): number {
 }
 
 /**
- * `work`, or a rejection with `message` once `ms` have passed without it finishing. The work isn't
- * stopped: what it gives or throws later is ignored.
+ * What `withinLimit` rejects with when the time it gave the work has passed: the work wasn't
+ * stopped, so it may still be under way.
+ */
+export class LimitReachedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LimitReachedError";
+  }
+}
+
+/**
+ * `work`, or a rejection with `message` (a LimitReachedError) once `ms` have passed without it
+ * finishing. The work isn't stopped: what it gives or throws later is ignored.
  */
 export function withinLimit<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const limit = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(message)), ms);
+    timer = setTimeout(() => reject(new LimitReachedError(message)), ms);
   });
   return Promise.race([work, limit]).finally(() => clearTimeout(timer));
 }

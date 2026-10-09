@@ -10,7 +10,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { keptAxeResults } from "../src/axe/results.js";
-import type { AxeCapture } from "../src/drivers/types.js";
+import { ForegroundError, type AxeCapture } from "../src/drivers/types.js";
 import type * as Api from "../src/index.js";
 import type { FileHash, PageRecord } from "../src/model.js";
 import { runAudit, type RunAuditOptions, type RunAuditResult } from "../src/run/audit.js";
@@ -144,6 +144,152 @@ describe("a page's axe results, in a run", () => {
     expect(existsSync(axeOf(dir, run))).toBe(false);
     expect(Object.keys(page.files).sort()).toEqual(TRANSCRIPTS);
     expect(await problemsIn(dir)).toBe(0);
+  });
+
+  describe("when a check is still going at its limit", () => {
+    /** What the driver gives for a check it stopped waiting for, which goes on in the page. */
+    const LEFT_RUNNING: AxeCapture = { error: "timed out after 20s", leftRunning: true };
+
+    it("opens the page again before the first key, so the check ends with its browser, and keeps the reason", async () => {
+      const { dir, driver, run, page } = await runHome(LEFT_RUNNING);
+      expect(page.status).toBe("done");
+
+      // The check, then the page opened again, then the read pass's first key (Ctrl+End), on the
+      // load opened after the check. The check isn't made again on it.
+      expect(driver.calls.slice(0, 4)).toEqual([
+        "openPage",
+        "checkWithAxe",
+        "openPage",
+        "toBottom",
+      ]);
+      expect(driver.calls.filter((call) => call === "openPage")).toHaveLength(4);
+      expect(driver.calls.filter((call) => call === "checkWithAxe")).toHaveLength(1);
+      // The record keeps the reason, as for any check that gave none, and nothing more.
+      expect(page.axe).toEqual({
+        error: "timed out after 20s",
+        ranAt: expect.stringMatching(ISO_MS) as unknown,
+      });
+      expect(existsSync(axeOf(dir, run))).toBe(false);
+      expect(Object.keys(page.files).sort()).toEqual(TRANSCRIPTS);
+      expect(page.passes.read?.warnings).toEqual([]);
+      expect(await problemsIn(dir)).toBe(0);
+    });
+
+    it.each<[what: string, axe: AxeCapture]>([
+      ["answered", results(`${SITE}/`, [rawRule("image-alt")])],
+      ["failed before its limit", { error: "TypeError: axe.run is not a function" }],
+    ])("doesn't open the page again after a check that %s", async (_, axe) => {
+      const { driver, page } = await runHome(axe);
+      expect(page.status).toBe("done");
+      expect(driver.calls.slice(0, 3)).toEqual(["openPage", "checkWithAxe", "toBottom"]);
+      expect(driver.calls.filter((call) => call === "openPage")).toHaveLength(3);
+    });
+
+    it("words a load that ends elsewhere as a warning, as for any load after the first", async () => {
+      const dir = await setup(["/"]);
+      const driver = new ScriptedDriver(sitePages({ home: { axe: LEFT_RUNNING } }));
+      // The load after the check is redirected; the page's first load wasn't.
+      const open = driver.openPage.bind(driver);
+      let opens = 0;
+      driver.openPage = async (url) => {
+        const info = await open(url);
+        return ++opens === 2 ? { ...info, finalUrl: `${SITE}/home/` } : info;
+      };
+      const run = await runAudit(options(dir, driver));
+      const page = run.run.pages[0]!;
+
+      expect(page).toMatchObject({ status: "done", finalUrl: `${SITE}/` });
+      expect(page.passes.read?.warnings).toEqual([
+        `This load ended at ${SITE}/home/; the page's first load ended at ${SITE}/.`,
+      ]);
+      // The transcript is of the load that was read.
+      const read = JSON.parse(
+        await readFile(path.join(pageDir(outDir(dir), run.runId, "home"), "read.json"), "utf8"),
+      ) as { page: { finalUrl: string } };
+      expect(read.page.finalUrl).toBe(`${SITE}/home/`);
+    });
+
+    describe("a page that won't open again", () => {
+      const lost = new ForegroundError("The browser lost the foreground to another window");
+
+      it("fails the attempt as a page that wouldn't open does, and tries the page again after a restart", async () => {
+        const dir = await setup(["/"]);
+        let opens = 0;
+        const driver = new ScriptedDriver(sitePages({ home: { axe: LEFT_RUNNING } }), {
+          fail: (command) => (command === "openPage" && ++opens === 2 ? lost : null),
+        });
+        const run = await runAudit(options(dir, driver));
+        const page = run.run.pages[0]!;
+
+        expect(page).toMatchObject({ status: "done", attempts: 2 });
+        expect(page.failedAttempts).toEqual([
+          expect.objectContaining({
+            n: 1,
+            pass: "read",
+            step: null,
+            command: "openPage",
+            cause: "foreground",
+            restarted: true,
+          }),
+        ]);
+        expect(page.errors).toEqual([
+          "Attempt 1 failed (Could not open the page for the read pass: The browser lost the foreground to another window); retrying.",
+        ]);
+        expect(driver.stops).toBeGreaterThanOrEqual(1);
+        // The second attempt was checked, opened again, and read.
+        expect(driver.calls.filter((call) => call === "checkWithAxe")).toHaveLength(2);
+        expect(page.axe).toEqual({
+          error: "timed out after 20s",
+          ranAt: expect.stringMatching(ISO_MS) as unknown,
+        });
+        expect(await problemsIn(dir)).toBe(0);
+      });
+
+      it("records one that hangs as an open-timeout, within the time a page has to open", async () => {
+        const dir = await setup(["/"]);
+        let opens = 0;
+        const driver = new ScriptedDriver(sitePages({ home: { axe: LEFT_RUNNING } }), {
+          hang: (command) => command === "openPage" && ++opens === 2,
+        });
+        const run = await runAudit(options(dir, driver));
+        const page = run.run.pages[0]!;
+
+        expect(page).toMatchObject({ status: "done", attempts: 2 });
+        expect(page.failedAttempts).toEqual([
+          expect.objectContaining({
+            n: 1,
+            pass: "read",
+            step: null,
+            command: "openPage",
+            cause: "open-timeout",
+            message: expect.stringMatching(/^Opening the page did not finish within /) as unknown,
+            restarted: true,
+          }),
+        ]);
+      });
+
+      it("leaves the page pending, and the attempt uncounted, when Ctrl+C comes as it opens again", async () => {
+        const dir = await setup(["/"]);
+        const controller = new AbortController();
+        const driver = new ScriptedDriver(sitePages({ home: { axe: LEFT_RUNNING } }));
+        const open = driver.openPage.bind(driver);
+        let opens = 0;
+        driver.openPage = (url) => {
+          if (++opens === 1) return open(url);
+          setTimeout(() => controller.abort(), 20);
+          return new Promise(() => {});
+        };
+        const run = await runAudit(options(dir, driver, { signal: controller.signal }));
+        expect(run.outcome).toBe("interrupted");
+        // Before the read pass's first key.
+        expect(driver.calls).not.toContain("toBottom");
+
+        const saved = (await readRunJson(outDir(dir), run.runId)).pages[0]!;
+        expect(saved).toMatchObject({ status: "pending", attempts: 0 });
+        expect(saved).not.toHaveProperty("failedAttempts");
+        expect(saved).not.toHaveProperty("axe");
+      });
+    });
   });
 
   it("doesn't check a page it skips, or one that answered 4xx or 5xx", async () => {

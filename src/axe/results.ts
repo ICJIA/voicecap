@@ -29,7 +29,10 @@ export const AXE_TAGS: readonly string[] = Object.freeze([
   "best-practice",
 ]);
 
-/** How long axe gets to check a page. Past it, the page has no result from axe, and is read as usual. */
+/**
+ * How long axe gets to check a page. Past it, the page has no result from axe. A check can't be
+ * stopped, so the page is opened again, in a load the check isn't under way in, and read as usual.
+ */
 export const AXE_LIMIT_MS = 20_000;
 /** The most elements kept for one rule; the rest are counted. */
 export const MAX_NODES = 50;

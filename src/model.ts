@@ -229,8 +229,10 @@ export const AXE_FILE = "axe.json";
  * A page's axe-core check, as the page's record keeps it, beside its screenshot's. Results that were
  * kept have the file's SHA-256 and size, and what they come to (see AxeSummary): axe's version, how
  * many rules found violations, needed review, passed, and didn't apply, and the violations by
- * impact. A check that couldn't be made has the reason, and no file. Both have when the run
- * recorded it (a local ISO time to the millisecond), a moment after the driver ran axe, or tried to.
+ * impact. A check that couldn't be made has the reason, and no file: one that ran out of time too,
+ * though it went on in the page, which was then opened again for the screen reader to read. Both
+ * have when the run recorded it (a local ISO time to the millisecond), a moment after the driver ran
+ * axe, or tried to.
  */
 export type AxeRecord =
   (FileHash & AxeSummary & { ranAt: string }) | { error: string; ranAt: string };
@@ -317,7 +319,9 @@ export interface AttemptRecord {
    * names axe ("Could not check the page with axe for the read pass: …"). An HTTP error before the
    * first key has no command (null), and the shareable page words it "…while loading the page". A
    * check that fails, or runs out of its 20 seconds, isn't a failure: the page's `axe` records why,
-   * and the page is read as usual.
+   * and the page is read as usual. After one that ran out of time, the page is opened again before
+   * the pass's first key, since the check is still under way in the first load, and a page that
+   * won't open then is a page that wouldn't open, with "openPage" and the words that go with it.
    */
   command: DriverCommand | "openPage" | null;
   cause: FailureCause;

@@ -265,27 +265,42 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
   const failedWith = (problem: Problem): { record: FailedAttempt } => ({
     record: { startedAt, endedAt: isoLocalMs(ctx.now()), ...problem },
   });
+  // Have the driver open the page for a pass, within the time a page has to open.
+  const open = (): Promise<PageInfo> =>
+    withTimeout(
+      `Opening the page`,
+      () => session.driver.openPage(page.url),
+      ctx.openTimeoutMs,
+      signal,
+      "open-timeout",
+    );
+  // How an attempt ends when the page wouldn't open for `pass`: it's tried again after a restart.
+  // Ctrl+C isn't that: it leaves the page pending.
+  const notOpened = (pass: PassName, error: unknown): Attempt => {
+    if (error instanceof InterruptedError) throw error;
+    return {
+      ...loaded,
+      kind: "retry",
+      failure: "environment",
+      restart: true,
+      error: `Could not open the page for the ${pass} pass: ${errorMessage(error)}`,
+      ...failedWith(problemOf(pass, failureOf(error), "openPage")),
+    };
+  };
+  // A load after the page's first that ended somewhere else is read all the same, with a warning.
+  const elsewhere = (info: PageInfo): string[] =>
+    info.finalUrl === loaded.finalUrl
+      ? []
+      : [
+          `This load ended at ${info.finalUrl}; the page's first load ended at ${loaded.finalUrl ?? "?"}.`,
+        ];
   try {
     for (const [index, pass] of ctx.passes.entries()) {
       let info: PageInfo;
       try {
-        info = await withTimeout(
-          `Opening the page`,
-          () => session.driver.openPage(page.url),
-          ctx.openTimeoutMs,
-          signal,
-          "open-timeout",
-        );
+        info = await open();
       } catch (error) {
-        if (error instanceof InterruptedError) throw error;
-        return {
-          ...loaded,
-          kind: "retry",
-          failure: "environment",
-          restart: true,
-          error: `Could not open the page for the ${pass} pass: ${errorMessage(error)}`,
-          ...failedWith(problemOf(pass, failureOf(error), "openPage")),
-        };
+        return notOpened(pass, error);
       }
 
       const warnings: string[] = [];
@@ -340,10 +355,20 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         }
         const axe = await keepAxe(ctx, dir, checked);
         if (axe) loaded.axe = axe;
-      } else if (info.finalUrl !== loaded.finalUrl) {
-        warnings.push(
-          `This load ended at ${info.finalUrl}; the page's first load ended at ${loaded.finalUrl ?? "?"}.`,
-        );
+        // A check that ran out of time is still under way in the page, where it would hold up the
+        // pass's keys: open the page again, as for the passes after this one. The driver's next load
+        // ends the check (the Guidepup driver's fresh browser closes the one it's in). This load is
+        // the one the pass reads, and the page's record keeps the check's reason.
+        if (checked !== undefined && "error" in checked && checked.leftRunning === true) {
+          try {
+            info = await open();
+          } catch (error) {
+            return notOpened(pass, error);
+          }
+          warnings.push(...elsewhere(info));
+        }
+      } else {
+        warnings.push(...elsewhere(info));
       }
 
       const result = await runPass(pass, session.driver, ctx.passSettings(pass), signal, ctx.clock);
