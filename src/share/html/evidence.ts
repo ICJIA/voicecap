@@ -238,11 +238,12 @@ function timelinePart({ run, timeline, unlogged, screenReader }: RunEvidence): s
 }
 
 /**
- * A run's NVDA log, checked against the transcripts: three tiles with the counts, that every line
- * agrees or the lists of the lines that differ (each under a heading of its own, which sits one
- * level under the part's), how many lines NVDA spoke outside the steps, and the steps that weren't
- * checked. Where there is no check, why, as the model words it. A line's words are text, whatever
- * they hold, in the box the cards of what needs attention use for what NVDA said.
+ * A run's NVDA log, checked against the transcripts: three tiles with the counts, the steps that
+ * weren't checked, straight under them (so nothing after them reads as speaking for those steps),
+ * that every line agrees or the lists of the lines that differ (each under a heading of its own,
+ * which sits one level under the part's), and how many lines NVDA spoke outside the steps. Where
+ * there is no check, why, as the model words it. A line's words are text, whatever they hold, in the
+ * box the cards of what needs attention use for what NVDA said.
  */
 function nvdaLogPart({ nvdaLog }: RunEvidence): string {
   if ("notRecorded" in nvdaLog) return notRecorded(nvdaLog.notRecorded);
@@ -260,10 +261,10 @@ function nvdaLogPart({ nvdaLog }: RunEvidence): string {
   });
   const parts = [
     `<div class="cross">${tiles.join("")}</div>`,
+    ...words.notChecked.map((line) => `<p>${esc(line)}</p>`),
     words.same === null ? "" : verdictLine(words.same),
     ...lists,
     `<p>${esc(words.outside)}</p>`,
-    ...words.notChecked.map((line) => `<p>${esc(line)}</p>`),
   ];
   return `<div class="log-check">${parts.filter((part) => part !== "").join("")}</div>`;
 }

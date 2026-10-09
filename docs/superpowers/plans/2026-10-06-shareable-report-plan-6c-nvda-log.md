@@ -1,4 +1,4 @@
-# NVDA's own log, checked against the transcripts (0.12.0) Implementation Plan
+# NVDA's own log, checked against the transcripts (0.17.0) Implementation Plan
 
 **Goal:**
 - Each run keeps a cleaned copy of NVDA's own log for every NVDA session, sealed with the run.
@@ -60,7 +60,7 @@ This plan amends C with the owner's decision.
   - `voicecap verify` passes on an older home;
   - `RunSettings` gains nothing.
 - **Public API:** what `EventRecorder` and `NewRunEvent` gain is optional, and the CHANGELOG lists it.
-- **The first version that keeps NVDA's log is 0.12.0.**
+- **The first version that keeps NVDA's log is 0.17.0.**
 - **Wording:**
   - never describe voicecap as automated testing or an automated checker;
   - never say the person "listened" (keep "listen-through");
@@ -280,7 +280,7 @@ This plan amends C with the owner's decision.
   - **Outside the steps:** `{n} lines NVDA spoke outside voicecap's steps (while pages loaded, before the run, or in attempts that were thrown out) aren't compared or shown.`
   - **Not recorded, by reason:**
     - an older run's: `notRecordedBy(version)`;
-    - a 0.12.0 run with no copy: `Not recorded: this run kept no copy of NVDA's log.`;
+    - a 0.17.0 run with no copy: `Not recorded: this run kept no copy of NVDA's log.`;
     - a run whose screen reader isn't NVDA: `Not recorded: this check is NVDA's only, since VoiceOver keeps no log of what it says.`
   - **A copy that isn't as recorded:** `Not shown: NVDA's log isn't as the run recorded it; voicecap verify names it.`
 
@@ -313,7 +313,7 @@ This plan amends C with the owner's decision.
 - [ ] **Step 1: Write the failing tests:**
   - an `ERROR` entry with a traceback, inside a problem's window, is a row with `source: "nvda-log"`, its time, and its lines;
   - one outside the window isn't;
-  - a 0.12.0 run that kept a copy no longer says NVDA's log isn't recorded;
+  - a 0.17.0 run that kept a copy no longer says NVDA's log isn't recorded;
   - an older run still does.
 - [ ] **Step 2:** Run it. Expected: FAIL.
 - [ ] **Step 3: Implement.**
@@ -325,7 +325,7 @@ This plan amends C with the owner's decision.
 **Files:** `README.md`, `CHANGELOG.md`, `src/share/text.ts` (the TIMELINE "Next" row), the tests that pin it, `docs/phase-c-handoff.md`, and the spec
 
 - [ ] **Step 1: The README.**
-  - **The evidence's parts:** all five are recorded from 0.12.0.
+  - **The evidence's parts:** all five are recorded from 0.17.0.
   - **What a run's folder holds:** `nvda-log/<session>-<n>.txt` and what each keeps.
   - **The owner's privacy rule:** what's left out, and that the raw log is never copied.
   - **How to turn it off:** `nvdaSettings.general.loggingLevel: "OFF"` in the config.
@@ -336,16 +336,17 @@ This plan amends C with the owner's decision.
     - NVDA's warnings and errors in a problem's record;
     - the API's `EventRecorder.screenReaderLog` and the `screen-reader-log` event.
   - **Changed:** voicecap's NVDA now logs at the input/output level.
-- [ ] **Step 3: The TIMELINE's "Next" row.** Its `pc` becomes `A security review of everything voicecap does on a PC.` The release adds 0.12.0's row. Update the tests that pin it.
+- [ ] **Step 3: The TIMELINE's "Next" row.** Its `pc` becomes `A security review of everything voicecap does on a PC.` The release adds 0.17.0's row. Update the tests that pin it.
 - [ ] **Step 4: The spec's C,** with the owner's decision and the settled facts. Then the handoff note's "where things stand". Then run `pnpm lint && pnpm typecheck && pnpm test`.
 - [ ] **Step 5:** Commit: `Describe NVDA's own log, and its check, in the README and the CHANGELOG`.
 
 ### At the PC: the controller, with the owner
 
-Real runs need the owner's OK and the warning every time: hands off the keyboard and mouse, Do Not Disturb on, and the screen awake and unlocked. No subagent does any of this.
+Real runs need the owner's OK and the warning every time: hands off the keyboard and mouse, Do Not Disturb on, and the screen awake and unlocked. Only the controller does any of this, with the owner.
 
+0. **Merge main into the branch first,** resolve, and run the full suite (`pnpm lint`, `pnpm typecheck`, and `pnpm test`), so the session runs the code that ships.
 1. **Prepare.**
-   - Build the branch, with `package.json` set to `0.12.0-rc.0` for the session only, then restored.
+   - Build the branch, with `package.json` set to `0.17.0-rc.0` for the session only, then restored.
    - Serve the demo with the built `startDemoServer`.
    - Work in `C:\Users\cschw\voicecap-check\plan6c`, and give every run `--out`.
 2. **Start with the computer's own NVDA running,** so its restart at the end is tested. Run the demo's seven pages. Check:
@@ -363,12 +364,12 @@ Real runs need the owner's OK and the warning every time: hands off the keyboard
 ### The release
 
 1. Merge to `main` once CI is green on the pushed branch.
-2. "Prepare 0.12.0":
+2. "Prepare 0.17.0":
    - the CHANGELOG heading and its compare link;
-   - the TIMELINE's 0.12.0 row (`both`: `<b>0.12.0</b>: NVDA's own log, kept cleaned with each run and checked against the transcripts, line by line.`);
+   - the TIMELINE's 0.17.0 row (`both`: `<b>0.17.0</b>: NVDA's own log, kept cleaned with each run and checked against the transcripts, line by line.`);
    - the tests that pin the newest row.
 3. Run `./publish.sh --dry-run minor` in the foreground. Then check `npm whoami`, and ask the owner for a login if needed.
-4. Publish with the owner's 2FA code. Commit "Release v0.12.0", tag it, and push.
-5. Once `npm view @icjia/voicecap@0.12 version` prints 0.12.0, wait a minute more. Then set the transcripts repo's `netlify.toml` to `@0.12`, and commit and push.
+4. Publish with the owner's 2FA code. Commit "Release v0.17.0", tag it, and push.
+5. Once `npm view @icjia/voicecap@0.17 version` prints 0.17.0, wait a minute more. Then set the transcripts repo's `netlify.toml` to `@0.17`, and commit and push.
 6. Check the live site against a local build.
 7. Record the release in the handoff note.

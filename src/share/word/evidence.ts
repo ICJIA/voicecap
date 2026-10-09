@@ -188,18 +188,19 @@ function eventLogBlocks({ timeline, unlogged }: RunEvidence): Block[] {
 }
 
 /**
- * A run's NVDA log, checked against the transcripts, in the page's words (../words.ts): its three
- * counts as a list, that every line agrees, or each list of the lines that differ under a bold line
- * of its own, how many lines NVDA spoke outside the steps, and the steps that weren't checked. The
- * part is under a heading 3, which the details set to a 4, and a Word heading goes no lower, so the
- * lists have no headings: each bold line is followed by its list, which the document keeps with it.
- * Where there is no check, why, as the model words it.
+ * A run's NVDA log, checked against the transcripts, in the page's words (../log-words.ts): its three
+ * counts as a list, the steps that weren't checked, straight under them, as the page says them, that
+ * every line agrees, or each list of the lines that differ under a bold line of its own, and how many
+ * lines NVDA spoke outside the steps. The part is under a heading 3, which the details set to a 4,
+ * and a Word heading goes no lower, so the lists have no headings: each bold line is followed by its
+ * list, which the document keeps with it. Where there is no check, why, as the model words it.
  */
 function nvdaLogBlocks({ nvdaLog }: RunEvidence): Block[] {
   if ("notRecorded" in nvdaLog) return [para(notRecordedLine(nvdaLog.notRecorded))];
   const words = nvdaLogWords(nvdaLog);
   return [
     list(words.tiles.map(({ big, label }) => `${big} ${label}`)),
+    ...words.notChecked.map((line) => para(line)),
     ...(words.same === null ? [] : [para(...firstSentenceBold(words.same))]),
     ...words.lists.flatMap(({ title, lines }) => [
       para({ text: title, bold: true }),
@@ -211,7 +212,6 @@ function nvdaLogBlocks({ nvdaLog }: RunEvidence): Block[] {
       ),
     ]),
     para(words.outside),
-    ...words.notChecked.map((line) => para(line)),
   ];
 }
 

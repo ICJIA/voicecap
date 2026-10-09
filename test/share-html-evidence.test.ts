@@ -34,7 +34,7 @@ import type { SessionTimeline } from "../src/share/timeline.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { inRun } from "../src/share/words.js";
 import { TINY_RECORD } from "./helpers/jpeg.js";
-import { nvdaFixtureSite } from "./helpers/nvda-log.js";
+import { FIRST_COPY, keptLogsRun, nvdaFixtureSite } from "./helpers/nvda-log.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
 import {
@@ -1241,6 +1241,22 @@ describe("renderEvidence", () => {
 
     const OUTSIDE =
       "(while pages loaded, before the run, or in attempts that were thrown out) aren't compared or shown.";
+    /** The same, for a run some of whose steps weren't checked: their speech is among it. */
+    const OUTSIDE_SOME =
+      "(while pages loaded, before the run, in attempts that were thrown out, or in steps that weren't checked) aren't compared or shown.";
+
+    /**
+     * The part's words in the order it says them: each tile's number and what it counts, then each
+     * paragraph, list heading, and line of a list.
+     */
+    const wordsInOrder = (part: string): string[] =>
+      [
+        ...part.matchAll(
+          /<div class="big">(.*?)<\/div><div class="sub">(.*?)<\/div>|<p[^>]*>(.*?)<\/p>|<h4>(.*?)<\/h4>|<li class="place">(.*?)<\/li>/gs,
+        ),
+      ].map(([, big, label, paragraph, heading, item]) =>
+        textOf(big === undefined ? (paragraph ?? heading ?? item ?? "") : `${big} ${label}`),
+      );
 
     it("shows the real run: three tiles with the counts, that every line agrees, and the speech left out", async () => {
       const part = partOfModel(await fixtureModel());
@@ -1341,7 +1357,7 @@ describe("renderEvidence", () => {
       );
     });
 
-    it("says how many steps weren't checked, and why, for each group", () => {
+    it("says how many steps weren't checked, and why, for each group, straight under the tiles, which count only what was checked", () => {
       const part = partOfModel(
         showing(
           modelOf([{ path: "/" }]),
@@ -1361,12 +1377,60 @@ describe("renderEvidence", () => {
           }),
         ),
       );
-      const said = [...part.matchAll(/<p>(.*?)<\/p>/g)].map(([, words = ""]) => textOf(words));
 
-      expect(said).toEqual([
-        `3 lines NVDA spoke outside voicecap's steps ${OUTSIDE}`,
+      // Before what the check found, so it never reads as speaking for the steps it didn't check.
+      expect(wordsInOrder(part)).toEqual([
+        "16 lines in voicecap's transcripts that were checked",
+        "16 lines NVDA's own log has for those steps",
+        "16 agree",
         "8 steps from the NVDA session that started 26 September 2026, 14:04 weren't checked: NVDA's log wasn't there.",
         "1 step wasn't checked: the transcripts' steps couldn't be read here.",
+        "Every line that was checked agrees.",
+        `3 lines NVDA spoke outside voicecap's steps ${OUTSIDE_SOME}`,
+      ]);
+      expect(part).toContain(
+        '<p class="prob-verdict"><b>Every line that was checked agrees.</b></p>',
+      );
+      expect(textOf(part)).not.toContain("Every line agrees.");
+      expect(textOf(part)).not.toContain("for this run");
+    });
+
+    it("says what it checked of a run whose NVDA sessions were checked in part, the groups that weren't with why, then the lines that differ", () => {
+      const kept = keptLogsRun();
+      // NVDA said "Grant" for "Grants" in the first session (Home); the second session kept no copy,
+      // and its log says why; the third's stop has no event of its copy, so the log names none.
+      const copies = new Map(kept.copies).set(
+        FIRST_COPY,
+        (kept.copies.get(FIRST_COPY) ?? "").replaceAll("'Grants'", "'Grant'"),
+      );
+      const events = kept.log.events.flatMap((event): RunEvent[] => {
+        if (event.type !== "screen-reader-log") return [event];
+        if (event.file === "nvda-log/1-2.txt") {
+          return [{ ...event, file: null, reason: "NVDA's log wasn't there." }];
+        }
+        return event.file === "nvda-log/2-1.txt" ? [] : [event];
+      });
+      const model = buildShareModel(
+        inputOf([kept.run], {
+          transcripts: kept.transcripts,
+          events: new Map([[kept.run.id, { events, unreadable: 0 }]]),
+          nvdaLogs: new Map([[kept.run.id, copies]]),
+        }),
+      );
+
+      expect(wordsInOrder(partOfModel(model))).toEqual([
+        "8 lines in voicecap's transcripts that were checked",
+        "8 lines NVDA's own log has for those steps",
+        "6 agree",
+        "8 steps from the NVDA session that started 26 September 2026, 14:04 weren't checked: NVDA's log wasn't there.",
+        "8 steps from the NVDA session that started 28 September 2026, 09:00 weren't checked: voicecap kept no copy of NVDA's log for that session.",
+        "Said in NVDA's own log, not in the transcripts",
+        "Home, Read pass, step 2: “heading, level 1, Grant”",
+        "Home, Headings pass, step 1: “heading, level 1, Grant”",
+        "In the transcripts, not in NVDA's own log",
+        "Home, Read pass, step 2: “heading, level 1, Grants”",
+        "Home, Headings pass, step 1: “heading, level 1, Grants”",
+        `9 lines NVDA spoke outside voicecap's steps ${OUTSIDE_SOME}`,
       ]);
     });
 

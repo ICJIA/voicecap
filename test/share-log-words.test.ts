@@ -146,6 +146,27 @@ describe("nvdaLogWords", () => {
     expect(nvdaLogWords(checked({ onlyInTranscripts: one })).same).toBeNull();
   });
 
+  it("counts only what it checked when some steps weren't, and says that every line checked agrees", () => {
+    const some = [unchecked("reason", { detail: "NVDA's log wasn't there." })];
+    const words = nvdaLogWords(checked({ transcriptLines: 13, notChecked: some }));
+
+    expect(words.tiles).toEqual([
+      { big: "13", label: "lines in voicecap's transcripts that were checked" },
+      { big: "12", label: "lines NVDA's own log has for those steps" },
+      { big: "12", label: "agree" },
+    ]);
+    expect(words.same).toBe(
+      "Every line that was checked agrees. 1 step had no words in the transcripts or in NVDA's own log.",
+    );
+    expect(
+      nvdaLogWords(checked({ transcriptLines: 1, logLines: 1, agree: 1, notChecked: some }))
+        .tiles[0],
+    ).toEqual({ big: "1", label: "line in voicecap's transcripts that was checked" });
+    // A line that differs: nothing says the lines agree, whatever was checked.
+    const one = [{ page: "/", pass: "read" as const, step: 1, text: "x" }];
+    expect(nvdaLogWords(checked({ onlyInLog: one, notChecked: some })).same).toBeNull();
+  });
+
   it("lists the lines that differ, the log's first, each where it is, with its words as they are", () => {
     const words = nvdaLogWords(
       checked({
@@ -168,7 +189,7 @@ describe("nvdaLogWords", () => {
     ]);
   });
 
-  it("says how much speech was left out, and the steps that weren't checked", () => {
+  it("says how much speech was left out, and the steps that weren't checked, whose speech is among it", () => {
     const words = nvdaLogWords(
       checked({
         outside: 1204,
@@ -177,11 +198,17 @@ describe("nvdaLogWords", () => {
     );
 
     expect(words.outside).toBe(
-      "1,204 lines NVDA spoke outside voicecap's steps (while pages loaded, before the run, or in attempts that were thrown out) aren't compared or shown.",
+      "1,204 lines NVDA spoke outside voicecap's steps (while pages loaded, before the run, in attempts that were thrown out, or in steps that weren't checked) aren't compared or shown.",
     );
     expect(words.notChecked).toEqual([
       `8 steps from the NVDA session that started ${WHEN} weren't checked: voicecap kept no copy of NVDA's log for that session.`,
       "8 steps weren't checked: the transcripts' steps couldn't be read here.",
     ]);
+  });
+
+  it("says the speech left out as it always has when every step was checked", () => {
+    expect(nvdaLogWords(checked({ outside: 1 })).outside).toBe(
+      "1 line NVDA spoke outside voicecap's steps (while pages loaded, before the run, or in attempts that were thrown out) isn't compared or shown.",
+    );
   });
 });

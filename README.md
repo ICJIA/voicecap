@@ -1446,9 +1446,11 @@ Its sections, in order:
     **NVDA's own log, checked against the transcripts** (from 0.17.0) sets NVDA's record of what it said against voicecap's transcripts. Each run keeps a cleaned copy of NVDA's own log (see [What each run records](#what-each-run-records)). For each step of the run's kept transcripts, the check takes the speech NVDA's log has after the key voicecap pressed for that step, and compares it with the step's line. The part shows:
 
     - three numbers: the lines in voicecap's transcripts for the run, the lines NVDA's own log has for those steps, and how many agree;
+    - any steps that weren't checked, with how many and why, straight under the numbers;
     - "Every line agrees.", or every line that differs, in either direction, in two lists, "Said in NVDA's own log, not in the transcripts" and "In the transcripts, not in NVDA's own log", each line with its page, pass, and step, and its words;
-    - how many lines NVDA spoke outside voicecap's steps (while pages loaded, before the run, or in attempts that were thrown out), which are counted and never shown;
-    - any steps that weren't checked, with how many and why.
+    - how many lines NVDA spoke outside voicecap's steps (while pages loaded, before the run, or in attempts that were thrown out), which are counted and never shown.
+
+    When some steps weren't checked, the part speaks only for those that were: the first number counts the lines that were checked, it says "Every line that was checked agrees." in place of "Every line agrees.", and the speech it leaves out includes that of steps that weren't checked.
 
     **How a step is paired with NVDA's log.** Each NVDA session is checked with its own copy, which the run's event log names (the `screen-reader-log` event after the session's stop), never by the copy's number, so one session without a copy can't shift the others onto the wrong log. A pass is checked only inside the window of the attempt that was kept for its page, from that attempt's start to its finish in the event log, to the millisecond. The keys and speech of any other attempt (a failed one, or one the person stopped) and of any other page are never paired with a step, and what falls between pages is outside the steps. The first Tab on each page goes to the browser, not through NVDA, so NVDA's log has no key for that step, and the check finds its speech by when it was said. The check never looks at what was said to decide which speech is a step's.
 

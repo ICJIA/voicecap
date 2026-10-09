@@ -681,11 +681,14 @@ export const EVIDENCE_TEXT = {
 export const NVDA_LOG_TEXT = {
   /**
    * The three tiles, what each counts after its number ("204 lines in voicecap's transcripts for this
-   * run"). The page sets the number large and the rest small; the Word copy says each as a line.
+   * run"). The page sets the number large and the rest small; the Word copy says each as a line. When
+   * some steps weren't checked, the first counts only the lines that were (`checked`).
    */
   tiles: {
     transcripts: (lines: number): string =>
       `${lines === 1 ? "line" : "lines"} in voicecap's transcripts for this run`,
+    checked: (lines: number): string =>
+      `${lines === 1 ? "line" : "lines"} in voicecap's transcripts that ${lines === 1 ? "was" : "were"} checked`,
     inLog: (lines: number): string =>
       `${lines === 1 ? "line" : "lines"} NVDA's own log has for those steps`,
     agree: (lines: number): string => (lines === 1 ? "agrees" : "agree"),
@@ -700,15 +703,25 @@ export const NVDA_LOG_TEXT = {
     `${page}, ${PASS_TITLE[pass]} pass, step ${step}`,
   /** Said when both lists are empty, always beside the three tiles. */
   same: "Every line agrees.",
+  /** Said in its place when some steps weren't checked: it speaks only for the lines that were. */
+  sameChecked: "Every line that was checked agrees.",
   /**
    * Said after it when the transcripts have more lines than the log does: steps that said nothing,
    * in the transcripts and in the log alike, so there is no line of theirs to compare.
    */
   noWords: (steps: number): string =>
     `${plural(steps, "step")} had no words in the transcripts or in NVDA's own log.`,
-  /** How much speech the check leaves out, and why. */
-  outside: (lines: number): string =>
-    `${count(lines)} ${lines === 1 ? "line" : "lines"} NVDA spoke outside voicecap's steps (while pages loaded, before the run, or in attempts that were thrown out) ${lines === 1 ? "isn't" : "aren't"} compared or shown.`,
+  /**
+   * How much speech the check leaves out, and why. When some steps weren't checked, the speech of
+   * those in a copy that was checked is among it (a page the event log doesn't place, or a pass
+   * whose steps couldn't be read), and the sentence says so.
+   */
+  outside: (lines: number, someNotChecked: boolean): string => {
+    const when = someNotChecked
+      ? "while pages loaded, before the run, in attempts that were thrown out, or in steps that weren't checked"
+      : "while pages loaded, before the run, or in attempts that were thrown out";
+    return `${count(lines)} ${lines === 1 ? "line" : "lines"} NVDA spoke outside voicecap's steps (${when}) ${lines === 1 ? "isn't" : "aren't"} compared or shown.`;
+  },
   /**
    * Why some steps weren't checked, each as a clause that follows "...weren't checked: " and "Not
    * shown: ". The reason a run's own log gives for a session with no copy is said in its own words,

@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
-import type { MachineRecord, PassName } from "../src/model.js";
+import type { MachineRecord, PassName, RunEvent } from "../src/model.js";
 import {
   renderCoverage,
   renderEvidence,
@@ -57,7 +57,7 @@ import { heading, mono, monoCell, para, wordsOf, type Block } from "../src/share
 import { wordCoverage, wordEvidence, wordFooter, wordStory } from "../src/share/word/evidence.js";
 import { keptWithNext, unzipDocx } from "./helpers/docx.js";
 import { TINY_RECORD } from "./helpers/jpeg.js";
-import { nvdaFixtureSite } from "./helpers/nvda-log.js";
+import { FIRST_COPY, keptLogsRun, nvdaFixtureSite } from "./helpers/nvda-log.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { foldsIn, rowsOf, termsOf, textOf } from "./helpers/share-html.js";
 import {
@@ -908,6 +908,9 @@ describe("wordEvidence", () => {
     const TITLE = EVIDENCE_TEXT.parts.nvdaLog;
     const OUTSIDE =
       "(while pages loaded, before the run, or in attempts that were thrown out) aren't compared or shown.";
+    /** The same, for a run some of whose steps weren't checked: their speech is among it. */
+    const OUTSIDE_SOME =
+      "(while pages loaded, before the run, in attempts that were thrown out, or in steps that weren't checked) aren't compared or shown.";
 
     /** The model of the real run of 6 October 2026, as a voicecap that keeps NVDA's log could have made it. */
     async function fixtureModel(
@@ -1043,7 +1046,7 @@ describe("wordEvidence", () => {
       expect(boldIn(linesIn(log)[3] ?? [])).toEqual(["Every line agrees."]);
     });
 
-    it("says how many steps weren't checked, and why, for each group", () => {
+    it("says how many steps weren't checked, and why, for each group, straight under the counts, which count only what was checked", () => {
       const log = logOf(
         showing(
           modelOf([{ path: "/" }]),
@@ -1061,9 +1064,56 @@ describe("wordEvidence", () => {
         ),
       );
 
-      expect(wordsOf(log).slice(-2)).toEqual([
+      // Before what the check found, so it never reads as speaking for the steps it didn't check.
+      expect(wordsOf(log)).toEqual([
+        "12 lines in voicecap's transcripts that were checked",
+        "12 lines NVDA's own log has for those steps",
+        "12 agree",
         "8 steps from the NVDA session that started 26 September 2026, 14:04 weren't checked: NVDA's log wasn't there.",
         "1 step wasn't checked: the transcripts' steps couldn't be read here.",
+        "Every line that was checked agrees.",
+        `3 lines NVDA spoke outside voicecap's steps ${OUTSIDE_SOME}`,
+      ]);
+      expect(log.map(({ kind }) => kind)).toEqual(["list", "para", "para", "para", "para"]);
+      expect(boldIn(linesIn(log)[5] ?? [])).toEqual(["Every line that was checked agrees."]);
+    });
+
+    it("says what it checked of a run whose NVDA sessions were checked in part, the groups that weren't with why, then the lines that differ", () => {
+      const kept = keptLogsRun();
+      // NVDA said "Grant" for "Grants" in the first session (Home); the second session kept no copy,
+      // and its log says why; the third's stop has no event of its copy, so the log names none.
+      const copies = new Map(kept.copies).set(
+        FIRST_COPY,
+        (kept.copies.get(FIRST_COPY) ?? "").replaceAll("'Grants'", "'Grant'"),
+      );
+      const events = kept.log.events.flatMap((event): RunEvent[] => {
+        if (event.type !== "screen-reader-log") return [event];
+        if (event.file === "nvda-log/1-2.txt") {
+          return [{ ...event, file: null, reason: "NVDA's log wasn't there." }];
+        }
+        return event.file === "nvda-log/2-1.txt" ? [] : [event];
+      });
+      const model = buildShareModel(
+        inputOf([kept.run], {
+          transcripts: kept.transcripts,
+          events: new Map([[kept.run.id, { events, unreadable: 0 }]]),
+          nvdaLogs: new Map([[kept.run.id, copies]]),
+        }),
+      );
+
+      expect(wordsOf(logOf(model))).toEqual([
+        "8 lines in voicecap's transcripts that were checked",
+        "8 lines NVDA's own log has for those steps",
+        "6 agree",
+        "8 steps from the NVDA session that started 26 September 2026, 14:04 weren't checked: NVDA's log wasn't there.",
+        "8 steps from the NVDA session that started 28 September 2026, 09:00 weren't checked: voicecap kept no copy of NVDA's log for that session.",
+        "Said in NVDA's own log, not in the transcripts",
+        "Home, Read pass, step 2: “heading, level 1, Grant”",
+        "Home, Headings pass, step 1: “heading, level 1, Grant”",
+        "In the transcripts, not in NVDA's own log",
+        "Home, Read pass, step 2: “heading, level 1, Grants”",
+        "Home, Headings pass, step 1: “heading, level 1, Grants”",
+        `9 lines NVDA spoke outside voicecap's steps ${OUTSIDE_SOME}`,
       ]);
     });
 
