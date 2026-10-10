@@ -9,11 +9,15 @@
  * model's own copy of a transcript (`AppendixFile.text`): the lines of its TXT, a step to a line, so
  * line N is step N (the transcript writes `[no speech]` for a step where NVDA said nothing, to keep
  * it so). A pass presses one key all through: the key it is named for (`HOW_TEXT.ways`). But the
- * read pass first sets itself up with two steps of other keys, Ctrl+End to find the page's last line
- * and Ctrl+Home to return to the top, and the transcript labels those two lines ("[to bottom] …",
- * "[to top] …"). The label says the key, so it is taken off the words, once each, and only where
- * those steps are: at the start of the read pass. Words that begin like a label anywhere else are
- * what NVDA said, and are never cut.
+ * read pass has three steps of other keys. It first sets itself up with two: Ctrl+End to find the
+ * page's last line and Ctrl+Home to return to the top. And, only when it is about to stop for the
+ * repeat limit, it presses Ctrl+End a third time, as a step of its own, to see whether the page's
+ * last line moved as it was read (a "Scroll to top" button shown once the page is scrolled down).
+ * The transcript labels those three lines ("[to bottom] …", "[to top] …", and "[to bottom] …"
+ * again). The label says the key, so it is taken off the words, and only where those steps are: the
+ * first two at the start of the read pass, once each, and the third on the read pass's last line,
+ * which is the one label taken twice. Words that begin like a label anywhere else are what NVDA
+ * said, and are never cut.
  */
 import type { AppendixFile, PageCard } from "../model.js";
 import { AI_TEXT, HOW_TEXT } from "../text.js";
@@ -31,23 +35,31 @@ export interface Step {
 /** The label a transcript writes before a step that isn't its pass's own key: "[to bottom] …". */
 const LABEL = /^\[([^\]]*)\] /;
 
+/** The label of the Ctrl+End the read pass can press a third time, as its last step. */
+const LAST_LABEL = "to bottom";
+
+/** The key a transcript's label names, or undefined when it names none of the setup keys. */
+const keyOfLabel = (label: string): string | undefined =>
+  Object.hasOwn(AI_TEXT.setupKeys, label) ? AI_TEXT.setupKeys[label] : undefined;
+
 /** The steps of a transcript, in order. None for a transcript with no lines. */
 export function stepsOf(file: Pick<AppendixFile, "pass" | "text" | "lines">): Step[] {
   if (file.lines === 0) return [];
+  const lines = file.text.split("\n");
   const used = new Set<string>();
-  // Only the read pass has steps of other keys, and they come first.
-  let setUp = file.pass === "read";
-  return file.text.split("\n").map((line, at) => {
-    const label = setUp ? (LABEL.exec(line)?.[1] ?? "") : "";
-    const key =
-      Object.hasOwn(AI_TEXT.setupKeys, label) && !used.has(label)
-        ? AI_TEXT.setupKeys[label]
-        : undefined;
-    if (key === undefined) {
-      setUp = false;
-      return { n: at + 1, key: HOW_TEXT.ways[file.pass].key, said: line };
-    }
-    used.add(label);
+  // Only the read pass has steps of other keys: two come first, and a third can come last.
+  const read = file.pass === "read";
+  let setUp = read;
+  return lines.map((line, at) => {
+    const label = read ? (LABEL.exec(line)?.[1] ?? "") : "";
+    const first = setUp && !used.has(label) ? keyOfLabel(label) : undefined;
+    // The last line of the read pass, labeled as the first Ctrl+End, is that key pressed once more.
+    // It is the one place a label is taken past the `used` set.
+    const last = at === lines.length - 1 && label === LAST_LABEL ? keyOfLabel(label) : undefined;
+    const key = first ?? last;
+    if (first === undefined) setUp = false;
+    if (key === undefined) return { n: at + 1, key: HOW_TEXT.ways[file.pass].key, said: line };
+    if (first !== undefined) used.add(label);
     return { n: at + 1, key, said: line.slice(`[${label}] `.length) };
   });
 }

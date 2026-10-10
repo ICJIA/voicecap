@@ -1806,6 +1806,32 @@ describe("the pages of renderAiJson", () => {
     ]);
   });
 
+  it("names the Ctrl+End a read pass presses once more at its end as it names the first, and keeps a label in the middle as words", () => {
+    // A page whose last line moved as it was read (a "Scroll to top" button shown once the page is
+    // scrolled down): the pass looks at the end again, and the transcript labels that last step.
+    const lines = [
+      "[to bottom] © 2026 Example Agency",
+      "[to top] banner landmark, link, Skip to main content",
+      "[to bottom] said by the page",
+      "Scroll to top, button",
+      "Scroll to top, button",
+      "[to bottom] Scroll to top, button",
+    ];
+    const model = hostileModel({ read: lines });
+    const steps = stepsOfPass(pageAt(reportOf(model), 0), 0);
+
+    expect(steps).toEqual([
+      { n: 1, key: "Ctrl+End", said: "© 2026 Example Agency" },
+      { n: 2, key: "Ctrl+Home", said: "banner landmark, link, Skip to main content" },
+      { n: 3, key: "Down Arrow", said: "[to bottom] said by the page" },
+      { n: 4, key: "Down Arrow", said: "Scroll to top, button" },
+      { n: 5, key: "Down Arrow", said: "Scroll to top, button" },
+      { n: 6, key: "Ctrl+End", said: "Scroll to top, button" },
+    ]);
+    // The Markdown says the same last step.
+    expect(renderAiMarkdown(model)).toContain("\n6. Ctrl+End: Scroll to top, button\n");
+  });
+
   it("gives the steps of i2i's 32 pages: 96 transcripts, each the lines of its file, and the same lines the Markdown fences", () => {
     const report = reportOf(i2i);
     const files = i2i.appendix.flatMap((entry) => entry.files);

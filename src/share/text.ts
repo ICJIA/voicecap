@@ -1440,9 +1440,10 @@ export const AI_TEXT = {
   /** A page, by its number among the pages, where a list names the pages a part is on. */
   page: (number: number): string => `Page ${number}`,
   /**
-   * The keys of the two steps that set the read pass up, by the label a transcript writes before
-   * their line ("[to bottom] …"). Every other step of a pass presses the key the pass is named
-   * for (`HOW_TEXT.ways`).
+   * The keys of the read pass's steps of other keys, by the label a transcript writes before their
+   * line ("[to bottom] …"): the two that set it up, and, at its end, Ctrl+End once more (see
+   * `stepsOf`, ./ai/shared.ts). Every other step of a pass presses the key the pass is named for
+   * (`HOW_TEXT.ways`).
    */
   setupKeys: { "to bottom": "Ctrl+End", "to top": "Ctrl+Home" } as Readonly<Record<string, string>>,
   /**

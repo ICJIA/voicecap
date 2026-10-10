@@ -1253,6 +1253,29 @@ describe("renderAiMarkdown", () => {
     );
   });
 
+  it("names the Ctrl+End a read pass presses once more at its end as it names the first, and keeps a label in the middle as words", () => {
+    // A page whose last line moved as it was read (a "Scroll to top" button shown once the page is
+    // scrolled down): the pass looks at the end again, and the transcript labels that last step.
+    const lines = [
+      "[to bottom] © 2026 Example Agency",
+      "[to top] banner landmark, link, Skip to main content",
+      "[to bottom] said by the page",
+      "Scroll to top, button",
+      "Scroll to top, button",
+      "[to bottom] Scroll to top, button",
+    ];
+    const [readPass] = transcriptsIn(renderAiMarkdown(hostileModel({ read: lines })));
+
+    expect(readPass?.lines).toEqual([
+      "1. Ctrl+End: © 2026 Example Agency",
+      "2. Ctrl+Home: banner landmark, link, Skip to main content",
+      "3. Down Arrow: [to bottom] said by the page",
+      "4. Down Arrow: Scroll to top, button",
+      "5. Down Arrow: Scroll to top, button",
+      "6. Ctrl+End: Scroll to top, button",
+    ]);
+  });
+
   it("writes the labels it reads a transcript's setup steps by as the transcript writer does", () => {
     const step = (command: "toBottom" | "toTop") => ({
       n: 1,
@@ -2569,26 +2592,89 @@ describe("stepsOf", () => {
     ]);
   });
 
-  it("never cuts words that begin like a label anywhere else: later in the read pass, twice, or in another pass", () => {
-    // After the setup steps, a line that begins like one is what NVDA said.
+  it("reads the read pass's last line, when the transcript labels it to bottom, as the Ctrl+End pressed once more at its end, past the one at its start", () => {
+    // The read pass presses Ctrl+End again, as a step of its own, only when it is about to stop for
+    // the repeat limit: it is the pass's last step, and the transcript labels it as the first.
+    expect(
+      stepsOf(
+        transcript("read", [
+          "[to bottom] footer",
+          "[to top] header",
+          "next",
+          "Scroll to top, button",
+          "Scroll to top, button",
+          "[to bottom] Scroll to top, button",
+        ]),
+      ),
+    ).toEqual([
+      { n: 1, key: "Ctrl+End", said: "footer" },
+      { n: 2, key: "Ctrl+Home", said: "header" },
+      { n: 3, key: "Down Arrow", said: "next" },
+      { n: 4, key: "Down Arrow", said: "Scroll to top, button" },
+      { n: 5, key: "Down Arrow", said: "Scroll to top, button" },
+      { n: 6, key: "Ctrl+End", said: "Scroll to top, button" },
+    ]);
+    // A step where NVDA said nothing keeps the transcript's marker, as it does on any line.
+    const silent = stepsOf(
+      transcript("read", ["[to bottom] a", "[to top] b", "c", "[to bottom] [no speech]"]),
+    );
+
+    expect(silent.at(-1)).toEqual({ n: 4, key: "Ctrl+End", said: "[no speech]" });
+    // It stands alone: it needs no setup steps before it, and it comes after the first Ctrl+End.
+    expect(stepsOf(transcript("read", ["hello", "[to bottom] c"]))).toEqual([
+      { n: 1, key: "Down Arrow", said: "hello" },
+      { n: 2, key: "Ctrl+End", said: "c" },
+    ]);
+    expect(stepsOf(transcript("read", ["[to bottom] a", "[to bottom] b"]))).toEqual([
+      { n: 1, key: "Ctrl+End", said: "a" },
+      { n: 2, key: "Ctrl+End", said: "b" },
+    ]);
+  });
+
+  it("never cuts words that begin like a label anywhere else: in the middle of the read pass, twice, or in another pass", () => {
+    // After the setup steps, a line that begins like one is what NVDA said, unless it is the last.
     expect(
       stepsOf(transcript("read", ["[to bottom] a", "[to top] b", "[to top] c", "[to bottom] d"])),
     ).toEqual([
       { n: 1, key: "Ctrl+End", said: "a" },
       { n: 2, key: "Ctrl+Home", said: "b" },
       { n: 3, key: "Down Arrow", said: "[to top] c" },
-      { n: 4, key: "Down Arrow", said: "[to bottom] d" },
+      { n: 4, key: "Ctrl+End", said: "d" },
     ]);
-    // With no setup steps, from the first line on.
+    // A "[to bottom]" in the middle of the pass is words, whether the pass was set up or not.
+    expect(
+      stepsOf(transcript("read", ["[to bottom] a", "[to top] b", "[to bottom] c", "d", "e"])),
+    ).toEqual([
+      { n: 1, key: "Ctrl+End", said: "a" },
+      { n: 2, key: "Ctrl+Home", said: "b" },
+      { n: 3, key: "Down Arrow", said: "[to bottom] c" },
+      { n: 4, key: "Down Arrow", said: "d" },
+      { n: 5, key: "Down Arrow", said: "e" },
+    ]);
+    expect(stepsOf(transcript("read", ["x", "[to bottom] y", "z"]))).toEqual([
+      { n: 1, key: "Down Arrow", said: "x" },
+      { n: 2, key: "Down Arrow", said: "[to bottom] y" },
+      { n: 3, key: "Down Arrow", said: "z" },
+    ]);
+    // With no setup steps, from the first line on. The pass never presses Ctrl+Home at its end.
     expect(stepsOf(transcript("read", ["hello", "[to top] c"]))).toEqual([
       { n: 1, key: "Down Arrow", said: "hello" },
       { n: 2, key: "Down Arrow", said: "[to top] c" },
     ]);
-    // Only the read pass has setup steps.
+    // Only the read pass has setup steps, and a last Ctrl+End.
     expect(stepsOf(transcript("headings", ["[to top] c", "d"]))).toEqual([
       { n: 1, key: "H", said: "[to top] c" },
       { n: 2, key: "H", said: "d" },
     ]);
+    for (const [pass, key] of [
+      ["headings", "H"],
+      ["tab", "Tab"],
+    ] as const) {
+      expect(stepsOf(transcript(pass, ["a", "[to bottom] b"]))).toEqual([
+        { n: 1, key, said: "a" },
+        { n: 2, key, said: "[to bottom] b" },
+      ]);
+    }
     // Other bracketed words, whatever they are, are words.
     expect(
       stepsOf(transcript("read", ["[constructor] a", "[toString] b", "[] c", "[no speech]"])),
