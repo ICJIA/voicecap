@@ -654,7 +654,8 @@ function wordsOf(text: (field: string) => string, route: (field: string) => stri
     os: text("os"),
     browser: text("browser"),
     reader: text("reader"),
-    list: text("list"),
+    // A page list is named by its file's name alone, and a file's name holds no slash or backslash.
+    list: text("list").replace(/[\\/]/g, "-"),
     oldRun: text("oldRun"),
     oldVersion: text("oldVersion"),
     leftOutRun: text("leftOutRun"),

@@ -1,11 +1,22 @@
+import { randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
 import os from "node:os";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
 
 import { ForegroundError } from "../src/drivers/types.js";
 import { StepTimeoutError, withTimeout } from "../src/passes/steps.js";
-import { causeOf, homeFolder, redactHome } from "../src/run/failure.js";
+import {
+  accountFolders,
+  causeOf,
+  homeFolder,
+  redactAccount,
+  redactHome,
+  redactTemp,
+  type AccountFolders,
+} from "../src/run/failure.js";
 import { EnvironmentError, programOf } from "../src/util/errors.js";
 import { isoLocal, isoLocalMs } from "../src/util/time.js";
 
@@ -310,6 +321,279 @@ describe("redactHome", () => {
     expect(redactHome(text, "C:\\Windows", "win32")).toBe(
       "at f (%USERPROFILE%\\a.js:1:2) at g (%USERPROFILE%/b.js:3:4)",
     );
+  });
+
+  // A full stop that ends a sentence ends the folder's name too: the error's words go on after it.
+  it("replaces the home folder at the end of a sentence, before its full stop", () => {
+    expect(redactHome("Couldn't open C:\\Users\\pat.", "C:\\Users\\pat", "win32")).toBe(
+      "Couldn't open %USERPROFILE%.",
+    );
+    expect(redactHome("It is in C:\\Users\\pat. Open it.", "C:\\Users\\pat", "win32")).toBe(
+      "It is in %USERPROFILE%. Open it.",
+    );
+    expect(redactHome("No such folder: /Users/pat.\nTry again.", "/Users/pat", "darwin")).toBe(
+      "No such folder: ~.\nTry again.",
+    );
+    expect(redactHome("at f (file:///C:/Users/Jane%20Doe.)", "C:\\Users\\Jane Doe", "win32")).toBe(
+      "at f (file:///%USERPROFILE%.)",
+    );
+  });
+
+  it("leaves a folder whose name goes on after a full stop alone", () => {
+    const text = "C:\\Users\\pat.old\\a.txt, C:\\Users\\pat..x and C:\\Users\\pat.2\\b.txt";
+    expect(redactHome(text, "C:\\Users\\pat", "win32")).toBe(text);
+  });
+
+  // Git Bash writes C:\Users\pat as /c/Users/pat, and voicecap reads that spelling in a path.
+  it("replaces the home folder as Git Bash spells it, on Windows, with either case of the drive", () => {
+    expect(redactHome("/c/Users/pat/notes.txt", "C:\\Users\\pat", "win32")).toBe(
+      "%USERPROFILE%/notes.txt",
+    );
+    expect(redactHome("cd '/C/Users/pat' and /c/users/PAT/x", "C:\\Users\\pat", "win32")).toBe(
+      "cd '%USERPROFILE%' and %USERPROFILE%/x",
+    );
+    expect(redactHome("/d/Users/pat/x", "D:\\Users\\pat", "win32")).toBe("%USERPROFILE%/x");
+    // A drive in lower case in the folder gives the same spelling.
+    expect(redactHome("/c/Users/pat/x", "c:\\Users\\pat", "win32")).toBe("%USERPROFILE%/x");
+  });
+
+  it("ends the name of Git Bash's spelling by the same rule", () => {
+    const longer = "/c/Users/patrick/x, /c/Users/pat.old/y and /c/Users/pat_2/z";
+    expect(redactHome(longer, "C:\\Users\\pat", "win32")).toBe(longer);
+    expect(redactHome("Couldn't open /c/Users/pat.", "C:\\Users\\pat", "win32")).toBe(
+      "Couldn't open %USERPROFILE%.",
+    );
+  });
+
+  it("gives a network share's home no Git Bash spelling: it has no drive", () => {
+    const text = "open /c/Users/pat/x";
+    expect(redactHome(text, "\\\\srv\\share\\pat", "win32")).toBe(text);
+    expect(redactHome("open '\\\\srv\\share\\pat\\x'", "\\\\srv\\share\\pat", "win32")).toBe(
+      "open '%USERPROFILE%\\x'",
+    );
+  });
+});
+
+describe("redactTemp", () => {
+  const TEMP = "C:\\Users\\JANEDO~1\\AppData\\Local\\Temp";
+
+  it("writes the temp folder as %TEMP%, in any case and with either slash between its parts, on Windows", () => {
+    expect(
+      redactTemp(
+        "EBUSY: open 'C:\\Users\\JANEDO~1\\AppData\\Local\\Temp\\nvda.log'",
+        TEMP,
+        "win32",
+      ),
+    ).toBe("EBUSY: open '%TEMP%\\nvda.log'");
+    expect(redactTemp("c:/users/janedo~1/appdata/local/temp/a/1.pcm", TEMP, "win32")).toBe(
+      "%TEMP%/a/1.pcm",
+    );
+    // A Python repr or a JSON string writes each backslash twice.
+    expect(
+      redactTemp(
+        "'C:\\\\Users\\\\JANEDO~1\\\\AppData\\\\Local\\\\Temp\\\\nvda-old.log'",
+        TEMP,
+        "win32",
+      ),
+    ).toBe("'%TEMP%\\\\nvda-old.log'");
+    expect(redactTemp(`${TEMP} then ${TEMP}`, TEMP, "win32")).toBe("%TEMP% then %TEMP%");
+  });
+
+  it("replaces the temp folder where a sentence ends, and only as a whole folder", () => {
+    expect(redactTemp(`Couldn't make ${TEMP}.`, TEMP, "win32")).toBe("Couldn't make %TEMP%.");
+    const longer = `${TEMP}2\\a, ${TEMP}-old\\b and ${TEMP}.old\\c`;
+    expect(redactTemp(longer, TEMP, "win32")).toBe(longer);
+  });
+
+  it("doesn't read the folder's own characters as a pattern", () => {
+    expect(redactTemp("open D:\\T+mp (x86)\\a.log", "D:\\T+mp (x86)", "win32")).toBe(
+      "open %TEMP%\\a.log",
+    );
+    expect(redactTemp("open D:\\Tmp\\a.log", "D:\\T+mp (x86)", "win32")).toBe(
+      "open D:\\Tmp\\a.log",
+    );
+  });
+
+  it("takes a temp folder on a network share, whose name starts with two slashes", () => {
+    expect(redactTemp("open '\\\\srv\\share\\tmp\\a.log'", "\\\\srv\\share\\tmp", "win32")).toBe(
+      "open '%TEMP%\\a.log'",
+    );
+  });
+
+  it("ignores a separator left at the end of the temp folder", () => {
+    expect(redactTemp("open C:\\Temp\\a.log", "C:\\Temp\\", "win32")).toBe("open %TEMP%\\a.log");
+  });
+
+  it("leaves the text as it was away from Windows", () => {
+    const text = "open /tmp/voicecap/a.log and /TMP/VOICECAP/b.log";
+    expect(redactTemp(text, "/tmp/voicecap", "linux")).toBe(text);
+    expect(redactTemp(text, "/tmp/voicecap", "darwin")).toBe(text);
+  });
+
+  it("leaves the text as it was for a temp folder that isn't an absolute path", () => {
+    const text = "open Temp\\a.log, .\\a.log, ..\\Temp\\b.log and C:Temp\\c.log";
+    for (const temp of ["", ".", "Temp", "..\\Temp", "C:Temp", "C:"]) {
+      expect(redactTemp(text, temp, "win32"), temp).toBe(text);
+    }
+  });
+
+  // "C:\" taken out of every path on the drive would leave nothing of them.
+  it("leaves the text as it was for a temp folder that is only a drive's root", () => {
+    const text = "open C:\\Windows\\a.log and c:/windows/b.log";
+    for (const temp of ["C:\\", "c:/", "\\", "/"]) {
+      expect(redactTemp(text, temp, "win32"), temp).toBe(text);
+    }
+  });
+});
+
+describe("redactAccount", () => {
+  /** An account whose long name is `jane.doe.smith`, as Windows gives some profile folders a short one. */
+  const F: AccountFolders = {
+    home: "C:\\Users\\jane.doe.smith",
+    temp: "C:\\Users\\JANEDO~1\\AppData\\Local\\Temp",
+    realTemp: "C:\\Users\\jane.doe.smith\\AppData\\Local\\Temp",
+    platform: "win32",
+  };
+
+  it("names the temp folder %TEMP% in its short spelling, as a message from Node does", () => {
+    expect(
+      redactAccount("EBUSY: open 'C:\\Users\\JANEDO~1\\AppData\\Local\\Temp\\nvda.log'", F),
+    ).toBe("EBUSY: open '%TEMP%\\nvda.log'");
+  });
+
+  it("finds the home folder's short spelling from the temp folder's two spellings", () => {
+    expect(redactAccount("c:/users/janedo~1/Documents/pages.csv", F)).toBe(
+      "%USERPROFILE%/Documents/pages.csv",
+    );
+    // In Git Bash's spelling, and at the end of a sentence, too.
+    expect(redactAccount("Couldn't open /c/Users/JANEDO~1/Documents.", F)).toBe(
+      "Couldn't open %USERPROFILE%/Documents.",
+    );
+    // And its long spelling, as before.
+    expect(redactAccount("C:\\Users\\jane.doe.smith\\Documents\\pages.csv", F)).toBe(
+      "%USERPROFILE%\\Documents\\pages.csv",
+    );
+  });
+
+  it("names the temp folder first, in whichever spelling, so that it isn't taken for the home folder's", () => {
+    expect(redactAccount("C:\\Users\\jane.doe.smith\\AppData\\Local\\Temp\\a", F)).toBe(
+      "%TEMP%\\a",
+    );
+    expect(redactAccount("C:\\Users\\JANEDO~1\\AppData\\Local\\Temp\\a", F)).toBe("%TEMP%\\a");
+    expect(
+      redactAccount(
+        "from C:\\Users\\jane.doe.smith\\AppData\\Local\\Temp to C:\\Users\\jane.doe.smith\\x",
+        F,
+      ),
+    ).toBe("from %TEMP% to %USERPROFILE%\\x");
+  });
+
+  it("knows no short spelling when the temp folder isn't in the home folder", () => {
+    const elsewhere: AccountFolders = { ...F, temp: "D:\\Temp", realTemp: "D:\\Temp" };
+    expect(redactAccount("C:\\Users\\JANEDO~1\\x", elsewhere)).toBe("C:\\Users\\JANEDO~1\\x");
+    expect(redactAccount("C:\\Users\\jane.doe.smith\\x", elsewhere)).toBe("%USERPROFILE%\\x");
+    expect(redactAccount("D:\\Temp\\x", elsewhere)).toBe("%TEMP%\\x");
+    // Nor when the real path can't be had.
+    const unresolved: AccountFolders = { ...F, realTemp: null };
+    expect(redactAccount("C:\\Users\\JANEDO~1\\x", unresolved)).toBe("C:\\Users\\JANEDO~1\\x");
+    expect(redactAccount("C:\\Users\\JANEDO~1\\AppData\\Local\\Temp\\x", unresolved)).toBe(
+      "%TEMP%\\x",
+    );
+  });
+
+  it("knows no short spelling when the temp folders are in the home folder but share no tail", () => {
+    const moved: AccountFolders = {
+      ...F,
+      temp: "C:\\Users\\JANEDO~1\\Scratch",
+      realTemp: "C:\\Users\\jane.doe.smith\\AppData\\Local\\Temp",
+    };
+    expect(redactAccount("C:\\Users\\JANEDO~1\\x", moved)).toBe("C:\\Users\\JANEDO~1\\x");
+  });
+
+  it("takes a home folder written with a separator at its end, and a short spelling in any case", () => {
+    const folders: AccountFolders = {
+      ...F,
+      home: "C:\\Users\\jane.doe.smith\\",
+      temp: "c:\\users\\janedo~1\\appdata\\local\\temp",
+    };
+    expect(redactAccount("C:\\Users\\JANEDO~1\\Documents", folders)).toBe(
+      "%USERPROFILE%\\Documents",
+    );
+  });
+
+  it("leaves a home folder that isn't the account's alone, in any spelling", () => {
+    const text =
+      "C:\\Users\\JANEDO~12\\a, C:\\Users\\jane.doe.smith.old\\b and /c/Users/janedo~1x/c";
+    expect(redactAccount(text, F)).toBe(text);
+  });
+
+  it("writes the home folder as ~ away from Windows, and leaves the temp folder alone", () => {
+    const linux: AccountFolders = {
+      home: "/home/pat",
+      temp: "/tmp",
+      realTemp: "/tmp",
+      platform: "linux",
+    };
+    expect(redactAccount("/home/pat/x", linux)).toBe("~/x");
+    expect(redactAccount("open /tmp/a and /home/pat/b", linux)).toBe("open /tmp/a and ~/b");
+  });
+
+  it("still names the temp folder when the home folder isn't known", () => {
+    const noHome: AccountFolders = { ...F, home: null };
+    expect(
+      redactAccount(
+        "C:\\Users\\JANEDO~1\\AppData\\Local\\Temp\\a and C:\\Users\\jane.doe.smith\\b",
+        noHome,
+      ),
+    ).toBe("%TEMP%\\a and C:\\Users\\jane.doe.smith\\b");
+  });
+
+  it("leaves the text as it was when it names neither folder, and gives the same on a second go", () => {
+    const text = "net::ERR_NAME_NOT_RESOLVED at https://example.illinois.gov/a";
+    expect(redactAccount(text, F)).toBe(text);
+    const once = redactAccount(
+      "C:\\Users\\JANEDO~1\\AppData\\Local\\Temp\\a and C:\\Users\\jane.doe.smith\\b",
+      F,
+    );
+    expect(redactAccount(once, F)).toBe(once);
+  });
+
+  it("takes this computer's folders when it's given none", () => {
+    const mark = process.platform === "win32" ? "%USERPROFILE%" : "~";
+    const file = path.join(os.homedir(), "secret.txt");
+    expect(redactAccount(`can't read ${file}`)).toBe(`can't read ${mark}${path.sep}secret.txt`);
+  });
+});
+
+describe("accountFolders", () => {
+  it("is this computer's home, temp, and real temp folders, and platform", () => {
+    expect(accountFolders()).toEqual({
+      home: os.homedir(),
+      temp: os.tmpdir(),
+      realTemp: realpathSync.native(os.tmpdir()),
+      platform: process.platform,
+    });
+  });
+
+  // Node throws where neither HOME (USERPROFILE on Windows) nor the account's entry gives a home
+  // folder, and for a folder it can't resolve; neither may fail a page's record.
+  it("has no home folder, and no real temp folder, where Node gives none, rather than failing", () => {
+    const missing = path.join(os.tmpdir(), `voicecap-no-such-folder-${randomUUID()}`);
+    const tmpdir = vi.spyOn(os, "tmpdir").mockReturnValue(missing);
+    const homedir = vi.spyOn(os, "homedir").mockImplementation(() => {
+      throw new Error("A system error occurred: uv_os_homedir returned ENOENT");
+    });
+    try {
+      expect(accountFolders()).toEqual({
+        home: null,
+        temp: missing,
+        realTemp: null,
+        platform: process.platform,
+      });
+    } finally {
+      tmpdir.mockRestore();
+      homedir.mockRestore();
+    }
   });
 });
 

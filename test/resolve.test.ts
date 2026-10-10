@@ -1,12 +1,13 @@
-import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { PageSource } from "../src/model.js";
+import { PASS_NAMES, type PageSource, type RunJson } from "../src/model.js";
 import {
   describeSource,
   pageSourceFor,
@@ -16,10 +17,14 @@ import {
 } from "../src/pages/resolve.js";
 import { pageSlug } from "../src/pages/slug.js";
 import { canonicalKey, parseSiteUrl } from "../src/pages/url.js";
+import { runAudit } from "../src/run/audit.js";
+import { pageDir, runDir, runJsonPath } from "../src/run/paths.js";
 import type { Walkthrough, WalkthroughPage } from "../src/share/walkthrough.js";
 import { UsageError } from "../src/util/errors.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { gitBashForm } from "./helpers/git-bash.js";
+import { options, outDir, sitePages } from "./helpers/run-site.js";
+import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
 const REPO = fileURLToPath(new URL("../", import.meta.url));
 const SITE_DIR = new URL("../fixture/site/", import.meta.url);
@@ -42,6 +47,8 @@ function fetchFrom(extra: Record<string, string> = {}): typeof fetch {
 
 const urlset = (...locs: string[]) =>
   `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${locs.map((l) => `<url><loc>${l}</loc></url>`).join("")}</urlset>`;
+
+const sha256Of = (text: string) => createHash("sha256").update(text).digest("hex");
 
 let dir: string;
 beforeAll(async () => {
@@ -461,17 +468,18 @@ describe("pageSourceFor", () => {
     });
   });
 
-  it("uses forward slashes for nested paths and an absolute path outside cwd", async () => {
+  it("uses forward slashes for nested paths, and the file's name alone outside cwd", async () => {
     const nested = await pageSourceFor({
       pagesFile: path.join("fixture", "pages.json"),
       cwd: REPO,
     });
     expect(nested).toMatchObject({ file: "fixture/pages.json" });
+    // A path outside the folder can carry the account's name, so only the file's name is kept.
     const outside = await pageSourceFor({
       pagesFile: path.join(REPO, "fixture", "pages.json"),
       cwd: dir,
     });
-    expect(outside).toMatchObject({ file: path.join(REPO, "fixture", "pages.json") });
+    expect(outside).toMatchObject({ kind: "pages", file: "pages.json" });
   });
 
   it("reports a missing file", async () => {
@@ -490,6 +498,120 @@ describe("pageSourceFor", () => {
       pageSourceFor({ sitemap: `${ORIGIN}/sitemap.xml`, pageUrls: ["/a"], site }),
     ).rejects.toThrow(/Use one kind of page source/);
     await expect(pageSourceFor({ site })).rejects.toThrow(/--page <url>/);
+  });
+});
+
+// A path from outside the folder voicecap runs in can carry the account's name (a file dragged in
+// from Downloads, a redirected Documents folder on a file server), so a run keeps such a file by
+// its name alone. A file inside the folder keeps its path from it, which names no account.
+describe("a page list outside the working folder", () => {
+  const CSV = "url\n/\n/about\n";
+  let work: string;
+  let elsewhere: string;
+  beforeAll(async () => {
+    work = path.join(dir, "work");
+    elsewhere = path.join(dir, `elsewhere-${randomUUID()}`);
+    await mkdir(path.join(work, "page-lists"), { recursive: true });
+    await mkdir(elsewhere, { recursive: true });
+    await writeFile(path.join(work, "page-lists", "pages.csv"), CSV);
+    await writeFile(path.join(elsewhere, "pages.csv"), CSV);
+  });
+
+  it("is recorded by its name alone: in the page source and in the source's details", async () => {
+    const pagesFile = path.join(elsewhere, "pages.csv");
+    const result = await resolvePages({ site, pagesFile, cwd: work });
+
+    const list = { kind: "pages", file: "pages.csv", sha256: sha256Of(CSV) };
+    expect(result.pageSource).toEqual(list);
+    expect(result.source).toMatchObject({ ...list, listed: 2 });
+    expect(await pageSourceFor({ pagesFile, cwd: work })).toEqual(list);
+    expect(describeSource(result.pageSource)).toBe("the page list pages.csv");
+  });
+
+  it("keeps its path from the working folder when it's inside, however it's given", async () => {
+    const inside = { kind: "pages", file: "page-lists/pages.csv", sha256: sha256Of(CSV) };
+
+    for (const pagesFile of [
+      path.join("page-lists", "pages.csv"),
+      path.join(work, "page-lists", "pages.csv"),
+    ]) {
+      const result = await resolvePages({ site, pagesFile, cwd: work });
+      expect(result.pageSource, pagesFile).toEqual(inside);
+      expect(result.source, pagesFile).toMatchObject(inside);
+      expect(await pageSourceFor({ pagesFile, cwd: work }), pagesFile).toEqual(inside);
+    }
+  });
+
+  it("is recorded by its name alone when it is in a folder beside the working folder, too", async () => {
+    // "../elsewhere-…/pages.csv" begins with two dots, and is not inside.
+    const pagesFile = path.relative(work, path.join(elsewhere, "pages.csv"));
+    expect(pagesFile.startsWith("..")).toBe(true);
+    expect(await pageSourceFor({ pagesFile, cwd: work })).toMatchObject({ file: "pages.csv" });
+  });
+});
+
+describe("a run from a page list outside the working folder", () => {
+  /** Every file under a folder, with its text. */
+  function filesUnder(folder: string): { file: string; text: string }[] {
+    return readdirSync(folder, { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => {
+        const file = path.join(entry.parentPath, entry.name);
+        return { file, text: readFileSync(file, "utf8") };
+      });
+  }
+
+  it("records the file by its name alone: in run.json, and in every transcript", async () => {
+    const cwd = path.join(dir, `run-${randomUUID()}`);
+    const folder = `elsewhere-${randomUUID()}`;
+    await mkdir(path.join(dir, folder), { recursive: true });
+    const pages = path.join(dir, folder, "pages.csv");
+    const list = "url\n/\n/about\n";
+    await writeFile(pages, list);
+
+    const result = await runAudit(options(cwd, new ScriptedDriver(sitePages()), { pages }));
+    expect(result.outcome).toBe("completed");
+
+    const siteDir = outDir(cwd);
+    const run = JSON.parse(readFileSync(runJsonPath(siteDir, result.runId), "utf8")) as RunJson;
+    const listed = { kind: "pages", file: "pages.csv", sha256: sha256Of(list) };
+    // The settings the run resumes by, the details of the source, and each session's environment.
+    expect(run.settings.source).toEqual(listed);
+    expect(run.source).toMatchObject({ kind: "pages", file: "pages.csv" });
+    expect(run.sessions.map((session) => session.environment?.pageSource)).toEqual([listed]);
+    // Every transcript says the same in its header, in the JSON and in the TXT.
+    const headers = run.pages.flatMap((page) =>
+      PASS_NAMES.map((pass) => path.join(pageDir(siteDir, run.id, page.slug), `${pass}.txt`)),
+    );
+    expect(headers).toHaveLength(6);
+    for (const file of headers) {
+      expect(readFileSync(file, "utf8"), file).toMatch(
+        /^# Page source: page list pages\.csv \(sha256 [\da-f]{64}\)$/m,
+      );
+    }
+    // No file of the run holds the folder the list was in, in any spelling.
+    const files = filesUnder(runDir(siteDir, run.id));
+    expect(files.length).toBeGreaterThan(10);
+    expect(files.filter(({ text }) => text.includes(folder)).map(({ file }) => file)).toEqual([]);
+  });
+
+  it("records the file with its path from the working folder when it's inside it", async () => {
+    const cwd = path.join(dir, `run-${randomUUID()}`);
+    await mkdir(path.join(cwd, "page-lists"), { recursive: true });
+    await writeFile(path.join(cwd, "page-lists", "pages.csv"), "url\n/\n");
+
+    const result = await runAudit(
+      options(cwd, new ScriptedDriver(sitePages()), {
+        pages: path.join("page-lists", "pages.csv"),
+      }),
+    );
+
+    const run = JSON.parse(readFileSync(runJsonPath(outDir(cwd), result.runId), "utf8")) as RunJson;
+    expect(run.settings.source).toMatchObject({ kind: "pages", file: "page-lists/pages.csv" });
+    const read = path.join(pageDir(outDir(cwd), run.id, run.pages[0]!.slug), "read.txt");
+    expect(readFileSync(read, "utf8")).toMatch(
+      /^# Page source: page list page-lists\/pages\.csv \(sha256 [\da-f]{64}\)$/m,
+    );
   });
 });
 
@@ -782,6 +904,33 @@ describe("readWalkthroughFile", () => {
 
     await expect(readWalkthroughFile("not-a-walkthrough.json", dir)).rejects.toThrow(
       /^not-a-walkthrough\.json isn't a voicecap walkthrough file: /,
+    );
+  });
+
+  // As a page list is: by its name alone outside the folder voicecap runs in, which can carry the
+  // account's name, and by its path from the folder inside it.
+  it("records the file by its name alone outside the working folder, and its path inside it", async () => {
+    const work = path.join(dir, `walk-${randomUUID()}`);
+    const elsewhere = path.join(dir, `walk-elsewhere-${randomUUID()}`);
+    await mkdir(path.join(work, "walkthroughs"), { recursive: true });
+    await mkdir(elsewhere, { recursive: true });
+    await writeFile(path.join(work, "walkthroughs", "w.json"), text);
+    await writeFile(path.join(elsewhere, "w.json"), text);
+
+    const outside = await readWalkthroughFile(path.join(elsewhere, "w.json"), work);
+    expect(outside.file).toBe("w.json");
+    const inside = await readWalkthroughFile(path.join("walkthroughs", "w.json"), work);
+    expect(inside.file).toBe("walkthroughs/w.json");
+    expect((await readWalkthroughFile(path.join(work, "walkthroughs", "w.json"), work)).file).toBe(
+      "walkthroughs/w.json",
+    );
+
+    // A repeat keeps it so in its page source, and in the details of the source.
+    const pages = await resolvePages({ site, walkthrough: outside, cwd: work });
+    expect(pages.pageSource).toMatchObject({ kind: "walkthrough", file: "w.json" });
+    expect(pages.source).toMatchObject({ kind: "walkthrough", file: "w.json" });
+    expect(describeSource(pages.pageSource)).toBe(
+      "the walkthrough w.json from run 2026-09-29_1402",
     );
   });
 });

@@ -784,6 +784,11 @@ describe("renderTechnical", () => {
       "A window's title, which can hold private text, is kept in the event log, never on a page or in a Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. A page counts what NVDA said outside voicecap's steps, and never shows it.",
     );
     expect(part("privacy-and-security")).not.toContain("only in the event log");
+    // A path from outside the folder voicecap runs in can name the account: a file is recorded by
+    // its name alone, and the account's folders in an error's words by their variables.
+    expect(part("privacy-and-security")).toContain(
+      "A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone, and the home folder in the words of an error that a run keeps is written as %USERPROFILE% and the temp folder as %TEMP%, in every spelling Windows gives them. The shareable page names such a file by its name alone, for runs recorded before too.",
+    );
 
     // The rules say their thresholds, and nothing they don't count.
     expect(TECHNICAL_TEXT.rules["repeated-phrase"]).not.toContain("twice");

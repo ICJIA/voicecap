@@ -40,6 +40,7 @@ import { describeChanges, distinctEnvironments } from "../report/compare.js";
 import { pageName } from "../report/model.js";
 import { redactHome } from "../run/failure.js";
 import { extractBody, MAIN_COMMAND, stepLine } from "../transcripts/format.js";
+import { fileNameOf } from "../util/file-name.js";
 import { attentionCards, type AttentionCard, type AttentionPage } from "./attention.js";
 import {
   axeCheckedOf,
@@ -631,7 +632,7 @@ function coverageOf(
   }
   return {
     covered: [
-      scopeOf(standing.pages.length, latest.settings.source, redact, shown),
+      scopeOf(standing.pages.length, latest.settings.source, shown),
       passesOf(standing, latest),
       "Every problem during the runs is explained under Problems during the runs.",
     ],
@@ -666,27 +667,24 @@ function passesOf(standing: Standing, latest: RunJson): string {
 }
 
 /** The pages in scope, and the list they came from. */
-function scopeOf(
-  count: number,
-  source: PageSource,
-  redact: (text: string) => string,
-  shown: Shown,
-): string {
-  return `${count === 1 ? "1 page" : `${count} pages`} from ${listOf(source, redact, shown)}.`;
+function scopeOf(count: number, source: PageSource, shown: Shown): string {
+  return `${count === 1 ? "1 page" : `${count} pages`} from ${listOf(source, shown)}.`;
 }
 
 /**
- * The list the pages came from, as the page names it, with the home folder replaced and a sitemap's
- * address as the page shows it.
+ * The list the pages came from, as the page names it: a page list or a walkthrough file by its
+ * file's name alone, whatever path the record holds (a run recorded before voicecap 0.18.0 kept the
+ * whole path of one from outside its folder, which can name an account), and a sitemap's address as
+ * the page shows it.
  */
-function listOf(source: PageSource, redact: (text: string) => string, shown: Shown): string {
+function listOf(source: PageSource, shown: Shown): string {
   switch (source.kind) {
     case "sitemap":
       return `the sitemap ${shown(source.url)}`;
     case "pages":
-      return `the page list ${redact(source.file)}`;
+      return `the page list ${fileNameOf(source.file)}`;
     case "walkthrough":
-      return `the walkthrough ${redact(source.file)} from run ${source.run}`;
+      return `the walkthrough ${fileNameOf(source.file)} from run ${source.run}`;
     case "urls":
       return "the pages given";
     default: {

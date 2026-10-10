@@ -1283,7 +1283,8 @@ describe("buildShareModel", () => {
     await addReview(siteDir, run, "/", "issue", { note: `As noted in ${notes}` });
     const model = buildShareModel(await loadShareInput({ siteDir, config }));
 
-    expect(model.coverage.covered[0]).toBe(`1 page from the page list ${redact(list)}.`);
+    // A page list is named by its file's name alone, whatever path the record holds.
+    expect(model.coverage.covered[0]).toBe("1 page from the page list pages.csv.");
     expect(model.pages[0]?.flags.map((flag) => flag.message)).toEqual([
       `Text noted in ${redact(notes)} (1 match in the read pass).`,
     ]);
@@ -1309,6 +1310,72 @@ describe("buildShareModel", () => {
     expect(Object.values(model.check.reviews ?? {}).flat()).toMatchObject([
       { note: `As noted in ${notes}` },
     ]);
+  });
+
+  // Before 0.18.0 a run recorded a page list from outside the working folder by its whole path,
+  // which can name an account: a redirected Documents folder on a file server, a file dragged in
+  // from Downloads. The page names such a file by its name alone, for those runs too, and carries
+  // their records as they were written.
+  describe("a run recorded before 0.18.0 from a file outside the working folder", () => {
+    const SHA = "a".repeat(64);
+    const rowsOf = (model: ShareModel) =>
+      new Map(latestEvidence(model).environment.map((row) => [row.label, row.value]));
+
+    it.each<[name: string, file: string]>([
+      ["a network share's path", "\\\\fs01\\users$\\jane.doe\\Documents\\pages.csv"],
+      ["a path under another account's home", "C:\\Users\\jane.doe\\Downloads\\pages.csv"],
+      ["a path in Git Bash's spelling", "/c/Users/jane.doe/Downloads/pages.csv"],
+      ["a path on another system", "/home/jane.doe/pages.csv"],
+    ])("names a page list recorded by %s by its file's name alone", (_name, file) => {
+      const run = shareRun({
+        id: "2026-09-26_1405",
+        source: { kind: "pages", file, sha256: SHA },
+        pages: [{ path: "/" }],
+      });
+      const model = buildShareModel(inputOf([run]));
+
+      expect(model.coverage.covered[0]).toBe("1 page from the page list pages.csv.");
+      expect(rowsOf(model).get("Page source")).toBe(`page list pages.csv (sha256 ${SHA})`);
+      // Nothing the page shows holds the account's name, the walkthrough file it offers included.
+      expect(stringsIn(shown(model)).filter((text) => text.includes("jane.doe"))).toEqual([]);
+      // The record it carries for the fingerprint check is as it was written: its seal covers it.
+      expect(model.check.runs[0]?.settings.source).toEqual({ kind: "pages", file, sha256: SHA });
+    });
+
+    it("names a walkthrough file recorded by its whole path by its file's name alone, too", () => {
+      const file = "\\\\fs01\\users$\\jane.doe\\Downloads\\w.json";
+      const run = shareRun({
+        id: "2026-09-30_0900",
+        source: { kind: "walkthrough", file, sha256: SHA, run: "2026-09-29_1402", from: "sitemap" },
+        pages: [{ path: "/" }],
+      });
+      const model = buildShareModel(inputOf([run]));
+
+      expect(model.coverage.covered[0]).toBe(
+        "1 page from the walkthrough w.json from run 2026-09-29_1402.",
+      );
+      expect(rowsOf(model).get("Page source")).toBe(
+        `walkthrough w.json from run 2026-09-29_1402 (sha256 ${SHA})`,
+      );
+      expect(stringsIn(shown(model)).filter((text) => text.includes("jane.doe"))).toEqual([]);
+    });
+
+    // A record from the working folder holds a path from it (page-lists/pages.csv), which names no
+    // account; the page names the file by its name alone all the same, as the walkthrough file it
+    // offers does.
+    it("names a file by its name alone whether the record holds its name, or a path from the working folder", () => {
+      for (const file of ["pages.csv", "page-lists/pages.csv"]) {
+        const run = shareRun({
+          id: "2026-09-26_1405",
+          source: { kind: "pages", file, sha256: SHA },
+          pages: [{ path: "/" }],
+        });
+        const model = buildShareModel(inputOf([run]));
+
+        expect(model.coverage.covered[0], file).toBe("1 page from the page list pages.csv.");
+        expect(rowsOf(model).get("Page source"), file).toBe(`page list pages.csv (sha256 ${SHA})`);
+      }
+    });
   });
 
   it("replaces the home folder in the name of a custom rule's card, on a page flagged with no issue", () => {
@@ -1821,7 +1888,7 @@ describe("buildShareModel", () => {
     );
   });
 
-  it("replaces the home folder in a walkthrough's file, as in a page list's", () => {
+  it("names a walkthrough's file by its name alone, as a page list's, so the home folder isn't shown", () => {
     const home = os.homedir();
     const file = path.join(home, "walks", "w.json");
     const run = shareRun({
@@ -1838,9 +1905,7 @@ describe("buildShareModel", () => {
 
     const covered = buildShareModel(inputOf([run])).coverage.covered[0];
 
-    expect(covered).toBe(
-      `1 page from the walkthrough ${redactHome(file, home, process.platform)} from run 2026-09-29_1402.`,
-    );
+    expect(covered).toBe("1 page from the walkthrough w.json from run 2026-09-29_1402.");
     expect(mentionsHome(covered ?? "")).toBe(false);
   });
 

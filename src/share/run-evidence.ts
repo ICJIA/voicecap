@@ -25,6 +25,7 @@ import { EVENT_LOG, isCopyPath } from "../run/events.js";
 import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
 import { formatCommand } from "../util/command-line.js";
+import { fileNameOf } from "../util/file-name.js";
 import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
 import type { LogCheck } from "./log-check.js";
 import { nothingCheckedLine } from "./log-words.js";
@@ -604,7 +605,9 @@ function statementOf(session: SessionRecord): string {
 /**
  * A page source with the addresses it names as the page shows them: the sitemap's, or each page
  * given with --page. A page list and a walkthrough file are named by their files, which hold no
- * address of the site.
+ * address of the site, and by each file's name alone, whatever path the record holds (a run
+ * recorded before voicecap 0.18.0 kept the whole path of one from outside its folder, which can
+ * name an account).
  */
 function sourceShown(source: PageSource, shown: Shown): PageSource {
   switch (source.kind) {
@@ -614,7 +617,7 @@ function sourceShown(source: PageSource, shown: Shown): PageSource {
       return { ...source, urls: source.urls.map(shown) };
     case "pages":
     case "walkthrough":
-      return source;
+      return { ...source, file: fileNameOf(source.file) };
     default: {
       // A kind this version doesn't know, from a later voicecap: shown as it was recorded.
       const _exhaustive: never = source;

@@ -42,6 +42,10 @@ voicecap now records what NVDA said aloud on each page, sealed with the run, wit
 - **What a share holds is said where it was listed.** `voicecap share --help` and `voicecap site --help`, the README's transcripts folder, `.gitignore`, `shares.json`, and website sections, and Technical details on the website now name the Markdown, the JSON, and `llms.txt`.
 - **Programmatic API:** `shareReport`'s `files`, and the `files` of the share's entry, list the Markdown and the JSON after the Word copy and the voice page, when there is one; a `PublishedFile`'s `kind` has two new values, `"markdown"` and `"data"`, so code that switches on `kind` needs a case for each; and `buildSite` writes `llms.txt` beside `index.html`; and the JSON's shape is exported as types, `AiReport` for the whole file and `AiPage`, `AiCard`, `AiFlag`, `AiAxeResults`, `AiTranscript`, `AiStep`, and the rest for the parts it is made of, so a program that reads one can type it. Nothing is removed.
 
+### Security
+
+- **A run no longer records your account's name in a path.** A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone. A failure's message, a page's errors, and the reasons for a screenshot, an axe check, or a recording are recorded with the home folder written as `%USERPROFILE%` and the temp folder as `%TEMP%`, in every spelling Windows gives them, the short one (`C:\Users\JANEDO~1`) included. The shareable page names a page list or walkthrough file by its name alone, for runs recorded before too. A run begun before 0.18.0 from a page list or walkthrough file outside that folder starts afresh.
+
 ## [0.17.0] - 2026-10-10
 
 Each run now keeps a cleaned copy of NVDA's own log, sealed with the run, and the shareable page checks it against the transcripts, line by line.

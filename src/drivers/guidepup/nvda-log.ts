@@ -21,7 +21,7 @@
 import { splitLines } from "../../manual/detect.js";
 import { splitLogEntries, type LogEntry } from "../../manual/nvda-log.js";
 import type { DriverCommand } from "../../model.js";
-import { redactHome } from "../../run/failure.js";
+import { redactHome, redactTemp } from "../../run/failure.js";
 
 /**
  * NVDA's log file, in the temp folder. NVDA moves the last one to nvda-old.log whenever it starts,
@@ -132,13 +132,15 @@ function kindOf(entry: LogEntry): Kind {
  * The cleaned copy of an NVDA log (any line ends): its first line says what it is, then come the
  * entries it keeps, whole and in order, as NVDA wrote them: the keys voicecap pressed, NVDA's
  * speech while the last key was one of those (see the top of this file), and its warnings and
- * errors. The home folder is written as redactHome writes it. Every line of the copy ends with
- * "\n". Cleaning a cleaned copy gives it back unchanged, since its first line is a comment before
- * the first entry.
+ * errors. The home folder is written as redactHome writes it, and the temp folder, when it's given,
+ * as redactTemp writes it, before the home folder, since NVDA names its own files there in the
+ * spelling Windows gives the temp folder, which may be the account's short name (C:\Users\JANEDO~1).
+ * Every line of the copy ends with "\n". Cleaning a cleaned copy gives it back unchanged, since its
+ * first line is a comment before the first entry.
  */
 export function cleanNvdaLog(
   raw: string,
-  options: { home: string; platform: NodeJS.Platform },
+  options: { home: string; platform: NodeJS.Platform; temp?: string },
 ): string {
   const lines = splitLines(raw);
   const entries = splitLogEntries(raw);
@@ -156,7 +158,10 @@ export function cleanNvdaLog(
     const end = (entries[index + 1]?.line ?? lines.length + 1) - 1;
     for (let at = entry.line - 1; at < end; at += 1) kept.push(lines[at]!);
   });
-  const text = redactHome(kept.join("\n"), options.home, options.platform);
+  const joined = kept.join("\n");
+  const named =
+    options.temp === undefined ? joined : redactTemp(joined, options.temp, options.platform);
+  const text = redactHome(named, options.home, options.platform);
   return kept.length === 0 ? `${CLEANED_LOG_FIRST_LINE}\n` : `${CLEANED_LOG_FIRST_LINE}\n${text}\n`;
 }
 

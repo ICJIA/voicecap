@@ -46,7 +46,7 @@ import { voicecapVersion } from "../util/version.js";
 import { encodeVoice, peakOf } from "../voice/encode.js";
 import { keepEarlierAttempt } from "./attempts.js";
 import type { DriverSession } from "./driver-session.js";
-import { homeFolder, redactHome } from "./failure.js";
+import { redactAccount } from "./failure.js";
 import { pageDir } from "./paths.js";
 
 export interface PageContext {
@@ -332,7 +332,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
       kind: "retry",
       failure: "environment",
       restart: true,
-      error: `Could not open the page for the ${pass} pass: ${errorMessage(error)}`,
+      error: `Could not open the page for the ${pass} pass: ${redactAccount(errorMessage(error))}`,
       ...failedWith(problemOf(pass, failureOf(error), "openPage")),
     };
   };
@@ -398,7 +398,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
             kind: "retry",
             failure: "environment",
             restart: true,
-            error: `Could not check the page with axe for the ${pass} pass: ${errorMessage(error)}`,
+            error: `Could not check the page with axe for the ${pass} pass: ${redactAccount(errorMessage(error))}`,
             // The page was still being opened for the pass: no step of it had begun.
             ...failedWith(problemOf(pass, failureOf(error), "openPage")),
           };
@@ -455,7 +455,9 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
 /**
  * Keep the screenshot a driver took of a page: the JPEG in the page's folder, and its record, with
  * the picture's size and when. A picture the driver couldn't take, and bytes that aren't a JPEG
- * voicecap can read, are recorded as the reason, with no file. Null when the driver took none.
+ * voicecap can read, are recorded as the reason, with no file; a reason the driver gave has the
+ * account's folders replaced (see redactAccount), as it may name a path. Null when the driver took
+ * none.
  */
 async function keepScreenshot(
   ctx: PageContext,
@@ -464,7 +466,7 @@ async function keepScreenshot(
 ): Promise<ScreenshotRecord | null> {
   if (screenshot === undefined) return null;
   const takenAt = isoLocalMs(ctx.now());
-  if ("error" in screenshot) return { error: screenshot.error, takenAt };
+  if ("error" in screenshot) return { error: redactAccount(screenshot.error), takenAt };
   const size = jpegSize(screenshot.jpeg);
   if (size === null) return { error: "the picture wasn't a JPEG voicecap could read", takenAt };
   await writeFileAtomic(path.join(dir, SCREENSHOT_FILE), screenshot.jpeg);
@@ -581,8 +583,8 @@ const SILENT_PEAK = 2;
  * while the attempt's transcripts have words (see hasWords): NVDA spoke, and the recording doesn't
  * have it. A quiet recording of a page with no words is a recording of a quiet page, and is kept. A
  * reason is its first line, cut at 300 characters, as an axe check's is, once the account's home
- * folder in it is replaced (see redactHome): the record, and the page that shows it, never name the
- * account.
+ * and temp folders in it are replaced (see redactAccount): the record, and the page that shows it,
+ * never name the account.
  *
  * The sound is deleted whatever comes of it, as the driver leaves its file to this. Encoding holds
  * the process up for about a hundredth of the recording's length, and it comes now, between attempts,
@@ -597,11 +599,10 @@ async function keepVoice(
 ): Promise<VoiceRecord> {
   const recordedAt = isoLocalMs(ctx.now());
   // A reason keeps the recorder's words as it said them, and some name a path (a program, the file
-  // .NET couldn't make, the script Add-Type compiled): the home folder is replaced before the cut,
-  // so that the record never names the account, and a path across the limit leaves no part of it.
-  const home = homeFolder();
+  // .NET couldn't make, the script Add-Type compiled): the account's folders are replaced before the
+  // cut, so that the record never names the account, and a path across the limit leaves no part of it.
   const without = (reason: string): VoiceRecord => ({
-    error: axeErrorReason(home === null ? reason : redactHome(reason, home, process.platform)),
+    error: axeErrorReason(redactAccount(reason)),
     recordedAt,
   });
   if ("error" in capture) return without(capture.error);
@@ -671,29 +672,23 @@ function hasWords(attempt: Attempt): boolean {
  * "openPage"), says went wrong. A browser that's gone during the page's check with axe is recorded
  * the same way, as a failure with no step (see AttemptRecord.command): the shareable page words it
  * "…while opening the page for the read pass", and only the page's errors name axe. The program
- * that took the foreground is kept when the driver named one (or said it couldn't). An unexpected
- * error's stack is kept with the home folder replaced, so the record doesn't name the account that
- * ran voicecap. Its message is kept word for word: the report replaces the home folder where it
- * shows one.
+ * that took the foreground is kept when the driver named one (or said it couldn't). The error's
+ * message, and an unexpected error's stack, are kept with the account's home and temp folders
+ * replaced (see redactAccount), so the record doesn't name the account that ran voicecap.
  */
 function problemOf(
   pass: PassName,
   failure: PassFailure,
   command: Problem["command"] = failure.command,
 ): Problem {
-  const home = homeFolder();
   return {
     pass,
     step: failure.step,
     command,
     cause: failure.cause,
-    message: failure.message,
+    message: redactAccount(failure.message),
     ...(failure.program !== undefined ? { program: failure.program } : {}),
-    ...(failure.stack !== undefined
-      ? {
-          stack: home === null ? failure.stack : redactHome(failure.stack, home, process.platform),
-        }
-      : {}),
+    ...(failure.stack !== undefined ? { stack: redactAccount(failure.stack) } : {}),
   };
 }
 

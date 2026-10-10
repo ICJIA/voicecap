@@ -701,6 +701,13 @@ export const TECHNICAL_TEXT = {
             "An NVDA log from a manual session can hold every keystroke, so voicecap warns, can take typed text out, and keeps the raw copy out of Git.",
           ],
           [
+            "A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone, and the home folder in the words of an error that a run keeps is written as ",
+            { code: "%USERPROFILE%" },
+            " and the temp folder as ",
+            { code: "%TEMP%" },
+            ", in every spelling Windows gives them. The shareable page names such a file by its name alone, for runs recorded before too.",
+          ],
+          [
             "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser.",
           ],
           [

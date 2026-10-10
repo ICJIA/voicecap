@@ -4,6 +4,7 @@
  */
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -134,6 +135,18 @@ describe("a page's screenshot, in a run", () => {
     expect(existsSync(shotOf(dir, run))).toBe(false);
     expect(Object.keys(page.files)).toHaveLength(6);
     expect(await problemsIn(dir)).toBe(0);
+  });
+
+  // The reason is the driver's own words, which can name a path in the account's folders.
+  it("is recorded with the home folder in the reason replaced, as %USERPROFILE% or ~", async () => {
+    const mark = process.platform === "win32" ? "%USERPROFILE%" : "~";
+    const { page } = await runHome({
+      error: `page.screenshot: can't write ${path.join(os.homedir(), "shots", "a.jpg")}`,
+    });
+    expect(page.status).toBe("done");
+    expect(page.screenshot).toMatchObject({
+      error: `page.screenshot: can't write ${mark}${path.sep}shots${path.sep}a.jpg`,
+    });
   });
 
   it("is recorded as a failure when the bytes aren't a JPEG voicecap can read, and none is kept", async () => {

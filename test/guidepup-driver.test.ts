@@ -2446,6 +2446,22 @@ describe("NVDA's own log", () => {
       expect(recorder.logs).toHaveLength(1);
     });
 
+    // NVDA names its own files in its warnings and errors, and its log, and the copy, are in the temp
+    // folder, which the copy writes as %TEMP%, as a reason does.
+    it("writes the temp folder NVDA names in a warning as %TEMP%", async () => {
+      const { driver, desktop, deps, recorder } = recordingLogs();
+      const temp = path.dirname(deps.voiceDir);
+      desktop.nvdaLog = FIRST_LOG.replace(
+        String.raw`C:\Users\pat\AppData\Roaming\nvda\nvda.ini`,
+        path.join(temp, "nvda-old.log").replace(temp, temp.toUpperCase()),
+      );
+      await driver.start();
+      await driver.stop();
+      const [copy] = recorder.logs;
+      expect(copy).toContain(`Couldn't read %TEMP%${path.sep}nvda-old.log`);
+      expect(copy?.toLowerCase()).not.toContain(temp.toLowerCase());
+    });
+
     it("keeps the log of an NVDA that a stop overtook as it started, once", async () => {
       const { driver, desktop, nvda, recorder } = recordingLogs();
       desktop.nvdaLog = FIRST_LOG;
@@ -2630,6 +2646,24 @@ describe("NVDA's own log", () => {
       await older.driver.stop();
       expect(older.recorder.logs).toEqual([]);
       expect(only(older.recorder.events, "screen-reader-log")).toEqual([OLDER]);
+    });
+
+    // Node's message names the file it couldn't read in the spelling the environment gives the temp
+    // folder, which may be the account's short name (C:\Users\JANEDO~1), not the home folder's.
+    it("is recorded with the temp folder named %TEMP% in why, in whatever case the error spells it", async () => {
+      const { driver, desktop, deps, recorder } = recordingLogs();
+      const temp = path.dirname(deps.voiceDir);
+      const log = path.join(temp, "nvda.log").replace(temp, temp.toUpperCase());
+      desktop.nvdaLog = new Error(`EBUSY: resource busy or locked, open '${log}'`);
+      await driver.start();
+      await driver.stop();
+      expect(only(recorder.events, "screen-reader-log")).toEqual([
+        {
+          type: "screen-reader-log",
+          file: null,
+          reason: `EBUSY: resource busy or locked, open '%TEMP%${path.sep}nvda.log'`,
+        },
+      ]);
     });
 
     it("is recorded as no copy, and not read, when the account's home folder isn't known", async () => {

@@ -17,7 +17,7 @@ import type { RunEvent } from "../model.js";
 import { errorMessage } from "../util/errors.js";
 import type { Logger } from "../util/log.js";
 import { isoLocalMs } from "../util/time.js";
-import { homeFolder, redactHome } from "./failure.js";
+import { redactAccount } from "./failure.js";
 
 /**
  * A run's event log, in the run's folder: one JSON object a line, each an event and when it was
@@ -180,14 +180,12 @@ export function openEventLog(
 }
 
 /**
- * Why something failed, as the log keeps it: the error's message, with the home folder written as
- * redactHome writes it. The log is kept with the run, in the transcripts' Git history, and mustn't
- * name the account that ran voicecap, as a path in an error's message does.
+ * Why something failed, as the log keeps it: the error's message, with the home and temp folders
+ * written as redactAccount writes them. The log is kept with the run, in the transcripts' Git
+ * history, and mustn't name the account that ran voicecap, as a path in an error's message does.
  */
 function reasonOf(error: unknown): string {
-  const message = errorMessage(error);
-  const home = homeFolder();
-  return home === null ? message : redactHome(message, home, process.platform);
+  return redactAccount(errorMessage(error));
 }
 
 /** Whether the file is there, has something in it, and doesn't end with a newline. */

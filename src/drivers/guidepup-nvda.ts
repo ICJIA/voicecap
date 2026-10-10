@@ -87,7 +87,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { AXE_LIMIT_MS, axeErrorReason, axeScript, keptAxeResults } from "../axe/results.js";
 import type { VoicecapConfig } from "../config/schema.js";
 import { isHtmlContentType } from "../pages/url.js";
-import { redactHome } from "../run/failure.js";
+import { redactHome, redactTemp } from "../run/failure.js";
 import { EnvironmentError, errorCode, errorMessage } from "../util/errors.js";
 import { closedProgram } from "../util/foreground.js";
 import { acquireLockFile, isStale, readLockHolder } from "../util/lock-file.js";
@@ -1301,7 +1301,8 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * can't be read (another program has it locked, say), or it began before this NVDA session's
    * start did, so it's an earlier NVDA's (beganWithSession). Nothing is read when the account's home
    * folder isn't known: a copy says it has the home folder written as %USERPROFILE%, and the
-   * account's name in a path would stay in it. Never throws.
+   * account's name in a path would stay in it. The temp folder, where NVDA keeps its log and names
+   * its own files, is written as %TEMP% in a copy and in a reason (see reasonOf). Never throws.
    */
   private async cleanedNvdaLog(): Promise<{ cleaned: string } | { reason: string }> {
     const { home, platform } = this.deps;
@@ -1319,10 +1320,13 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
           reason: "NVDA's log is older than this NVDA session, so it isn't this session's.",
         };
       }
-      return { cleaned: cleanNvdaLog(raw, { home, platform }) };
+      // The temp folder is the one the sound's folder is made in (see voiceFolder).
+      const temp = path.dirname(this.deps.voiceDir);
+      return { cleaned: cleanNvdaLog(raw, { home, platform, temp }) };
     } catch (error) {
-      // The run keeps the reason, and a path in an error's message names the account.
-      return { reason: redactHome(errorMessage(error), home, platform) };
+      // The run keeps the reason, and a path in an error's message names the account: in the temp
+      // folder's spelling (reasonOf), which may be a short one, and in the home folder's.
+      return { reason: redactHome(this.reasonOf(error), home, platform) };
     }
   }
 
@@ -1396,19 +1400,14 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   }
 
   /**
-   * An error from the recorder as the page's reason: the temp folder the sound is kept in is named
-   * by its variable (%TEMP%), wherever and however the recorder spells it. Its .NET messages name the
-   * file they couldn't make, and Windows may spell the account's folder in its short form
-   * (C:\Users\CHRIST~1), which isn't the spelling of the home folder that the run replaces.
+   * An error from the recorder, or from reading NVDA's log, as a reason: the temp folder the sound
+   * is kept in is named by its variable (%TEMP%), wherever and however the error spells it (see
+   * redactTemp). Its .NET messages name the file they couldn't make, and Windows may spell the
+   * account's folder in its short form (C:\Users\CHRIST~1), which isn't the spelling of the home
+   * folder that the run replaces.
    */
   private reasonOf(error: unknown): string {
-    const message = errorMessage(error);
-    const temp = path.dirname(this.deps.voiceDir);
-    // A folder to name: not the working folder ("."), which would match every dot.
-    if (!path.isAbsolute(temp)) return message;
-    // Its parts, in any case and with either slash between them, as redactHome matches a folder.
-    const parts = temp.split(/[\\/]+/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-    return message.replace(new RegExp(parts.join(String.raw`[\\/]+`), "gi"), "%TEMP%");
+    return redactTemp(errorMessage(error), path.dirname(this.deps.voiceDir), this.deps.platform);
   }
 
   /** The process NVDA runs in, and which start of NVDA it is; throws when there's none to record. */

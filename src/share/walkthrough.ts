@@ -36,6 +36,7 @@ import {
 } from "../model.js";
 import { canonicalKey } from "../pages/url.js";
 import { UsageError } from "../util/errors.js";
+import { fileNameOf } from "../util/file-name.js";
 import { canonicalJson } from "../util/hash.js";
 import { names } from "./format.js";
 
@@ -338,18 +339,9 @@ function readinessOf(readiness: RunSettings["readiness"]): WalkthroughSettings["
 }
 
 /**
- * A file's name without its folders: the last part of its path, cut at / or \. A walkthrough keeps
- * the file of a page list or of a walkthrough by this alone, with its SHA-256 as it is. The file
- * goes to auditors and into the shareable page, and a full path could carry the person's user name.
- * A sitemap's address and --page addresses stay whole.
- */
-function fileNameOf(file: string): string {
-  return file.slice(Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\")) + 1);
-}
-
-/**
  * The page source as the run recorded it, with its keys in the type's order, and the file of a page
- * list or of a walkthrough by its name alone.
+ * list or of a walkthrough by its name alone (see fileNameOf): the file goes to auditors and into the
+ * shareable page, and a full path could carry the person's user name.
  */
 function sourceOf(source: PageSource): PageSource {
   switch (source.kind) {

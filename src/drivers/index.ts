@@ -5,6 +5,7 @@
 import path from "node:path";
 
 import type { VoicecapConfig } from "../config/schema.js";
+import { redactAccount } from "../run/failure.js";
 import { EnvironmentError, UsageError } from "../util/errors.js";
 import { fromGitBash } from "../util/git-bash.js";
 import type { Logger } from "../util/log.js";
@@ -24,7 +25,11 @@ export interface DriverSelection {
   name: DriverName;
   /** Replay driver: the run folder, absolute. */
   replayFrom: string | null;
-  /** Replay driver: the folder as the user wrote it (Git Bash's form read), for transcripts and settings. */
+  /**
+   * Replay driver: the folder as the user wrote it (Git Bash's form read), for transcripts and
+   * settings, with the account's home and temp folders replaced (see redactAccount): a folder typed
+   * in full can name the account.
+   */
   replayLabel: string | null;
 }
 
@@ -45,7 +50,7 @@ export function selectDriver(
     return {
       name: "replay",
       replayFrom: path.resolve(cwd, folder),
-      replayLabel: folder.split(path.sep).join("/"),
+      replayLabel: redactAccount(folder.split(path.sep).join("/")),
     };
   }
   return { name: config.driver, replayFrom: null, replayLabel: null };

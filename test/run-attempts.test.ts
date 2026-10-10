@@ -2,11 +2,17 @@
  * A page's failed attempts stay in its record whatever happens next: each is written to run.json as
  * it ends, before any restart, and numbered as the page's attempt across every session.
  */
+import { readFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { ForegroundError } from "../src/drivers/types.js";
 import type { AttemptRecord } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
+import { readEventLog } from "../src/run/events.js";
+import { eventLogFile } from "../src/run/paths.js";
 import { listRuns, readRunJson, writeRunJson } from "../src/run/store.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { config, options, outDir, setup, sitePages } from "./helpers/run-site.js";
@@ -119,5 +125,66 @@ describe("a page's failed attempts, whatever ends the session", () => {
     const page = resumed.run.pages[1]!;
     expect(page).toMatchObject({ status: "done", attempts: 5 });
     expect(page.failedAttempts!.map((attempt) => attempt.n)).toEqual([4]);
+  });
+});
+
+describe("the words of an error a page's attempts record", () => {
+  // An error's message can name a file of the account that ran voicecap, and the records are kept in
+  // Git and shown on a website: the home folder is written as %USERPROFILE%, or ~ away from Windows.
+  const mark = process.platform === "win32" ? "%USERPROFILE%" : "~";
+  const message = `can't read ${path.join(os.homedir(), "secret.txt")}`;
+  const kept = `can't read ${mark}${path.sep}secret.txt`;
+
+  it("name the home folder as %USERPROFILE%: in the page's errors, the attempt's message, and the event log", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) => (command === "nextLine" ? new Error(message) : null),
+    });
+
+    const { run, runId } = await runAudit({
+      ...options(dir, driver),
+      config: config({ pageAttempts: 2 }),
+    });
+
+    const page = run.pages[0]!;
+    expect(page).toMatchObject({ status: "failed", attempts: 2 });
+    // The page's errors: what each attempt said, and the line that retries it.
+    expect(page.errors).toEqual([
+      `Attempt 1 failed (read pass: ${kept}); retrying.`,
+      `read pass: ${kept}`,
+    ]);
+    // Each failed attempt's message, which is an unexpected error's, so its stack is kept too.
+    expect(page.failedAttempts!.map((attempt) => attempt.message)).toEqual([kept, kept]);
+    expect(page.failedAttempts![0]).toMatchObject({ cause: "unexpected" });
+    // The pass's own record, which the transcript's header repeats as its errors.
+    expect(page.passes.read?.errors).toEqual([kept]);
+
+    // The event log's line for each attempt that failed.
+    const log = readEventLog(readFileSync(eventLogFile(outDir(dir), runId), "utf8"));
+    const failed = log.events.filter((event) => event.type === "page-failed");
+    expect(failed.map((event) => (event as { message?: string }).message)).toEqual([kept, kept]);
+
+    // Nothing the run kept of the attempts holds the home folder, whatever way it is spelled.
+    const onDisk = JSON.stringify(await readRunJson(outDir(dir), runId));
+    expect(onDisk).not.toContain(JSON.stringify(os.homedir()).slice(1, -1));
+    expect(onDisk).not.toContain(os.homedir().replaceAll("\\", "/"));
+  });
+
+  it("name it as %USERPROFILE% for a page that wouldn't open, too", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages({ home: { openError: new Error(message) } }));
+
+    const { run } = await runAudit({
+      ...options(dir, driver),
+      config: config({ pageAttempts: 2 }),
+    });
+
+    const page = run.pages[0]!;
+    expect(page.status).toBe("failed");
+    expect(page.errors).toEqual([
+      `Attempt 1 failed (Could not open the page for the read pass: ${kept}); retrying.`,
+      `Could not open the page for the read pass: ${kept}`,
+    ]);
+    expect(page.failedAttempts!.map((attempt) => attempt.message)).toEqual([kept, kept]);
   });
 });

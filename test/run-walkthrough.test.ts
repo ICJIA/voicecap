@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import type * as FsPromises from "node:fs/promises";
 import { copyFile, mkdir, readFile, rm, stat, truncate, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +18,7 @@ import { createDriver } from "../src/drivers/index.js";
 import { readWalkthroughFile } from "../src/pages/resolve.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
 import { runAudit, type RunAuditOptions, type RunAuditResult } from "../src/run/audit.js";
+import { redactHome } from "../src/run/failure.js";
 import type * as PageRunner from "../src/run/page-runner.js";
 import { processPage } from "../src/run/page-runner.js";
 import { siteFolder } from "../src/run/paths.js";
@@ -377,14 +379,17 @@ describe("a run repeated from its walkthrough file", () => {
     expect(repeat.run.source.file).toBe(`kept/${NAME}`);
   });
 
-  it("records a file outside the working folder by its full path", async () => {
+  // A path from outside the folder can carry the account's name: from 0.18.0 the record keeps the
+  // file's name alone.
+  it("records a file outside the working folder by its name alone", async () => {
     const { file } = await original();
     const elsewhere = await newFolder();
 
     const repeat = await runAudit(repeating(elsewhere, new ScriptedDriver(sitePages()), file));
 
-    expect(repeat.run.settings.source).toMatchObject({ file });
-    expect(repeat.run.source.file).toBe(file);
+    expect(repeat.run.settings.source).toMatchObject({ file: NAME });
+    expect(repeat.run.source.file).toBe(NAME);
+    expect(repeat.run.sessions[0]?.environment?.pageSource).toMatchObject({ file: NAME });
   });
 
   // Git Bash translates /c/... itself, except with MSYS_NO_PATHCONV=1 set.
@@ -594,7 +599,16 @@ describe("a run repeated from its walkthrough file", () => {
     );
     expect(replayed.outcome).toBe("completed");
     expect(replayed.run.replayed).toBe(true);
-    expect(replayed.run.settings.replayFrom).toBe(run.runDir.split(path.sep).join("/"));
+    // The folder as it was typed, less the account's: a folder typed in full can name the account,
+    // so the temp folder this one is in is written %TEMP% on Windows, and the home folder as it is
+    // elsewhere.
+    const typed = run.runDir.split(path.sep).join("/");
+    const temp = os.tmpdir().split(path.sep).join("/");
+    expect(replayed.run.settings.replayFrom).toBe(
+      process.platform === "win32"
+        ? `%TEMP%${typed.slice(temp.length)}`
+        : redactHome(typed, os.homedir(), process.platform),
+    );
   });
 
   it("allows --canonical, which names the site in the record and changes nothing that's read", async () => {

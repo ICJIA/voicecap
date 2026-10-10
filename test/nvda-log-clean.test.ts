@@ -325,6 +325,60 @@ describe("cleanNvdaLog: the home folder", () => {
   });
 });
 
+// NVDA names the files in its temp folder in its warnings and errors, in the spelling Windows gives
+// the folder: for an account folder longer than eight characters, a short one (JANEDO~1), which is
+// not the home folder's spelling.
+describe("cleanNvdaLog: the temp folder", () => {
+  const TEMP = "C:\\Users\\JANEDO~1\\AppData\\Local\\Temp";
+  const options = { home: "C:\\Users\\jane.doe.smith", platform: "win32", temp: TEMP } as const;
+  const moving = entry(
+    "ERROR",
+    "core.main",
+    "09:00:04.000",
+    MAIN,
+    String.raw`Couldn't move the log to C:\Users\JANEDO~1\AppData\Local\Temp\nvda-old.log`,
+  );
+
+  it("is written as %TEMP%, so no part of the account's name is kept", () => {
+    const body = bodyOf(cleanNvdaLog(nvdaWrites([moving]), options)).join("\n");
+    expect(body).toContain(String.raw`Couldn't move the log to %TEMP%\nvda-old.log`);
+    expect(body).not.toContain("JANEDO");
+  });
+
+  it("is written first, so the home folder's long spelling in it doesn't make it %USERPROFILE%", () => {
+    const long = entry(
+      "ERROR",
+      "core.main",
+      "09:00:04.000",
+      MAIN,
+      String.raw`Couldn't read C:\Users\jane.doe.smith\AppData\Local\Temp\nvda.log`,
+    );
+    const asked = { ...options, temp: String.raw`C:\Users\jane.doe.smith\AppData\Local\Temp` };
+    expect(bodyOf(cleanNvdaLog(nvdaWrites([long]), asked))).toEqual([
+      long[0],
+      String.raw`Couldn't read %TEMP%\nvda.log`,
+    ]);
+  });
+
+  it("is left as NVDA wrote it when the copy is cleaned with no temp folder, as before", () => {
+    const body = bodyOf(
+      cleanNvdaLog(nvdaWrites([moving]), { home: options.home, platform: options.platform }),
+    ).join("\n");
+    expect(body).toContain(String.raw`C:\Users\JANEDO~1\AppData\Local\Temp\nvda-old.log`);
+  });
+
+  it("changes nothing off Windows, where no temp folder is named", () => {
+    const failure = entry("ERROR", "x.y", "09:00:04.000", MAIN, "Couldn't move /tmp/nvda-old.log");
+    const away = { home: "/home/jane", platform: "linux", temp: "/tmp" } as const;
+    expect(bodyOf(cleanNvdaLog(nvdaWrites([failure]), away))).toEqual(failure);
+  });
+
+  it("is not changed by cleaning the copy again", () => {
+    const cleaned = cleanNvdaLog(nvdaWrites([moving, DOWN]), options);
+    expect(cleanNvdaLog(cleaned, options)).toBe(cleaned);
+  });
+});
+
 describe("cleanNvdaLog: the copy", () => {
   it("starts with the line that says what it is", () => {
     expect(clean(...WHOLE_LOG).split("\n")[0]).toBe(HEADER);

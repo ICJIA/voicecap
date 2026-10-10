@@ -5,6 +5,7 @@
  */
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -445,6 +446,29 @@ describe("a page's axe results, in a run", () => {
       new EnvironmentError("The browser closed or crashed while voicecap was using it.", {
         failure: "browser",
       });
+
+    // The error's own words are the page's errors and the attempt's message, and can name a path.
+    it("writes the home folder in the error's words as %USERPROFILE%, or ~ away from Windows", async () => {
+      const mark = process.platform === "win32" ? "%USERPROFILE%" : "~";
+      const dir = await setup(["/"]);
+      const driver = new ScriptedDriver(sitePages({ home: { axe: results(`${SITE}/`) } }), {
+        fail: (command) =>
+          command === "checkWithAxe"
+            ? new EnvironmentError(`Can't read ${path.join(os.homedir(), "axe.js")}`, {
+                failure: "browser",
+              })
+            : null,
+      });
+      const run = await runAudit({ ...options(dir, driver), config: config({ pageAttempts: 2 }) });
+      const kept = `Can't read ${mark}${path.sep}axe.js`;
+
+      const page = run.run.pages[0]!;
+      expect(page.errors).toEqual([
+        `Attempt 1 failed (Could not check the page with axe for the read pass: ${kept}); retrying.`,
+        `Could not check the page with axe for the read pass: ${kept}`,
+      ]);
+      expect(page.failedAttempts?.map((attempt) => attempt.message)).toEqual([kept, kept]);
+    });
 
     it("fails the attempt and tries the page again after a restart, as a browser that's gone does for any step", async () => {
       const dir = await setup(["/"]);

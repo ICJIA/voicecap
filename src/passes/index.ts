@@ -1,6 +1,6 @@
 import type { FocusedElement, ScreenReaderDriver } from "../drivers/types.js";
 import type { DriverCommand, FailureCause, PassName, StepRecord, StopReason } from "../model.js";
-import { causeOf } from "../run/failure.js";
+import { causeOf, redactAccount } from "../run/failure.js";
 import { errorMessage, programOf } from "../util/errors.js";
 import { headingsPass } from "./headings.js";
 import { readPass } from "./read.js";
@@ -18,6 +18,7 @@ export interface PassSettings {
 /** What a failed pass, or the opening of a page for one, says about why it failed. */
 export interface PassFailure {
   cause: FailureCause;
+  /** The error's message, with the account's home and temp folders replaced (see redactAccount). */
   message: string;
   /** The 1-based step that failed (see StepRecorder.current), or null when none was under way. */
   step: number | null;
@@ -79,7 +80,9 @@ export async function runPass(
   } catch (error) {
     if (error instanceof InterruptedError) throw error;
     stopReason = error instanceof StepTimeoutError ? "timeout" : "error";
-    errors.push(errorMessage(error));
+    // The pass's errors are kept in the run's record and in the transcript's header: the message can
+    // name a path, and the account's folders in it are replaced.
+    errors.push(redactAccount(errorMessage(error)));
     failure = failureOf(error, recorder.current);
   }
   return {
@@ -96,16 +99,17 @@ export async function runPass(
 
 /**
  * What an error that stopped a pass (or the opening of a page for one) amounts to: its cause and
- * message, the step that was under way when it was raised (`step`, from StepRecorder.current; none
- * for an error outside a step), the program that took the foreground when that's what the error
- * says (programOf), and, for an unexpected error only, its stack.
+ * message (with the account's home and temp folders replaced), the step that was under way when it
+ * was raised (`step`, from StepRecorder.current; none for an error outside a step), the program that
+ * took the foreground when that's what the error says (programOf), and, for an unexpected error
+ * only, its stack.
  */
 export function failureOf(error: unknown, step: StepRecorder["current"] = null): PassFailure {
   const cause = causeOf(error);
   const program = programOf(error);
   return {
     cause,
-    message: errorMessage(error),
+    message: redactAccount(errorMessage(error)),
     step: step?.n ?? null,
     command: step?.command ?? null,
     ...(program !== undefined ? { program } : {}),

@@ -23,7 +23,10 @@ import {
 
 /** A walkthrough file as a repeat reads it: read once, as bytes, then parsed. */
 export interface WalkthroughFile {
-  /** The file's path as recorded, as a page list's is: relative to cwd when inside it. */
+  /**
+   * The file's path as recorded, as a page list's is: relative to cwd when inside it, and its name
+   * alone when outside it.
+   */
   file: string;
   /** The SHA-256 of the file's bytes as read. */
   sha256: string;
@@ -120,10 +123,10 @@ function walkthroughSource(walkthrough: WalkthroughFile): PageSource {
 /**
  * Identify a page source without fetching anything, for the resume check. A sitemap is its full
  * URL, however it was given (a name or path is read on site, from its root, as resolvePages reads
- * it); a page list is its path (relative to cwd, with forward slashes, when inside cwd) plus the
- * SHA-256 of its contents; --page values are their resolved URLs; a walkthrough is its file,
- * SHA-256, and run, from the file as already read. site is required for --page values and for a
- * sitemap given as a name or path.
+ * it); a page list is its path (relative to cwd, with forward slashes, when inside cwd, and its name
+ * alone when outside it) plus the SHA-256 of its contents; --page values are their resolved URLs;
+ * a walkthrough is its file, SHA-256, and run, from the file as already read. site is required for
+ * --page values and for a sitemap given as a name or path.
  */
 export async function pageSourceFor(options: {
   sitemap?: string;
@@ -391,13 +394,19 @@ function parseSitemapUrl(input: string, site: URL | undefined): string {
   );
 }
 
-/** A page list's path as recorded: relative to cwd with forward slashes if inside it. */
+/**
+ * A page list's or a walkthrough file's path as recorded: relative to cwd with forward slashes if
+ * inside it, and its name alone if outside, since a path from outside can carry the account's name
+ * (a file dragged in from Downloads, a Documents folder redirected to a file server). A run begun
+ * before voicecap 0.18.0 from a file outside cwd recorded its whole path, so its settings differ
+ * from this one's, and a new run starts instead of resuming it.
+ */
 function recordedPath(cwd: string, absolute: string): string {
   const relative = path.relative(cwd, absolute);
   if (relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)) {
     return relative.split(path.sep).join("/");
   }
-  return absolute;
+  return path.basename(absolute);
 }
 
 function baseDetails(
