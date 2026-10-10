@@ -640,7 +640,7 @@ export const TECHNICAL_TEXT = {
             "The browser gets a new profile for each page load, deleted after, with sync, background networking, and extensions off, and downloads refused.",
           ],
           [
-            "A window's title, which can hold private text, is kept in the event log, never on a page or in a Word copy. A run's copies of NVDA's own log can hold it too, as NVDA said it: a page counts what NVDA said outside voicecap's steps, and never shows it.",
+            "A window's title, which can hold private text, is kept in the event log, never on a page or in a Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. A page counts what NVDA said outside voicecap's steps, and never shows it.",
           ],
           [
             "An NVDA log from a manual session can hold every keystroke, so voicecap warns, can take typed text out, and keeps the raw copy out of Git.",

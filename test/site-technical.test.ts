@@ -694,9 +694,10 @@ describe("renderTechnical", () => {
     );
     expect(part("privacy-and-security")).toContain("which the README says to keep private");
     // A window's title is the event log's, never shown, and a run's copies of NVDA's own log can
-    // hold it as NVDA said it, which a page counts and never shows: the event log isn't its only home.
+    // hold more of another window, its text as NVDA read it too (the PC session of 2026-10-10 found
+    // a Notepad document's first line in one), which a page counts and never shows.
     expect(part("privacy-and-security")).toContain(
-      "A window's title, which can hold private text, is kept in the event log, never on a page or in a Word copy. A run's copies of NVDA's own log can hold it too, as NVDA said it: a page counts what NVDA said outside voicecap's steps, and never shows it.",
+      "A window's title, which can hold private text, is kept in the event log, never on a page or in a Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. A page counts what NVDA said outside voicecap's steps, and never shows it.",
     );
     expect(part("privacy-and-security")).not.toContain("only in the event log");
 
