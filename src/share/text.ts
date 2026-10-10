@@ -1330,6 +1330,13 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.16.0</b>: axe on each page: what axe, an open-source accessibility checker, found on the page, in a fold on its card, beside what NVDA said, and sealed with the run.",
   },
   {
+    date: "2026-10-10",
+    release: "0.17.0",
+    pc: null,
+    mac: null,
+    both: "<b>0.17.0</b>: NVDA's own log, kept cleaned with each run and checked against the transcripts, line by line.",
+  },
+  {
     date: null,
     release: null,
     pc: "NVDA's voice: a recording of what NVDA said on each page, sealed with the run.",

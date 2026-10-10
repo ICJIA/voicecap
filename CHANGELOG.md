@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-10
+
 Each run now keeps a cleaned copy of NVDA's own log, sealed with the run, and the shareable page checks it against the transcripts, line by line.
 
 ### Added
@@ -35,7 +37,7 @@ Each run now keeps a cleaned copy of NVDA's own log, sealed with the run, and th
 - **voicecap's NVDA now logs at the input/output level.** voicecap starts NVDA with `general.loggingLevel` at `"IO"`, through Guidepup's own settings and nothing else, where Guidepup's configuration had it at `"OFF"`, so that there is a log to keep a copy of. A `general.loggingLevel` you set in `nvdaSettings` wins, and `"OFF"` turns it off again. A run records the level it ran with in its transcripts' headers and its environment, so comparing a run with one from before 0.17.0 names `general.loggingLevel` among the screen reader settings that differ. In the check at the PC on 6 October 2026, the demo's 21 passes read word for word the same with the log on and off.
 - **A problem's record shows an entry of several lines line by line, on the page of every run,** runs from before 0.17.0 included: a traceback, or the call log in a browser's error message, in place of one run-together line. Each line keeps its spaces, so a traceback keeps its indentation. The Word copy already set such an entry line by line. A page already shared is as it was.
 - **The story's "Next" now lists NVDA's voice, a recording of what NVDA said on each page, sealed with the run,** where it listed NVDA's own log, which is recorded from this release.
-- **The website's Technical details page includes NVDA's own log.** What it says a run records, and fingerprints, includes each copy of NVDA's log, and its privacy part no longer says that the event log alone keeps a window's title: a run's copies of NVDA's log can hold one as NVDA said it, which a page counts and never shows.
+- **The website's Technical details page includes NVDA's own log.** What it says a run records, and fingerprints, includes each copy of NVDA's log, and its privacy part no longer says that the event log alone keeps a window's title: a run's copies of NVDA's log can hold more of another window, its title and the text NVDA read aloud from it, which a page counts and never shows.
 - **The demo's pages name `https://voicecap.icjia.app/demo-site/` as their canonical address,** the website's own domain, in place of `https://voicecap.netlify.app/demo-site/`. A demo run made with this voicecap learns it, and a share of the demo is named for it, such as `voicecap.icjia.app_2026-10-02.html`, where it was `voicecap.netlify.app_2026-10-02.html`. The website still publishes the pages in `demo-site/`, whose `sitemap.xml` now lists their new addresses, and the demo's view links to them with the words `voicecap.icjia.app/demo-site/`. The README's addresses for the demo and a site's own section (`voicecap.icjia.app/#site-sfs.icjia.illinois.gov`) are the new ones, and its first-deploy steps say the website also answers at voicecap.icjia.app.
   - **A demo run or share made with an earlier voicecap keeps the name it recorded,** `voicecap.netlify.app`: nothing already written changes. To name the demo's report by the new address, run the demo again with `npx @icjia/voicecap@latest demo`, or share its runs with `report.canonical` set to the new address, as the README's "Publishing it, and the demo" says.
 
@@ -662,7 +664,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.16.1...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/ICJIA/voicecap/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/ICJIA/voicecap/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/ICJIA/voicecap/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/ICJIA/voicecap/compare/v0.14.0...v0.15.0
