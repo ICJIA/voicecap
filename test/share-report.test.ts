@@ -1843,11 +1843,14 @@ describe("shareReport, with a recording of NVDA's voice on each page", () => {
 
     const { files, entry } = await shareReport(options);
 
-    // The page, its Word copy, the voice page, then the walkthrough file.
+    // The page, its Word copy, the voice page, the report for AI tools as Markdown and as JSON,
+    // then the walkthrough file.
     expect(files.map(({ name }) => name)).toEqual([
       `${FIRST}.html`,
       `${FIRST}.docx`,
       voiceName(FIRST),
+      `${FIRST}.md`,
+      `${FIRST}.json`,
       walkthroughName(FIRST, run.runId),
     ]);
     for (const file of files) {
@@ -1997,11 +2000,7 @@ describe("shareReport, with a recording of NVDA's voice on each page", () => {
 
     const { files, entry } = await shareReport(options);
 
-    expect(files.map(({ name }) => name)).toEqual([
-      `${FIRST}.html`,
-      `${FIRST}.docx`,
-      walkthroughName(FIRST, run.runId),
-    ]);
+    expect(files.map(({ name }) => name)).toEqual(copyNames(FIRST, run.runId));
     expect(entry.files.map(({ name }) => name)).not.toContain(voiceName(FIRST));
     expect((await names(shareDir(siteDir))).filter((name) => name.includes("voice"))).toEqual([]);
     // Nor does the page link to one.
@@ -2020,11 +2019,7 @@ describe("shareReport, with a recording of NVDA's voice on each page", () => {
         voice !== undefined && "error" in voice ? voice.error : "",
       ),
     ).toEqual(Array.from({ length: 3 }, () => "the recorder couldn't start"));
-    expect(files.map(({ name }) => name)).toEqual([
-      `${FIRST}.html`,
-      `${FIRST}.docx`,
-      walkthroughName(FIRST, run.runId),
-    ]);
+    expect(files.map(({ name }) => name)).toEqual(copyNames(FIRST, run.runId));
     expect((await names(shareDir(siteDir))).filter((name) => name.includes("voice"))).toEqual([]);
     expect(await readFile(files[0]!.path, "utf8")).not.toContain(".voice.html");
   });
@@ -2080,11 +2075,18 @@ describe("shareReport, with a recording of NVDA's voice on each page", () => {
     const { siteDir, options } = await homeWithVoice();
     const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
     const steps: string[] = [];
+    // What a copy is, by its name: the voice page by its ending, and a walkthrough file by its own,
+    // which the report's JSON doesn't have.
+    const KINDS = ["html", "docx", "voice", "md", "json", "walkthrough"];
     vi.mocked(open).mockImplementation(async (file, flags, mode) => {
       const handle = await real.open(file, flags, mode);
       const name = path.basename(String(file));
-      const kind = name.endsWith(".voice.html") ? "voice" : path.extname(name).slice(1);
-      if (flags !== "wx" || !["html", "docx", "voice", "json"].includes(kind)) return handle;
+      const kind = name.endsWith(".voice.html")
+        ? "voice"
+        : name.endsWith("_walkthrough.json")
+          ? "walkthrough"
+          : path.extname(name).slice(1);
+      if (flags !== "wx" || !KINDS.includes(kind)) return handle;
       steps.push(`open ${kind}`);
       return new Proxy(handle, {
         get(target, property) {
@@ -2103,8 +2105,10 @@ describe("shareReport, with a recording of NVDA's voice on each page", () => {
 
     await expect(shareReport(options)).rejects.toThrow("The record is held.");
 
+    // In the order the share lists them: the page, its Word copy, the voice page, the Markdown, the
+    // JSON, and the run's walkthrough file, each whole before the next is opened.
     expect(steps).toEqual(
-      ["html", "docx", "voice", "json"].flatMap((kind) => [
+      KINDS.flatMap((kind) => [
         `open ${kind}`,
         `writeFile ${kind}`,
         `sync ${kind}`,

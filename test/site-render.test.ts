@@ -1519,6 +1519,8 @@ describe("renderSiteIndex", () => {
         item("The report, to open", `${DVFR}_2026-10-03.html`, "324 KB"),
         item("The Word copy", `${DVFR}_2026-10-03.docx`, "51 KB"),
         item("NVDA's voice", VOICE, "900 KB"),
+        item("For AI tools (Markdown)", `${DVFR}_2026-10-03.md`, "262 KB"),
+        item("For AI tools (JSON)", `${DVFR}_2026-10-03.json`, "521 KB"),
         item(
           "The walkthrough file of run 2026-10-03_1330",
           `${DVFR}_2026-10-03_2026-10-03_1330_walkthrough.json`,
@@ -1565,16 +1567,21 @@ describe("renderSiteIndex", () => {
         ],
       });
 
-      // The current report: its page and its Word copy, and not the voice page.
+      // The current report: its page and its Word copy, then its line for AI tools, with the
+      // Markdown and the JSON, and not the voice page.
       const article = articleOf(page, withVoice.id);
       expect(linksOf(article)).toEqual([
         { href: PAGE, download: false },
         { href: WORD, download: true },
+        { href: `${DVFR}/${DVFR}_2026-10-03.md`, download: true },
+        { href: `${DVFR}/${DVFR}_2026-10-03.json`, download: true },
       ]);
       expect(article).not.toContain(".voice.html");
       expect(textsOf(withoutHidden(article), "a")).toEqual([
         "Open the report",
         "Download the Word copy",
+        "Markdown",
+        "JSON",
       ]);
       // An earlier report's line: its page, and not its voice page.
       const [line = ""] = earlierItemsOf(sectionOf(page, `site-${DVFR}`));
@@ -1634,10 +1641,11 @@ describe("renderSiteIndex", () => {
       };
       const page = pageOf(missing);
 
-      // The card has its two links and nothing of the missing file.
+      // The card has its two links, and its line for AI tools, and nothing of the missing file.
       expect(textsOf(articleOf(page, missing.id), "p")).toEqual([
         "Prepared by Pat Lee",
         `Open the report${of} Download the Word copy${of}`,
+        `For AI tools such as Claude or ChatGPT: the report as Markdown${of}, or as JSON${of}`,
       ]);
       // The fold says which file isn't here, and why.
       expect(textsOf(sharedBlocksOf(page)[0] ?? "", "p")).toEqual([

@@ -3757,13 +3757,15 @@ describe("buildSite", () => {
     it("publishes a share's voice page, and lists it as NVDA's voice in the report's files", async () => {
       const home = await newVoiceHome();
       const recorded = await namedIn(path.join(home, VOICE_FOLDER));
-      // The share's four files, as `voicecap share` records them: the page, its Word copy, the voice
-      // page, and the run's walkthrough file.
-      expect(recorded).toHaveLength(4);
-      expect(recorded.slice(0, 3)).toEqual([
+      // The share's six files, as `voicecap share` records them: the page, its Word copy, the voice
+      // page, the report for AI tools as Markdown and as JSON, and the run's walkthrough file.
+      expect(recorded).toHaveLength(6);
+      expect(recorded.slice(0, 5)).toEqual([
         `${VOICE_STEM}.html`,
         `${VOICE_STEM}.docx`,
         VOICE_PAGE,
+        `${VOICE_STEM}.md`,
+        `${VOICE_STEM}.json`,
       ]);
 
       const { out, content, leftOut } = await build(home);
@@ -3771,16 +3773,18 @@ describe("buildSite", () => {
       expect(leftOut).toEqual([]);
       expect(content.sites.map(({ name }) => name)).toEqual([VOICE_FOLDER]);
       const [report] = content.sites[0]?.reports ?? [];
+      // Each file of the share is its own kind: the voice page by its `.voice.html`, and the report's
+      // JSON for AI tools ("data") told from the walkthrough file by the latter's `_walkthrough.json`.
       expect(report?.files.map(({ kind, name, href }) => ({ kind, name, href }))).toEqual(
         recorded.map((name, index) => ({
-          kind: (["page", "word", "voice", "walkthrough"] as const)[index],
+          kind: (["page", "word", "voice", "markdown", "data", "walkthrough"] as const)[index],
           name,
           href: `${VOICE_FOLDER}/${name}`,
         })),
       );
       expect(report?.notPublished).toEqual([]);
       // Every file of the share is published byte for byte, with the recorded size and SHA-256, and
-      // the voice page, which is no walkthrough file, is of no run.
+      // the voice page and the report for AI tools, which are no walkthrough files, are of no run.
       for (const file of report?.files ?? []) {
         const [copy, original] = [
           await readFile(path.join(out, file.href)),
@@ -3789,8 +3793,8 @@ describe("buildSite", () => {
         expect(copy, file.name).toEqual(original);
         expect(file, file.name).toMatchObject({ bytes: original.length, sha256: sha256(original) });
       }
-      expect(report?.files[2]?.run).toBeNull();
-      expect(report?.files[3]?.run).toEqual(expect.stringMatching(/^\d{4}-\d\d-\d\d_\d{4}$/));
+      expect(report?.files.slice(2, 5).map(({ run }) => run)).toEqual([null, null, null]);
+      expect(report?.files[5]?.run).toEqual(expect.stringMatching(/^\d{4}-\d\d-\d\d_\d{4}$/));
       expect(await filesUnder(path.join(out, VOICE_FOLDER))).toEqual([...recorded].sort());
     });
 
@@ -3846,6 +3850,10 @@ describe("buildSite", () => {
         ["/technical-details", await own("technical-details.html")],
         ...DEMO_RULES,
       ];
+      // Each kind with its own rules: the pages their policies, the voice page's with media; the Word
+      // copy and the walkthrough file a download; the report for AI tools its type and the policy
+      // that runs nothing in it, with no download.
+      const aiType = { markdown: AI_TYPES[0][1], data: AI_TYPES[1][1] } as const;
       for (const file of filesOf(content)) {
         if (file.kind === "page" || file.kind === "voice") {
           const policy = await policyOf(file.href, { media: file.kind === "voice" });
@@ -3853,11 +3861,28 @@ describe("buildSite", () => {
             [`/${file.href}`, [[CSP, policy]]],
             [withoutHtml(`/${file.href}`), [[CSP, policy]]],
           );
+        } else if (file.kind === "markdown" || file.kind === "data") {
+          expected.push([
+            `/${file.href}`,
+            [
+              ["Content-Type", aiType[file.kind]],
+              [CSP, AI_FILE_POLICY],
+            ],
+          ]);
         } else {
           expected.push([`/${file.href}`, [["Content-Disposition", "attachment"]]]);
         }
       }
       expect(rules).toEqual(expected);
+      // All six of the share's kinds are there, so each is checked here.
+      expect(filesOf(content).map(({ kind }) => kind)).toEqual([
+        "page",
+        "word",
+        "voice",
+        "markdown",
+        "data",
+        "walkthrough",
+      ]);
 
       // Only the voice page's two rules allow media. It's the policy its own bytes make, the
       // shareable page's, with one directive more, after the images, and still no connection.
@@ -3896,7 +3921,13 @@ describe("buildSite", () => {
         `${VOICE_FOLDER}/share/${VOICE_PAGE}: not published: it no longer matches its fingerprint`,
       ]);
       const [report] = content.sites[0]?.reports ?? [];
-      expect(report?.files.map(({ kind }) => kind)).toEqual(["page", "word", "walkthrough"]);
+      expect(report?.files.map(({ kind }) => kind)).toEqual([
+        "page",
+        "word",
+        "markdown",
+        "data",
+        "walkthrough",
+      ]);
       expect(report?.notPublished).toEqual([{ name: VOICE_PAGE, reason: "changed" }]);
       expect(existsSync(path.join(out, VOICE_FOLDER, VOICE_PAGE))).toBe(false);
       // It has no rule, and the page's card says nothing of it: the fold says it isn't here.
@@ -3914,9 +3945,11 @@ describe("buildSite", () => {
       const siteDir = path.join(home, VOICE_FOLDER);
       const { shares } = await readShares(siteDir);
       const entry = shares[0] as { files: SharedFile[]; at: string; runs: string[] };
-      const [page, word, voice, walkthrough] = entry.files;
+      const [page, word, voice, markdown, json, walkthrough] = entry.files;
       await writeRecord(siteDir, [
-        sealedEntry(1, entry.at, [voice!, page!, word!, walkthrough!], { runs: entry.runs }),
+        sealedEntry(1, entry.at, [voice!, page!, word!, markdown!, json!, walkthrough!], {
+          runs: entry.runs,
+        }),
       ]);
 
       const { out, content } = await build(home);
@@ -3926,6 +3959,8 @@ describe("buildSite", () => {
         "voice",
         "page",
         "word",
+        "markdown",
+        "data",
         "walkthrough",
       ]);
       // The report's one page is the pair's, and the current report opens it.
