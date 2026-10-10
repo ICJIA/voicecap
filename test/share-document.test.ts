@@ -877,18 +877,25 @@ describe("renderSharePage", () => {
     // To re-pin one, log what the loop below computes ([page.length, sha(page)] and [word.length,
     // sha(word)] of each model, the page without its fonts) and paste the new values in: a pin
     // that changes for a reason that isn't such a change is the failure this test is for.
+    // The merge into 0.18.0 re-pinned them again, since 0.17.0 changed every report: its style (the
+    // rules for the check of NVDA's own log) and its timeline (0.17.0's row, and the next one). From
+    // plan 11's last commit to the merge, those are each page's only changes, and each Word copy's
+    // are the timeline's. And with 0.17.0's own code (main at 4a48f11), the same three models give
+    // these Word copies' blocks exactly, and these pages but for the fingerprint check's script,
+    // which plan 11 widened to check the recordings the voice page plays: each page here is 2,023
+    // characters longer than 0.17.0's, all of them in that script.
     const before = {
       i2i: {
-        page: [217_565, "efb20f2a24405c4d9df5c10585a02f616d8bf5c902c780975b81f50e37cbe33a"],
-        word: [59_697, "af3d85676afb0d7b743a7ed24b8677773529ca0064f217708130334171d43a39"],
+        page: [218_310, "9dab1a17157d6444830100140971c9bd2e0e727ed0c7e2a71ce5de5b3a62021d"],
+        word: [59_899, "f274eebbb73909a793c5b92f17b4f9a7534a6a02a7f20a8a7a4cd8b312052a51"],
       },
       demo: {
-        page: [252_001, "9a714838b59107bbfd96ced7acb48190ccccb3335bdb8326ed8254e1a2bd3877"],
-        word: [82_429, "da2845fc837fb8361bfc79108cba0e0168528b04965a2d1395ae96a8c55359ca"],
+        page: [252_746, "51be6f52ffc2ab68621a16a627b394e2d60881fd07e6e04c736dc9a4ec2bcd82"],
+        word: [82_631, "f4716a7a51c53e74df6ddcf9d6dc53cf2e4f8f3c831001a7c24321bce9168a99"],
       },
       logged: {
-        page: [134_495, "92899550c3408156b849bb0822924095605ad4eacb65740ddfcde48a6ad5ea48"],
-        word: [41_199, "ad325426125c3d259f6e19251ba401f9c0d7c7b02b444d78339b67360f777eec"],
+        page: [135_240, "a17efc62e175dffa6a7b75c8ef0bc851098e5bce570b1d4a1f40b5ac18b252ed"],
+        word: [41_401, "c786f55d90df597ff6e4f9fb8a5c3d0d962ef3d64424f03836388a3bc9dd03de"],
       },
     };
     const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };
