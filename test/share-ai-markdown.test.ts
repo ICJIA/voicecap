@@ -907,6 +907,108 @@ function hostileReport(words: Words): ShareModel {
   };
 }
 
+// Every string a model holds, one at a time.
+
+/** Where a string is in a value: the keys, and the places in lists, that lead to it. */
+type Leaf = (string | number)[];
+
+/** Where each string in a value is, depth first, in order. */
+function leavesOf(value: unknown, at: Leaf = []): Leaf[] {
+  if (typeof value === "string") return [at];
+  if (Array.isArray(value)) return value.flatMap((each, place) => leavesOf(each, [...at, place]));
+  if (typeof value === "object" && value !== null) {
+    return Object.entries(value).flatMap(([key, each]) => leavesOf(each, [...at, key]));
+  }
+  return [];
+}
+
+/** The value with the string at `leaf` made `words`, and every other part as it was. */
+function withWords<T>(value: T, leaf: Leaf, words: string): T {
+  const [head, ...rest] = leaf;
+  if (head === undefined) return words as T;
+  if (Array.isArray(value)) {
+    const items: unknown[] = value;
+    return items.map((each, place) => (place === head ? withWords(each, rest, words) : each)) as T;
+  }
+  const parts = value as Record<string, unknown>;
+  return { ...parts, [head]: withWords(parts[head], rest, words) } as T;
+}
+
+/**
+ * The lines of a text, outside its fences, that say a swept string (marked `ZQXSTART:<id>: … ZQXEND`)
+ * with a mark a viewer would make something of, or with its end somewhere else than the line. Its
+ * words in code are as they were, whatever they are; the rest are escaped, but for the `**` that bold
+ * the first sentence of some of voicecap's own sentences, which are not the words'.
+ */
+function leaks(markdown: string, id: string): string[] {
+  const start = `ZQXSTART:${id}:`;
+  return read(markdown).prose.filter((line) => {
+    if (!line.includes(start)) return false;
+    const { outside, codes } = splitCode(line);
+    const spans = [...outside.matchAll(new RegExp(`${start}.*?ZQXEND`, "g"))];
+    if (spans.length === 0) return !codes.some((code) => code.includes(start));
+    return spans.some(([span]) => !isEscaped(span.replaceAll("**", "")));
+  });
+}
+
+/** A line of each sort of block between words, and a fence of the words' own: the middle of a place. */
+const BLOCKS_BETWEEN = [
+  "# heading",
+  "> quote",
+  "- item",
+  "1. item",
+  "| a | b |",
+  "---",
+  "```",
+  "<div>x</div>",
+  "[ref]: https://evil.example/",
+].join("\n");
+
+/**
+ * Reads every string of a model in turn, as plain words and then as two sorts of hostile words: one
+ * that begins with the mark of a block (a different mark for each string in turn), and one with a
+ * line of each sort of block between its words. Each is checked as the file says it: it makes no
+ * block the plain words don't, no fence can be closed or is left open, no plain address is found in
+ * it, and no mark a viewer would make something of is left unescaped. A string the file is built
+ * from and doesn't say (a pass's name, a kind) can't be drawn with other words in its place, and a
+ * string it doesn't say is nothing to sweep: both are left out. At most `perKind` strings of each
+ * kind are tried, a kind being a string's place with the numbers of lists taken out. The strings
+ * that were swept, counted.
+ */
+function sweep(name: string, model: ShareModel, perKind: number): number {
+  const tried = new Map<string, number>();
+  let swept = 0;
+  leavesOf(model).forEach((leaf, at) => {
+    const kind = leaf.map((part) => (typeof part === "number" ? "#" : part)).join(".");
+    if ((tried.get(kind) ?? 0) >= perKind) return;
+    tried.set(kind, (tried.get(kind) ?? 0) + 1);
+    const id = `leaf${at}`;
+    let plain: string;
+    try {
+      plain = renderAiMarkdown(withWords(model, leaf, marked(id, "words")));
+    } catch {
+      return;
+    }
+    if (!plain.includes(`ZQXSTART:${id}:`)) return;
+    swept += 1;
+    const shape = shapeOf(plain);
+    const mark = BLOCK_MARKS[at % BLOCK_MARKS.length] ?? "#";
+    for (const words of [`${mark} ${marked(id)}`, marked(id, BLOCKS_BETWEEN)]) {
+      const markdown = renderAiMarkdown(withWords(model, leaf, words));
+      const where = `${name}, ${leaf.join(".")}: ${words}`;
+
+      expect(shapeOf(markdown), where).toEqual(shape);
+      expect(looseFences(markdown), where).toEqual([]);
+      expect(
+        plainAddresses(markdown).filter((line) => line.includes(id)),
+        where,
+      ).toEqual([]);
+      expect(leaks(markdown, id), where).toEqual([]);
+    }
+  });
+  return swept;
+}
+
 describe("renderAiMarkdown", () => {
   it("opens with the site's name, the date, who prepared it, the screen reader, and voicecap's version", () => {
     const lines = renderAiMarkdown(i2i).split("\n");
@@ -1943,6 +2045,18 @@ describe("renderAiMarkdown", () => {
         expect(placesOf(markdown, field, given[field]).bad, `${mark} ${field}`).toEqual([]);
       }
     }
+  });
+
+  it("makes nothing of any string a model holds, hostile or not, one at a time: no block, no link, no open fence", () => {
+    // The places above are the ones `Words` names. This sweep is for every other string of a model,
+    // and for one that a later change adds to it and says in the file by hand: a builder that leaves
+    // one unescaped fails here, with the string's place in its message. The hostile report is swept
+    // string by string; the real reports, which hold thousands, two for each kind of place.
+    expect(sweep("the hostile report", hostileReport(HOSTILE_WORDS), Infinity)).toBeGreaterThan(
+      300,
+    );
+    expect(sweep("the demo", demo, 2)).toBeGreaterThan(40);
+    expect(sweep("i2i", i2i, 2)).toBeGreaterThan(30);
   });
 
   it("says a page no longer listed by its label, whatever mark the label begins with", () => {
