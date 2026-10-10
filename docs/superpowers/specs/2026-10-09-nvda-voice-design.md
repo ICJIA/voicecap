@@ -22,7 +22,7 @@ So the recording is evidence, not a way to review. The transcripts stay the key 
 
 The release order is plan 12 (0.15.0), plan 10 (0.16.0), plan 6c (0.17.0), then this (0.18.0). It was 0.17.0, before plan 6c, until 6c was ready first.
 
-**This spec was written on 2026-10-09 from my recommendations,** at the owner's word: "your recommendations are fine for questions" and "push forward to get as much done as possible". Every choice the owner didn't make is listed under "Choices for the owner to confirm".
+**This spec was settled on 2026-10-09;** every choice the owner hasn't confirmed is listed under "Choices for the owner to confirm", each easy to change.
 
 It rests on two pieces of research done the same night:
 - **A feasibility trial** on the PC, recording one test program's sound with Windows' process loopback. It used no screen reader, and its test sound was quieter than a whisper.
@@ -193,7 +193,7 @@ The owner then plays one page at 0.5× and decides whether 12 kbps is clear enou
 
 ## Choices for the owner to confirm
 
-Made from my recommendations, each easy to change:
+Each is easy to change:
 1. **The audio lives on its own voice page,** not in the shareable page. Embedding it would make a 32-page report about 8 MB heavier for everyone who opens it, for something rarely played.
 2. **12 kbps,** to be confirmed by ear at the PC. 10 kbps is 15% smaller, 8 kbps is the floor, and 16 kbps costs 32% more.
 3. **WebM, not Ogg,** for Safari on Macs and iPhones. **Amended 2026-10-09:** that Safari plays it is unverified (see "Why not Ogg", under "How it's encoded"). It will be checked on a Mac and an iPhone before the release.
@@ -203,7 +203,7 @@ Made from my recommendations, each easy to change:
 7. **A silent recording is kept as a reason, not a file.** **Amended 2026-10-09:** so is one whose NVDA ended during it, and an empty one.
 8. **The last attempt's recording is the one sealed,** done or failed, as with the screenshot and axe.
 
-Added while it was built, each made from the same recommendations and easy to change:
+Added while it was built, each easy to change:
 9. **The live copy has no voice page.** `share/current.html` is written again at every run, review, and report, so a voice page beside it would be written at every run's end, and a line linking to it would link to nothing between shares. Its details say so, and only a dated share has a voice page.
 10. **The line for the email names only the page and its Word copy,** as it did. Its format is fixed, and the voice page can be sent on its own: its fingerprint is printed with the other files. Naming it in the line is one filter.
 11. **An older share's voice page isn't redirected.** Its address answers 404 when the share ages off the website, as its Word copy's does. Redirecting it to the current report's voice page is about 15 lines.

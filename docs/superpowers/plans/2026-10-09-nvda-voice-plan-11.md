@@ -159,7 +159,7 @@
 - [ ] **Step 3: Implement it.**
   - **The client:** follow `windowsVoice` (src/review-replay/voice.ts) for spawning, stdin errors, the ready wait, stderr, and closing. Use `powershell.exe -NoProfile -NonInteractive -Command <powershellCommand(script)>` with an argument array.
   - **The script, part 1: setup.**
-    - It checks the Windows build: 20348 or later, else `failed` with "recording one program's sound needs Windows 10 build 20348 or later; this is build N".
+    - It checks the Windows build: 20348 or later, else `failed` with "recording one program's sound needs Windows 11 or Windows Server 2022 (Windows build 20348 or later); this is build N".
     - It compiles its C# with `Add-Type`, and a failure, such as Constrained Language Mode, becomes `failed`.
     - On `target`, it checks the process's program path with QueryFullProcessImageName against `image`, case-insensitive. A mismatch is an `error`.
   - **The script, part 2: the C#.**
@@ -361,7 +361,7 @@ The controller merges main (0.16.0) into this branch first (D5).
 
 - [ ] **Step 1:** Write the README section:
   - what's recorded, and only NVDA's sound;
-  - how: the helper, process loopback, and Windows 10 build 20348;
+  - how: the helper, process loopback, and Windows 11 or Windows Server 2022 (Windows build 20348 or later);
   - the sizes;
   - the voice page and its speeds;
   - what verify checks;
