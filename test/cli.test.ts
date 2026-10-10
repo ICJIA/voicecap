@@ -21,7 +21,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { main, nvdaRunningOn } from "../src/cli/main.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { listManualSessions } from "../src/manual/list.js";
-import type { ReviewsFile, RunJson, SharesFile } from "../src/model.js";
+import type { ReviewsFile, RunJson, SharedFile, SharesFile } from "../src/model.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
 import { REPLAY_TEXT } from "../src/review-replay/text.js";
 import type { Voice } from "../src/review-replay/voice.js";
@@ -1743,18 +1743,26 @@ describe("voicecap share", () => {
       by: "Pat Lee",
       site: "https://example.illinois.gov/",
     });
-    const page = entry.files[0]!;
-    const word = entry.files[1]!;
-    const walkthrough = entry.files[2]!;
+    const [page, word, markdown, json, walkthrough] = entry.files as [
+      SharedFile,
+      SharedFile,
+      SharedFile,
+      SharedFile,
+      SharedFile,
+    ];
+    expect(entry.files).toHaveLength(5);
     // Named for the site (here by the host voicecap read) and the day, as the page, then its Word
-    // copy, then the run's walkthrough file, whole on disk.
+    // copy, then the report for AI tools as Markdown and as JSON, then the run's walkthrough file,
+    // whole on disk.
     const day = entry.at.slice(0, 10);
-    expect([page.name, word.name, walkthrough.name]).toEqual([
+    expect(entry.files.map(({ name }) => name)).toEqual([
       `example.illinois.gov_${day}.html`,
       `example.illinois.gov_${day}.docx`,
+      `example.illinois.gov_${day}.md`,
+      `example.illinois.gov_${day}.json`,
       `example.illinois.gov_${day}_${run.runId}_walkthrough.json`,
     ]);
-    for (const file of [page, word, walkthrough]) {
+    for (const file of [page, word, markdown, json, walkthrough]) {
       const bytes = await readFile(path.join(shareDir(siteDir), file.name));
       expect({ bytes: bytes.length, sha256: sha256(bytes) }).toEqual({
         bytes: file.bytes,
@@ -1764,12 +1772,10 @@ describe("voicecap share", () => {
     expect(share.out).toBe(
       [
         `Shared example.illinois.gov, as of ${longDate(entry.at)}: entry 1 in ${sharesPath(siteDir)}.`,
-        `  ${path.join(shareDir(siteDir), page.name)}`,
-        `    ${sizeLine(page.bytes)}, SHA-256 ${page.sha256}`,
-        `  ${path.join(shareDir(siteDir), word.name)}`,
-        `    ${sizeLine(word.bytes)}, SHA-256 ${word.sha256}`,
-        `  ${path.join(shareDir(siteDir), walkthrough.name)}`,
-        `    ${sizeLine(walkthrough.bytes)}, SHA-256 ${walkthrough.sha256}`,
+        ...[page, word, markdown, json, walkthrough].flatMap((file) => [
+          `  ${path.join(shareDir(siteDir), file.name)}`,
+          `    ${sizeLine(file.bytes)}, SHA-256 ${file.sha256}`,
+        ]),
         "To paste into the email that sends the page and its Word copy:",
         `  Fingerprints (SHA-256): ${page.name} ${page.sha256}; ${word.name} ${word.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.`,
         "",
@@ -1828,7 +1834,7 @@ describe("voicecap share", () => {
 
     expect(help.code).toBe(0);
     expect(squeezed(help.out)).toContain(
-      "share [options] make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
+      "share [options] make a dated copy of the shareable page and its Word copy to send, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, and record them",
     );
   });
 
@@ -1838,7 +1844,7 @@ describe("voicecap share", () => {
     expect(help.code).toBe(0);
     const said = squeezed(help.out);
     expect(said).toContain(
-      "make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
+      "make a dated copy of the shareable page and its Word copy to send, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, and record them",
     );
     expect(said).toContain(
       "--site <url> the site's address, or its canonical address (default: the home's only site)",

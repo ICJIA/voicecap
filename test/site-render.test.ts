@@ -1113,6 +1113,33 @@ describe("renderSiteIndex", () => {
     ]);
   });
 
+  // The report for AI tools' JSON is named for its share alone: it's no walkthrough file, so a copy
+  // of it that isn't here doesn't mean a walkthrough file was shared.
+  it("still says no walkthrough file was shared when the only JSON that isn't here is the report for AI tools'", () => {
+    const page = frontPage({
+      demo: null,
+      sites: [
+        {
+          name: DVFR,
+          folders: [DVFR],
+          reports: [
+            {
+              ...DVFR_NEWEST,
+              files: DVFR_NEWEST.files.filter(({ kind }) => kind !== "walkthrough"),
+              notPublished: [{ name: `${DVFR}_2026-10-03.json`, reason: "missing" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(textsOf(sharedBlocksOf(page)[0] ?? "", "p")).toEqual([
+      "3 October 2026, 14:05, prepared by Pat Lee",
+      `${DVFR}_2026-10-03.json isn't here: the file is missing.`,
+      "No walkthrough file was shared with this report.",
+    ]);
+  });
+
   it("lists no files for a report with none published, and says what isn't here", () => {
     const empty: PublishedReport = {
       ...DVFR_OLDEST,
@@ -1932,12 +1959,21 @@ describe("the website's four pages", () => {
 });
 
 describe("fileKind", () => {
-  it("takes a file's kind from its extension: .html is the page, .docx the Word copy, .json a walkthrough file", () => {
+  it("takes a file's kind from its extension: .html is the page, .docx the Word copy, and _walkthrough.json a walkthrough file", () => {
     expect(fileKind("dvfr.illinois.gov_2026-10-03.html")).toBe("page");
     expect(fileKind("dvfr.illinois.gov_2026-10-03.docx")).toBe("word");
     expect(fileKind("dvfr.illinois.gov_2026-10-03_2026-10-03_1330_walkthrough.json")).toBe(
       "walkthrough",
     );
+  });
+
+  // A share's report for AI tools is `<stem>.json`, named for the share alone: only a walkthrough
+  // file's name, which has its run in it, ends _walkthrough.json.
+  it("doesn't take the JSON of a share's report for AI tools for a walkthrough file", () => {
+    expect(fileKind("dvfr.illinois.gov_2026-10-03.json")).toBe("other");
+    expect(fileKind("dvfr.illinois.gov_2026-10-03-2.json")).toBe("other");
+    expect(fileKind("walkthrough.json")).toBe("other");
+    expect(fileKind("dvfr.illinois.gov_2026-10-03_walkthrough.jsonx")).toBe("other");
   });
 
   it("calls anything else other", () => {

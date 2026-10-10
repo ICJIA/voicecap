@@ -89,13 +89,15 @@ export interface SiteContent {
 }
 
 /**
- * A file's kind, by its extension: `.html` is the page, `.docx` the Word copy, `.json` a walkthrough
- * file, and anything else other.
+ * A file's kind, by its extension: `.html` is the page, `.docx` the Word copy, a name ending
+ * `_walkthrough.json` a walkthrough file, and anything else other. A share's report for AI tools is
+ * `<stem>.json`, named for the share alone: only a walkthrough file's name, which has its run in it,
+ * ends `_walkthrough.json`, so that JSON isn't taken for one.
  */
 export function fileKind(name: string): PublishedFile["kind"] {
   if (name.endsWith(".html")) return "page";
   if (name.endsWith(".docx")) return "word";
-  if (name.endsWith(".json")) return "walkthrough";
+  if (name.endsWith("_walkthrough.json")) return "walkthrough";
   return "other";
 }
 

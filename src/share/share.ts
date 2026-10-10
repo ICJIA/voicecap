@@ -1,6 +1,7 @@
 /**
- * `voicecap share`: a dated copy of a site's shareable page and of its Word copy, made to send, each
- * run's walkthrough file beside them, and the record of what was sent.
+ * `voicecap share`: a dated copy of a site's shareable page and of its Word copy, made to send, the
+ * same report as Markdown and as JSON for AI tools, each run's walkthrough file beside them, and the
+ * record of what was sent.
  *
  * share/current.html and share/current.docx change with every run, review, and report, so what's
  * sent can't be those. Each share makes a pair of its own, named for the site and the day
@@ -12,18 +13,22 @@
  * read, does. A site with no canonical address that was read at an IP address or a local address
  * isn't shared at all: a share is recorded for good, and published, and such an address is no
  * site's name, so the share stops before anything is written, and says how to name the site.
- * Beside the pair it writes the walkthrough file of each run the pair draws on, named
- * for the pair and the run (`dvfr.illinois.gov_2027-01-15_2027-01-14_0900_walkthrough.json`): the
- * very file the page offers to download, so a website of what was shared has one to offer. A run
- * that can't have a walkthrough file (see RunWalkthrough) is warned of, and the share goes on
- * without it.
+ * Beside the pair it writes the report for AI tools, as Markdown and as JSON, named as the pair is
+ * (`dvfr.illinois.gov_2027-01-15.md` and `.json`): drawn from the model the page and the Word copy
+ * are drawn from (./ai/markdown.ts and ./ai/json.ts), with no gate on the version of the runs, so
+ * every share has both. Last, it writes the walkthrough file of each run the pair draws on,
+ * named for the pair and the run (`dvfr.illinois.gov_2027-01-15_2027-01-14_0900_walkthrough.json`):
+ * the very file the page offers to download, so a website of what was shared has one to offer. A
+ * walkthrough file is told by that `_walkthrough.json` ending and by its run in the record; the
+ * report's JSON is named for the share alone, and has neither. A run that can't have a walkthrough
+ * file (see RunWalkthrough) is warned of, and the share goes on without it.
  *
  * share/shares.json (./shares.ts) records every file: when, who by, the root of the site the copies
  * name, the runs the copies drew on, what the copies say of the site (its pages, those NVDA read,
  * and the problems left and the pages they're on, from the model the copies are made from, for the
  * website's card), and each file's size and SHA-256, with a walkthrough file's run. The output ends with a line to paste into the email that sends the pair, so a receiver can
- * check a file against the sender's own fingerprint. The line names only the pair: the walkthrough
- * files aren't what's emailed.
+ * check a file against the sender's own fingerprint. The line names only the pair: the report for
+ * AI tools and the walkthrough files aren't what's emailed.
  *
  * A copy is never written over a file: each is opened with the `wx` flag, which refuses a name
  * that's taken, and a name that's taken meanwhile means the next number. And a share that fails with
@@ -48,6 +53,8 @@ import { errorMessage, UsageError } from "../util/errors.js";
 import { sha256 } from "../util/hash.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
 import { isoLocal, localDate } from "../util/time.js";
+import { renderAiJson } from "./ai/json.js";
+import { renderAiMarkdown } from "./ai/markdown.js";
 import { renderWordCopy } from "./docx.js";
 import { fontFaceCss } from "./fonts.js";
 import { MEGABYTE, sizeLine, sizeWords } from "./format.js";
@@ -79,8 +86,9 @@ export interface ShareReportResult {
   /** The entry as shares.json holds it. */
   entry: ShareEntry;
   /**
-   * The page, then its Word copy, then each run's walkthrough file, oldest run first: each file's
-   * full path, with what the entry records of it.
+   * The page, then its Word copy, then the report for AI tools as Markdown and as JSON, then each
+   * run's walkthrough file, oldest run first: each file's full path, with what the entry records of
+   * it.
    */
   files: (SharedFile & { path: string })[];
   /** The line to paste into the email that sends the page and its Word copy. */
@@ -118,12 +126,14 @@ interface RunFile {
 }
 
 /**
- * Make the dated pair of a site's shareable page and its Word copy, and the walkthrough file of each
- * run the pair draws on, write them beside the page that's kept current, record them with each
- * file's fingerprint, and say what was made, ending with the line to paste into the email that sends
- * the pair. Refuses with a UsageError when no run counts, when there's no name for who is sharing,
- * when the only name the site has is an IP address or a local address (see unnamedHost), and when
- * shares.json can't be read: it never replaces a record it can't use.
+ * Make the dated pair of a site's shareable page and its Word copy, the report for AI tools as
+ * Markdown and as JSON, and the walkthrough file of each run the pair draws on, write them beside
+ * the page that's kept current, record them with each file's fingerprint, and say what was made,
+ * ending with the line to paste into the email that sends the pair. Every share has the Markdown
+ * and the JSON, whatever version made its runs. Refuses with a UsageError when no run counts, when
+ * there's no name for who is sharing, when the only name the site has is an IP address or a local
+ * address (see unnamedHost), and when shares.json can't be read: it never replaces a record it
+ * can't use.
  */
 export async function shareReport(options: ShareReportOptions = {}): Promise<ShareReportResult> {
   const cwd = options.cwd ?? process.cwd();
@@ -175,17 +185,31 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
   const day = localDate(now);
   for (let number = 1; ; number++) {
     const stem = number === 1 ? `${prefix}_${day}` : `${prefix}_${day}-${number}`;
-    const names = { page: `${stem}.html`, word: `${stem}.docx` };
+    // The report for AI tools is `${stem}.md` and `${stem}.json`. Only a walkthrough file's name ends
+    // `_walkthrough.json`, so the report's JSON is never taken for one.
+    const names = {
+      page: `${stem}.html`,
+      word: `${stem}.docx`,
+      markdown: `${stem}.md`,
+      json: `${stem}.json`,
+    };
     // Named for the pair and the run, so that every file of a share has the share's stem.
     const walkthroughCopies = walkthroughs.map(({ run, bytes }): Copy => ({
       name: `${stem}_${run}_walkthrough.json`,
       bytes,
       run,
     }));
-    const everyName = [names.page, names.word, ...walkthroughCopies.map(({ name }) => name)];
+    const everyName = [
+      names.page,
+      names.word,
+      names.markdown,
+      names.json,
+      ...walkthroughCopies.map(({ name }) => name),
+    ];
     if (await isTaken(dir, everyName, recorded)) continue;
 
-    // Each copy's footer names itself and the other, so a pair's model is its own.
+    // Each copy's footer names itself and the other, so a pair's model is its own. The report for AI
+    // tools is drawn from that same model, which is how the page, its Word copy, and it say one thing.
     const model = buildShareModel({ ...input, fileName: names.page, wordName: names.word });
     const copies: Copy[] = [
       {
@@ -193,6 +217,8 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
         bytes: Buffer.from(renderSharePage(model, { fontCss: await fontFaceCss() }), "utf8"),
       },
       { name: names.word, bytes: await renderWordCopy(model) },
+      { name: names.markdown, bytes: Buffer.from(renderAiMarkdown(model), "utf8") },
+      { name: names.json, bytes: Buffer.from(renderAiJson(model), "utf8") },
       ...walkthroughCopies,
     ];
     await mkdir(dir, { recursive: true });
@@ -223,8 +249,10 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
     }
 
     const files = entry.files.map((file) => ({ ...file, path: path.join(dir, file.name) }));
-    // What's emailed is the page and its Word copy: the files with no run.
-    const pasteLine = pasteLineOf(entry.files.filter(({ run }) => run === undefined));
+    // What's emailed is the page and its Word copy, named: the files with no run are the report for
+    // AI tools too, which isn't what's sent.
+    const pair = [names.page, names.word];
+    const pasteLine = pasteLineOf(entry.files.filter(({ name }) => pair.includes(name)));
     logger.info(
       `Shared ${folder}, as of ${model.header.asOf}: entry ${entry.seq} in ${sharesPath(siteDir)}.`,
     );
@@ -287,7 +315,7 @@ function walkthroughsOf(evidence: readonly RunEvidence[], logger: Logger): RunFi
 
 /**
  * What the record keeps of a copy, built key by key: its name, size, and SHA-256, and a walkthrough
- * file's run last. The page's and the Word copy's have no run key.
+ * file's run last. The page's, the Word copy's, the Markdown's, and the JSON's have no run key.
  */
 function recordOf({ name, bytes, run }: Copy): SharedFile {
   const file: SharedFile = { name, bytes: bytes.length, sha256: sha256(bytes) };
@@ -309,9 +337,9 @@ async function exists(file: string): Promise<boolean> {
 }
 
 /**
- * Whether any of the names a share would use (its page, its Word copy, and each walkthrough file) is
- * taken: the record names it (whether or not its file is still there), or anything at all has the
- * name in `dir`.
+ * Whether any of the names a share would use (its page, its Word copy, its Markdown, its JSON, and
+ * each walkthrough file) is taken: the record names it (whether or not its file is still there), or
+ * anything at all has the name in `dir`.
  */
 async function isTaken(
   dir: string,

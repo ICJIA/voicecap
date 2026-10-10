@@ -69,6 +69,7 @@ import { parseChangelog } from "../src/site/changelog.js";
 import type { VoicecapFacts, VoicecapRelease } from "../src/site/facts.js";
 import { hashJson } from "../src/util/hash.js";
 import { silentLogger } from "../src/util/log.js";
+import { withoutReportForAi } from "../test/helpers/share-before-ai.js";
 import { ciOf } from "./release-facts.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -264,6 +265,9 @@ export async function sharedHome(
     });
   for (const now of SHARED_BEFORE) await share(now);
   const shared = await share(SHARED_ON);
+  // The website doesn't publish the report for AI tools yet, and refuses a build that leaves a file out,
+  // so the shares are of the page, its Word copy, and the walkthrough files: the shots show no more.
+  await withoutReportForAi(shared.siteDir);
   const page = shared.files.find((file) => file.name.endsWith(".html"));
   if (page === undefined) throw new Error("voicecap share wrote no page.");
   return { home, page: page.path };

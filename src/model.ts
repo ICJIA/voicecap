@@ -636,7 +636,11 @@ export interface ShareEntry {
    * website's card shows. Sealed with the rest. Absent on entries recorded before 0.12.3.
    */
   result?: ShareResult;
-  /** The page, then its Word copy, then each run's walkthrough file, oldest run first. */
+  /**
+   * The page, then its Word copy, then the report for AI tools as Markdown and as JSON, then each
+   * run's walkthrough file, oldest run first. An entry recorded before voicecap wrote the report for
+   * AI tools has neither of those two.
+   */
   files: SharedFile[];
   /** sealOf this entry. */
   seal: string;
