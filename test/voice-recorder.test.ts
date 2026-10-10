@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { EventEmitter, once } from "node:events";
+import path from "node:path";
 import { createInterface } from "node:readline";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -19,6 +20,7 @@ import {
 } from "../src/drivers/guidepup/voice-recorder.js";
 import { asciiJson } from "../src/review-replay/voice.js";
 import { EnvironmentError, errorMessage } from "../src/util/errors.js";
+import { systemTool } from "../src/util/system-tools.js";
 
 /** The fake helper: a Node script that speaks the recorder's JSON lines (see its own comment). */
 const FAKE = fileURLToPath(new URL("./helpers/fake-recorder.mjs", import.meta.url));
@@ -118,14 +120,20 @@ describe("the recorder", () => {
   it("starts, targets, records, and stops", async () => {
     const helper = fake({ stopped: STOPPED });
     const recorder = await startRecorder({ spawnRecorder: helper.spawnRecorder });
-    // Windows PowerShell, started with no shell, and the paths only on its input.
-    expect(helper.calls).toEqual([
-      [
-        "powershell.exe",
-        ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(RECORDER_SCRIPT)],
-        RECORDER_SPAWN_OPTIONS,
-      ],
+    // Windows PowerShell, by its full path in the Windows folder (a file named powershell.exe in
+    // the folder voicecap runs in is never started in its place), started with no shell, and the
+    // paths only on its input.
+    expect(helper.calls).toHaveLength(1);
+    const [file, args, options] = helper.calls[0]!;
+    expect(path.win32.isAbsolute(file)).toBe(true);
+    expect(file.endsWith(String.raw`\WindowsPowerShell\v1.0\powershell.exe`)).toBe(true);
+    expect(args).toEqual([
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      powershellCommand(RECORDER_SCRIPT),
     ]);
+    expect(options).toEqual(RECORDER_SPAWN_OPTIONS);
     expect(RECORDER_SPAWN_OPTIONS).not.toHaveProperty("shell");
 
     await recorder.target(4242, NVDA);
@@ -399,12 +407,12 @@ describe("the recorder", () => {
 
   it("fits its script on a Windows command line", () => {
     // Windows' limit is 32,767 characters, and the script is one argument of it, quoted: each
-    // double quote gets a backslash, and so, at most, does each backslash.
+    // double quote gets a backslash, and so, at most, does each backslash. The program comes first,
+    // by its full path, quoted too in the worst case.
     const command = powershellCommand(RECORDER_SCRIPT);
     const quoted = command.length + 2 + (command.match(/["\\]/g) ?? []).length;
-    expect("powershell.exe -NoProfile -NonInteractive -Command ".length + quoted).toBeLessThan(
-      32_767,
-    );
+    const program = systemTool("powershell").length + 2;
+    expect(program + " -NoProfile -NonInteractive -Command ".length + quoted).toBeLessThan(32_767);
   });
 });
 

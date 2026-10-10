@@ -798,6 +798,12 @@ describe("renderTechnical", () => {
     expect(part("privacy-and-security")).toContain(
       "What a website, a sitemap, a server, or a record says is printed as text: a control character, an invisible formatting character, or a line separator in it is written as an escape such as \\u{1b}, so it can't move the cursor, clear the screen, retitle the window, or turn the words around. The warning when the browser can't come to the front names the program in front, never its window's title.",
     );
+    // Windows' own programs start by their full path, and Windows is told not to look for any other
+    // program in the folder voicecap runs in, which can be a shared repository's: a file of the
+    // same name there is never started.
+    expect(part("privacy-and-security")).toContain(
+      "voicecap starts Windows' own programs (PowerShell, tasklist, taskkill, reg, Explorer) by their full path in the Windows folder, and Windows never looks for a program in the folder voicecap runs in.",
+    );
 
     // The rules say their thresholds, and nothing they don't count.
     expect(TECHNICAL_TEXT.rules["repeated-phrase"]).not.toContain("twice");

@@ -716,6 +716,9 @@ export const TECHNICAL_TEXT = {
             ", so it can't move the cursor, clear the screen, retitle the window, or turn the words around. The warning when the browser can't come to the front names the program in front, never its window's title.",
           ],
           [
+            "voicecap starts Windows' own programs (PowerShell, tasklist, taskkill, reg, Explorer) by their full path in the Windows folder, and Windows never looks for a program in the folder voicecap runs in.",
+          ],
+          [
             "Where it lives: the transcripts repository, which the README says to keep private, and this website, which is public to anyone with its address.",
           ],
         ] satisfies Sentence[],

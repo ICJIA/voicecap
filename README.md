@@ -635,6 +635,8 @@ You type these commands the same way in PowerShell, in Git Bash, and in a Mac's 
 
 voicecap prints what a website, a sitemap, a server, or a record says as text. A control character, an invisible formatting character, or a line separator in it is written as an escape such as `\u{1b}` (for Escape), and a CR LF as a line break, so it can't move your cursor, clear your screen, retitle your window, or turn the words around. A tab and a line break stay as they are.
 
+On Windows, voicecap starts Windows' own programs (PowerShell, `tasklist`, `taskkill`, `reg`, and Explorer) by their full path in the Windows folder, and tells Windows not to look in the folder you run voicecap in for any program it starts by name (`git`, and Guidepup's `cscript`). Windows looks in the current folder first for a program started by its name alone, and you may run voicecap from a repository you share, such as the transcripts repository, so a file named `powershell.exe` committed there could otherwise be started in place of PowerShell. Now a program of the same name in that folder is never started.
+
 ### Run an audit
 
 <details>

@@ -12,6 +12,7 @@ import { promisify } from "node:util";
 import { decodeManualInput } from "../../manual/detect.js";
 import type { MachineRecord } from "../../model.js";
 import type { MachineProbe } from "../../run/machine-record.js";
+import { systemTool } from "../../util/system-tools.js";
 import { NVDA_LOG_FILE } from "./nvda-log.js";
 import { PROFILE_PREFIX, voiceFolderPid, type GuidepupInstall } from "./paths.js";
 
@@ -33,7 +34,7 @@ export function powershellCommand(script: string): string {
 /** Runs a PowerShell script, hidden, for up to 20 seconds; resolves to what it printed. */
 async function powershell(script: string): Promise<string> {
   const { stdout } = await run(
-    "powershell.exe",
+    systemTool("powershell"),
     ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(script)],
     { windowsHide: true, timeout: 20_000 },
   );
@@ -50,9 +51,11 @@ export function powershellString(text: string): string {
 
 /** Process ids of running programs with this image name, e.g. "nvda.exe". */
 export async function listProcesses(image: string): Promise<number[]> {
-  const { stdout } = await run("tasklist", ["/FI", `IMAGENAME eq ${image}`, "/FO", "CSV", "/NH"], {
-    windowsHide: true,
-  });
+  const { stdout } = await run(
+    systemTool("tasklist"),
+    ["/FI", `IMAGENAME eq ${image}`, "/FO", "CSV", "/NH"],
+    { windowsHide: true },
+  );
   return parseTasklist(stdout);
 }
 
@@ -181,7 +184,7 @@ export function restartAfterScript(exe: string, after: string, waitSeconds: numb
  */
 export function restartNvdaDetached(exe: string, after: string): void {
   const helper = spawn(
-    "powershell.exe",
+    systemTool("powershell"),
     [
       "-NoProfile",
       "-NonInteractive",
@@ -240,7 +243,7 @@ const SESSION_STATE = [
  */
 export async function sessionLocked(): Promise<boolean | null> {
   const answer = await run(
-    "powershell.exe",
+    systemTool("powershell"),
     ["-NoProfile", "-NonInteractive", "-Command", SESSION_STATE],
     { windowsHide: true, timeout: 30_000 },
   ).then(
@@ -426,7 +429,7 @@ export interface AwakeRequest {
  */
 export function keepAwake(): AwakeRequest {
   const helper = spawn(
-    "powershell.exe",
+    systemTool("powershell"),
     ["-NoProfile", "-NonInteractive", "-Command", KEEP_AWAKE],
     { stdio: ["pipe", "pipe", "ignore"], windowsHide: true },
   );
@@ -456,13 +459,13 @@ export function keepAwake(): AwakeRequest {
 /** This Windows ("Windows 11 Pro 25H2 (10.0.26200)") and its display language ("en-US"). */
 export function windowsSystemInfo(): { os: string; uiLocale: string | null } {
   const query = spawnSync(
-    "reg",
+    systemTool("reg"),
     ["query", "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "/v", "DisplayVersion"],
     { encoding: "utf8", windowsHide: true },
   );
   const displayVersion = /DisplayVersion\s+REG_SZ\s+(\S+)/.exec(query.stdout ?? "")?.[1] ?? null;
   const culture = spawnSync(
-    "powershell.exe",
+    systemTool("powershell"),
     ["-NoProfile", "-NonInteractive", "-Command", "(Get-UICulture).Name"],
     { encoding: "utf8", windowsHide: true, timeout: 20_000 },
   );
@@ -554,10 +557,11 @@ export async function cleanupOrphans(tmpDir: string, nvdaExe: string): Promise<s
     `  elseif ($_.CommandLine -and $_.CommandLine.Contains(${powershellString(marker)})) { "browser,$($_.ProcessId),$($_.ParentProcessId)" }`,
     "}",
   ].join(" ");
-  const found = await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
-    windowsHide: true,
-    timeout: 60_000,
-  }).then(
+  const found = await run(
+    systemTool("powershell"),
+    ["-NoProfile", "-NonInteractive", "-Command", script],
+    { windowsHide: true, timeout: 60_000 },
+  ).then(
     ({ stdout }) => stdout,
     () => null,
   );
@@ -579,9 +583,9 @@ export async function cleanupOrphans(tmpDir: string, nvdaExe: string): Promise<s
     // Kill each browser's main process with its tree; its helpers are its children.
     const roots = browsers.filter(([, parent]) => !pids.has(parent)).map(([pid]) => pid);
     for (const pid of roots) {
-      await run("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }).catch(
-        () => {},
-      );
+      await run(systemTool("taskkill"), ["/PID", String(pid), "/T", "/F"], {
+        windowsHide: true,
+      }).catch(() => {});
     }
     if (roots.length > 0) {
       notes.push(`Closed ${plural(roots.length, "browser")} left by an earlier run.`);
@@ -646,7 +650,9 @@ export async function closeBrowsersUsing(profileDir: string): Promise<number> {
   // Kill each browser's main process with its tree; its helpers are its children.
   const roots = browsers.filter(([, parent]) => !pids.has(parent)).map(([pid]) => pid);
   for (const pid of roots) {
-    await run("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }).catch(() => {});
+    await run(systemTool("taskkill"), ["/PID", String(pid), "/T", "/F"], {
+      windowsHide: true,
+    }).catch(() => {});
   }
   return roots.length;
 }
@@ -658,7 +664,9 @@ async function quitNvda(nvdaExe: string, pids: number[]): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   for (const pid of pids.filter(isRunning)) {
-    await run("taskkill", ["/PID", String(pid), "/F"], { windowsHide: true }).catch(() => {});
+    await run(systemTool("taskkill"), ["/PID", String(pid), "/F"], { windowsHide: true }).catch(
+      () => {},
+    );
   }
 }
 

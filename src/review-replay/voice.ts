@@ -6,7 +6,9 @@
  * No transcript's words ever reach a command line or a shell. On Windows, one Windows PowerShell
  * runs SPEAK_SCRIPT for the whole session and reads each line as a line of JSON on its standard
  * input, as data it never evaluates. On a Mac, `say` reads each line on its standard input. Every
- * program starts through `spawn(file, args, VOICE_SPAWN_OPTIONS)`, with no shell.
+ * program starts through `spawn(file, args, VOICE_SPAWN_OPTIONS)`, with no shell, and Windows
+ * PowerShell by its full path in the Windows folder (systemTool), so no file called powershell.exe
+ * in the folder voicecap runs in can be started in its place.
  *
  * The voices' error messages are here, beside what goes wrong. The other words a person sees during
  * a replay are in text.ts, but for the usage errors, which sit where they're thrown.
@@ -17,6 +19,7 @@ import type { Readable, Writable } from "node:stream";
 
 import { powershellCommand } from "../drivers/guidepup/windows.js";
 import { EnvironmentError } from "../util/errors.js";
+import { systemTool } from "../util/system-tools.js";
 
 /** The computer's voice, saying one line at a time. */
 export interface Voice {
@@ -171,7 +174,7 @@ export async function windowsVoice(
   const spawnVoice: SpawnVoice = options.spawnVoice ?? spawn;
   const { script = SPEAK_SCRIPT, readyMs = 20_000, closeMs = 2_000 } = options;
   const child = spawnVoice(
-    "powershell.exe",
+    systemTool("powershell"),
     ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(script)],
     VOICE_SPAWN_OPTIONS,
   );

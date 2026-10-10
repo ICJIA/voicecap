@@ -6,9 +6,11 @@
  * The Guidepup driver points it at the NVDA it started.
  *
  * No path reaches a command line or a shell. The script is fixed, and it's given with -Command as one
- * element of an argument array. Each command is one line of JSON on PowerShell's input, made
- * ASCII-safe as the replay's voice makes its lines (asciiJson), and each answer is one line of JSON
- * on its output, ASCII-safe too.
+ * element of an argument array. PowerShell itself is named by its full path in the Windows folder
+ * (systemTool), so no file called powershell.exe in the folder voicecap runs in can be started in
+ * its place. Each command is one line of JSON on PowerShell's input, made ASCII-safe as the
+ * replay's voice makes its lines (asciiJson), and each answer is one line of JSON on its output,
+ * ASCII-safe too.
  *
  * Every error message here is the reason a page has no recording, as its record keeps it: a clause in
  * lowercase, with no full stop. None gives the path of the program it records, which is in Guidepup's
@@ -29,6 +31,7 @@ import {
   type Ending,
 } from "../../review-replay/voice.js";
 import { EnvironmentError } from "../../util/errors.js";
+import { systemTool } from "../../util/system-tools.js";
 import { powershellCommand } from "./windows.js";
 
 /** What a recording was, as the helper says once it has stopped. */
@@ -519,7 +522,7 @@ export async function startRecorder(
   const spawnRecorder: SpawnRecorder = options.spawnRecorder ?? spawn;
   const { script = RECORDER_SCRIPT, readyMs = 20_000, commandMs = 5_000 } = options;
   const child = spawnRecorder(
-    "powershell.exe",
+    systemTool("powershell"),
     ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(script)],
     RECORDER_SPAWN_OPTIONS,
   );

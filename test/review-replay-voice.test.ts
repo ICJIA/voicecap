@@ -1,3 +1,4 @@
+import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -76,7 +77,10 @@ describe("the Windows voice", () => {
     const { voice, child, spawn } = await readyWindowsVoice();
     expect(spawn).toHaveBeenCalledTimes(1);
     const [file, args, options] = spawn.mock.calls[0]!;
-    expect(file).toBe("powershell.exe");
+    // By its full path in the Windows folder: a file named powershell.exe in the folder voicecap
+    // runs in is never started in its place.
+    expect(path.win32.isAbsolute(file)).toBe(true);
+    expect(file.endsWith(String.raw`\WindowsPowerShell\v1.0\powershell.exe`)).toBe(true);
     expect(args).toEqual([
       "-NoProfile",
       "-NonInteractive",
@@ -431,7 +435,9 @@ describe("startSystemVoice", () => {
   it("starts PowerShell on Windows, and say on a Mac", async () => {
     const windows = fakeSpawn();
     const onWindows = startSystemVoice("win32", windows.spawn);
-    expect(windows.spawn.mock.calls[0]?.[0]).toBe("powershell.exe");
+    const powershell = windows.spawn.mock.calls[0]?.[0] ?? "";
+    expect(path.win32.isAbsolute(powershell)).toBe(true);
+    expect(powershell.endsWith(String.raw`\WindowsPowerShell\v1.0\powershell.exe`)).toBe(true);
     windows.children[0]!.exit(1);
     await expect(onWindows).rejects.toThrow(EnvironmentError);
 
