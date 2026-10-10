@@ -339,8 +339,48 @@ describe("redactHome", () => {
     );
   });
 
-  it("leaves a folder whose name goes on after a full stop alone", () => {
-    const text = "C:\\Users\\pat.old\\a.txt, C:\\Users\\pat..x and C:\\Users\\pat.2\\b.txt";
+  // Three full stops after a path are an ellipsis, not more of its name: the words go on after them.
+  // A run of full stops ends the name unless a letter, a digit, _ or - comes after it.
+  it("replaces the home folder before a run of full stops, an ellipsis", () => {
+    expect(redactHome("Couldn't open C:\\Users\\pat...", "C:\\Users\\pat", "win32")).toBe(
+      "Couldn't open %USERPROFILE%...",
+    );
+    expect(redactHome("Opening C:\\Users\\pat... done", "C:\\Users\\pat", "win32")).toBe(
+      "Opening %USERPROFILE%... done",
+    );
+    expect(
+      redactHome("(C:\\Users\\pat..) and 'C:\\Users\\pat....'", "C:\\Users\\pat", "win32"),
+    ).toBe("(%USERPROFILE%..) and '%USERPROFILE%....'");
+    expect(redactHome("No such folder: /Users/pat...\nTry again.", "/Users/pat", "darwin")).toBe(
+      "No such folder: ~...\nTry again.",
+    );
+    // In Git Bash's spelling, and as a file: URL spells it, too.
+    expect(redactHome("Couldn't open /c/Users/pat...", "C:\\Users\\pat", "win32")).toBe(
+      "Couldn't open %USERPROFILE%...",
+    );
+    expect(
+      redactHome("at f (file:///C:/Users/Jane%20Doe...)", "C:\\Users\\Jane Doe", "win32"),
+    ).toBe("at f (file:///%USERPROFILE%...)");
+  });
+
+  // The ellipsis of one character (U+2026) is no full stop, a letter, or a digit: it never was part
+  // of a name, so the folder before it is replaced, as it is before three full stops.
+  it("replaces the home folder before the one-character ellipsis, too", () => {
+    expect(redactHome("Opening C:\\Users\\pat\u2026 done", "C:\\Users\\pat", "win32")).toBe(
+      "Opening %USERPROFILE%\u2026 done",
+    );
+    expect(redactHome("Opening /Users/pat\u2026", "/Users/pat", "darwin")).toBe("Opening ~\u2026");
+  });
+
+  it("leaves a folder whose name goes on after a full stop, or a run of them, alone", () => {
+    const text = [
+      "C:\\Users\\pat.old\\a.txt",
+      "C:\\Users\\pat..x",
+      "C:\\Users\\pat.2\\b.txt",
+      "C:\\Users\\pat..old\\c.txt",
+      "C:\\Users\\pat...old",
+      "C:\\Users\\pat.-x and C:\\Users\\pat._x",
+    ].join(", ");
     expect(redactHome(text, "C:\\Users\\pat", "win32")).toBe(text);
   });
 
@@ -401,7 +441,10 @@ describe("redactTemp", () => {
 
   it("replaces the temp folder where a sentence ends, and only as a whole folder", () => {
     expect(redactTemp(`Couldn't make ${TEMP}.`, TEMP, "win32")).toBe("Couldn't make %TEMP%.");
-    const longer = `${TEMP}2\\a, ${TEMP}-old\\b and ${TEMP}.old\\c`;
+    // Before an ellipsis, of full stops or of one character.
+    expect(redactTemp(`Making ${TEMP}... done`, TEMP, "win32")).toBe("Making %TEMP%... done");
+    expect(redactTemp(`Making ${TEMP}…`, TEMP, "win32")).toBe("Making %TEMP%…");
+    const longer = `${TEMP}2\\a, ${TEMP}-old\\b, ${TEMP}.old\\c and ${TEMP}..old\\d`;
     expect(redactTemp(longer, TEMP, "win32")).toBe(longer);
   });
 
@@ -468,6 +511,13 @@ describe("redactAccount", () => {
     // In Git Bash's spelling, and at the end of a sentence, too.
     expect(redactAccount("Couldn't open /c/Users/JANEDO~1/Documents.", F)).toBe(
       "Couldn't open %USERPROFILE%/Documents.",
+    );
+    // The short spelling is the folder's name at the end of a sentence, or before an ellipsis.
+    expect(redactAccount("Couldn't open C:\\Users\\JANEDO~1.", F)).toBe(
+      "Couldn't open %USERPROFILE%.",
+    );
+    expect(redactAccount("Opening C:\\Users\\JANEDO~1... done", F)).toBe(
+      "Opening %USERPROFILE%... done",
     );
     // And its long spelling, as before.
     expect(redactAccount("C:\\Users\\jane.doe.smith\\Documents\\pages.csv", F)).toBe(

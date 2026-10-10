@@ -25,11 +25,13 @@ export function causeOf(error: unknown): FailureCause {
 }
 
 /**
- * The next character isn't one a folder's name goes on with: a letter, a digit, _ or -, or a full
- * stop that is followed by one of those or by another full stop (the "." of "pat.old" is part of a
- * name). A full stop that ends a sentence ("Couldn't open C:\Users\pat.") ends the name, too.
+ * The next character isn't one a folder's name goes on with: a letter, a digit, _ or -, or a run of
+ * full stops that one of those follows (the "." of "pat.old", and the ".." of "pat..old", are part
+ * of a name). Full stops that end a sentence ("Couldn't open C:\Users\pat.") or trail off in an
+ * ellipsis ("Opening C:\Users\pat...") end the name, too, and so does the ellipsis of one character
+ * (U+2026), which is no full stop.
  */
-const NAME_ENDS = String.raw`(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}_.-])`;
+const NAME_ENDS = String.raw`(?![\p{L}\p{N}_-]|\.+[\p{L}\p{N}_-])`;
 
 /**
  * The home folder, or null where there's none: Node throws when neither HOME (USERPROFILE on
@@ -47,9 +49,10 @@ export function homeFolder(): string | null {
 /**
  * Replace the home folder in some text, such as a stack trace, so the account name isn't kept:
  * with %USERPROFILE% on Windows, and with ~ elsewhere. The folder is replaced wherever its name
- * ends: "/Users/pat" is replaced in "/Users/pat/a.js", in "(/Users/pat)", and at the end of a
- * sentence ("Couldn't open /Users/pat."), but not in "/Users/patrick" or "/Users/pat.old". On
- * Windows the match ignores case and takes either slash between the parts.
+ * ends: "/Users/pat" is replaced in "/Users/pat/a.js", in "(/Users/pat)", at the end of a
+ * sentence ("Couldn't open /Users/pat."), and before an ellipsis ("Opening /Users/pat..."), but not
+ * in "/Users/patrick" or "/Users/pat.old". On Windows the match ignores case and takes either slash
+ * between the parts.
  *
  * The folder is replaced as a file: URL spells it, too, which is how the stack frames of voicecap's
  * own ES modules show it: "file:///C:/Users/Jane%20Doe/a.js" for "C:\Users\Jane Doe". The spelling
