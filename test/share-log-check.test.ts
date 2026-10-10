@@ -855,6 +855,26 @@ describe("checkAgainstLog on made-up logs", () => {
         outside: 2,
       });
     }
+    // Only the last Tab's key came later, its step that much longer. A clock set by it pairs every
+    // key only while it's no more than one more wait late, as far as the first Tab reaches back;
+    // later than that, a clock set by the other keys pairs more.
+    for (const later of [250, 350, 450, 600]) {
+      const pass = passAt(T0, HOME, "tab", [
+        { command: "nextFocusable", spoken: "Skip to content, link", key: false },
+        { command: "nextFocusable", spoken: "Home, link" },
+        { command: "nextFocusable", spoken: "About, link" },
+        { command: "nextFocusable", spoken: "Contact, link" },
+        { command: "nextFocusable", spoken: "Search, link" },
+        { command: "nextFocusable", spoken: "Help, link", later, ms: STEP_MS + later },
+      ]);
+      expect(check([copyOf(...pass.entries)], [pass]), `${later} ms`).toEqual({
+        transcriptLines: 6,
+        logLines: 6,
+        agree: 6,
+        ...AGREED,
+        outside: 2,
+      });
+    }
   });
 
   it("pairs a step whose key came seconds into it, as NVDA kept talking, with that key, not the next step's", () => {
@@ -1014,9 +1034,9 @@ describe("checkAgainstLog on made-up logs", () => {
     });
   });
 
-  it("pairs a pass whose first and last three keys each waited once more than the rest", () => {
+  it("doesn't check a pass whose first and last three keys each waited 0.4 s longer than the rest", () => {
     // The clock is set by a step at either end, so the middle six keys come 0.4 s before the moments
-    // it gives them: still in their own steps' time.
+    // it gives them, more than one more wait: no clock tried pairs them all with their own steps.
     const lines = Array.from({ length: 12 }, (_, k): Line => {
       const waited = k < 3 || k >= 9 ? 400 : 0;
       return {
@@ -1028,12 +1048,130 @@ describe("checkAgainstLog on made-up logs", () => {
     });
     const pass = passAt(T0, HOME, "headings", lines);
     expect(check([copyOf(...pass.entries)], [pass])).toEqual({
-      transcriptLines: 12,
-      logLines: 12,
-      agree: 12,
+      transcriptLines: 0,
+      logLines: 0,
+      agree: 0,
       ...AGREED,
+      outside: 14,
+    });
+  });
+
+  /** Lines of a read pass, "Line 1 of the page" on, Down Arrow each. */
+  const linesOf = (count: number): Line[] =>
+    Array.from({ length: count }, (_, k) => ({
+      command: "nextLine",
+      spoken: `Line ${k + 1} of the page`,
+    }));
+
+  /**
+   * A step whose key NVDA took `late` ms late, after voicecap's capture had stopped listening: its
+   * line is empty, and NVDA's log has what NVDA said after the key.
+   */
+  const tookLate = (late: number, ms = STEP_MS): Line => ({
+    command: "nextLine",
+    spoken: "",
+    logged: [["Scale 1 to 4622324"]],
+    later: late,
+    ms,
+  });
+
+  it("gives a step whose key came after its step's time that key, though the next step's time holds it nearer the next step's start", () => {
+    // NVDA took the fourth Down Arrow 1.1 s late, past its step's time, and the fifth 0.4 s late:
+    // both are in the fifth step's time, and the fourth's is nearer its start. By order, the earlier
+    // is the fourth step's, taken late, and the later the fifth's.
+    const lines = linesOf(8);
+    lines[3] = tookLate(1100);
+    lines[4] = { ...lines[4]!, later: 400, ms: STEP_MS + 400 };
+    const pass = passAt(T0, HOME, "read", lines);
+    expect(check([copyOf(...pass.entries)], [pass])).toEqual({
+      transcriptLines: 8,
+      logLines: 8,
+      agree: 7,
+      onlyInLog: [{ page: HOME, pass: "read", step: 4, text: "Scale 1 to 4622324" }],
+      onlyInTranscripts: [],
       outside: 2,
     });
+  });
+
+  it("doesn't check a pass where two keys in a row came after their steps' time, which order can't place", () => {
+    // The fourth and fifth Down Arrows each came 1.1 s late: each is in the next step's time, the
+    // fifth step takes the fourth's, and the fifth's is left over, as the fourth step is without one.
+    const lines = linesOf(8);
+    lines[3] = tookLate(1100);
+    lines[4] = { ...tookLate(1100), logged: [["Line 5 of the page"]] };
+    const pass = passAt(T0, HOME, "read", lines);
+    expect(check([copyOf(...pass.entries)], [pass])).toEqual({
+      transcriptLines: 0,
+      logLines: 0,
+      agree: 0,
+      ...AGREED,
+      outside: 10,
+    });
+  });
+
+  it("doesn't give a step whose key NVDA didn't log the step before's key, logged twice", () => {
+    // NVDA logged the second H twice, 30 ms apart, and no H for the third step: the second of the
+    // two came in the second step's time, before the third's began, so it isn't the third's. A key
+    // left over where a step has none means the pairing can't be certain: not checked.
+    const pass = passAt(T0, HOME, "headings", [
+      { command: "nextHeading", spoken: "Welcome, heading, level 1" },
+      { command: "nextHeading", spoken: "About us, heading, level 2" },
+      { command: "nextHeading", spoken: "Contact, heading, level 2", key: false, logged: [] },
+      { command: "nextHeading", spoken: "Search, heading, level 2" },
+      { command: "nextHeading", spoken: "no next heading" },
+    ]);
+    const second = T0 + 2300 + STEP_MS + KEY_MS;
+    const result = check([copyOf(...pass.entries, key(second + 30, "h"))], [pass]);
+    expect(result).toEqual({ transcriptLines: 0, logLines: 0, agree: 0, ...AGREED, outside: 6 });
+  });
+
+  it("never pairs a step's late key one step off: each of 720 read passes is right or not checked", () => {
+    // 20 lines with steps of 1.28 to 4.2 s, in 20 orders; a step whose key NVDA took late, at 4
+    // places; the next step's key late too, by 5 pairs of lags within the step's time (as the fourth
+    // Down Arrow of r3.illinois.gov's /eligibility/ read pass came 1.25 s into a 2 s step) and 4 past
+    // it. The step that took its key late is listed, or the pass isn't checked, never listed with
+    // the next step's words.
+    const LENGTHS = [
+      1280, 1276, 1290, 2400, 1281, 1279, 3100, 1285, 1277, 1800, 1283, 1280, 4200, 1278, 1282,
+      1286, 2000, 1279, 1281, 1284,
+    ];
+    const LAGS: [number, number, number][] = [
+      // The late key, the step's length, the next key's lag.
+      [1400, 1971, 600],
+      [1400, 1971, 800],
+      [1500, 1971, 700],
+      [800, STEP_MS, 500],
+      [700, STEP_MS, 600],
+      [1750, 1971, 400],
+      [1800, 1971, 500],
+      [1100, STEP_MS, 400],
+      [1150, STEP_MS, 300],
+    ];
+    const verdicts: Record<string, number> = {};
+    for (let turn = 0; turn < LENGTHS.length; turn += 1) {
+      for (const at of [5, 8, 11, 14]) {
+        for (const [late, ms, next] of LAGS) {
+          const lines: Line[] = linesOf(20).map((line, k) => ({
+            ...line,
+            ms: LENGTHS[(k + turn) % LENGTHS.length]!,
+          }));
+          lines[at] = tookLate(late, ms);
+          lines[at + 1] = { ...lines[at + 1]!, later: next, ms: STEP_MS + next };
+          const pass = passAt(T0, HOME, "read", lines);
+          const result = check([copyOf(...pass.entries)], [pass]);
+          const right =
+            result.transcriptLines === 20 &&
+            result.onlyInTranscripts.length === 0 &&
+            JSON.stringify(result.onlyInLog) ===
+              JSON.stringify([
+                { page: HOME, pass: "read", step: at + 1, text: "Scale 1 to 4622324" },
+              ]);
+          const verdict = right ? "right" : result.transcriptLines === 0 ? "not checked" : "wrong";
+          verdicts[verdict] = (verdicts[verdict] ?? 0) + 1;
+        }
+      }
+    }
+    expect(verdicts).toEqual({ right: 720 });
   });
 
   it("doesn't give a read pass a person's Down Arrow, pressed as the page loaded", () => {
