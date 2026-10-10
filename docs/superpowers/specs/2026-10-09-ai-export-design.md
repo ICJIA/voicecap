@@ -96,7 +96,8 @@ The Markdown stays a file a tool takes as an upload: for the i2i fixture's 32 pa
   - then, for each site whose current report has the files, a section headed by the site's name, with its current report's Markdown and JSON, each with the report's date and verdict;
   - then a section named "Optional", which the convention calls what a tool short of room can skip, with links to "Can I trust this?" and Technical details.
   - A site whose current report has neither file isn't listed, though an earlier report of it has them, and the demo, which is no site's, never is. With no site to list, a line says so.
-  - `robots.txt` still turns every crawler away and the site still sends `noindex`, so `llms.txt` serves a tool a person points at the website, not a crawler.
+  - `robots.txt` still asks every bot to stay away and the site still sends `noindex`, so `llms.txt` serves a tool a person points at the website, not a crawler.
+  - Some AI tools honor `robots.txt` even when a person asks them to read a page, so they won't read `llms.txt` or the files from the website; others may. Saving the file from the report's card and giving it to the tool works with any of them.
 - **What's New and Technical details** describe the files from the CHANGELOG and the code, as they do the rest: Technical details names the report's files among what `voicecap share` makes, and `llms.txt` among what the website publishes.
 
 ## Wording

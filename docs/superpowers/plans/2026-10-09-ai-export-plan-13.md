@@ -198,6 +198,8 @@
    - the CHANGELOG heading and links;
    - the timeline row: `<b>0.x.0</b>: the report for AI tools: each share as Markdown and as JSON, with the WCAG criteria each finding may relate to.`;
    - the Word copy test's days.
-4. Push, then wait for CI to go green.
-5. Run the dry run, check `npm whoami`, publish with the owner's 2FA code, and commit, tag, and push "Release v0.x.0".
-6. After the tarball wait, set `netlify.toml` to `@0.x`. Re-share the sites so their cards get the files, then do the live check.
+4. After the merge, redraw the README's pictures (`pnpm readme:screenshots`, scripts/readme-screenshots.ts). The script shares through `shareReport`, so the card shows its new line for AI tools, and the count of files is larger. Then bring the paragraph that begins "Here is the top of the front page for the i2i report", the alt text of the picture after it, and the alt text of the trust page's picture (it says "9" files) to what the new pictures show.
+5. Push, then wait for CI to go green.
+6. Run the dry run, check `npm whoami`, publish with the owner's 2FA code, and commit, tag, and push "Release v0.x.0".
+7. After the tarball wait, set `netlify.toml` to `@0.x`. Re-share the sites so their cards get the files, then do the live check.
+8. After the deploy, ask two AI tools to read `/llms.txt` and one report's Markdown from the live site, and note what each does. `robots.txt` asks every bot to stay away, and some AI tools honor it even when a person asks them to read a page, so one of the two may decline; saving the file from the report's card and giving it to the tool works with any.
