@@ -44,7 +44,7 @@ voicecap now records what NVDA said aloud on each page, sealed with the run, wit
 
 ### Security
 
-- **A run no longer records your account's name in a path.** A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone. A failure's message, a page's errors, and the reasons for a screenshot, an axe check, or a recording are recorded with the home folder written as `%USERPROFILE%` and the temp folder as `%TEMP%`, in every spelling Windows gives them, the short one (`C:\Users\JANEDO~1`) included. The shareable page names a page list or walkthrough file by its name alone, for runs recorded before too. A run begun before 0.18.0 from a page list or walkthrough file outside that folder starts afresh.
+- **A run no longer records your account's name in a path.** A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone. A failure's message, a page's errors, and the reasons for a screenshot, an axe check, or a recording are recorded with the home folder written as `%USERPROFILE%` and the temp folder as `%TEMP%`, in the spellings Windows gives them, the short one (`C:\Users\JANEDO~1`) too when the temp folder is in the home folder. The shareable page names a page list or walkthrough file by its name alone, for runs recorded before too. A run begun before 0.18.0 from a page list or walkthrough file outside that folder starts afresh.
 
 ## [0.17.0] - 2026-10-10
 

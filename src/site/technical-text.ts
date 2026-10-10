@@ -705,7 +705,7 @@ export const TECHNICAL_TEXT = {
             { code: "%USERPROFILE%" },
             " and the temp folder as ",
             { code: "%TEMP%" },
-            ", in every spelling Windows gives them. The shareable page names such a file by its name alone, for runs recorded before too.",
+            ", in the spellings Windows gives them, the short one too when the temp folder is in the home folder. The shareable page names such a file by its name alone, for runs recorded before too.",
           ],
           [
             "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser.",

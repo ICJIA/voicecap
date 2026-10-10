@@ -122,10 +122,11 @@ export function accountFolders(): AccountFolders {
 
 /**
  * Replace what names the account in the words of an error that a run keeps: the temp folder as
- * redactTemp writes it, then the home folder as redactHome writes it, in every spelling Windows
- * gives them. The temp folder goes first, because it lies in the home folder (in its short spelling,
- * the one `temp` has, or in its long one, the one `realTemp` has), and a path in it is the more
- * useful for being named by its variable.
+ * redactTemp writes it, then the home folder as redactHome writes it, in the spellings Windows
+ * gives them: the temp folder as `temp` and `realTemp` spell it, and the home folder's short name
+ * too when the temp folder is in the home folder (see below). The temp folder goes first, because it
+ * lies in the home folder (in its short spelling, the one `temp` has, or in its long one, the one
+ * `realTemp` has), and a path in it is the more useful for being named by its variable.
  *
  * Windows gives the profile folder of an account whose name is longer than eight characters, or has
  * a space, a short name too (C:\Users\JANEDO~1), and the temp folder is spelled with it in the
@@ -173,14 +174,24 @@ function shortHomeFolder(home: string, temp: string, realTemp: string | null): s
  * A pattern for a folder in any of its `spellings`, wherever its name ends (NAME_ENDS). On Windows
  * it ignores case and takes one or more slashes of either kind between the parts, which is how a
  * doubled backslash in a JSON string or a Python repr is matched.
+ *
+ * A spelling that begins with a separator (a network share's, Git Bash's "/c/Users/pat", a folder
+ * with no drive) begins with the separator's own pattern. A long run of slashes in a message (an
+ * address quoted by an error, say) would be matched from every one of its slashes, each time to the
+ * run's end and back, in time that grows with the square of the run. So such a spelling can begin
+ * only where a run of slashes does, not after a slash (the lookbehind): the match from the run's
+ * first slash takes the whole run, so it finds the matches that every later start would have, and
+ * the time is linear.
  */
 function folderPattern(spellings: readonly string[], windows: boolean): RegExp {
-  const split = (spelling: string) => spelling.split(windows ? /[\\/]+/ : "/");
   const separator = windows ? String.raw`[\\/]+` : "/";
+  const sourceOf = (spelling: string): string => {
+    const parts = spelling.split(windows ? /[\\/]+/ : "/");
+    const source = parts.map(escapeRegExp).join(separator);
+    return windows && parts[0] === "" ? String.raw`(?<![\\/])${source}` : source;
+  };
   // A folder that needs no encoding is spelled the same way twice: one alternative.
-  const sources = new Set(
-    spellings.map((spelling) => split(spelling).map(escapeRegExp).join(separator)),
-  );
+  const sources = new Set(spellings.map(sourceOf));
   return new RegExp(`(?:${[...sources].join("|")})${NAME_ENDS}`, windows ? "giu" : "gu");
 }
 

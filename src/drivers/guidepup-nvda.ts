@@ -1403,7 +1403,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * An error from the recorder, or from reading NVDA's log, as a reason: the temp folder the sound
    * is kept in is named by its variable (%TEMP%), wherever and however the error spells it (see
    * redactTemp). Its .NET messages name the file they couldn't make, and Windows may spell the
-   * account's folder in its short form (C:\Users\CHRIST~1), which isn't the spelling of the home
+   * account's folder in its short form (C:\Users\JANEDO~1), which isn't the spelling of the home
    * folder that the run replaces.
    */
   private reasonOf(error: unknown): string {

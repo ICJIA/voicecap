@@ -2899,7 +2899,7 @@ describe("recording NVDA's voice", () => {
   });
 
   // The recorder says what went wrong in .NET's words, which name the file it couldn't make, and
-  // Windows may spell the account's folder in its short form (CHRIST~1), which isn't what the run
+  // Windows may spell the account's folder in its short form (JANEDO~1), which isn't what the run
   // replaces as the home folder. So the driver names the temp folder by its variable.
   it("names the temp folder by its variable in a reason, in whatever case the recorder spells it", async () => {
     const { driver, voiceRecorder, voiceDir } = setup();

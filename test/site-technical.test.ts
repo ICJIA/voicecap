@@ -785,10 +785,13 @@ describe("renderTechnical", () => {
     );
     expect(part("privacy-and-security")).not.toContain("only in the event log");
     // A path from outside the folder voicecap runs in can name the account: a file is recorded by
-    // its name alone, and the account's folders in an error's words by their variables.
+    // its name alone, and the account's folders in an error's words by their variables. The home
+    // folder's short name (C:\Users\JANEDO~1) is found from the temp folder's, so the page says it
+    // only for a temp folder in the home folder.
     expect(part("privacy-and-security")).toContain(
-      "A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone, and the home folder in the words of an error that a run keeps is written as %USERPROFILE% and the temp folder as %TEMP%, in every spelling Windows gives them. The shareable page names such a file by its name alone, for runs recorded before too.",
+      "A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone, and the home folder in the words of an error that a run keeps is written as %USERPROFILE% and the temp folder as %TEMP%, in the spellings Windows gives them, the short one too when the temp folder is in the home folder. The shareable page names such a file by its name alone, for runs recorded before too.",
     );
+    expect(part("privacy-and-security")).not.toContain("in every spelling");
 
     // The rules say their thresholds, and nothing they don't count.
     expect(TECHNICAL_TEXT.rules["repeated-phrase"]).not.toContain("twice");

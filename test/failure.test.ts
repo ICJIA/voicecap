@@ -615,6 +615,97 @@ describe("redactAccount", () => {
   });
 });
 
+// A message can hold a long run of slashes: an address of a page, quoted by an error, with a path of
+// them. A folder's pattern that begins with the separator's own (a network share's, Git Bash's
+// "/c/Users/pat", a temp folder with no drive) would be tried from every slash of the run, each time
+// reading to the end of the run and back, so the time would grow with the square of the run.
+describe("a long run of slashes", () => {
+  const RUN = 300_000;
+  // A pattern that is linear reads this in milliseconds; a quadratic one, in tens of seconds.
+  const LIMIT_MS = 5_000;
+  const slashes = "/".repeat(RUN);
+  const backslashes = "\\".repeat(RUN);
+  const DRIVE = "C:\\Users\\jane";
+  const SHARE = "\\\\srv\\share\\jane";
+
+  it.each<[name: string, text: string, read: (text: string) => string]>([
+    [
+      "Git Bash's spelling of a home folder, after an address",
+      `https://x.example${slashes}`,
+      (text) => redactHome(text, DRIVE, "win32"),
+    ],
+    [
+      "Git Bash's spelling of a home folder, in backslashes",
+      backslashes,
+      (text) => redactHome(text, DRIVE, "win32"),
+    ],
+    [
+      "Git Bash's spelling of a home folder, after a drive",
+      `C:${slashes}`,
+      (text) => redactHome(text, DRIVE, "win32"),
+    ],
+    [
+      "a network share's home folder, in both kinds of slash",
+      "/\\".repeat(RUN / 2),
+      (text) => redactHome(text, SHARE, "win32"),
+    ],
+    ["a network share's temp folder", backslashes, (text) => redactTemp(text, SHARE, "win32")],
+    ["a temp folder with no drive", slashes, (text) => redactTemp(text, "/tmp/voicecap", "win32")],
+  ])(
+    "is read in linear time: %s",
+    (_name, text, read) => {
+      const began = Date.now();
+      // Nothing in the text names the folder, so it comes back as it was.
+      const same = read(text) === text;
+      expect(Date.now() - began).toBeLessThan(LIMIT_MS);
+      expect(same).toBe(true);
+    },
+    60_000,
+  );
+
+  // A match begins where a run of slashes does, or after any other character: so it still begins
+  // with the whole run, however many slashes it is, and nothing before it is taken.
+  it("still replaces a folder that a run of slashes comes before, wherever the run begins", () => {
+    const share = "\\\\srv\\share\\pat";
+    expect(redactHome("///srv/share/pat/x", share, "win32")).toBe("%USERPROFILE%/x");
+    expect(
+      redactHome(
+        "open //srv/share/pat/x, \\\\srv\\share\\pat\\y and a///srv/share/pat",
+        share,
+        "win32",
+      ),
+    ).toBe("open %USERPROFILE%/x, %USERPROFILE%\\y and a%USERPROFILE%");
+    const drive = "C:\\Users\\pat";
+    expect(redactHome("///c/Users/pat/x", drive, "win32")).toBe("%USERPROFILE%/x");
+    expect(redactHome("a/c/Users/pat and b//c/Users/pat/z", drive, "win32")).toBe(
+      "a%USERPROFILE% and b%USERPROFILE%/z",
+    );
+    expect(
+      redactTemp(
+        "open //srv/share/tmp/a, \\\\srv\\share\\tmp\\b and x///srv/share/tmp",
+        "\\\\srv\\share\\tmp",
+        "win32",
+      ),
+    ).toBe("open %TEMP%/a, %TEMP%\\b and x%TEMP%");
+    expect(redactTemp("open ///tmp/x/a and b//tmp/x", "/tmp/x", "win32")).toBe(
+      "open %TEMP%/a and b%TEMP%",
+    );
+  });
+
+  it("leaves a folder on another drive alone, and takes a share's file: URL form as it always did", () => {
+    expect(redactHome("/d/Users/pat/x and /c/Users/pat", "C:\\Users\\pat", "win32")).toBe(
+      "/d/Users/pat/x and %USERPROFILE%",
+    );
+    // The two slashes after "file:" are the share's own, in the URL as in the path.
+    expect(redactHome("at f (file://srv/share/pat/a.js:1:2)", "\\\\srv\\share\\pat", "win32")).toBe(
+      "at f (file:%USERPROFILE%/a.js:1:2)",
+    );
+    expect(redactHome("'//srv/share/pat/x'", "\\\\srv\\share\\pat", "win32")).toBe(
+      "'%USERPROFILE%/x'",
+    );
+  });
+});
+
 describe("accountFolders", () => {
   it("is this computer's home, temp, and real temp folders, and platform", () => {
     expect(accountFolders()).toEqual({
