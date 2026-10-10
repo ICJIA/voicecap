@@ -831,8 +831,9 @@ export const NVDA_LOG_TEXT = {
     `${plural(steps, "step")} had no words in the transcripts or in NVDA's own log.`,
   /**
    * How much speech the check leaves out, and why. When some steps weren't checked, the speech of
-   * those in a copy that was checked is among it (a page the event log doesn't place, or a pass
-   * whose steps couldn't be read), and the sentence says so.
+   * those in a copy that was checked is among it (a page the event log doesn't place, a pass whose
+   * steps couldn't be read, or a pass its copy can't be paired with for certain), and the sentence
+   * says so.
    */
   outside: (lines: number, someNotChecked: boolean): string => {
     const when = someNotChecked

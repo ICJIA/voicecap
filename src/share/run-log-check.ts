@@ -49,9 +49,10 @@ export type GestureOf = (command: DriverCommand) => string | null;
  * - `times`: the times of the pages couldn't be read;
  * - `unread`: the steps' transcripts couldn't be read;
  * - `placed`: the event log doesn't show when the page was read;
- * - `unaligned`: the copy's keys couldn't be paired with the steps of their pass for certain, as
- *   when a key the pass didn't press comes just before its first step or after its last (see lineUp
- *   in ./log-check.ts).
+ * - `unaligned`: the copy's keys couldn't be paired with the steps of their pass for certain: two
+ *   ways of pairing them pair as many keys, as when a key no step pressed comes just before the
+ *   pass's first step or after its last, or NVDA didn't log the key of its first or last step (see
+ *   lineUp in ./log-check.ts).
  */
 export type WhyNotChecked =
   | "none"

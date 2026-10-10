@@ -900,25 +900,137 @@ describe("checkAgainstLog on made-up logs", () => {
     expect(result).toEqual({ transcriptLines: 0, logLines: 0, agree: 0, ...AGREED, outside: 6 });
   });
 
-  it("doesn't check a pass whose last key isn't its last step's, and lists none of its lines", () => {
-    // A key of the pass's after its last step, in its attempt, before the next page opens: the
-    // clock that gives the last step that key pairs fewer keys than the one that doesn't. Which key
-    // was whose can't be told without the words, which the pairing never looks at, so the pass's
-    // steps aren't checked (the run's check says so, with why), and their speech is outside them.
+  /** Three headings, the second of which NVDA's log has otherwise: a real difference. */
+  const THREE: Line[] = [
+    { command: "nextHeading", spoken: "Welcome, heading, level 1" },
+    {
+      command: "nextHeading",
+      spoken: "About, heading, level 2",
+      logged: [["About us", "heading", "level 2"]],
+    },
+    { command: "nextHeading", spoken: "no next heading" },
+  ];
+  const ABOUT_DIFFERS = {
+    onlyInLog: [
+      { page: HOME, pass: "headings" as const, step: 2, text: "About us, heading, level 2" },
+    ],
+    onlyInTranscripts: [
+      { page: HOME, pass: "headings" as const, step: 2, text: "About, heading, level 2" },
+    ],
+  };
+
+  it("doesn't check a pass that a pairing one step late fits as well, with a key after its last step", () => {
+    // A key of the pass's a step after its last step's, in its attempt: one pairing gives each step
+    // its own key, and one, a step late, gives each the next step's, and the last step that key.
+    // The two pair as many keys, and which key was whose can't be told without the words, which
+    // the pairing never looks at: the pass's steps aren't checked (the run's check says so, with
+    // why), rather than listed one step off, and their speech is outside them.
+    const pass = passAt(T0, HOME, "headings", THREE);
+    const last = T0 + 2300 + 2 * STEP_MS + KEY_MS;
+    const stray = [key(last + 1300, "h"), said(last + 1340, "Inbox - Mail, 3 unread")];
+    const kept = attempt([pass], last + 3000);
+    const result = check([copyOf(...pass.entries, ...stray)], kept);
+    expect(result).toEqual({ transcriptLines: 0, logLines: 0, agree: 0, ...AGREED, outside: 6 });
+    // The same pass, without that key, is checked, and its real difference listed.
+    expect(check([copyOf(...pass.entries)], kept)).toEqual({
+      transcriptLines: 3,
+      logLines: 3,
+      agree: 2,
+      ...ABOUT_DIFFERS,
+      outside: 2,
+    });
+  });
+
+  it("checks a pass with a key after its last step when no other pairing fits it as well", () => {
+    // The key comes 2.6 s after the last step's: a pairing a step late can't give the last step it,
+    // so the pass's own pairing is the only one that pairs all three keys.
+    const pass = passAt(T0, HOME, "headings", THREE);
+    const last = T0 + 2300 + 2 * STEP_MS + KEY_MS;
+    const stray = [key(last + 2600, "h"), said(last + 2640, "Inbox - Mail, 3 unread")];
+    const result = check([copyOf(...pass.entries, ...stray)], attempt([pass], last + 3000));
+    expect(result).toEqual({
+      transcriptLines: 3,
+      logLines: 3,
+      agree: 2,
+      ...ABOUT_DIFFERS,
+      outside: 3,
+    });
+    expect(JSON.stringify(result)).not.toContain("Inbox");
+  });
+
+  it("doesn't check a Tab pass that a pairing one step late fits as well: its first Tab has no key to take", () => {
+    // NVDA logs no key for a pass's first Tab, which goes to the browser, so a pairing one step
+    // late can't give it the second Tab's key: it pairs as many keys as the pass's own, not more.
+    const pass = passAt(T0, HOME, "tab", [
+      { command: "nextFocusable", spoken: "Skip to content, link", key: false },
+      { command: "nextFocusable", spoken: "Home, link" },
+      { command: "nextFocusable", spoken: "About, link" },
+      { command: "nextFocusable", spoken: "Contact, link" },
+      { command: "nextFocusable", spoken: "Search, link" },
+    ]);
+    const last = T0 + 2300 + 4 * STEP_MS + KEY_MS;
+    const stray = [key(last + 1300, "tab"), said(last + 1340, "Inbox - Mail, 3 unread")];
+    const result = check([copyOf(...pass.entries, ...stray)], attempt([pass], last + 3000));
+    expect(result).toEqual({ transcriptLines: 0, logLines: 0, agree: 0, ...AGREED, outside: 8 });
+  });
+
+  it("doesn't check a pass whose last step's key NVDA didn't log, which a pairing one step early fits as well", () => {
+    // Four keys for five steps: they can be the first four steps' or the last four's.
     const pass = passAt(T0, HOME, "headings", [
       { command: "nextHeading", spoken: "Welcome, heading, level 1" },
       { command: "nextHeading", spoken: "About us, heading, level 2" },
+      { command: "nextHeading", spoken: "Contact, heading, level 2" },
+      { command: "nextHeading", spoken: "Search, heading, level 2" },
+      { command: "nextHeading", spoken: "no next heading", key: false },
+    ]);
+    const result = check([copyOf(...pass.entries)], [pass]);
+    expect(result).toEqual({ transcriptLines: 0, logLines: 0, agree: 0, ...AGREED, outside: 7 });
+  });
+
+  it("gives a key NVDA logged after its step's time to that step, between the keys of the steps around it", () => {
+    // NVDA took the third H 1.2 s late, after its step's time, when voicecap's capture had stopped
+    // listening, so the step's line is empty; NVDA's log has what NVDA said after the key. Keys come
+    // in their steps' order, so the one key between the second step's and the fourth's is the
+    // third's, and the step is listed, not counted among the steps that had no words.
+    const pass = passAt(T0, HOME, "headings", [
+      { command: "nextHeading", spoken: "Welcome, heading, level 1" },
+      { command: "nextHeading", spoken: "About us, heading, level 2" },
+      {
+        command: "nextHeading",
+        spoken: "",
+        logged: [["Contact", "heading", "level 2"]],
+        later: 1200,
+      },
+      { command: "nextHeading", spoken: "Search, heading, level 2" },
       { command: "nextHeading", spoken: "no next heading" },
     ]);
-    const last = T0 + 2300 + 2 * STEP_MS + KEY_MS;
-    const stray = [key(last + 1900, "h"), said(last + 1940, "Inbox - Mail, 3 unread")];
-    const result = check([copyOf(...pass.entries, ...stray)], attempt([pass], last + 3000));
-    expect(result).toEqual({ transcriptLines: 0, logLines: 0, agree: 0, ...AGREED, outside: 6 });
-    // The same pass, without that key, is checked.
-    expect(check([copyOf(...pass.entries)], attempt([pass], last + 3000))).toEqual({
-      transcriptLines: 3,
-      logLines: 3,
-      agree: 3,
+    expect(check([copyOf(...pass.entries)], [pass])).toEqual({
+      transcriptLines: 5,
+      logLines: 5,
+      agree: 4,
+      onlyInLog: [{ page: HOME, pass: "headings", step: 3, text: "Contact, heading, level 2" }],
+      onlyInTranscripts: [],
+      outside: 2,
+    });
+  });
+
+  it("pairs a pass whose first and last three keys each waited once more than the rest", () => {
+    // The clock is set by a step at either end, so the middle six keys come 0.4 s before the moments
+    // it gives them: still in their own steps' time.
+    const lines = Array.from({ length: 12 }, (_, k): Line => {
+      const waited = k < 3 || k >= 9 ? 400 : 0;
+      return {
+        command: "nextHeading",
+        spoken: `Heading ${k + 1}, heading, level 2`,
+        later: waited,
+        ms: STEP_MS + waited,
+      };
+    });
+    const pass = passAt(T0, HOME, "headings", lines);
+    expect(check([copyOf(...pass.entries)], [pass])).toEqual({
+      transcriptLines: 12,
+      logLines: 12,
+      agree: 12,
       ...AGREED,
       outside: 2,
     });

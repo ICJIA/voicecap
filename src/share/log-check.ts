@@ -5,7 +5,8 @@
  * can see every line where the two differ.
  *
  * It's general: it takes the steps' keys from the screen reader's driver (`gestureOf`), and knows
- * nothing else about NVDA but the format of its log. It works in five parts.
+ * nothing else about NVDA but the format of its log, and that a pass's first Tab goes to the
+ * browser, not through NVDA, so its log has no key for it. It works in five parts.
  *
  * 1. **Reading a copy.** It reads each key (`Input: kb(desktop):downArrow`) and each Speaking entry,
  *    with its time on the copy's own timeline, parseNvdaLog's way (entryTimes). Whatever falls inside
@@ -29,12 +30,13 @@
  * 4. **The pass's clock.** Each step records how long it took, and steps follow one another, so a
  *    pass's steps begin at known moments after its start. Laid on the log's clock, each key goes to
  *    the step in whose time it was pressed: voicecap presses a step's key once NVDA is quiet, so it
- *    can come seconds into its step when NVDA was still talking as the step began. That finds a
- *    step whose key NVDA didn't log (the first Tab of each page, which goes to the browser, not
- *    through NVDA), and keeps a key NVDA logged that isn't a step's (the driver's Ctrl+Home as it
- *    opens the page) off every step. A pass ends with its last step's key: when the clock that pairs
- *    the most keys leaves the last key out, the pass can't be paired for certain, and its steps
- *    aren't checked (see lineUp).
+ *    can come seconds into its step when NVDA was still talking as the step began. A key NVDA took
+ *    late, after its step's time, goes to its step by order, between the keys of the steps around
+ *    it. That finds a step whose key NVDA didn't log (the first Tab of each page, which goes to the
+ *    browser, not through NVDA), and keeps a key NVDA logged that isn't a step's (the driver's
+ *    Ctrl+Home as it opens the page) off every step. When another clock pairs as many keys some
+ *    other way, as when a key no step pressed comes just before a pass's first step or after its
+ *    last, the pass can't be paired for certain, and its steps aren't checked (see lineUp).
  * 5. **A step's speech, and the comparison.** A step's speech is what NVDA said after its key (or
  *    after the moment its key would have been pressed), within the step's time, in one burst. Its
  *    entries' items are compared with the transcript's line, allowing for how NVDA speaks symbols
@@ -142,7 +144,7 @@ interface Placement {
   clock: number;
   keys: (Key | null)[];
   matched: number;
-  /** Whether it pairs the last key of the pass's stretch, inside its window (see lineUp). */
+  /** Whether no other moment tried pairs as many keys some other way (see lineUp). */
   certain: boolean;
 }
 
@@ -162,17 +164,15 @@ const LOCAL_TIME =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(?:Z|[+-]\d{2}:\d{2})$/;
 
 /**
- * One more wait for NVDA to be quiet: how much later than the moment it gives a step the pass's
- * clock can be. voicecap's capture presses a step's key once NVDA is quiet, a quarter of a second or
- * so into the step, and waits once more for each time NVDA wasn't. The clock is set by a step's key,
- * so when that key waited once more than another step's, the clock is that much late for the other:
- * its key comes up to this much before the moment the clock gives it, and a step with no key of its
- * own (the first Tab of a page) reaches back this far for its speech. On the real run of 6 October
- * 2026, every key came within 8 ms of its moment, and the first Tabs' speech 36 to 45 ms after it.
- * 300 ms covers one more wait, and stays well clear of what NVDA said as the page opened (its first
- * line, at the driver's Ctrl+Home, came 1.3 s before the first step's key).
+ * How far before the moment its key would have been pressed the first step of a pass may reach back
+ * for its speech, when NVDA logged no key for it (the first Tab of a page). The pass's clock is set
+ * by its other steps' keys, and a step's key comes later in its step when voicecap's capture waits
+ * once more for NVDA to be quiet first (a quarter of a second or so), which puts the clock that much
+ * late. On the real run of 6 October 2026, the first Tabs' speech came 36 to 45 ms after the moment
+ * their clock gave. 300 ms covers one more wait, and stays well clear of what NVDA said as the page
+ * opened (its first line, at the driver's Ctrl+Home, came 1.3 s before).
  */
-const ONE_MORE_WAIT_MS = 300;
+const FIRST_REACH_MS = 300;
 
 /**
  * Pair the steps of a run's kept transcripts with NVDA's own log, and compare what each says. The
@@ -281,9 +281,9 @@ function speechOf(
   // Where the step's key was pressed, or would have been: the pass's clock puts it there.
   const anchor = key?.at ?? placement.clock + startOf(step);
   // A step with no key of its own reaches back halfway to the step before it. The first, with no
-  // step before it, reaches back ONE_MORE_WAIT_MS before its key's moment, but never further, and
+  // step before it, reaches back FIRST_REACH_MS before its key's moment, but never further, and
   // never before its own window (half its duration back); its pass's window bounds it too (burst).
-  const reach = Math.max(edgeOf(steps, k), startOf(steps[0]!) - ONE_MORE_WAIT_MS);
+  const reach = Math.max(edgeOf(steps, k), startOf(steps[0]!) - FIRST_REACH_MS);
   const from = key?.at ?? placement.clock + reach;
   const said = burst(copy, from, anchor, step.durationMs, claimed, span);
   return key === null && said.length === 0 ? null : said;
@@ -329,7 +329,7 @@ function keysInside(placed: Placed, stretch: Stretch): Key[] {
 
 /**
  * Whether a pass fits a stretch: laid on its clock, at least half of the pass's steps that press a
- * key (and at least one) find theirs there.
+ * key NVDA logs (and at least one) find theirs there.
  */
 function fits(
   pass: PassSteps,
@@ -337,8 +337,21 @@ function fits(
   gestureOf: (command: DriverCommand) => string | null,
 ): boolean {
   if (placement === null) return false;
-  const keyed = pass.steps.filter((step) => gestureOf(step.command) !== null).length;
+  const keyed = keysOf(pass.steps, gestureOf).filter((gesture) => gesture !== null).length;
   return placement.matched >= Math.max(1, Math.ceil(keyed / 2));
+}
+
+/**
+ * The key each step presses, as NVDA logs it (gestureOf), or null where NVDA logs none. A pass's
+ * first Tab has none: voicecap presses it in the browser, not through NVDA, so NVDA's log has no key
+ * for it (the first `nextFocusable` after the page opens: see src/drivers/guidepup/nvda-log.ts).
+ */
+function keysOf(
+  steps: readonly StepRecord[],
+  gestureOf: (command: DriverCommand) => string | null,
+): (string | null)[] {
+  const firstTab = steps.findIndex((step) => step.command === "nextFocusable");
+  return steps.map((step, k) => (k === firstTab ? null : gestureOf(step.command)));
 }
 
 /** When a step began, in milliseconds after its pass began. */
@@ -356,24 +369,23 @@ function edgeOf(steps: readonly StepRecord[], k: number): number {
 }
 
 /**
- * Lay a pass on a stretch's clock: the moment that pairs the most of its steps with keys, each key
- * going to the step in whose time it was pressed, and only to a step that presses that key (the
- * nearest to the step's start, of two). A step's time on the clock runs from its start to the next
- * step's, each less one more wait (ONE_MORE_WAIT_MS): voicecap's capture presses a step's key once
- * NVDA is quiet, so a step's key can come seconds into it, when NVDA was still talking as the step
- * began (a map in a frame, say), and a step lasts until NVDA has been quiet for a while after its
- * key, so its key never comes in the next step's time. The moments tried pair one of the pass's last
- * three steps with one of the last four keys it presses in the stretch, then one of its first three
- * with one of the first four, in that order, and the first that pairs the most wins. So where two
- * pair as many, the pass's end decides: a pass ends with its last step's key, while a key at its
- * start can be missing (the first Tab, pressed in the browser) or not a step's at all.
+ * Lay a pass on a stretch's clock: the moment that pairs the most of its steps with keys. Each key
+ * goes to the step in whose time it was pressed, and only to a step that presses that key (the
+ * nearest to the step's start, of two). On the clock, a step's key comes at the step's start, give
+ * or take. voicecap's capture presses a step's key once NVDA is quiet, so it comes seconds into its
+ * step when NVDA was still talking as the step began (a map in a frame, say), and the clock is set
+ * by one step's key, so another's comes up to about half a step before the moment the clock gives
+ * it, when that step waited longer for quiet than it did. So a step's time on the clock runs from its
+ * start to the next step's, each less half the pass's shortest step. A key NVDA took late, after its
+ * step's time, falls in the next step's time, which keeps its own key: order then gives it its step
+ * (inOrder). The moments tried pair one of the pass's last three steps with one of the last four
+ * keys it presses in the stretch, then one of its first three with one of the first four.
  *
- * The placement is certain when it pairs the stretch's last key, as a pass that ends with its last
- * step's key has it paired. When it leaves that key out, the moment that pairs the most keys and the
- * pass's end disagree: a moment that gives the last step an earlier key paired more, or as many and
- * was tried first, as when a key the pass didn't press comes before its first step or after its
- * last. Which key was whose can't be told without the words, which the pairing never looks at, so
- * the pass isn't checked.
+ * The placement is certain when no other moment tried pairs as many keys some other way. Two that
+ * do can't be told apart without the words, which the pairing doesn't look at, so the pass isn't
+ * checked: as when a key the pass didn't press, just before its first step or after its last, gives
+ * a pairing one step off as many keys as the pass's own, or NVDA didn't log the key of the pass's
+ * first or last step.
  */
 function lineUp(
   steps: readonly StepRecord[],
@@ -382,11 +394,17 @@ function lineUp(
 ): Placement | null {
   if (steps.length === 0 || keys.length === 0) return null;
   const starts = steps.map(startOf);
-  const gestures = steps.map((step) => gestureOf(step.command));
+  const gestures = keysOf(steps, gestureOf);
   // Each step's window on the pass's clock: its own time, from its start to the next step's, each
-  // less one more wait.
-  const edges = starts.map((start) => start - ONE_MORE_WAIT_MS);
-  edges.push(starts.at(-1)! + steps.at(-1)!.durationMs - ONE_MORE_WAIT_MS);
+  // less half the pass's shortest step. What the window's early side lets in, its late side gives
+  // up: a key that came more than half a step late in a step of the usual length falls in the next
+  // step's time. Between two steps' keys, order places it; at either end of a pass it can make a
+  // pairing one step off pair as many keys, and the pass isn't checked. With 300 ms, the late side
+  // reached 0.98 s, and a pass whose first and last three keys came 0.4 s later than the rest
+  // couldn't be paired.
+  const early = steps.reduce((least, step) => Math.min(least, step.durationMs), Infinity) / 2;
+  const edges = starts.map((start) => start - early);
+  edges.push(starts.at(-1)! + steps.at(-1)!.durationMs - early);
 
   const clocks = new Set<number>();
   const anchor = (k: number, fromEnd: boolean) => {
@@ -401,6 +419,8 @@ function lineUp(
   for (let k = 0; k < Math.min(3, steps.length); k += 1) anchor(k, false);
 
   let best: Omit<Placement, "certain"> | null = null;
+  // The other pairings tried that pair as many keys as the best so far.
+  let rivals: (Key | null)[][] = [];
   for (const clock of clocks) {
     const placed: (Key | null)[] = steps.map(() => null);
     const distance: number[] = steps.map(() => Infinity);
@@ -413,11 +433,51 @@ function lineUp(
         placed[k] = key;
       }
     }
+    inOrder(placed, keys, gestures);
     const matched = placed.filter((key) => key !== null).length;
-    if (matched > (best?.matched ?? 0)) best = { clock, keys: placed, matched };
+    if (matched > (best?.matched ?? 0)) {
+      best = { clock, keys: placed, matched };
+      rivals = [];
+    } else if (best !== null && matched === best.matched) {
+      rivals.push(placed);
+    }
   }
   if (best === null) return null;
-  return { ...best, certain: best.keys.includes(keys.at(-1)!) };
+  const chosen = best.keys;
+  const certain = rivals.every((other) => other.every((key, k) => key === chosen[k]));
+  return { ...best, certain };
+}
+
+/**
+ * Give the keys a placement left out between two of its steps' keys to the steps between them that
+ * have none, when order alone says whose they are: they pair one to one, in order, by their keys.
+ * Keys come in their steps' order, so such a key is the step's, though NVDA logged it after the
+ * step's time (as when NVDA took it late, once voicecap's capture had stopped listening). Keys
+ * before the first step's key, or after the last one's, are left out: there, a key no step pressed
+ * can't be told from a step's.
+ */
+function inOrder(
+  placed: (Key | null)[],
+  keys: readonly Key[],
+  gestures: readonly (string | null)[],
+): void {
+  const used = new Set(placed);
+  const paired = placed.flatMap((key, k) => (key === null ? [] : [k]));
+  for (let p = 1; p < paired.length; p += 1) {
+    const i = paired[p - 1]!;
+    const j = paired[p]!;
+    const empty = gestures
+      .slice(i + 1, j)
+      .flatMap((gesture, n) => (gesture === null ? [] : [i + 1 + n]));
+    if (empty.length === 0) continue;
+    const [from, to] = [placed[i]!.at, placed[j]!.at];
+    const left = keys.filter((key) => key.at > from && key.at < to && !used.has(key));
+    if (left.length !== empty.length) continue;
+    if (!empty.every((k, n) => gestures[k] === left[n]!.gesture)) continue;
+    empty.forEach((k, n) => {
+      placed[k] = left[n]!;
+    });
+  }
 }
 
 /** The step whose window holds a moment of the pass (edges from lineUp), or null if none does. */

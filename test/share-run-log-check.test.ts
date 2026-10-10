@@ -118,8 +118,9 @@ function keptStart(kept: KeptLogs, page: string, attempt: number): number {
 
 /**
  * A page's copy as pageEntries writes it from `from`, with a key of each of the passes `strayed`
- * picks (by its place) 1.9 s after its last step's key, before the next pass opens the page, and
- * what NVDA said after it: no step pressed it, so the copy can't be paired with that pass for
+ * picks (by its place) a step after its last step's key, before the next pass opens the page, and
+ * what NVDA said after it. No step pressed it, and a pairing one step late, which gives the last
+ * step that key, pairs as many keys as the pass's own: the copy can't be paired with the pass for
  * certain.
  */
 function withStrayKeys(from: number, strayed: number[]): string {
@@ -127,7 +128,7 @@ function withStrayKeys(from: number, strayed: number[]): string {
     const pass = PAGE_PASSES[index]!;
     // pageEntries: a pass opens 15 s after the one before, its steps begin 2.3 s after, 1.2 s each.
     const last = from + 2000 + index * 15_000 + 2300 + (pass.spoken.length - 1) * 1200 + 270;
-    return [keyAt(last + 1900, gestureOf(pass.command)!), saidAt(last + 1940, "Inbox - Mail")];
+    return [keyAt(last + 1300, gestureOf(pass.command)!), saidAt(last + 1340, "Inbox - Mail")];
   });
   return copyOf(...pageEntries(from), ...strays);
 }
