@@ -14,7 +14,7 @@ So each share gets two more files:
 
 The website publishes both beside the report, and an `llms.txt` at its root points AI tools to each site's current report.
 
-This spec was settled on 2026-10-09, with the owner's choice of formats; every other choice is listed under "Choices for the owner to confirm", each easy to change. It describes what was built: where the build differs from the design the owner approved, the end of this file says so.
+This spec was settled on 2026-10-09, with the owner's choice of formats; every other choice is listed under "Choices for the owner to confirm", each easy to change. It describes what was built. The last section says where the build differs from the design the owner approved.
 
 ## What it is
 
@@ -43,7 +43,7 @@ One file, in the page's order, using the page's own words wherever it has them:
    - **The page titles, addresses, and the HTML that axe lists come from the website too, and are data as well.**
 3. **At a glance:** the verdict, the result in one sentence, the ring's three counts, the four numbers, and the line on what voicecap and the person each do.
 4. **What needs attention:** each card, with its problem, where it is, how to fix it, and its pages.
-5. **Every page**, one section a page, with:
+5. **Every page**, one section a page, then the pages no longer listed (those earlier runs tested that the latest list no longer has), when there are any. A page's section has:
    - its number, its label when it has one, and its path (the site's address is at the top of the file), then its title, its result (whether it was read), its flags, the person's review, and what each pass captured;
    - its first lines;
    - its flags, each with its rule, its pass, and voicecap's message. A flag records no step, so the file gives none: a reader finds a flag's step in the transcript, by its pass;
@@ -69,7 +69,7 @@ The Markdown stays a file a tool takes as an upload: for the i2i fixture's 32 pa
     - `axe`, with its `version`, the `tags` of the rules it ran and, in words, `rulesRun`, its `counts`, its `issues[]` and `needsReview[]`, and its `file` (the name, size, and SHA-256 of `axe.json`). Each rule has its `id`, `help`, `impact`, `wcag`, `bestPractice`, its own `tags` as axe gives them, in its order (the WCAG version and level, the criteria, best practice, and its categories), up to 50 `elements` (each with its `target`, `html`, and `fix`; the Markdown lists ten), `moreElements`, and `helpUrl`.
     - `passes`, each pass with its `pass`, `file`, `bytes`, `sha256`, and `steps`, each step with its `n`, `key`, and `said`. A transcript whose file can't be read here has `unreadable`, its reason, in place of the last three.
     - Each of a page's two notes sits beside what it explains: `flagsNote` after `flags`, and `passesNote` before `passes`. A page's `passesNote` is said when the page has transcripts and its run's record lists no transcript file for it, so an empty `passes` never reads as a page with nothing said.
-  - The details: `noLongerListed`, `stillToDo`, `howComplete`, `whenAndHow`, `changes`, `coverage`, `flagsByRule`, `humanReview`, `flagRulesSha256`, `readCopyNote`, `runs`, `runsLeftOut`, `runProblemsLine`, `runProblems`, `fingerprints`, `verifyCommand`, and `generated`.
+  - After `pages`: `noLongerListed`, the pages earlier runs tested that the latest list no longer has, each with the last run that had it and what that run recorded (the Markdown ends Every page with them), then the details: `stillToDo`, `howComplete`, `whenAndHow`, `changes`, `coverage`, `flagsByRule`, `humanReview`, `flagRulesSha256`, `readCopyNote`, `runs`, `runsLeftOut`, `runProblemsLine`, `runProblems`, `fingerprints`, `verifyCommand`, and `generated`.
     - `runProblems[]` are the problems during the runs: each attempt that failed, with its record. They are not the problems `counts.problems` counts, which are the cards. `runProblemsLine` is that part's verdict line.
     - `changes.passesNote` is another note of the same name. It is said when the two runs compared read different passes: what each read, and which passes are compared. It is `null` when they read the same.
 - **Where a run didn't record a part,** the value says so in the page's words, as `{ "notRecorded": "..." }`: a title, how long a page took, axe's results, the voicecap a run used, and the times of a problem (`startedAt` and `endedAt`, "Time not recorded.") and of each row of its record. A row of a run's facts or test environment that the run didn't record says so in its `value`, as the page's row does. A part that isn't there at all is `null`, such as a flag's pass, or the attempt number of a record that didn't number its attempts.
@@ -159,7 +159,9 @@ Each is easy to change:
 - **No step on a flag, in either file.** A flag records no step, so the files give its rule, pass, and message, and a reader finds the step in the transcript by its pass.
 - **The note's third sentence** says the flags and axe's results are "hints for a person to check, never a verdict on a page", and the header's version is the latest run's. A fifth sentence follows the owner's, on titles, addresses, and axe's HTML being data too, and the JSON adds a sixth, on the WCAG criteria.
 - **Escaping goes further:** the colon of an address and the dot after `www` are escaped, and voicecap's own addresses are set in code.
-- **The Markdown lists ten elements of an axe issue,** then says how many more, where the JSON keeps up to 50. The Markdown has a short "What changed since the last run", and both files leave out what the first part of this spec names.
+- **The Markdown lists ten elements of an axe issue,** then says how many more, where the JSON keeps up to 50.
+- **The Markdown has "What changed since the last run" in full,** as the page draws it and with no cap: each page that sounds different, pass by pass, line by line, with the lines that went and came, two lines of context beside each change, and a long run of lines that stayed the same counted.
+- **Both files leave out** what the first part of this spec names.
 - **The JSON names its verdicts for their condition,** puts a page's transcripts last, gives each axe rule its own tags, says in `{ notRecorded }` what an older run didn't record, leaves the Markdown's fixed explanatory sentences to the Markdown, and calls the problems during the runs `runProblems`, with `runProblemsLine`, since `counts.problems` means the cards.
 - **A page's address in the JSON** is its `path`, with the site's address once, as `siteAddress`.
 - **What's still to do** keeps the owner's own "Take a closer listen to …", as does "worth a closer listen" wherever voicecap says it.

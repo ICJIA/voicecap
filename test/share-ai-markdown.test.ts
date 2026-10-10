@@ -1676,10 +1676,12 @@ describe("renderAiMarkdown", () => {
 
     expect(todo).toContain("Read it again.");
     // The page's own line, in its own words: the owner keeps "a closer listen" for what flags
-    // point to (Q14). The page's address is voicecap's own, so it is in code.
+    // point to. The page's address is voicecap's own, so it is in code.
     expect(todo).toContain(
       "- Take a closer listen to `https://voicecap.netlify.app/demo-site/common-mistakes/`, where flags were raised, and record what you decide.",
     );
+    // Take that phrase out, and nothing else in the list says "listen": no one is said to have listened.
+    expect(todo.replaceAll("Take a closer listen to", "")).not.toMatch(/listen/i);
     expect(read(evidence).blocks[0]?.lines).toContain(
       "Operating system: Windows 11 Pro 25H2 (10.0.26200)",
     );

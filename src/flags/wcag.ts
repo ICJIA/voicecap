@@ -9,7 +9,7 @@
  * decides whether it relates to a criterion at all, and which. The JSON file's note says so
  * (`AI_TEXT.wcagNote`, after the sentences of `AI_TEXT.about`).
  *
- * - `generic-link-text`: 2.4.4 (Link Purpose, In Context).
+ * - `generic-link-text`: 2.4.4 (Link Purpose (In Context)).
  * - `unlabeled`: 1.1.1 (Non-text Content) and 4.1.2 (Name, Role, Value).
  * - `headings`: 1.3.1 (Info and Relationships) and 2.4.6 (Headings and Labels).
  * - `tab-no-stops`: 2.1.1 (Keyboard).

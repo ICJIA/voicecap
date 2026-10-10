@@ -1618,7 +1618,7 @@ describe("shareReport", () => {
 
     // Every share this release makes has the report for AI tools, whatever its runs' versions, so a
     // share that couldn't draw one would read as a share from before it, and the site would say
-    // nothing of the report. The share stops instead (Ruling Q16): the pair isn't written either.
+    // nothing of the report. The share stops instead: the pair isn't written either.
     it.each([
       ["Markdown", renderAiMarkdown],
       ["JSON", renderAiJson],
