@@ -21,7 +21,7 @@ Each shared report now comes as Markdown and as JSON too, for AI tools such as C
 
 - **The website tells a walkthrough file by its `_walkthrough.json` ending,** since a share's JSON for AI tools ends in `.json` too. Every walkthrough file a share has held is named so, so no report already shared changes.
 - **What a share holds is said where it was listed.** `voicecap share --help` and `voicecap site --help`, the README's transcripts folder, `.gitignore`, `shares.json`, and website sections, and Technical details on the website now name the Markdown, the JSON, and `llms.txt`.
-- **Programmatic API:** `shareReport`'s `files`, and the `files` of the share's entry, list the Markdown and the JSON after the Word copy; a `PublishedFile`'s `kind` has two new values, `"markdown"` and `"data"`, so code that switches on `kind` needs a case for each; and `buildSite` writes `llms.txt` beside `index.html`. Nothing is removed.
+- **Programmatic API:** `shareReport`'s `files`, and the `files` of the share's entry, list the Markdown and the JSON after the Word copy; a `PublishedFile`'s `kind` has two new values, `"markdown"` and `"data"`, so code that switches on `kind` needs a case for each; and `buildSite` writes `llms.txt` beside `index.html`; and the JSON's shape is exported as types, `AiReport` for the whole file and `AiPage`, `AiCard`, `AiFlag`, `AiAxeResults`, `AiTranscript`, `AiStep`, and the rest for the parts it is made of, so a program that reads one can type it. Nothing is removed.
 
 ## [0.16.1] - 2026-10-09
 

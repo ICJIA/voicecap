@@ -12,6 +12,7 @@
  * transcript that can't be read, a page never read, a problem, what changed since the run before,
  * and hostile words.
  */
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { beforeAll, describe, expect, it } from "vitest";
@@ -19,6 +20,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { BUILT_IN_RULES } from "../src/flags/evaluate.js";
 import { RULE_WCAG } from "../src/flags/wcag.js";
+import type * as Api from "../src/index.js";
 import {
   PASS_NAMES,
   type FlagResult,
@@ -3119,5 +3121,62 @@ describe("resultOf, which the Markdown and the JSON say a page's result by", () 
         expect(markdown).toContain(`- ${markdownText(`${AI_TEXT.result}: ${resultOf(card)}`)}`);
       });
     }
+  });
+});
+
+describe("the package's entry", () => {
+  it("exports the JSON's types: the whole file, and each part it is made of", () => {
+    // This compiles only if the entry exports each of these types.
+    const types: [
+      // The file, and what it says where a run didn't record a part.
+      Api.AiReport | null,
+      Api.AiNotRecorded | null,
+      // At a glance.
+      Api.AiVerdictKind | null,
+      Api.AiVerdict | null,
+      Api.AiCounts | null,
+      Api.AiOutOf | null,
+      // What needs attention.
+      Api.AiCard | null,
+      Api.AiPlace | null,
+      Api.AiFix | null,
+      Api.AiCardPage | null,
+      // Every page.
+      Api.AiPage | null,
+      Api.AiFlag | null,
+      Api.AiAxeResults | null,
+      Api.AiAxeRule | null,
+      Api.AiAxeElement | null,
+      Api.AiTranscript | null,
+      Api.AiUnreadablePass | null,
+      Api.AiStep | null,
+      Api.AiGone | null,
+      // The details.
+      Api.AiChanges | null,
+      Api.AiChangedPage | null,
+      Api.AiDiffLine | null,
+      Api.AiRun | null,
+      Api.AiRow | null,
+      Api.AiProblem | null,
+      Api.AiFingerprint | null,
+    ] = Array.from({ length: 26 }, () => null) as never;
+
+    expect(types).toHaveLength(26);
+  });
+
+  it("leaves none of the JSON's types out of it", () => {
+    const source = readFileSync(
+      fileURLToPath(new URL("../src/share/ai/json.ts", import.meta.url)),
+      "utf8",
+    );
+    const entry = readFileSync(fileURLToPath(new URL("../src/index.ts", import.meta.url)), "utf8");
+    const types = [...source.matchAll(/^export (?:interface|type) (Ai\w+)/gm)].map(
+      ([, name]) => name ?? "",
+    );
+
+    // The file's shape is 25 types, and the entry names each, and its step too.
+    expect(types).toHaveLength(25);
+    for (const name of types) expect(entry, name).toMatch(new RegExp(`\\b${name}\\b`));
+    expect(entry).toMatch(/\bStep as AiStep\b/);
   });
 });
