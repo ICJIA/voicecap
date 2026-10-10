@@ -29,6 +29,12 @@ export interface Step {
   n: number;
   /** The key, as a person knows it: "Down Arrow", "H", "Tab", "Ctrl+End", or "Ctrl+Home". */
   key: string;
+  /**
+   * What NVDA said, without the transcript's label of a step of another key ("[to bottom] "). A step
+   * where NVDA said nothing is the transcript's own marker, `[no speech]` (`NO_SPEECH`,
+   * src/transcripts/format.ts): a note, not words NVDA said, which a program can tell apart from
+   * NVDA's words only by matching it.
+   */
   said: string;
 }
 

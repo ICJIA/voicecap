@@ -45,6 +45,7 @@ import {
 } from "../src/share/text.js";
 import { verdictOf } from "../src/share/verdict.js";
 import { sentence } from "../src/share/words.js";
+import { NO_SPEECH } from "../src/transcripts/format.js";
 import { rawNode, rawRule, type RawAxeRule } from "./helpers/raw-axe.js";
 import { withCards } from "./helpers/share-attention.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
@@ -324,7 +325,7 @@ const REPORT = obj({
   }),
   attention: list(CARD),
   pages: list(PAGE),
-  noLongerListed: list(obj({ name: str, address: str, lastRun: str, lastStatus: str })),
+  noLongerListed: list(obj({ name: str, path: str, address: str, lastRun: str, lastStatus: str })),
   stillToDo: strs,
   howComplete: strs,
   whenAndHow: list(row),
@@ -1888,6 +1889,22 @@ describe("the pages of renderAiJson", () => {
     expect(page?.passes.map((pass) => ("steps" in pass ? pass.steps : null))).toEqual([[], [], []]);
   });
 
+  it("says a step where NVDA said nothing with the transcript's marker, in a pass's steps and in the page's first lines", () => {
+    // The marker is a note, not words NVDA said, and a program tells it apart only by matching it.
+    const page = pageAt(
+      reportOf(hostileModel({ read: ["[no speech]", "hello", "[no speech]"] })),
+      0,
+    );
+
+    expect(NO_SPEECH).toBe("[no speech]");
+    expect(page.firstLines).toEqual([NO_SPEECH, "hello", NO_SPEECH]);
+    expect(stepsOfPass(page, 0)).toEqual([
+      { n: 1, key: "Down Arrow", said: NO_SPEECH },
+      { n: 2, key: "Down Arrow", said: "hello" },
+      { n: 3, key: "Down Arrow", said: NO_SPEECH },
+    ]);
+  });
+
   it("keeps a transcript line whatever it holds: quotes, backslashes, a fence, markup, a lone surrogate, control characters", () => {
     const lines = [
       'He said "hi" and \\ left',
@@ -2433,11 +2450,56 @@ describe("the details of renderAiJson", () => {
     expect(noLongerListed).toEqual([
       {
         name: "Old page",
+        path: "/old/",
         address: "https://example.illinois.gov/old/",
         lastRun: "r1",
         lastStatus: "Transcribed",
       },
     ]);
+  });
+
+  it("gives each page no longer listed its path, as every other page has one, beside its whole address", () => {
+    // A page with a label, and one with none that has a query: it is named by its whole address.
+    const first = shareRun({
+      id: "r1",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      pages: [
+        { path: "/", files: TRANSCRIPTS, passes: LINES },
+        { path: "/old/", label: "Old page", files: TRANSCRIPTS, passes: LINES },
+        { path: "/search/?q=a%20b", files: TRANSCRIPTS, passes: LINES },
+      ],
+    });
+    const second = shareRun({
+      id: "r2",
+      createdAt: "2026-09-27T14:05:00-05:00",
+      pages: [{ path: "/", files: TRANSCRIPTS, passes: LINES }],
+    });
+    const model = buildShareModel(
+      inputOf([first, second], { transcripts: storeOf(), generatedAt: MADE }),
+    );
+    const { noLongerListed } = reportOf(model);
+
+    expect(noLongerListed).toEqual([
+      {
+        name: "Old page",
+        path: "/old/",
+        address: "https://example.illinois.gov/old/",
+        lastRun: "r1",
+        lastStatus: "Transcribed",
+      },
+      {
+        name: "https://example.illinois.gov/search/?q=a%20b",
+        path: "/search/?q=a%20b",
+        address: "https://example.illinois.gov/search/?q=a%20b",
+        lastRun: "r1",
+        lastStatus: "Transcribed",
+      },
+    ]);
+    // The path is the address without the site's, as the changes and the problems say theirs.
+    for (const page of noLongerListed) {
+      expect(page.address.endsWith(page.path), page.name).toBe(true);
+      expect(page.address.startsWith(model.header.site.replace(/\/$/, "")), page.name).toBe(true);
+    }
   });
 
   it("gives the lines a pass lost and gained as the counts they are, and the rules whose flag came, in their own parts", () => {

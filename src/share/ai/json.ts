@@ -338,7 +338,10 @@ export interface AiPage {
     tab: number | null;
     timeMs: number | AiNotRecorded;
   } | null;
-  /** The first lines NVDA said as it read the page, word for word. */
+  /**
+   * The first lines NVDA said as it read the page, word for word; a step where it said nothing is
+   * the transcript's marker, `[no speech]`, as in `Step.said` (./shared.ts).
+   */
   firstLines: string[];
   flags: AiFlag[];
   /** Where the flags are not the plain list: that nothing was read, none were raised, or they are as the run recorded them. */
@@ -360,7 +363,11 @@ export interface AiPage {
 
 /** A page earlier runs tested that the latest list no longer has. */
 export interface AiGone {
+  /** What the page is called: its label, else its whole address. */
   name: string;
+  /** The page's address without the site's: "/old/", as every other page part has it. */
+  path: string;
+  /** Its whole address, as the page shows it. */
   address: string;
   /** The last run that had it, and what that run recorded of it. */
   lastRun: string;
@@ -773,6 +780,7 @@ function pageOf(
 /** A page earlier runs tested that the latest list no longer has. */
 const goneOf = ({ name, url, lastRun, lastStatus }: NoLongerListed): AiGone => ({
   name,
+  path: pagePath(url),
   address: url,
   lastRun,
   lastStatus,
