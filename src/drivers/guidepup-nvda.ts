@@ -956,7 +956,8 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * (closeForeground), then tries again, within the same tries: after the last there's no try to
    * make, so it presses nothing. For any other program, or none known, it only asks again after the
    * next try; the loss that fails the page is recorded once, with what the last try found, and the
-   * error says no more than before.
+   * error says no more than before. The warning after the last try names the program in front, or
+   * "another window" when none is known, never the window's title as NVDA reads it.
    *
    * With openPage's Escape and Ctrl+Home, this is navigateToWebContent from @guidepup/playwright
    * 0.19.1, lib/nvdaTest.js (by Craig Morten, MIT License), adapted: the window is raised instead
@@ -969,7 +970,6 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     const marker = this.markerTitle();
     const restore = await session.setTitle(marker);
     try {
-      let spoken = "";
       // What the last try that failed found in front.
       let front: InFront = { program: null, title: null };
       for (let attempt = 0; attempt < RAISE_ATTEMPTS; attempt++) {
@@ -979,7 +979,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
         await session.raise();
         await this.deps.sleep(TITLE_SETTLE_MS);
         this.checkLive(page.generation);
-        spoken = await this.heard(page, await this.command(() => nvda.press("reportTitle")));
+        const spoken = await this.heard(page, await this.command(() => nvda.press("reportTitle")));
         if (titleMatches(spoken, marker)) return;
         // Another window is in front: which? Asked after every try that fails, so Search or the
         // Start menu coming up on a later one is found too.
@@ -993,8 +993,10 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
           if (attempt < RAISE_ATTEMPTS - 1) await this.closeForeground(page, program);
         }
       }
+      // The program, as the lookup named it. NVDA's reading of the window is its title, which can
+      // hold private text (an email's subject, say), and only the event log keeps that.
       this.options.logger.warn(
-        `The browser couldn't be brought to the front; NVDA reports this window in front: "${spoken}".`,
+        `The browser couldn't be brought to the front: ${front.program ?? "another window"} was in front.`,
       );
       // The loss that fails the page is recorded once: what the last try found in front, unless it
       // was Search or the Start menu, which were recorded as they were found.
@@ -1596,7 +1598,7 @@ interface Current {
 interface InFront {
   /** The program that owns it, by the name the lookup gives it; null when that isn't known. */
   program: string | null;
-  /** Its title, which can hold private text: the log keeps it, and no report shows it. */
+  /** Its title, which can hold private text: the log keeps it; no report or warning shows it. */
   title: string | null;
 }
 

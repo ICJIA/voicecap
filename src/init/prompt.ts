@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline";
 
 import { InterruptedError } from "../passes/steps.js";
+import { inertText } from "../util/inert.js";
 import type { OutputStream } from "../util/log.js";
 
 /**
@@ -82,8 +83,10 @@ export function createPrompter(io: {
     }
   }
 
+  // What a site answered (a server's reason phrase, a sitemap's address) is said here, so it's
+  // written as text (inertText): it can't act on the terminal.
   function say(text: string): void {
-    io.output.write(`${text}\n`);
+    io.output.write(`${inertText(text)}\n`);
   }
 
   // Ctrl+C can arrive between questions (e.g. during the up-to-15-second site check), when no

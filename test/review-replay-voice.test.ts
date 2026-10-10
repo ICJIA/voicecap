@@ -327,6 +327,64 @@ describe("the Mac voice", () => {
     await rejectsWith(unstarted, "macOS's voice stopped.");
   });
 
+  // `say` follows [[ … ]] in its input as speech commands ([[slnc 5000]] is five seconds of
+  // silence, [[rate 400]] a faster voice), and a transcript holds what a website made NVDA say.
+  it("reads [[ in a line as text, not as the start of a speech command", async () => {
+    const { voice, children } = await readyMacVoice();
+    const saying = voice.say("Hi [[slnc 5000]] there", 200);
+    const spoken = children[1]!;
+    expect(spoken.written()).toBe("Hi [ [slnc 5000]] there\n");
+    spoken.exit(0);
+    await expect(saying).resolves.toBeUndefined();
+
+    // A bracket on its own, and one that closes, start no command, and are said as they are.
+    const plain = voice.say("Read more [1], link [see below] ]] [", 180);
+    expect(children[2]!.written()).toBe("Read more [1], link [see below] ]] [\n");
+    children[2]!.exit(0);
+    await expect(plain).resolves.toBeUndefined();
+  });
+
+  it("leaves no [[ in a line, whatever the run of brackets, or what lies between them", async () => {
+    const { voice, children } = await readyMacVoice();
+    const lines = [
+      "[[[slnc 5000]]",
+      "[[[[rate 400]]]]",
+      "[[",
+      "a[[b[[c",
+      "x [ [slnc 1]] [[ [[ y",
+      "[".repeat(1_000),
+    ];
+    for (const [index, line] of lines.entries()) {
+      const saying = voice.say(line, 180);
+      const input = children[index + 1]!.written();
+      expect(input.endsWith("\n")).toBe(true);
+      expect(input).not.toContain("[[");
+      // Only a space was put between brackets, so the words are what they were.
+      expect(input.slice(0, -1).replaceAll(" ", "")).toBe(line.replaceAll(" ", ""));
+      children[index + 1]!.exit(0);
+      await expect(saying).resolves.toBeUndefined();
+    }
+  });
+
+  // A transcript's line is as long as its page made it, and a run of brackets is the worst shape
+  // for the pattern that spaces them: it looks one character ahead of each, so it takes time in
+  // proportion to the run, where one that went back over the run would take tens of seconds.
+  it("spaces a very long run of brackets in linear time", async () => {
+    const { voice, children } = await readyMacVoice();
+    const run = "[".repeat(300_000);
+
+    const began = performance.now();
+    const saying = voice.say(run, 180);
+    const took = performance.now() - began;
+
+    const input = children[1]!.written();
+    expect(took).toBeLessThan(5_000);
+    // Every bracket but the last has a space after it, and the line ends as it always does.
+    expect(input).toBe(`${"[ ".repeat(run.length - 1)}[\n`);
+    children[1]!.exit(0);
+    await expect(saying).resolves.toBeUndefined();
+  });
+
   it("checks for a voice first", async () => {
     const { spawn } = await readyMacVoice();
     expect(spawn.mock.calls[0]).toEqual(["say", ["-v", "?"], VOICE_SPAWN_OPTIONS]);

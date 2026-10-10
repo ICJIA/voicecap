@@ -19,6 +19,8 @@ import { afterAll, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { RunJson } from "../src/model.js";
 import type { Key } from "../src/review-replay/keys.js";
+import { replayPagesOf } from "../src/review-replay/pages.js";
+import type * as PagesModule from "../src/review-replay/pages.js";
 import {
   replayReview,
   type ReplayDeps,
@@ -58,6 +60,13 @@ import {
 vi.mock("../src/share/load.js", async (importOriginal) => {
   const actual = await importOriginal<typeof LoadModule>();
   return { ...actual, loadShareInput: vi.fn(actual.loadShareInput) };
+});
+
+// The same for the choice of pages, so the test of what the session shows of a page it leaves out
+// can give it a page the real run never has: one whose address holds a control character.
+vi.mock("../src/review-replay/pages.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof PagesModule>();
+  return { ...actual, replayPagesOf: vi.fn(actual.replayPagesOf) };
 });
 
 /** The scripted site's pages, by their keys. */
@@ -861,6 +870,23 @@ describe("replayReview", () => {
       "Skipped.",
       "Recorded no decisions.",
     ]);
+  });
+
+  // A page's address comes from a record, so the line that names the pages left out is written as
+  // text, as every line the session shows is.
+  it("shows the pages it leaves out as text: a control character in an address becomes an escape", async () => {
+    const at = await countedHome();
+    vi.mocked(replayPagesOf).mockImplementationOnce(() => ({
+      pages: [],
+      leftOut: ["/a\u{1b}[2Jb", "/c\u{202e}d"],
+    }));
+    const { session, out, startVoice } = replay(at, []);
+
+    await expect(session).resolves.toEqual({ decisions: 0, outcome: "done" });
+    expect(out.text()).toBe(
+      `Left out, with no transcripts to hear: /a\\u{1b}[2Jb, /c\\u{202e}d.\n${REPLAY_TEXT.nothingDefault}\n`,
+    );
+    expect(startVoice).not.toHaveBeenCalled();
   });
 
   it("records a decision against the run that played, not a later run that doesn't count", async () => {

@@ -11,6 +11,7 @@
  */
 import type { PassName } from "../model.js";
 import { EnvironmentError } from "../util/errors.js";
+import { inertText } from "../util/inert.js";
 import type { OutputStream } from "../util/log.js";
 import type { Key, KeySource } from "./keys.js";
 import { REPLAY_TEXT } from "./text.js";
@@ -239,17 +240,23 @@ export async function playPage(options: {
   const { voice, keys, out, stopLimitMs = STOP_LIMIT_MS } = options;
   /** The page's own lines still to be said, before the line playing: each is shown at once. */
   const asides: string[] = [];
-  /** Shows one of the page's own lines, to be said before the line playing (R10). */
+  /**
+   * Shows one of the page's own lines, to be said before the line playing (R10). What's shown is
+   * written as text (inertText), since a page's address comes from a record; what's said is the
+   * text as it is.
+   */
   const tell = (text: string): void => {
-    out.write(`${text}\n`);
+    out.write(`${inertText(text)}\n`);
     asides.push(text);
   };
   const lines = (state: PlayerState): PlayLine[] => linesOf(state.transcripts, state.pass);
   // While the page plays, the index always names one of the pass's lines.
   const lineOf = (state: PlayerState): PlayLine => lines(state)[state.index]!;
+  // A line is what a website made NVDA say, so it's written as text (inertText): it can't act on
+  // the terminal. The voice is given the words as they are.
   const showLine = (state: PlayerState): void => {
     const { n, text, marks } = lineOf(state);
-    out.write(`${REPLAY_TEXT.line(n, text, marks)}\n`);
+    out.write(`${inertText(REPLAY_TEXT.line(n, text, marks))}\n`);
   };
   /**
    * Set while the page's own lines are said before a transcript's first line, which isn't heard

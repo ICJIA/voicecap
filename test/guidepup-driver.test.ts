@@ -499,8 +499,11 @@ describe("opening a page", () => {
     await expect(open).rejects.toMatchObject({ failure: "foreground" });
     await expect(open).rejects.not.toThrow(/Outlook/);
     expect(desktop.strayKeys).toEqual([]);
-    // The window in front is named on the console only, not in the recorded error.
-    expect(logger.text()).toMatch(/Inbox - Outlook/);
+    // The program in front is named on the console only, not in the recorded error, and its
+    // window's title ("Inbox - Outlook") is named nowhere on the console.
+    expect(logger.text()).toBe(
+      "The browser couldn't be brought to the front: Microsoft Outlook was in front.",
+    );
   });
 
   it("moves NVDA to the top of the page, out of focus mode", async () => {
@@ -3635,8 +3638,51 @@ describe("Windows Search or the Start menu in front of the browser", () => {
       LOST_SEARCH,
     ]);
     expect(lookups(desktop)).toBe(3);
-    expect(logger.text("warn")).toMatch(/NVDA reports this window in front: "Search"/);
+    // The warning names the program the lookup gave, and holds none of NVDA's reading of the window
+    // ("Search"): that is the window's title, which can hold private text.
+    expect(logger.text("warn")).toBe(
+      "The browser couldn't be brought to the front: SearchHost was in front.",
+    );
     expect(keysSent(desktop)).toEqual([]);
+  });
+
+  it("names the program in front in its warning, never the window's title that NVDA reads", async () => {
+    const { driver, desktop, recorder, logger } = recording();
+    await driver.start();
+    const title = "Inbox - salary review - Outlook";
+    comesInFront(desktop, "Microsoft Outlook", title, false);
+    const open = driver.openPage(URL_HOME);
+
+    await expect(open).rejects.toMatchObject({
+      failure: "foreground",
+      program: "Microsoft Outlook",
+    });
+    expect(logger.text("warn")).toBe(
+      "The browser couldn't be brought to the front: Microsoft Outlook was in front.",
+    );
+    expect(logger.text("warn")).not.toMatch(/salary|Inbox|NVDA/);
+    // The title is the event log's, as it was: only the warning on the terminal leaves it out.
+    expect(foregroundEvents(recorder.events)).toEqual([
+      { type: "foreground-lost", program: "Microsoft Outlook", title },
+    ]);
+  });
+
+  it("says another window was in front when Windows doesn't say which program", async () => {
+    for (const lookup of [
+      () => Promise.resolve(null),
+      () => Promise.reject(new Error("PowerShell didn't answer")),
+    ]) {
+      const { driver, desktop, deps, logger } = recording();
+      deps.foregroundWindow = lookup;
+      await driver.start();
+      comesInFront(desktop, SEARCH, "Search - salary review", false);
+      const open = driver.openPage(URL_HOME);
+
+      await expect(open).rejects.toMatchObject({ failure: "foreground", program: null });
+      expect(logger.text("warn")).toBe(
+        "The browser couldn't be brought to the front: another window was in front.",
+      );
+    }
   });
 
   it("finds Search that arrives on the second try, and closes it then", async () => {

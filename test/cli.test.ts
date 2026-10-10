@@ -1347,6 +1347,22 @@ describe("voicecap review --replay", () => {
     expect(replayVoice).not.toHaveBeenCalled();
   });
 
+  // Every command prints through the console logger, which writes a control character, an
+  // invisible formatting character, or a line separator as text: here, in the words of an error
+  // that quotes what it was given.
+  it("writes a control character in what an error quotes as text, at the terminal", async () => {
+    const refused = await cli(
+      ["review", "--replay", "--rate", "fast\u{1b}[2J\u{202e}"],
+      await emptyFolder(),
+    );
+
+    expect(refused.code).toBe(1);
+    expect(refused.err).toBe(
+      'Error: --rate is in words a minute, a whole number from 60 to 540 (got "fast\\u{1b}[2J\\u{202e}").\n',
+    );
+    expect(refused.out).toBe("");
+  });
+
   it("--replay needs a terminal", async () => {
     const replayVoice = vi.fn((): Promise<Voice> => Promise.resolve(fakeVoice({ auto: true })));
     /** `review --replay` with its output captured, as from a script, and its input `stdin`. */

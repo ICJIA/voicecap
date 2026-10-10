@@ -1,5 +1,7 @@
 import { styleText } from "node:util";
 
+import { inertText } from "./inert.js";
+
 /**
  * What a result line says: that something passed or failed. At a terminal, the console logger
  * shows a passing line in green and a failing one in red. The words must say it too: color never
@@ -26,6 +28,13 @@ export interface OutputStream {
   isTTY?: boolean;
 }
 
+/**
+ * The logger commands print through. A message can hold words from outside: a website's, a
+ * sitemap's, a server's reply, a record's. So each level writes its message through inertText,
+ * which writes a control character, an invisible formatting character, or a line separator as an
+ * escape such as `\u{1b}`, and a CR LF as a line break. The color codes come after, so they're the
+ * only escape sequences a terminal is sent.
+ */
 export function createConsoleLogger(
   out: OutputStream = process.stdout,
   err: OutputStream = process.stderr,
@@ -35,14 +44,17 @@ export function createConsoleLogger(
   const paint = (stream: OutputStream, format: Parameters<typeof styleText>[0], text: string) =>
     color(stream) ? styleText(format, text) : text;
   return {
-    info: (message, outcome) =>
-      out.write(`${outcome ? paint(out, OUTCOME_COLOR[outcome], message) : message}\n`),
-    warn: (message) => err.write(`${paint(err, "yellow", `Warning: ${message}`)}\n`),
+    info: (message, outcome) => {
+      const text = inertText(message);
+      out.write(`${outcome ? paint(out, OUTCOME_COLOR[outcome], text) : text}\n`);
+    },
+    warn: (message) => err.write(`${paint(err, "yellow", `Warning: ${inertText(message)}`)}\n`),
     alert: (message) => {
       const rule = "=".repeat(72);
-      err.write(`${paint(err, ["bold", "yellow"], `${rule}\nWARNING: ${message}\n${rule}`)}\n`);
+      const text = `${rule}\nWARNING: ${inertText(message)}\n${rule}`;
+      err.write(`${paint(err, ["bold", "yellow"], text)}\n`);
     },
-    error: (message) => err.write(`${paint(err, "red", `Error: ${message}`)}\n`),
+    error: (message) => err.write(`${paint(err, "red", `Error: ${inertText(message)}`)}\n`),
   };
 }
 

@@ -168,6 +168,54 @@ describe("say", () => {
     prompter.close();
     input.end();
   });
+
+  // What a site says (a server's reason phrase in "doesn't answer (…)", a sitemap's address) is
+  // printed through say, and mustn't act on the terminal.
+  it("writes a control character as text", () => {
+    const input = new PassThrough();
+    const output = capture();
+    const prompter = createPrompter({ input, output: output.stream });
+
+    prompter.say("a\u{1b}b");
+    prompter.say("  → https://example.illinois.gov (HTTP 503 Down\u{1b}[2J\u{202e}\r\nfor now)");
+    expect(output.text()).toBe(
+      "a\\u{1b}b\n  → https://example.illinois.gov (HTTP 503 Down\\u{1b}[2J\\u{202e}\nfor now)\n",
+    );
+
+    prompter.close();
+    input.end();
+  });
+
+  it("writes the reason a check gives, and a choice, as text too", async () => {
+    const input = new PassThrough();
+    const output = capture();
+    const prompter = createPrompter({ input, output: output.stream });
+    input.write("wrong\nright\n1\n");
+    const check = (answer: string) => (answer === "right" ? null : "Not that\u{1b}[2J.");
+
+    await expect(prompter.ask("Word", { check })).resolves.toBe("right");
+    await expect(prompter.choose("Where?", ["Sitemap at https://x/\u{202e}y"], 0)).resolves.toBe(0);
+    expect(output.text()).toBe(
+      "Word: Not that\\u{1b}[2J.\nWord: Where?\n  1. Sitemap at https://x/\\u{202e}y\nChoose [1]: ",
+    );
+
+    prompter.close();
+    input.end();
+  });
+
+  it("leaves a line with nothing in it to write as it was", () => {
+    const input = new PassThrough();
+    const output = capture();
+    const prompter = createPrompter({ input, output: output.stream });
+
+    prompter.say("  1. The site's sitemap:\thttps://example.illinois.gov/sitemap.xml …");
+    expect(output.text()).toBe(
+      "  1. The site's sitemap:\thttps://example.illinois.gov/sitemap.xml …\n",
+    );
+
+    prompter.close();
+    input.end();
+  });
 });
 
 describe("reading answers", () => {

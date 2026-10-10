@@ -277,6 +277,17 @@ export async function windowsVoice(
 }
 
 /**
+ * `text` as macOS's `say` can be given it as words alone. `say` follows `[[ … ]]` in its input as a
+ * speech command: `[[slnc 5000]]` is five seconds of silence, `[[rate 400]]` a faster voice. A
+ * transcript holds what a website made NVDA say, so it could hold one. A space goes after each `[`
+ * that another `[` follows, so no `[[` is left to begin a command (`[[[` is `[ [ [`, not `[ [[`),
+ * and the rest of `text` is as it was.
+ */
+function withoutSpeechCommands(text: string): string {
+  return text.replace(/\[(?=\[)/g, "[ ");
+}
+
+/**
  * macOS's own voice: `say`, started for each line with the words on its input. It resolves once
  * `say -v ?` has listed a voice, and rejects with an EnvironmentError that says why when it
  * hasn't. `stop()` and `close()` kill the `say` that's speaking, and the line it was saying
@@ -321,7 +332,7 @@ export async function macVoice(options: { spawnVoice?: SpawnVoice } = {}): Promi
       const current = { child, stopped: false };
       speaking = current;
       child.stdin.on("error", () => {});
-      child.stdin.write(`${text}\n`);
+      child.stdin.write(`${withoutSpeechCommands(text)}\n`);
       child.stdin.end();
       return watch(child, () => {}).then((ending) => {
         speaking = null;

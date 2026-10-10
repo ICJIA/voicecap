@@ -356,6 +356,69 @@ describe("playPage", () => {
     );
   });
 
+  // A transcript's line is what a website's page made NVDA say, so it can hold anything: a control
+  // character on the screen would act on the terminal, not only be shown. The voice is given the
+  // words as they are: it speaks them, and runs nothing.
+  it("shows a line with an escape sequence in it as text, and gives the voice its words", async () => {
+    const hostile: PlayLine = {
+      n: 2,
+      text: "Home\u{1b}]0;pwned\u{7}",
+      spoken: "Home\u{1b}]0;pwned\u{7}",
+      marks: [],
+    };
+    const voice = fakeVoice({ auto: true });
+    const { playing, shown } = play(voice, keyQueue(), { read: [hostile] });
+    await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
+
+    expect(shown()).toBe(screenOf("Read transcript, 1 line:", "   2  Home\\u{1b}]0;pwned\\u{7}"));
+    // No Escape and no Bell is left in what the screen was sent.
+    expect(shown()).not.toContain("\u{1b}");
+    expect(shown()).not.toContain("\u{7}");
+    expect(voice.said.map(({ text }) => text)).toEqual([
+      "Read transcript, 1 line:",
+      hostile.spoken,
+    ]);
+  });
+
+  it("shows a line with an invisible formatting character or a lone carriage return in it as text", async () => {
+    const lines: PlayLine[] = [
+      { n: 2, text: "gnp.\u{202e}exe, link", spoken: "gnp.exe, link", marks: [] },
+      { n: 3, text: "Loading 100%\rLoading 0%", spoken: "Loading", marks: ["loading"] },
+      { n: 4, text: "a\u{2028}b\u{200b}c", spoken: "abc", marks: [] },
+    ];
+    const { playing, shown } = play(fakeVoice({ auto: true }), keyQueue(), { read: lines });
+    await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
+
+    expect(shown()).toBe(
+      screenOf(
+        "Read transcript, 3 lines:",
+        "   2  gnp.\\u{202e}exe, link",
+        "   3  Loading 100%\\u{d}Loading 0%  ⚑ loading",
+        "   4  a\\u{2028}b\\u{200b}c",
+      ),
+    );
+  });
+
+  // The page's line holds the page's address, from a record.
+  it("shows the page's line as text, and says it as it is", async () => {
+    const voice = fakeVoice({ auto: true });
+    const { out, shown } = screen();
+    const title = "Page 1 of 1: /a\u{1b}[2Jb (no flags)";
+    const playing = playPage({
+      transcripts: TRANSCRIPTS,
+      rate: 180,
+      voice,
+      keys: keyQueue(),
+      out,
+      title,
+    });
+    await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
+
+    expect(shown().startsWith("Page 1 of 1: /a\\u{1b}[2Jb (no flags)\nRead transcript")).toBe(true);
+    expect(shown()).not.toContain("\u{1b}");
+    expect(voice.said[0]?.text).toBe(title);
+  });
+
   it("stops one of the page's own lines for a key, which then acts on the page", async () => {
     const voice = fakeVoice();
     const keys = keyQueue();

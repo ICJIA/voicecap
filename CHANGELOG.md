@@ -45,6 +45,7 @@ voicecap now records what NVDA said aloud on each page, sealed with the run, wit
 ### Security
 
 - **A run no longer records your account's name in a path.** A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone. A failure's message, a page's errors, and the reasons for a screenshot, an axe check, or a recording are recorded with the home folder written as `%USERPROFILE%` and the temp folder as `%TEMP%`, in the spellings Windows gives them, the short one (`C:\Users\JANEDO~1`) too when the temp folder is in the home folder. The shareable page names a page list or walkthrough file by its name alone, for runs recorded before too. A run begun before 0.18.0 from a page list or walkthrough file outside that folder starts afresh.
+- **Text from a website can't act on the terminal.** Everything voicecap prints, and each line `voicecap review --replay` shows, writes a control character, an invisible formatting character, or a line separator as an escape such as `\u{1b}`. That covers text from a website, a sitemap, a server's reply, or a record. When the browser can't come to the front, the warning names the program in front, never its window's title. On a Mac, the replay's voice reads `[[` in a transcript as text.
 
 ## [0.17.0] - 2026-10-10
 

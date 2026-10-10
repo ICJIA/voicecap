@@ -792,6 +792,12 @@ describe("renderTechnical", () => {
       "A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone, and the home folder in the words of an error that a run keeps is written as %USERPROFILE% and the temp folder as %TEMP%, in the spellings Windows gives them, the short one too when the temp folder is in the home folder. The shareable page names such a file by its name alone, for runs recorded before too.",
     );
     expect(part("privacy-and-security")).not.toContain("in every spelling");
+    // What a website, a sitemap, a server, or a record says is printed as text, so it can't act on
+    // the terminal, and the warning about the browser not coming forward names a program, never a
+    // window's title.
+    expect(part("privacy-and-security")).toContain(
+      "What a website, a sitemap, a server, or a record says is printed as text: a control character, an invisible formatting character, or a line separator in it is written as an escape such as \\u{1b}, so it can't move the cursor, clear the screen, retitle the window, or turn the words around. The warning when the browser can't come to the front names the program in front, never its window's title.",
+    );
 
     // The rules say their thresholds, and nothing they don't count.
     expect(TECHNICAL_TEXT.rules["repeated-phrase"]).not.toContain("twice");

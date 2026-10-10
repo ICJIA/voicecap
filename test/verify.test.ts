@@ -32,7 +32,7 @@ import { shareReport, type ShareReportResult } from "../src/share/share.js";
 import { fileHash } from "../src/transcripts/write.js";
 import { UsageError } from "../src/util/errors.js";
 import { sealOf, sha256 } from "../src/util/hash.js";
-import { createMemoryLogger } from "../src/util/log.js";
+import { createConsoleLogger, createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
 import { TINY_JPEG } from "./helpers/jpeg.js";
 import { rawAxe, rawRule } from "./helpers/raw-axe.js";
@@ -2022,5 +2022,69 @@ describe("verifyHome, and what was shared", () => {
       `${SHARE}/${MD_1}: not recorded in shares.json`,
       `${SHARE}/${walkthrough1}: not recorded in shares.json`,
     ]);
+  });
+});
+
+// verify prints what the records hold: a share's time, and the names of files in share/. Either can
+// hold a control character, or one that turns the words around, so both are printed through the
+// console logger, which writes each as text (see inertText).
+describe("what verify prints at a terminal", () => {
+  /**
+   * What `voicecap verify` prints, through the console logger, for a home whose one site's share/
+   * folder holds `shares` as shares.json and a file for each name in `copies`.
+   */
+  async function printed(shares: Record<string, unknown>[], copies: string[] = []) {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-verify-print-"));
+    try {
+      const home = path.join(dir, "transcripts");
+      const siteDir = path.join(home, "example.illinois.gov");
+      await mkdir(shareDir(siteDir), { recursive: true });
+      await writeFile(sharesPath(siteDir), JSON.stringify({ schemaVersion: 1, shares }));
+      for (const name of copies) await writeFile(path.join(shareDir(siteDir), name), "<p>");
+
+      let shown = "";
+      const terminal = { write: (chunk: string) => ((shown += chunk), true) };
+      const logger = createConsoleLogger(terminal, terminal);
+      const { problems } = await verifyHome({ home, site: "https://example.illinois.gov", logger });
+      return { shown, problems };
+    } finally {
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+
+  it("writes a share's time and the name of a copy that nothing records as text", async () => {
+    const at = "2027-01-15T10:00:00-06:00\u{1b}]0;pwned\u{7}";
+    // No seal that fits, so verify names the entry as changed, by its time.
+    const entry = { seq: 1, prev: null, at, by: "Pat Lee", runs: [], files: [], seal: "0" };
+
+    const { shown, problems } = await printed([entry], ["page\u{202e}fdp.html"]);
+
+    expect(problems).toBe(2);
+    expect(shown).toBe(
+      "example.illinois.gov/share/shares.json: share 1 (2027-01-15T10:00:00-06:00\\u{1b}]0;pwned\\u{7}) changed since it was recorded\n" +
+        "example.illinois.gov/share/page\\u{202e}fdp.html: not recorded in shares.json\n" +
+        "example.illinois.gov: 0 runs (0 incomplete), 0 manual sessions, 0 reviews, 1 share checked: 2 problems.\n",
+    );
+  });
+
+  it("writes the name of a file an entry records that can't be a file in share/ as text", async () => {
+    const entry: Record<string, unknown> = {
+      seq: 1,
+      prev: null,
+      at: "2027-01-15T10:00:00-06:00",
+      by: "Pat Lee",
+      runs: [],
+      files: [{ name: "../x\u{1b}[2J\u{202e}.html", bytes: 3, sha256: "0".repeat(64) }],
+    };
+    // Sealed, so verify goes on to the entry's files.
+    entry.seal = sealOf(entry);
+
+    const { shown, problems } = await printed([entry]);
+
+    expect(problems).toBe(1);
+    expect(shown).toBe(
+      'example.illinois.gov/share/shares.json: share 1 (2027-01-15T10:00:00-06:00) names "../x\\u{1b}[2J\\u{202e}.html", which isn\'t a file in share/\n' +
+        "example.illinois.gov: 0 runs (0 incomplete), 0 manual sessions, 0 reviews, 1 share checked: 1 problem.\n",
+    );
   });
 });
