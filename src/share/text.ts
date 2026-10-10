@@ -1435,6 +1435,12 @@ export const AI_TEXT = {
   result: "Result",
   review: "Review",
   captured: "Captured",
+  /**
+   * The labels of the two lists of At a glance, which the page shows as a ring and as four number
+   * tiles with no label of their own: the Markdown puts each list under its label, since two runs
+   * of items with only a blank line between them are one list of seven to a Markdown viewer.
+   */
+  glance: { pages: "The pages", numbers: "The numbers" },
   /** The heading of what NVDA said on a page: its transcripts, a step on each line. */
   said: "What NVDA said",
   /** A page, by its number among the pages, where a list names the pages a part is on. */

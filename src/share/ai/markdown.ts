@@ -286,7 +286,9 @@ function numberOf(value: NumberTile["value"]): string {
 /**
  * At a glance, in the page's order and words: the verdict, the result in a sentence, the ring of the
  * pages in its three parts, the four numbers, and the line on what voicecap and the person each did.
- * With no pages there are no counts, as on the page: the sentence says why.
+ * The ring's parts and the four numbers are two lists, each under a label of its own
+ * (`AI_TEXT.glance`), since two runs of items with a blank line between them are one list to a
+ * viewer. With no pages there are no counts, as on the page: the sentence says why.
  */
 function glanceBlocks(model: ShareModel): Block[] {
   const { summary, result, ring } = model;
@@ -305,7 +307,14 @@ function glanceBlocks(model: ShareModel): Block[] {
     heading(2, GLANCE_TEXT.title),
     ...(hasPages ? [`**${markdownInline(verdictOf(result).headline)}**`] : []),
     paragraph(summary.sentence),
-    ...(hasPages ? [bullets(counts), bullets(numbers)] : []),
+    ...(hasPages
+      ? [
+          label(`${AI_TEXT.glance.pages}:`),
+          bullets(counts),
+          label(`${AI_TEXT.glance.numbers}:`),
+          bullets(numbers),
+        ]
+      : []),
     paragraph(summary.second),
   ];
 }

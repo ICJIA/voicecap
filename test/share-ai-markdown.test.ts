@@ -1125,6 +1125,55 @@ describe("renderAiMarkdown", () => {
     expect(glance).toContain(i2i.summary.second);
   });
 
+  it("keeps the ring's three counts and the four numbers of At a glance apart as two lists, each under a label", () => {
+    // Two runs of items with only a blank line between them are one list to CommonMark, a loose
+    // list of seven: a run goes on over blank lines, and ends at any other line.
+    const listsIn = (markdown: string) => {
+      const lists: { before: string; items: string[] }[] = [];
+      let before = "";
+      let current: { before: string; items: string[] } | null = null;
+      for (const line of markdown.split("\n")) {
+        if (line.startsWith("- ")) {
+          if (current === null) {
+            current = { before, items: [] };
+            lists.push(current);
+          }
+          current.items.push(line);
+        } else if (line.trim() !== "") {
+          current = null;
+          before = line;
+        }
+      }
+      return lists;
+    };
+    const glance = sectionOf(renderAiMarkdown(i2i), 2, "At a glance");
+
+    expect(AI_TEXT.glance).toEqual({ pages: "The pages", numbers: "The numbers" });
+    expect(listsIn(glance)).toEqual([
+      {
+        before: "**The pages:**",
+        items: [
+          "- Read, no problems: 0 pages",
+          "- Read, with problems: 32 pages",
+          "- Not read: 0 pages",
+        ],
+      },
+      {
+        before: "**The numbers:**",
+        items: [
+          "- 32 of 32 pages read by NVDA",
+          "- 1 problem to fix",
+          "- 2,219 lines NVDA spoke",
+          "- 57 minutes 55 seconds of NVDA time, across 1 run",
+        ],
+      },
+    ]);
+    // The same in the demo's report, which has a different verdict and different counts.
+    expect(
+      listsIn(sectionOf(renderAiMarkdown(demo), 2, "At a glance")).map((list) => list.before),
+    ).toEqual(["**The pages:**", "**The numbers:**"]);
+  });
+
   it("gives What needs attention a card for each problem, with NVDA's words and the fix in fences", () => {
     const section = sectionOf(renderAiMarkdown(i2i), 2, "What needs attention");
     const [card] = i2i.attention;
