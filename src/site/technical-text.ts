@@ -285,7 +285,7 @@ export const TECHNICAL_TEXT = {
           words: [
             [
               { code: "voicecap share" },
-              " makes a dated copy of the shareable page and its Word copy, with each run's walkthrough file, recorded in a sealed, chained ",
+              " makes a dated copy of the shareable page and its Word copy, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, recorded in a sealed, chained ",
               { code: "shares.json" },
               ".",
             ],
@@ -437,7 +437,7 @@ export const TECHNICAL_TEXT = {
                 {
                   name: "share/",
                   words: [
-                    "The shareable page, its Word copy, the dated copies, the walkthrough files, and ",
+                    "The shareable page, its Word copy, the dated copies, the report as Markdown and as JSON for AI tools, the walkthrough files, and ",
                     { code: "shares.json" },
                   ],
                 },
@@ -518,6 +518,10 @@ export const TECHNICAL_TEXT = {
             "The pages of voicecap's own demo site, in ",
             { code: "demo-site/" },
             ", from voicecap itself.",
+          ],
+          [
+            { code: "llms.txt" },
+            " at the website's top, which lists, for AI tools, each site's current report as Markdown and as JSON, when it has them.",
           ],
           ["Anything else is left out, and the build names it."],
         ],
@@ -791,7 +795,7 @@ export const TECHNICAL_TEXT = {
     },
     {
       name: "voicecap share",
-      job: "Makes a dated copy of the shareable page, its Word copy, and each run's walkthrough file, to send, and records them.",
+      job: "Makes a dated copy of the shareable page and its Word copy to send, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, and records them.",
     },
     { name: "voicecap site", job: "Builds this website from the shares." },
     { name: "voicecap verify", job: "Checks the records against their fingerprints and seals." },

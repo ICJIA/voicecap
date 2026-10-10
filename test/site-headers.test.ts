@@ -19,10 +19,13 @@ import {
   HEADERS_FIRST_LINE,
   headersFile,
   inlineHashes,
+  JSON_TYPE,
+  MARKDOWN_TYPE,
   REDIRECTS_FIRST_LINE,
   redirectsFile,
   type RedirectRule,
   ROBOTS_TXT,
+  TYPE_HEADER,
 } from "../src/site/headers.js";
 import { demoModel } from "./helpers/share-model.js";
 
@@ -609,6 +612,41 @@ describe("redirectsFile", () => {
 describe("ROBOTS_TXT", () => {
   it("turns every crawler away from everything", () => {
     expect(ROBOTS_TXT).toBe("User-agent: *\nDisallow: /\n");
+  });
+});
+
+describe("the types of a share's report for AI tools", () => {
+  it("serves the Markdown as text/markdown and the JSON as application/json, each in UTF-8", () => {
+    expect(TYPE_HEADER).toBe("Content-Type");
+    expect(MARKDOWN_TYPE).toBe("text/markdown; charset=utf-8");
+    expect(JSON_TYPE).toBe("application/json; charset=utf-8");
+  });
+
+  it("writes each as a rule Netlify reads, with its type and no attachment", () => {
+    const markdown = "/dvfr.illinois.gov/dvfr.illinois.gov_2027-01-15.md";
+    const json = "/dvfr.illinois.gov/dvfr.illinois.gov_2027-01-15.json";
+
+    const text = headersFile([
+      { path: markdown, headers: [[TYPE_HEADER, MARKDOWN_TYPE]] },
+      { path: json, headers: [[TYPE_HEADER, JSON_TYPE]] },
+    ]);
+
+    expect(text).toBe(
+      [
+        HEADERS_FIRST_LINE,
+        "",
+        markdown,
+        "  Content-Type: text/markdown; charset=utf-8",
+        "",
+        json,
+        "  Content-Type: application/json; charset=utf-8",
+        "",
+      ].join("\n"),
+    );
+    // They're read in the browser: a Content-Disposition of attachment would save them instead,
+    // as a Word copy and a walkthrough file are.
+    expect(text).not.toContain("Content-Disposition");
+    expect(text).not.toContain("attachment");
   });
 });
 

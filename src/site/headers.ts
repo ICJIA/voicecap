@@ -101,6 +101,18 @@ export interface HeaderRule {
 /** The header that carries a Content Security Policy. */
 export const POLICY_HEADER = "Content-Security-Policy";
 
+/** The header that says what a file is. */
+export const TYPE_HEADER = "Content-Type";
+
+/**
+ * What a share's report for AI tools is served as: the Markdown as text/markdown and the JSON as
+ * application/json, each in UTF-8. Both are read in the browser, so neither is sent as an
+ * attachment (that's a Word copy's and a walkthrough file's, see rulesFor in ./build.ts); the link to
+ * each carries `download`, which saves it instead.
+ */
+export const MARKDOWN_TYPE = "text/markdown; charset=utf-8";
+export const JSON_TYPE = "application/json; charset=utf-8";
+
 /**
  * The Content Security Policy of the demo's own pages, which the build publishes in demo-site/ (see
  * demoSiteRules). Unlike a report's it holds no hash: the pages have a style sheet beside them and a

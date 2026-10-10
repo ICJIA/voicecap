@@ -1615,6 +1615,43 @@ describe("shareReport", () => {
 
       expect(await names(shareDir(siteDir))).toEqual(NOTHING_SHARED);
     });
+
+    // Every share this release makes has the report for AI tools, whatever its runs' versions, so a
+    // share that couldn't draw one would read as a share from before it, and the site would say
+    // nothing of the report. The share stops instead (Ruling Q16): the pair isn't written either.
+    it.each([
+      ["Markdown", renderAiMarkdown],
+      ["JSON", renderAiJson],
+    ] as const)(
+      "stops the whole share, the pair included, and gives the error, when the %s for AI tools can't be drawn",
+      async (_what, render) => {
+        const { siteDir, run, options } = await homeWithRun();
+        vi.mocked(render).mockImplementationOnce(() => {
+          throw new Error("The report for AI tools can't be drawn.");
+        });
+        vi.mocked(open).mockClear();
+
+        await expect(shareReport(options)).rejects.toThrow(
+          "The report for AI tools can't be drawn.",
+        );
+
+        // Nothing of the share is there: no page, no Word copy, no Markdown, no JSON, no walkthrough
+        // file, and no entry. Not one of its files was even begun.
+        expect(await names(shareDir(siteDir))).toEqual(NOTHING_SHARED);
+        expect(existsSync(sharesPath(siteDir))).toBe(false);
+        const begun = vi
+          .mocked(open)
+          .mock.calls.filter(
+            ([file, flags]) => flags === "wx" && String(file).startsWith(shareDir(siteDir)),
+          );
+        expect(begun).toEqual([]);
+        expect(vi.mocked(appendShare)).not.toHaveBeenCalled();
+
+        // It used up no number: the next share, whose renderers work, is the first of the day.
+        const { files } = await shareReport(options);
+        expect(files.map(({ name }) => name)).toEqual(copyNames(FIRST, run.runId));
+      },
+    );
   });
 
   describe("a copy too big for most email", () => {

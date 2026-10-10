@@ -249,8 +249,8 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
     }
 
     const files = entry.files.map((file) => ({ ...file, path: path.join(dir, file.name) }));
-    // What's emailed is the page and its Word copy, named: the files with no run are the report for
-    // AI tools too, which isn't what's sent.
+    // What's emailed is the page and its Word copy. They're picked by name, because the files with no
+    // run now include the Markdown and the JSON, which aren't sent.
     const pair = [names.page, names.word];
     const pasteLine = pasteLineOf(entry.files.filter(({ name }) => pair.includes(name)));
     logger.info(

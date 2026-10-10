@@ -51,7 +51,7 @@ import {
 import { netlifyToml, NVMRC } from "../src/site/netlify.js";
 import { DEMO_SITE, readSiteRecords } from "../src/site/records.js";
 import type * as RecordsModule from "../src/site/records.js";
-import { renderSiteIndex } from "../src/site/render.js";
+import { renderLlmsTxt, renderSiteIndex } from "../src/site/render.js";
 import type * as RenderModule from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { renderTechnical } from "../src/site/technical.js";
@@ -61,7 +61,7 @@ import type * as TrustModule from "../src/site/trust.js";
 import { renderWhatsNew } from "../src/site/whats-new.js";
 import type * as WhatsNewModule from "../src/site/whats-new.js";
 import { UsageError } from "../src/util/errors.js";
-import { sha256 } from "../src/util/hash.js";
+import { sealOf, sha256 } from "../src/util/hash.js";
 import { createMemoryLogger, silentLogger, type MemoryLogger } from "../src/util/log.js";
 import { OS_LITTER } from "../src/util/os-litter.js";
 import { isoLocal } from "../src/util/time.js";
@@ -214,6 +214,28 @@ const DEMO_FILES = [
 /** The first of the fixture site's two shares: its Word copy, and the line that names it. */
 const FIRST_WORD = `${FIXTURE_NAME}_2027-01-15.docx`;
 const FIRST_WORD_PATH = `${FIXTURE_FOLDER}/share/${FIRST_WORD}`;
+/**
+ * The files a build writes at the site's top besides each report's: its four pages, llms.txt for AI
+ * tools, robots.txt, _redirects, and _headers.
+ */
+const SITE_OWN_FILES = [
+  "_headers",
+  "_redirects",
+  "index.html",
+  "llms.txt",
+  "robots.txt",
+  "technical-details.html",
+  "trust.html",
+  "whats-new.html",
+];
+/**
+ * What each of a share's report for AI tools is served as, by its extension: text to read in the
+ * browser, in UTF-8.
+ */
+const AI_TYPES = [
+  [".md", "text/markdown; charset=utf-8"],
+  [".json", "application/json; charset=utf-8"],
+] as const;
 
 /** A new, empty folder, taken away after the test. */
 async function newFolder(): Promise<string> {
@@ -460,8 +482,10 @@ describe("buildSite", () => {
         published.push({ from: path.join(siteDir, "share", name), to: path.join(out, on, name) });
       }
     }
-    // Two shares of four files, one of two, and the demo's four.
-    expect(counts).toEqual([8, 2, 4]);
+    // Two shares of six files (the page, its Word copy, the report for AI tools as Markdown and as
+    // JSON, and the walkthrough file of each of two runs), the one of two written by hand, and the
+    // demo's six.
+    expect(counts).toEqual([12, 2, 6]);
     for (const { from, to } of published) {
       const [copy, original] = [await readFile(to), await readFile(from)];
       expect({ bytes: copy.length, sha256: sha256(copy) }).toEqual({
@@ -471,17 +495,11 @@ describe("buildSite", () => {
       // Each file is read once, and it's the same bytes that are checked and written.
       expect(reads.filter((read) => read === from)).toHaveLength(1);
     }
-    // Only those, the site's own six files (its three pages, robots.txt, _redirects, and _headers),
-    // and the demo's own pages in demo-site/.
+    // Only those, the site's own eight files (its four pages, llms.txt, robots.txt, _redirects, and
+    // _headers), and the demo's own pages in demo-site/.
     expect(await filesUnder(out)).toEqual(
       [
-        "_headers",
-        "_redirects",
-        "index.html",
-        "robots.txt",
-        "technical-details.html",
-        "trust.html",
-        "whats-new.html",
+        ...SITE_OWN_FILES,
         ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ...published.map(({ to }) => path.relative(out, to).split(path.sep).join("/")),
       ].sort(),
@@ -509,6 +527,19 @@ describe("buildSite", () => {
         run: null,
       }),
       expect.objectContaining({ kind: "word", name: `${FIXTURE_NAME}_2027-01-15-2.docx` }),
+      // The report for AI tools, as Markdown and as JSON: named for the share alone, with no run.
+      expect.objectContaining({
+        kind: "markdown",
+        name: `${FIXTURE_NAME}_2027-01-15-2.md`,
+        href: `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.md`,
+        run: null,
+      }),
+      expect.objectContaining({
+        kind: "data",
+        name: `${FIXTURE_NAME}_2027-01-15-2.json`,
+        href: `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.json`,
+        run: null,
+      }),
       expect.objectContaining({
         kind: "walkthrough",
         name: `${FIXTURE_NAME}_2027-01-15-2_2026-09-29_1315_walkthrough.json`,
@@ -565,6 +596,8 @@ describe("buildSite", () => {
     expect(content.demo?.files.map(({ href }) => href)).toEqual([
       `demo/${FIXTURE_NAME}_2027-01-16.html`,
       `demo/${FIXTURE_NAME}_2027-01-16.docx`,
+      `demo/${FIXTURE_NAME}_2027-01-16.md`,
+      `demo/${FIXTURE_NAME}_2027-01-16.json`,
       `demo/${FIXTURE_NAME}_2027-01-16_2026-09-29_1315_walkthrough.json`,
       `demo/${FIXTURE_NAME}_2027-01-16_2026-09-29_1402_walkthrough.json`,
     ]);
@@ -651,8 +684,8 @@ describe("buildSite", () => {
     // The index at both its addresses, the trust page, What's New, and Technical details at both
     // their own (each with the policy of its own bytes), the demo's own pages by a rule for each
     // address each answers at, then each published file in the order the site lists them: a page
-    // at both its addresses, with the policy of its own bytes, fonts and all, and a Word copy or a
-    // walkthrough file as a download.
+    // at both its addresses, with the policy of its own bytes, fonts and all, a Word copy or a
+    // walkthrough file as a download, and the report for AI tools as text to read, with its type.
     const trustPolicy = contentSecurityPolicy(inlineHashes(trust), { fonts: false });
     const whatsNewPolicy = contentSecurityPolicy(inlineHashes(whatsNew), { fonts: false });
     const technicalPolicy = contentSecurityPolicy(inlineHashes(technical), { fonts: false });
@@ -677,12 +710,17 @@ describe("buildSite", () => {
         );
       } else if (file.kind === "word" || file.kind === "walkthrough") {
         expected.push([`/${file.href}`, [["Content-Disposition", "attachment"]]]);
+      } else if (file.kind === "markdown") {
+        expected.push([`/${file.href}`, [["Content-Type", "text/markdown; charset=utf-8"]]]);
+      } else if (file.kind === "data") {
+        expected.push([`/${file.href}`, [["Content-Type", "application/json; charset=utf-8"]]]);
       }
     }
     expect(rules).toEqual(expected);
     // The index, the trust page, What's New, and Technical details at two addresses each, the
-    // demo's twenty-three addresses, four pages at two addresses each, and ten downloads.
-    expect(rules).toHaveLength(2 + 2 + 2 + 2 + 23 + 4 * 2 + 4 + 6);
+    // demo's twenty-three addresses, four pages at two addresses each, ten downloads, and the
+    // six files for AI tools (the Markdown and the JSON of each of three shares).
+    expect(rules).toHaveLength(2 + 2 + 2 + 2 + 23 + 4 * 2 + 4 + 6 + 3 * 2);
 
     // A page's policy is its own: the page written by hand has a script and a style no other has.
     const written = rules.find(
@@ -1018,9 +1056,15 @@ describe("buildSite", () => {
     ]);
   });
 
-  it("writes the same four pages for the same records and facts, whatever the day", async () => {
+  it("writes the same four pages and llms.txt for the same records and facts, whatever the day", async () => {
     const home = await newHome();
-    const pages = ["index.html", "trust.html", "whats-new.html", "technical-details.html"];
+    const pages = [
+      "index.html",
+      "trust.html",
+      "whats-new.html",
+      "technical-details.html",
+      "llms.txt",
+    ];
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
       vi.setSystemTime(new Date(2020, 0, 2, 3, 4));
@@ -1140,6 +1184,271 @@ describe("buildSite", () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
+  // A share now has the report as Markdown and as JSON, for AI tools, beside its page and its Word
+  // copy. The website publishes both, serves them as text to read in the browser, links them from
+  // the card, and lists each site's current report's in llms.txt, at its top.
+  describe("the report for AI tools", () => {
+    /** The fixture's three shares: the folder of the home each is in, where it's published, and its name. */
+    const SHARES = [
+      { from: FIXTURE_FOLDER, on: FIXTURE_FOLDER, stem: `${FIXTURE_NAME}_2027-01-15` },
+      { from: FIXTURE_FOLDER, on: FIXTURE_FOLDER, stem: `${FIXTURE_NAME}_2027-01-15-2` },
+      { from: path.join(DEMO_OUT, FIXTURE_FOLDER), on: "demo", stem: `${FIXTURE_NAME}_2027-01-16` },
+    ];
+    /** What a card of a share that has them says, from "For AI tools" to its end, as a reader sees it. */
+    const LINE = "For AI tools such as Claude or ChatGPT: the report as Markdown, or as JSON";
+
+    /**
+     * Make the share `seq` of a site folder as voicecap made one before it wrote the report for AI
+     * tools: its Markdown and JSON, which are named for the share alone and have no run, are taken
+     * out of the record, which is sealed again along its chain, and out of the share/ folder.
+     */
+    async function withoutTheReportForAi(siteDir: string, seq: number): Promise<void> {
+      const { shares } = await readShares(siteDir);
+      const taken: string[] = [];
+      let prev: unknown = null;
+      const sealed = shares.map((share) => {
+        const { seal: _seal, ...entry } = share as Record<string, unknown> & {
+          seq: number;
+          files: SharedFile[];
+        };
+        const files =
+          entry.seq !== seq
+            ? entry.files
+            : entry.files.filter(({ name, run }) => {
+                const reportForAi = run === undefined && /\.(?:md|json)$/.test(name);
+                if (reportForAi) taken.push(name);
+                return !reportForAi;
+              });
+        const body = { ...entry, prev, files };
+        const next = { ...body, seal: sealOf(body) };
+        prev = next.seal;
+        return next;
+      });
+      await writeRecord(siteDir, sealed);
+      for (const name of taken) await rm(path.join(siteDir, "share", name));
+    }
+
+    /** A report's card on the site's page, by the report's id: its markup. */
+    function cardOf(index: string, id: string): string {
+      const start = index.indexOf(`<article class="report" id="${id}">`);
+      expect(start, id).toBeGreaterThan(-1);
+      return index.slice(start, index.indexOf("</article>", start));
+    }
+
+    /** What a card says to AI tools, as a reader sees it: its line's words, or null for none. */
+    function lineOf(card: string): string | null {
+      const line = /<p class="ai">([\s\S]*?)<\/p>/.exec(card)?.[1];
+      return line === undefined
+        ? null
+        : line.replace(/<span class="sr">[\s\S]*?<\/span>/g, "").replace(/<[^>]*>/g, "");
+    }
+
+    it("publishes a share's Markdown and JSON, served as text/markdown and application/json, with no attachment", async () => {
+      const home = await newHome();
+
+      const { out, content } = await build(home);
+
+      const rules = new Map(readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules);
+      for (const { from, on, stem } of SHARES) {
+        for (const [extension, type] of AI_TYPES) {
+          const name = `${stem}${extension}`;
+          // Byte for byte, as the share wrote them, under the share's folder (the demo's under demo/).
+          const copy = await readFile(path.join(out, on, name));
+          const original = await readFile(path.join(home, from, "share", name));
+          expect(copy.equals(original), name).toBe(true);
+          expect(copy.length, name).toBeGreaterThan(0);
+          // Served as text, in UTF-8, to be read in the browser: _headers gives its type, and nothing
+          // that would save the file in its place.
+          expect(rules.get(`/${on}/${name}`), name).toEqual([["Content-Type", type]]);
+        }
+      }
+      // They're the report's files of two kinds the site tells apart, with no run, and in the record's order
+      // after the page and its Word copy.
+      const [site] = content.sites.filter(({ name }) => name === FIXTURE_NAME);
+      expect(site?.reports[0]?.files.map(({ kind, run }) => [kind, run])).toEqual([
+        ["page", null],
+        ["word", null],
+        ["markdown", null],
+        ["data", null],
+        ["walkthrough", "2026-09-29_1315"],
+        ["walkthrough", "2026-09-29_1402"],
+      ]);
+      // No rule of _headers saves one, and none of a page's policy is theirs.
+      for (const [rulePath, headers] of rules) {
+        if (!/\.(?:md|json)$/.test(rulePath) || /_walkthrough\.json$/.test(rulePath)) continue;
+        expect(
+          headers.map(([header]) => header),
+          rulePath,
+        ).toEqual(["Content-Type"]);
+      }
+    });
+
+    it("still downloads a walkthrough file, and the Word copy, as an attachment", async () => {
+      const home = await newHome();
+
+      const { out, content } = await build(home);
+
+      const rules = new Map(readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules);
+      const files = filesOf(content);
+      const walkthroughs = files.filter(({ kind }) => kind === "walkthrough");
+      // Two runs in each of three shares, and each is the file of its run, named as one.
+      expect(walkthroughs).toHaveLength(6);
+      for (const file of walkthroughs) {
+        expect(file.name, file.name).toMatch(/_\d{4}-\d{2}-\d{2}_\d{4}_walkthrough\.json$/);
+        expect(rules.get(`/${file.href}`), file.name).toEqual([
+          ["Content-Disposition", "attachment"],
+        ]);
+      }
+      for (const file of files.filter(({ kind }) => kind === "word")) {
+        expect(rules.get(`/${file.href}`), file.name).toEqual([
+          ["Content-Disposition", "attachment"],
+        ]);
+      }
+      // The report's JSON is told from them by its name, and is no walkthrough file.
+      const data = files.filter(({ kind }) => kind === "data");
+      expect(data).toHaveLength(3);
+      for (const file of data) expect(file.name, file.name).not.toMatch(/_walkthrough\.json$/);
+    });
+
+    it("links them from the card of a report that has them, and puts no line on one that hasn't", async () => {
+      const home = await newHome();
+
+      const { out } = await build(home);
+
+      const index = await readFile(path.join(out, "index.html"), "utf8");
+      // The fixture site's current report and the demo's have them; the example site's report, written by
+      // hand with a page and a Word copy alone, is as a share from before.
+      expect(lineOf(cardOf(index, `report-${FIXTURE_FOLDER}-2`))).toBe(LINE);
+      expect(lineOf(cardOf(index, "report-demo"))).toBe(LINE);
+      expect(lineOf(cardOf(index, `report-${EXAMPLE_FOLDER}-1`))).toBeNull();
+      // Each link is to a file the site published, and downloads it.
+      const links = [
+        ...cardOf(index, `report-${FIXTURE_FOLDER}-2`).matchAll(
+          /<a href="([^"]*)" download>(Markdown|JSON)</g,
+        ),
+      ].map(([, href, words]) => [href, words]);
+      expect(links).toEqual([
+        [`${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.md`, "Markdown"],
+        [`${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.json`, "JSON"],
+      ]);
+      for (const [href = ""] of links) expect(existsSync(path.join(out, href)), href).toBe(true);
+    });
+
+    it("puts no line on the card of a share from before the report for AI tools, and none of its site in llms.txt, though an earlier share has them", async () => {
+      const home = await newHome();
+      // The fixture site's newest share, as one made before the report for AI tools: its earlier
+      // share, which is still on the site, has them.
+      await withoutTheReportForAi(path.join(home, FIXTURE_FOLDER), 2);
+
+      const { out, content, leftOut } = await build(home);
+
+      const [site] = content.sites.filter(({ name }) => name === FIXTURE_NAME);
+      const [current, earlier] = site?.reports ?? [];
+      expect(current?.id).toBe(`report-${FIXTURE_FOLDER}-2`);
+      expect(current?.files.map(({ kind }) => kind)).toEqual([
+        "page",
+        "word",
+        "walkthrough",
+        "walkthrough",
+      ]);
+      expect(earlier?.files.map(({ kind }) => kind)).toContain("markdown");
+      expect(leftOut).toEqual([]);
+      const index = await readFile(path.join(out, "index.html"), "utf8");
+      expect(lineOf(cardOf(index, `report-${FIXTURE_FOLDER}-2`))).toBeNull();
+      expect(lineOf(cardOf(index, "report-demo"))).toBe(LINE);
+      // The earlier share's files are published, and in the fold; llms.txt points to the current
+      // report's, which has none, so the site is in it no more.
+      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_NAME}_2027-01-15.md`))).toBe(
+        true,
+      );
+      const text = await readFile(path.join(out, "llms.txt"), "utf8");
+      expect(text).not.toContain(FIXTURE_FOLDER);
+      expect(text).not.toContain(`## ${FIXTURE_NAME}`);
+      expect(text).toContain("No report for AI tools has been shared yet.");
+    });
+
+    it("writes llms.txt: the website's name, a one-line summary, each site's current report's Markdown and JSON with its date and verdict, and links to the trust page and Technical details", async () => {
+      const home = await newHome();
+
+      const { out, content } = await build(home);
+
+      const text = await readFile(path.join(out, "llms.txt"), "utf8");
+      expect(text).toBe(renderLlmsTxt(content));
+      // The fixture site's current report is its second share; the example site's report and the
+      // demo's aren't in it.
+      const current = `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2`;
+      const report =
+        "The current report, 15 January 2027, 10:00. 5 problems need attention, on 2 pages.";
+      expect(text).toBe(
+        [
+          "# ICJIA Screen Reader Tests",
+          "",
+          "> Each site's current report from a person's review of the site with a real screen reader, sped up by voicecap, as Markdown and as JSON, for AI tools such as Claude or ChatGPT.",
+          "",
+          `## ${FIXTURE_NAME}`,
+          "",
+          `- [Markdown](${current}.md): ${report}`,
+          `- [JSON](${current}.json): ${report}`,
+          "",
+          "## Optional",
+          "",
+          "- [Can I trust this?](trust.html): Who built voicecap, how what it records can be checked, and how it tests itself.",
+          "- [Technical details](technical-details.html): How a review runs, what it records, and how this website is built and protected.",
+          "",
+        ].join("\n"),
+      );
+      // Each link goes to a file this build published.
+      const links = [...text.matchAll(/\]\(([^)]+)\)/g)].map(([, href = ""]) => href);
+      expect(links).toHaveLength(4);
+      for (const href of links) expect(existsSync(path.join(out, href)), href).toBe(true);
+    });
+
+    it("writes llms.txt for a website with no report: its name, its summary, and what to read", async () => {
+      const home = path.join(await newFolder(), "transcripts");
+      await mkdir(path.join(home, "dvfr.illinois.gov", "2027-01-12"), { recursive: true });
+      await ensureGitFiles(home);
+
+      const { out } = await build(home);
+
+      const text = await readFile(path.join(out, "llms.txt"), "utf8");
+      expect(text.split("\n").slice(0, 5)).toEqual([
+        "# ICJIA Screen Reader Tests",
+        "",
+        "> Each site's current report from a person's review of the site with a real screen reader, sped up by voicecap, as Markdown and as JSON, for AI tools such as Claude or ChatGPT.",
+        "",
+        "No report for AI tools has been shared yet.",
+      ]);
+      expect(text).toContain("- [Can I trust this?](trust.html)");
+    });
+
+    // A folder named llms.txt would take the place of the file, as one named trust.html would take
+    // the trust page's: neither is published, and the file is the site's own.
+    it("leaves out a site folder named llms.txt", async () => {
+      const home = await newHome();
+      const siteDir = path.join(home, "llms.txt");
+      const page = Buffer.from("<!doctype html><title>llms.txt</title>");
+      await mkdir(path.join(siteDir, "2027-01-12"), { recursive: true });
+      await mkdir(path.join(siteDir, "share"), { recursive: true });
+      await writeFile(path.join(siteDir, "share", "llms.txt_1.html"), page);
+      await writeRecord(siteDir, [sealedEntry(1, EXAMPLE_AT, [recordOf("llms.txt_1.html", page)])]);
+
+      const { out, content, leftOut, logger } = await build(home);
+
+      expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
+      const line =
+        "llms.txt: not published: a site folder named llms.txt would take the place of the site's own llms.txt";
+      expect(leftOut).toEqual([line]);
+      expect(warned(logger)).toEqual([line]);
+      // Neither the folder's report nor the folder is published: llms.txt is the site's file.
+      expect((await lstat(path.join(out, "llms.txt"))).isFile()).toBe(true);
+      expect(await readFile(path.join(out, "llms.txt"), "utf8")).toBe(renderLlmsTxt(content));
+      expect(existsSync(path.join(out, "llms.txt", "llms.txt_1.html"))).toBe(false);
+      expect((await filesUnder(out)).filter((file) => file.startsWith("llms.txt/"))).toEqual([]);
+      // The rest of the site is built as ever.
+      expect(await readFile(path.join(out, "robots.txt"), "utf8")).toBe(ROBOTS_TXT);
+    });
+  });
+
   describe("what it leaves out", () => {
     it("leaves out a copy changed since it was shared, names it, and publishes the rest of its report", async () => {
       const home = await newHome();
@@ -1160,6 +1469,8 @@ describe("buildSite", () => {
       expect(report?.notPublished).toEqual([{ name: FIRST_WORD, reason: "changed" }]);
       expect(report?.files.map(({ name }) => name)).toEqual([
         `${FIXTURE_NAME}_2027-01-15.html`,
+        `${FIXTURE_NAME}_2027-01-15.md`,
+        `${FIXTURE_NAME}_2027-01-15.json`,
         `${FIXTURE_NAME}_2027-01-15_2026-09-29_1315_walkthrough.json`,
         `${FIXTURE_NAME}_2027-01-15_2026-09-29_1402_walkthrough.json`,
       ]);
@@ -1250,14 +1561,15 @@ describe("buildSite", () => {
         // On the site it's missing, and the rest of its report is published, and every other.
         const report = content.sites[1]?.reports.find(({ id }) => id.endsWith("-1"));
         expect(report?.notPublished).toEqual([{ name: FIRST_WORD, reason: "missing" }]);
-        expect(report?.files).toHaveLength(3);
+        // Its page, the report for AI tools as Markdown and as JSON, and the two walkthrough files.
+        expect(report?.files).toHaveLength(5);
         for (const { name } of report?.files ?? []) {
           expect(existsSync(path.join(out, FIXTURE_FOLDER, name))).toBe(true);
         }
         expect(await readFile(path.join(out, "index.html"), "utf8")).toContain(
           goneLine(FIRST_WORD, "missing"),
         );
-        expect(content.demo?.files).toHaveLength(4);
+        expect(content.demo?.files).toHaveLength(6);
       },
     );
 
@@ -2973,16 +3285,7 @@ describe("buildSite", () => {
       // any report is shared; and each page's policy at its two addresses (the site's, the trust
       // page's, What's New's, then Technical details'), then each of the demo's.
       expect(await filesUnder(out)).toEqual(
-        [
-          "_headers",
-          "_redirects",
-          "index.html",
-          "robots.txt",
-          "technical-details.html",
-          "trust.html",
-          "whats-new.html",
-          ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
-        ].sort(),
+        [...SITE_OWN_FILES, ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`)].sort(),
       );
       expect(
         readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
@@ -3266,11 +3569,16 @@ describe("buildSite", () => {
           DAYS[4] ?? "",
         ],
       });
-      // The second has a Word copy and a walkthrough file too.
+      // The second has a Word copy, the report for AI tools as Markdown and as JSON, and a
+      // walkthrough file too.
       const siteDir = path.join(home, DVFR);
       const word = Buffer.from("A Word copy's bytes.");
+      const markdown = Buffer.from("# The report as Markdown\n");
+      const json = Buffer.from("{}\n");
       const walkthrough = Buffer.from("{}");
       await writeFile(path.join(siteDir, "share", `${DVFR}_2.docx`), word);
+      await writeFile(path.join(siteDir, "share", `${DVFR}_2.md`), markdown);
+      await writeFile(path.join(siteDir, "share", `${DVFR}_2.json`), json);
       await writeFile(path.join(siteDir, "share", `${DVFR}_2_walkthrough.json`), walkthrough);
       const { shares } = await readShares(siteDir);
       const second = shares[1] as { files: SharedFile[] };
@@ -3279,6 +3587,8 @@ describe("buildSite", () => {
         sealedEntry(2, DAYS[1] ?? "", [
           ...second.files,
           recordOf(`${DVFR}_2.docx`, word),
+          recordOf(`${DVFR}_2.md`, markdown),
+          recordOf(`${DVFR}_2.json`, json),
           recordOf(`${DVFR}_2_walkthrough.json`, walkthrough),
         ]),
         ...shares.slice(2),
@@ -3679,15 +3989,9 @@ describe("buildSite", () => {
       expect(published[0]?.equals(published[1] ?? Buffer.alloc(0))).toBe(false);
       expect(await filesUnder(out)).toEqual(
         [
-          "_headers",
-          "_redirects",
+          ...SITE_OWN_FILES,
           `${COPY_FOLDER}/${page}`,
           `${NAME}/${page}`,
-          "index.html",
-          "robots.txt",
-          "technical-details.html",
-          "trust.html",
-          "whats-new.html",
           ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ].sort(),
       );
@@ -3809,7 +4113,7 @@ describe("buildSite", () => {
       });
       expect(files[0]?.name).toBe(`${NAME}_2027-01-17.html`);
 
-      const { content, index } = await built(home);
+      const { content, index, leftOut } = await built(home);
 
       expect(content.sites.map(({ name, folders }) => ({ name, folders }))).toEqual([
         { name: NAME, folders: [FIXTURE_FOLDER] },
@@ -3826,6 +4130,17 @@ describe("buildSite", () => {
       expect(site?.reports[0]?.files.map(({ href }) => href)[0]).toBe(
         `${FIXTURE_FOLDER}/${NAME}_2027-01-17.html`,
       );
+      // All three are shares as voicecap makes them now, the one made here as the two the home has
+      // (the report for AI tools as Markdown and as JSON among each one's files), and every file of
+      // them is published.
+      for (const report of site?.reports ?? []) {
+        expect(
+          report.files.map(({ kind }) => kind),
+          report.id,
+        ).toEqual(["page", "word", "markdown", "data", "walkthrough", "walkthrough"]);
+        expect(report.notPublished, report.id).toEqual([]);
+      }
+      expect(leftOut).toEqual([]);
       expect(sitesOn(index).map(([, heading]) => heading)).toEqual([NAME, EXAMPLE_FOLDER]);
     });
   });

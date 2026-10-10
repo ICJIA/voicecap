@@ -117,8 +117,8 @@ export const RESULTS_CONTENT: SiteContent = {
 };
 
 /**
- * The records' facts of RESULTS_CONTENT: 2 sites, 3 reports, 41 pages read of 41 with 1 problem, 11
- * files published (the demo's 3, the first site's 3 and 1, and the second's 4) and 2 left out (a
+ * The records' facts of RESULTS_CONTENT: 2 sites, 3 reports, 41 pages read of 41 with 1 problem, 15
+ * files published (the demo's 5, the first site's 5 and 1, and the second's 4) and 2 left out (a
  * Word copy that changed, and one that is missing), and the newest shared on 3 October 2026, 14:05.
  */
 export const RECORDS: RecordFacts = recordFactsOf(RESULTS_CONTENT);

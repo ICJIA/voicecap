@@ -21,10 +21,14 @@
  *
  * A site leads with what a reader came for: its name, with a link to the site itself, then its
  * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
- * page and to download its Word copy. Its earlier reports are a line each under it, and every
- * report's files, with their sizes and fingerprints, are in a fold, closed, for whoever checks a
- * copy. Each view's heading and each site's name has a picture before it, and the views of the
+ * page and to download its Word copy; and, when its share has the report for AI tools, as Markdown
+ * and as JSON, a line under them that links both. Its earlier reports are a line each under it, and
+ * every report's files, with their sizes and fingerprints, are in a fold, closed, for whoever checks
+ * a copy. Each view's heading and each site's name has a picture before it, and the views of the
  * sites and of every report by date say beside their headings how many they hold (from 0.13.1).
+ *
+ * llms.txt (`renderLlmsTxt`) is the website's other file of this kind: a plain text file at its top,
+ * for AI tools, that points to each site's current report as Markdown and as JSON.
  *
  * The page is a page about accessibility, so it follows the report's rules: headings in order (the
  * page, then each view, then each site, then each report), landmarks, a skip link, visible keyboard
@@ -39,13 +43,14 @@ import { count as countWords, sizeWords } from "../share/format.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf } from "../share/verdict.js";
 import type { VoicecapFacts, VoicecapRelease } from "./facts.js";
-import { sitePage, WHATS_NEW_HREF } from "./frame.js";
+import { sitePage, TECHNICAL_HREF, TRUST_HREF, WHATS_NEW_HREF } from "./frame.js";
 import { SITE_ICONS } from "./icons.js";
+import { printable } from "./records.js";
 import { type KickerPart, SITE_TEXT, type Sentence } from "./text.js";
 
 /** A file the site publishes. */
 export interface PublishedFile {
-  kind: "page" | "word" | "walkthrough" | "other";
+  kind: "page" | "word" | "markdown" | "data" | "walkthrough" | "other";
   name: string;
   /** Its address from the site's top: "dvfr.illinois.gov/dvfr.illinois.gov_2026-10-03.html". */
   href: string;
@@ -89,15 +94,18 @@ export interface SiteContent {
 }
 
 /**
- * A file's kind, by its extension: `.html` is the page, `.docx` the Word copy, a name ending
- * `_walkthrough.json` a walkthrough file, and anything else other. A share's report for AI tools is
- * `<stem>.json`, named for the share alone: only a walkthrough file's name, which has its run in it,
- * ends `_walkthrough.json`, so that JSON isn't taken for one.
+ * A file's kind, by its name: `.html` is the page, `.docx` the Word copy, `.md` the report for AI
+ * tools as Markdown, a name ending `_walkthrough.json` a walkthrough file, any other `.json` the
+ * report as JSON (the kind "data"), and anything else other. The report's JSON is `<stem>.json`,
+ * named for the share alone: only a walkthrough file's name, which has its run in it, ends
+ * `_walkthrough.json`, so that JSON isn't taken for one, and a walkthrough file isn't taken for it.
  */
 export function fileKind(name: string): PublishedFile["kind"] {
   if (name.endsWith(".html")) return "page";
   if (name.endsWith(".docx")) return "word";
+  if (name.endsWith(".md")) return "markdown";
   if (name.endsWith("_walkthrough.json")) return "walkthrough";
+  if (name.endsWith(".json")) return "data";
   return "other";
 }
 
@@ -167,7 +175,8 @@ function fileItem(file: PublishedFile): string {
     file.kind === "walkthrough"
       ? SITE_TEXT.files.walkthrough(file.run)
       : SITE_TEXT.files[file.kind];
-  // The page opens in the browser. Every other file is a download.
+  // The page opens in the browser. Every other file's link saves it: the report for AI tools is
+  // read in the browser when its address is opened, and the link's `download` saves it instead.
   const download = file.kind === "page" ? "" : " download";
   return [
     `<li><span class="kind">${esc(label)}</span>`,
@@ -190,6 +199,15 @@ function timeOf(at: string): string {
 }
 
 /**
+ * Whether a report's result has a verdict to give: it counted pages. A report that records no result
+ * (one shared before 0.12.3) says nothing, and one of no page has nothing to say. The card and
+ * llms.txt both go by it.
+ */
+function hasVerdict(result: ShareResult | undefined): result is ShareResult {
+  return result !== undefined && result.pages > 0;
+}
+
+/**
  * What a report's copies say of the site, as two lines of its card. The first is the verdict's
  * headline, as a pill. Its kind is its class: `ok` when nothing needs attention, `warn` when
  * something does, and `bad` when NVDA didn't read every page. The page's style draws a sign before
@@ -200,7 +218,7 @@ function timeOf(at: string): string {
  * one of no page.
  */
 function verdict(result: ShareResult | undefined): string[] {
-  if (result === undefined || result.pages === 0) return [];
+  if (!hasVerdict(result)) return [];
   const { kind, headline } = verdictOf(result);
   return [
     `<p class="verdict ${kind}">${esc(headline)}</p>`,
@@ -208,17 +226,44 @@ function verdict(result: ShareResult | undefined): string[] {
   ];
 }
 
-/** A report's page, or its Word copy, when it's published. */
-function fileOf(shared: PublishedReport, kind: "page" | "word"): PublishedFile | undefined {
+/** A report's file of this kind, its page or its Word copy, say, when it's published. */
+function fileOf(shared: PublishedReport, kind: PublishedFile["kind"]): PublishedFile | undefined {
   return shared.files.find((file) => file.kind === kind);
 }
 
 /**
+ * The line under a current report's buttons, when its share has the report for AI tools and the site
+ * published it: "For AI tools such as Claude or ChatGPT: the report as Markdown, or as JSON", each
+ * format a link that saves the file. Of the two files, one that isn't published has no link, and the
+ * line is of the other alone: what isn't here is said in the fold (see filesFold). Nothing for a
+ * share from before the report for AI tools, which has neither. `of` is what only a screen reader
+ * hears after each link's words (the site's name and the report's line), so that no two links on
+ * the page read alike, and is HTML, already escaped.
+ */
+function forAi(shared: PublishedReport, of: string): string[] {
+  const words = SITE_TEXT.forAi;
+  const links = (
+    [
+      ["markdown", words.markdown],
+      ["data", words.json],
+    ] as const
+  ).flatMap(([kind, format]) => {
+    const file = fileOf(shared, kind);
+    return file === undefined
+      ? []
+      : [`<a href="${esc(file.href)}" download>${esc(format)}${of}</a>`];
+  });
+  if (links.length === 0) return [];
+  return [`<p class="ai">${esc(words.lead)}${links.join(esc(words.or))}</p>`];
+}
+
+/**
  * A site's current report: a heading that says it's the current one, with its line; who prepared
- * it; and the two links a reader wants, to open its page and to download its Word copy. A screen
+ * it; the two links a reader wants, to open its page and to download its Word copy; and, last, the
+ * line for AI tools, when its share has the report as Markdown and as JSON (see forAi). A screen
  * reader hears the site's name, `name`, and the report's line after each link's words, so that no
- * two links on the page read alike. Of the two files, one that isn't published has its line in
- * place of its link. What else the record names that isn't here is said in the fold (see
+ * two links on the page read alike. Of the page and the Word copy, one that isn't published has its
+ * line in place of its link. What else the record names that isn't here is said in the fold (see
  * filesFold). `level` is the heading's.
  */
 function currentReport(shared: PublishedReport, level: 3 | 4, name: string): string {
@@ -250,6 +295,8 @@ function currentReport(shared: PublishedReport, level: 3 | 4, name: string): str
     ...gone.map(
       ({ name: file, reason }) => `<p class="gone">${esc(SITE_TEXT.gone[reason](file))}</p>`,
     ),
+    // The card's last line, under the buttons and what's said of the ones that aren't here.
+    ...forAi(shared, of),
     "</article>",
   ].join("\n");
 }
@@ -541,4 +588,50 @@ export function renderSiteIndex(content: SiteContent, voicecap: VoicecapFacts): 
       `<p class="note">${sentenceHtml(SITE_TEXT.walkthrough)}</p>`,
     ],
   });
+}
+
+/**
+ * llms.txt, the website's file for AI tools, from what's published, as the llms.txt convention has
+ * it (llmstxt.org). It's plain text, in Markdown's shape: the website's name as its title; a line
+ * that sums it up; for each site, in the page's order, a section headed by the site's name, with a
+ * link to its current report's Markdown and to its JSON, each followed by the report's line and its
+ * verdict, as its card says them; and last the website's other two pages, in the section the
+ * convention calls Optional, which a tool with little room can skip. A site whose current report
+ * has neither file (a share from before the report for AI tools) has no section, though an earlier
+ * report of it has them, and so has the demo, which is no site's: only a site's current report is
+ * pointed to. With no site to list, a line says so. Each link is to a file beside this one, as the
+ * page links to its files: no address of the website is known to the build.
+ *
+ * What a record supplies, a site's name and each file's address, comes vetted from the build, and
+ * is written so that it stays on its line all the same (see printable). Pure.
+ */
+export function renderLlmsTxt(content: SiteContent): string {
+  const words = SITE_TEXT.llms;
+  const formats = [
+    ["markdown", SITE_TEXT.forAi.markdown],
+    ["data", SITE_TEXT.forAi.json],
+  ] as const;
+  const sections = content.sites.flatMap(({ name, reports }): string[][] => {
+    const [current] = reports;
+    if (current === undefined) return [];
+    const lines = formats.flatMap(([kind, format]) => {
+      const file = fileOf(current, kind);
+      if (file === undefined) return [];
+      const verdictWords = hasVerdict(current.result) ? verdictOf(current.result).headline : null;
+      return [`- [${format}](${printable(file.href)}): ${words.report(current.at, verdictWords)}`];
+    });
+    return lines.length === 0 ? [] : [[`## ${printable(name)}`, "", ...lines]];
+  });
+  return [
+    `# ${SITE_TEXT.siteName}`,
+    "",
+    `> ${words.summary}`,
+    "",
+    ...(sections.length === 0 ? [words.none, ""] : sections.flatMap((section) => [...section, ""])),
+    `## ${words.optional}`,
+    "",
+    `- [${SITE_TEXT.trust}](${TRUST_HREF}): ${words.trust}`,
+    `- [${SITE_TEXT.technical}](${TECHNICAL_HREF}): ${words.technical}`,
+    "",
+  ].join("\n");
 }

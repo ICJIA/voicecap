@@ -395,10 +395,10 @@ describe("renderTrustPage", () => {
 
   it("says every number from the facts it's given", () => {
     // The facts' own: the tests that passed, the pages of the two sites' current reports (9 of 9
-    // and 32 of 32), the files published (the demo's 3, the first site's 3 and 1, and the second's
+    // and 32 of 32), the files published (the demo's 5, the first site's 5 and 1, and the second's
     // 4), and the releases.
-    expect(RECORDS.files.published).toBe(11);
-    expect(tilesOf(html).map(({ looks }) => looks)).toEqual(["5,012", "41 of 41", "11", "3"]);
+    expect(RECORDS.files.published).toBe(15);
+    expect(tilesOf(html).map(({ looks }) => looks)).toEqual(["5,012", "41 of 41", "15", "3"]);
     expect(tileOf(html, 1).line).toMatch(/, where 1 problem needs attention$/);
 
     // Each fact changes the page where it's said, and only there.
@@ -417,8 +417,8 @@ describe("renderTrustPage", () => {
 
     const files = { ...RECORDS.files, published: RECORDS.files.published + 1 };
     const moreFiles = pageWith({ records: { ...RECORDS, files } });
-    expect(tileOf(moreFiles, 2).looks).toBe("12");
-    expect(pointsOf(sectionOf(moreFiles, "evidence"))[3]?.words).toContain(": 12 today, and");
+    expect(tileOf(moreFiles, 2).looks).toBe("16");
+    expect(pointsOf(sectionOf(moreFiles, "evidence"))[3]?.words).toContain(": 16 today, and");
 
     const releases = [...FACTS.releases, ...EARLIER_RELEASES.slice(0, 1)];
     const fourth = pageWith({ voicecap: { ...FACTS, releases } });
@@ -575,12 +575,12 @@ describe("renderTrustPage", () => {
   it("says no site's report has been shared yet when only the demo's has, and counts the demo's time and files", () => {
     const demoOnly: SiteContent = { demo: DEMO_REPORT, sites: [] };
     const records = recordFactsOf(demoOnly);
-    // The demo's report is no site's, so no report counts; its time and its three files do.
+    // The demo's report is no site's, so no report counts; its time and its five files do.
     expect(records).toMatchObject({
       sites: 0,
       reports: 0,
       reading: null,
-      files: { published: 3, leftOut: 0 },
+      files: { published: 5, leftOut: 0 },
       newest: DEMO_REPORT.at,
     });
 
@@ -594,7 +594,7 @@ describe("renderTrustPage", () => {
       link: { href: "index.html#sites", words: "See the reports" },
     });
     expect(tileOf(page, 2)).toMatchObject({
-      looks: "3",
+      looks: "5",
       line: "files on this website, each matching the fingerprint recorded when it was shared",
     });
   });
@@ -858,7 +858,7 @@ describe("renderTrustPage", () => {
       },
       {
         words:
-          "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 11 today, and 2 left out.",
+          "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 15 today, and 2 left out.",
       },
       {
         // How to check a copy of one of them: the files tile links here.

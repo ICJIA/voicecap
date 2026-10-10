@@ -19,7 +19,6 @@ import { shareDir, sharesPath } from "../../src/run/paths.js";
 import { shareReport } from "../../src/share/share.js";
 import { hashJson, sealOf, sha256 } from "../../src/util/hash.js";
 import { silentLogger } from "../../src/util/log.js";
-import { withoutReportForAi } from "./share-before-ai.js";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const FIXTURE_HOME = path.join(ROOT, "test", "fixtures", "share", "demo-2026-09-29");
@@ -112,8 +111,8 @@ function namingTheDemo(): LoadedConfig {
  *
  * - The fixture site's folder, shared twice on the same day, named by the demo's canonical address
  *   (`voicecap.netlify.app_2027-01-15` and `voicecap.netlify.app_2027-01-15-2`), each share a page,
- *   its Word copy, and the walkthrough file of each of the two runs that count: the shares as they
- *   were before voicecap wrote the report for AI tools (see share-before-ai.ts).
+ *   its Word copy, the report for AI tools as Markdown and as JSON, and the walkthrough file of
+ *   each of the two runs that count.
  * - `example.illinois.gov/`, with a date folder, and a record sealed by hand of one report made on
  *   13 January: a small page and a Word copy, which are in its share/ folder.
  * - `voicecap-demo/127.0.0.1_4848/`, a copy of the fixture's site folder, shared once on 16 January
@@ -144,7 +143,6 @@ export async function homeWithShares(at?: string): Promise<string> {
     });
   await share(home, SHARED_ON, "Test Reviewer");
   await share(home, SHARED_ON, "Test Reviewer");
-  await withoutReportForAi(path.join(home, FIXTURE_FOLDER));
 
   const example = path.join(home, EXAMPLE_FOLDER);
   await mkdir(path.join(example, "2027-01-12"), { recursive: true });
@@ -164,7 +162,6 @@ export async function homeWithShares(at?: string): Promise<string> {
     recursive: true,
   });
   await share(demo, DEMO_SHARED_ON, "Demo Reviewer");
-  await withoutReportForAi(path.join(demo, FIXTURE_FOLDER));
 
   return home;
 }
