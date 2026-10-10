@@ -44,11 +44,9 @@ One file, in the page's order, using the page's own words wherever it has them:
 3. **At a glance:** the verdict, the result in one sentence, the ring's three counts under "The pages", the four numbers under "The numbers" (two lists, kept apart by their labels), and the line on what voicecap and the person each do.
 4. **What needs attention:** each card, with its problem, where it is, how to fix it, and its pages.
 5. **Every page**, one section a page, then the pages no longer listed (those earlier runs tested that the latest list no longer has), when there are any. A page's section has:
-   - its number, its label when it has one, and its path (the site's address is at the top of the file), then its title, its result (whether it was read), its flags, the person's review, and what each pass captured;
-   - its first lines;
-   - its flags, each with its rule, its pass, and voicecap's message. A flag records no step, so the file gives none: a reader finds a flag's step in the transcript, by its pass;
+   - its number, its label when it has one, and its path (the site's address is at the top of the file), then, a line each, as the page's chips say them: its title, its result (whether it was read), its flags, the person's review, and what each pass captured. A flag has its rule, its pass, and voicecap's message. A flag records no step, so the file gives none: a reader finds a flag's step in the transcript, by its pass;
+   - its first lines, what NVDA said first on the page;
    - axe's results: the counts, and each issue with axe's words for its rule, its id, impact, and WCAG criteria, and its elements, the first ten of each with the selector, the HTML, and axe's words on the fix, then "and N more elements"; then what needs review;
-   - the review's decisions;
    - **What NVDA said:** each pass's steps, one line a step (its number, the key, and what NVDA said), in a fenced block. The page's words can never become Markdown, and a fence is always longer than any run of backticks in what it holds.
 6. **The details:** what's still to do, how complete the test was, when and how, what changed since the last run, what the results cover, flags by rule, the human review, the evidence (each run's date, facts, and test environment), the problems during the runs, and the fingerprints (each file, its size, and its SHA-256). Last, after a rule, when the file was made.
 
@@ -59,7 +57,7 @@ The Markdown stays a file a tool takes as an upload: for the i2i fixture's 32 pa
 ## The JSON file
 
 - **A fixed shape:** `schemaVersion: 1` and `kind: "voicecap-report"`.
-- **The same parts as the Markdown,** as data, in the same order. Every key is always there: a part with nothing to say is `null`, an empty list, or `{ notRecorded }`.
+- **The same parts as the Markdown,** as data, in the same order, but for the keys of a page, which follow the list under `pages[]` below and not the Markdown's order within a page (the JSON has `firstLines` before `flags`, and `review` after `axe`). Every key is always there: a part with nothing to say is `null`, an empty list, or `{ notRecorded }`.
   - `about`: the note's five sentences, then a sixth that says the WCAG criteria in a `wcag` list are the ones a finding may relate to, for a person to decide. The Markdown has no such list to say it of.
   - The header, in this order: `site`, `siteLabel`, `testedAt`, `asOf`, `preparedBy`, `screenReader`, `voicecapVersion`, and last `siteAddress`.
   - `verdict`, `{ kind, headline }`: `kind` is named for the condition it is for, not for how it looks. `"nothing-needs-attention"` is NVDA reading every page with no problem left, `"needs-attention"` is every page read with a problem left, and `"pages-not-read"` is fewer pages read than are in scope. It is `null` for a site with no pages in scope. Then `summary` and `counts`, where `problems` counts the cards of What needs attention and `problemPages` the different pages they are on.
