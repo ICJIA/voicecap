@@ -113,10 +113,9 @@ export interface ShareReportResult {
 }
 
 /**
- * The size above which a copy that is emailed is warned of: 20 MB, which is too big for most email.
- * Those are the pair (the page, its Word copy), which the email sends, and the voice page, a
- * companion that can be sent on its own. A copy of exactly this size isn't. The report for AI tools
- * and the walkthrough files aren't emailed, so no size warns of them.
+ * The size above which a copy of the pair that is emailed (the page, its Word copy) is warned of:
+ * 20 MB, which is too big for most email. A copy of exactly this size isn't. The voice page, the
+ * report for AI tools, and the walkthrough files aren't emailed, so no size warns of them.
  */
 export const EMAIL_LIMIT_BYTES = 20 * 1024 * 1024;
 
@@ -279,8 +278,7 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
 
     const files = entry.files.map((file) => ({ ...file, path: path.join(dir, file.name) }));
     // What's emailed is the page and its Word copy. They're picked by name, because the files with no
-    // run also include the voice page, a companion that can be sent on its own, and the Markdown and
-    // the JSON, which aren't sent.
+    // run also include the voice page, the Markdown, and the JSON, which aren't emailed.
     const pair = [names.page, names.word];
     const pasteLine = pasteLineOf(entry.files.filter(({ name }) => pair.includes(name)));
     logger.info(
@@ -292,10 +290,10 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
     }
     logger.info("To paste into the email that sends the page and its Word copy:");
     logger.info(`  ${pasteLine}`);
-    // Only the pair is emailed, and the voice page can be sent on its own, so only those can be too
-    // big for email: the Markdown and the JSON of an axe-heavy site pass 20 MB, and aren't sent.
-    const sendable = [...pair, names.voice];
-    for (const file of files.filter(({ name }) => sendable.includes(name))) {
+    // Only the pair is emailed, so only a file of the pair can be too big for email: the voice page of
+    // a site of many recorded pages, and the Markdown and the JSON of an axe-heavy site, pass 20 MB,
+    // and aren't sent.
+    for (const file of files.filter(({ name }) => pair.includes(name))) {
       const warning = sizeWarning(file.name, file.bytes);
       if (warning !== null) logger.warn(warning);
     }

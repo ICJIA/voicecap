@@ -68,6 +68,8 @@ import {
   VOICE_TEXT,
   WORD_TEXT,
 } from "../src/share/text.js";
+import { renderVoicePage } from "../src/share/voice-page.js";
+import type * as VoicePageModule from "../src/share/voice-page.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { UsageError } from "../src/util/errors.js";
 import { sealOf, sha256 } from "../src/util/hash.js";
@@ -90,8 +92,8 @@ import { busySound, speechAndPauses } from "./helpers/voice-signal.js";
 
 // Every call goes through as it did, and is kept, so a test can count the calls, make one fail, or
 // have something happen in the middle of it: the site's records are read, the model is built, the
-// Word copy and the report for AI tools are made, the Git files are made, the entry is recorded, and
-// a copy's file is opened or removed.
+// Word copy, the voice page, and the report for AI tools are made, the Git files are made, the entry
+// is recorded, and a copy's file is opened or removed.
 vi.mock("../src/share/load.js", async (importOriginal) => {
   const actual = await importOriginal<typeof LoadModule>();
   return { ...actual, loadShareInput: vi.fn(actual.loadShareInput) };
@@ -115,6 +117,10 @@ vi.mock("../src/share/ai/markdown.js", async (importOriginal) => {
 vi.mock("../src/share/ai/json.js", async (importOriginal) => {
   const actual = await importOriginal<typeof AiJsonModule>();
   return { ...actual, renderAiJson: vi.fn(actual.renderAiJson) };
+});
+vi.mock("../src/share/voice-page.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof VoicePageModule>();
+  return { ...actual, renderVoicePage: vi.fn(actual.renderVoicePage) };
 });
 vi.mock("../src/share/shares.js", async (importOriginal) => {
   const actual = await importOriginal<typeof SharesModule>();
@@ -141,6 +147,7 @@ afterEach(async () => {
     renderWordCopy,
     renderAiMarkdown,
     renderAiJson,
+    renderVoicePage,
     appendShare,
     ensureGitFiles,
   ]) {
@@ -1747,11 +1754,28 @@ describe("shareReport", () => {
       expect(logger.text("warn")).toBe("");
     });
 
-    it("says only the pair's file, when the pair and the files for AI tools are all over", async () => {
+    it("isn't warned of for the voice page, which isn't emailed, however big it is", async () => {
+      const { logger, options } = await homeWithRun();
+      const big = 21 * 1024 * 1024;
+      // A voice page over the limit, as a site of many recorded pages has: it holds every recording.
+      vi.mocked(renderVoicePage).mockReturnValueOnce("v".repeat(big));
+
+      const { files, pasteLine } = await shareReport(options);
+
+      // It was written after the Word copy, over the limit, and listed with its size all the same,
+      // but the line for the email doesn't name it, and nothing warns of it.
+      expect(files[2]).toMatchObject({ name: `${FIRST}.voice.html`, bytes: big });
+      expect(pasteLine).not.toContain(".voice.html");
+      expect(logger.text("info")).toContain("21.0 MB (22,020,096 bytes), SHA-256 ");
+      expect(logger.text("warn")).toBe("");
+    });
+
+    it("says only the pair's file, when the pair, the voice page, and the files for AI tools are all over", async () => {
       const { logger, options } = await homeWithRun();
       const big = 21 * 1024 * 1024;
       vi.mocked(renderAiMarkdown).mockReturnValueOnce("m".repeat(big));
       vi.mocked(renderWordCopy).mockResolvedValueOnce(new Uint8Array(big));
+      vi.mocked(renderVoicePage).mockReturnValueOnce("v".repeat(big));
       vi.mocked(renderAiJson).mockReturnValueOnce("j".repeat(big));
 
       await shareReport(options);
