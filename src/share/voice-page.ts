@@ -243,12 +243,14 @@ function facts(record: KeptVoice): string {
  * paragraph of its own as the shareable page's line on a recording is: the text of what the
  * recording says. It's relative, by the shareable page's name (`page`), at the id of the fold that
  * holds the transcript, which the page's script opens. A page with no fold there (no run read it in
- * full) has no transcript and no link.
+ * full) has no transcript and no link. The words the link shows are whole and first in its name, and
+ * its page's follow them for a screen reader alone, in the page's visually hidden class (`sr`), so
+ * that the name holds the label (WCAG 2.5.3) and no two links read alike.
  */
 function transcriptLink(card: PageCard, page: string, folds: ReadonlySet<string>): string {
   if (!folds.has(card.slug)) return "";
   const { transcript } = VOICE_TEXT;
-  const words = `${esc(transcript.lead)}<span class="sr">${esc(transcript.of(card.path))}</span>${esc(transcript.after)}`;
+  const words = `${esc(transcript.link)}<span class="sr">${esc(transcript.of(card.path))}</span>`;
   return `<p class="sub"><a href="${esc(page)}#${esc(transcriptAnchor(card.slug))}">${words}</a></p>`;
 }
 

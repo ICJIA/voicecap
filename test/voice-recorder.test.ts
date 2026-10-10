@@ -4,7 +4,7 @@ import { createInterface } from "node:readline";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { powershellCommand } from "../src/drivers/guidepup/windows.js";
 import {
@@ -12,10 +12,12 @@ import {
   recorderIsGone,
   RECORDER_SPAWN_OPTIONS,
   startRecorder,
+  voiceIsGone,
   type RecorderChild,
   type RecorderStop,
   type SpawnRecorder,
 } from "../src/drivers/guidepup/voice-recorder.js";
+import { asciiJson } from "../src/review-replay/voice.js";
 import { EnvironmentError, errorMessage } from "../src/util/errors.js";
 
 /** The fake helper: a Node script that speaks the recorder's JSON lines (see its own comment). */
@@ -100,6 +102,17 @@ const STOPPED: RecorderStop = {
 };
 const DEVICE_GONE =
   "the recording failed: the sound device changed or went away (0x88890004 AUDCLNT_E_DEVICE_INVALIDATED)";
+
+/**
+ * What the helper says when it refuses the target for 5353: the program it found there, and the path
+ * of the program it was asked for, as it was sent, which is in Guidepup's folder.
+ */
+const REFUSED = {
+  error: String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not ${NVDA}`,
+};
+
+/** What the client makes of that for a page's reason: the program asked for is named, not its path. */
+const REFUSED_REASON = String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not voicecap's NVDA`;
 
 describe("the recorder", () => {
   it("starts, targets, records, and stops", async () => {
@@ -208,15 +221,35 @@ describe("the recorder", () => {
   });
 
   // As a helper that has ended gives what PowerShell said, a helper that is only slow does too: a
-  // person told that it didn't answer is told what it was saying while they waited.
+  // person told that it didn't answer is told what it was saying while they waited. The helper is
+  // played in this process and the timer is the test's, so the time is up only after PowerShell has
+  // spoken: what the client has heard then is what the test said, however slow the computer is. (A
+  // Node fake started as a program, with a real timer of 1.5 seconds, gave this reason only when
+  // that program wrote to its error output within the 1.5 seconds.)
   it("gives what PowerShell said while it was slow to be ready, as it does for one that ends", async () => {
-    const helper = fake({ ready: false, stderr: "Add-Type is taking its time.\r\n" });
-    await rejectsWith(
-      startRecorder({ spawnRecorder: helper.spawnRecorder, readyMs: 1_500 }),
-      "the recorder didn't start: PowerShell didn't answer within 1.5 seconds (Add-Type is taking its time)",
-    );
-    expect(helper.children[0]!.killed).toBe(true);
-    await exit(helper.children[0]!);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const helper = played();
+      const starting = startRecorder({ spawnRecorder: helper.spawnRecorder, readyMs: 1_500 });
+      let settled = false;
+      const rejected = rejectsWith(
+        starting.finally(() => {
+          settled = true;
+        }),
+        "the recorder didn't start: PowerShell didn't answer within 1.5 seconds (Add-Type is taking its time)",
+      );
+      await helper.complain("Add-Type is taking its time.\r\n");
+
+      // Not before the time is up, and then it ends the helper.
+      await vi.advanceTimersByTimeAsync(1_499);
+      expect(settled).toBe(false);
+      expect(helper.killed()).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejected;
+      expect(helper.killed()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // The one command the fake ignores is the only one that has commandMs to be answered in: the
@@ -283,11 +316,21 @@ describe("the recorder", () => {
     await recorder.target(4242, NVDA);
     await recorder.start(HOME);
     await recorder.stop();
-    await rejectsWith(
-      recorder.target(5353, NVDA),
-      String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not ${NVDA}`,
-    );
+    await rejectsWith(recorder.target(5353, NVDA), REFUSED_REASON);
     await rejectsWith(recorder.start(ABOUT), "the recorder has no program to record");
+    await recorder.close();
+  });
+
+  // The reason is what a page says, and what the report says of it, so it names voicecap's NVDA, and
+  // never the path of its program, which is in Guidepup's folder. The helper is sent the path, since
+  // it tells programs apart by it, and the program it found (the useful part) is kept.
+  it("names voicecap's NVDA in the reason for a target it refuses, never the path of its program", async () => {
+    const helper = fake({ refuse: [5353] });
+    const recorder = await startRecorder({ spawnRecorder: helper.spawnRecorder });
+    await rejectsWith(recorder.target(5353, NVDA), REFUSED_REASON);
+    expect(helper.read.map(({ command }) => command)).toEqual([
+      { target: { pid: 5353, image: NVDA } },
+    ]);
     await recorder.close();
   });
 
@@ -368,7 +411,9 @@ describe("the recorder", () => {
 /**
  * A helper played line by line by the test, in this process: nothing runs, so what the client reads,
  * and when, is exactly what the test says. `say` writes one line of the helper's output and waits
- * until the client has read it; `sent` is each command the client wrote.
+ * until the client has read it; `complain` does the same with what PowerShell writes to its error
+ * output, given as it is (its own line ending included); `sent` is each command the client wrote;
+ * `killed` says whether the client has ended the helper.
  */
 function played() {
   const stdin = new PassThrough();
@@ -376,22 +421,39 @@ function played() {
   const stderr = new PassThrough();
   const events = new EventEmitter();
   const sent: unknown[] = [];
+  let killed = false;
   createInterface({ input: stdin }).on("line", (line) => sent.push(JSON.parse(line)));
   const child: RecorderChild = {
     stdin,
     stdout,
     stderr,
-    kill: () => true,
+    kill: () => {
+      killed = true;
+      return true;
+    },
     once(event: "exit" | "error", listener: (value: never) => void) {
       return events.once(event, listener as (...args: unknown[]) => void);
     },
   };
-  const say = async (value: unknown): Promise<void> => {
-    stdout.write(`${JSON.stringify(value)}\n`);
-    // Streams and readline pass a line on a turn of the event loop at a time.
+  /** Streams and readline pass a line on a turn of the event loop at a time. */
+  const heard = async (): Promise<void> => {
     for (let turn = 0; turn < 4; turn++) await new Promise((resolve) => setImmediate(resolve));
   };
-  return { spawnRecorder: (() => child) as SpawnRecorder, say, sent };
+  const say = async (value: unknown): Promise<void> => {
+    stdout.write(`${JSON.stringify(value)}\n`);
+    await heard();
+  };
+  const complain = async (text: string): Promise<void> => {
+    stderr.write(text);
+    await heard();
+  };
+  return {
+    spawnRecorder: (() => child) as SpawnRecorder,
+    say,
+    complain,
+    sent,
+    killed: () => killed,
+  };
 }
 
 /** A recorder that is ready, with the program 4242 targeted and a recording of it started. */
@@ -409,11 +471,6 @@ async function recordingNvda() {
   return { recorder, helper };
 }
 
-/** What a helper says when it refuses the target for 5353. */
-const REFUSED = {
-  error: String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not ${NVDA}`,
-};
-
 // The helper forgets its target as soon as it's sent another, whether or not it takes it, and the
 // client does too: what it kept of the program before, and of that program's exit, is gone. Both are
 // told apart here, by when the exit is said: before the new target is sent, or after it's refused.
@@ -422,7 +479,7 @@ describe("the recorder's memory of the program it records", () => {
     const { recorder, helper } = await recordingNvda();
     await helper.say({ "target-exited": { pid: 4242 } });
 
-    const refused = rejectsWith(recorder.target(5353, NVDA), REFUSED.error);
+    const refused = rejectsWith(recorder.target(5353, NVDA), REFUSED_REASON);
     await helper.say(REFUSED);
     await refused;
 
@@ -434,7 +491,7 @@ describe("the recorder's memory of the program it records", () => {
 
   it("forgets the program itself when it's sent another, and hears nothing of its exit after", async () => {
     const { recorder, helper } = await recordingNvda();
-    const refused = rejectsWith(recorder.target(5353, NVDA), REFUSED.error);
+    const refused = rejectsWith(recorder.target(5353, NVDA), REFUSED_REASON);
     await helper.say(REFUSED);
     await refused;
     // Said late, of a program that's let go of: it's no one's exit now.
@@ -544,6 +601,8 @@ describe("which of the recorder's reasons say that it is gone for the rest of th
     for (const reason of reasons) {
       expect(reason.startsWith("the recorder "), reason).toBe(true);
       expect(recorderIsGone(reason), reason).toBe(true);
+      // Pointed at NVDA's path, which is in Guidepup's folder, the recorder names it in no reason.
+      expect(reason).not.toMatch(/guidepup/i);
     }
     // And as a page's record keeps one: its first line, cut at 300 characters, unchanged at its start.
     expect(recorderIsGone(`${reasons[0]}\nat the second line`)).toBe(true);
@@ -569,7 +628,6 @@ describe("which of the recorder's reasons say that it is gone for the rest of th
     reasons.push(
       "the recording couldn't start: the PCM file couldn't be created (Access is denied)",
       "the recorder can't change programs while it records",
-      "NVDA's process wasn't found",
       "NVDA's process ended during the recording",
       "the recording is silent",
       "the recording's folder couldn't be made (EPERM)",
@@ -578,12 +636,176 @@ describe("which of the recorder's reasons say that it is gone for the rest of th
     );
 
     expect(reasons.slice(0, 5)).toEqual([
-      String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not ${NVDA}`,
+      REFUSED_REASON,
       "the recorder has no program to record",
       DEVICE_GONE,
       "the recorder's answer to a stop couldn't be read",
       "the recorder was closed",
     ]);
-    for (const reason of reasons) expect(recorderIsGone(reason), reason).toBe(false);
+    for (const reason of reasons) {
+      expect(recorderIsGone(reason), reason).toBe(false);
+      expect(reason).not.toMatch(/guidepup/i);
+    }
+  });
+});
+
+// The run says once a session that NVDA's voice isn't being recorded (see audit.ts) when a page's
+// reason says that no page after it will have a recording either. That's the recorder's being gone,
+// and NVDA's process not being found, which the driver gives for every page of an NVDA it couldn't
+// find the process of (its recorder is as it was: it's the program to record that is missing).
+describe("which reasons say that no page after this one will have a recording", () => {
+  it("is each reason that says the recorder is gone, and the one that says NVDA's process wasn't found", () => {
+    for (const reason of [
+      "the recorder didn't start: PowerShell ended with exit code 1",
+      "the recorder stopped answering",
+      "the recorder stopped: PowerShell ended with exit code 3 (The fake recorder ended on start)",
+      "NVDA's process wasn't found",
+      // As a page's record keeps one: its first line.
+      "NVDA's process wasn't found\nat the second line",
+    ]) {
+      expect(voiceIsGone(reason), reason).toBe(true);
+    }
+    // The recorder is not gone when only NVDA's process is: it stays a reason of its own.
+    expect(recorderIsGone("NVDA's process wasn't found")).toBe(false);
+  });
+
+  it("is no reason that is one page's, NVDA's process ending during a recording among them", () => {
+    for (const reason of [
+      REFUSED_REASON,
+      "process 5353 isn't running",
+      "the recorder has no program to record",
+      "NVDA's process ended during the recording",
+      "the recording was discarded",
+      "the recording is silent",
+      "the recording is empty",
+      "the recording couldn't start: Windows didn't open the recording within 3 seconds",
+      DEVICE_GONE,
+      "the recording's folder couldn't be made (EPERM)",
+      "Starting the recording did not finish within 60 seconds",
+      "",
+    ]) {
+      expect(voiceIsGone(reason), reason).toBe(false);
+    }
+  });
+});
+
+// What the recorder gives as a page's reason is repeated word for word by the page's section of the
+// voice page, and by the details of the shareable page and of its Word copy, where Guidepup is never
+// named. The NVDA voicecap starts is run from Guidepup's folder (...\AppData\Local\guidepup\...), so
+// its path is never in a reason: a reason names it voicecap's NVDA. The helper repeats the path it was
+// sent in what it says of a target (its refusal, and the line it echoes of a command it can't follow
+// or doesn't know), and the client gives each with the path left out. The program the helper found,
+// which is the useful part of a refusal, stays.
+describe("what the recorder's reasons say of the program it records", () => {
+  /** The path of an NVDA run from Guidepup's folder, as different computers spell it. */
+  const PATHS = [
+    NVDA,
+    String.raw`C:\Users\José Smith\AppData\Local\GuidePup\nvda\all\0.2.1-2026.2\extracted\nvda.exe`,
+    String.raw`C:\guidepup\nvda\all\0.2.1-2026.2\extracted\nvda.exe`,
+    String.raw`D:\GUIDEPUP\NVDA\NVDA.EXE`,
+  ];
+
+  /**
+   * The reason the client gives for the target of `image` when the helper answers it with `error`,
+   * which is given the line the client wrote, as the helper echoes it of a command it can't follow.
+   */
+  async function reasonFor(image: string, error: (line: string) => string): Promise<string> {
+    const helper = played();
+    const starting = startRecorder({ spawnRecorder: helper.spawnRecorder });
+    await helper.say({ ready: { build: 26200 } });
+    const recorder = await starting;
+    const rejected = recorder.target(5353, image).then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+    await helper.say({ error: error(asciiJson({ target: { pid: 5353, image } })) });
+    return errorMessage(await rejected);
+  }
+
+  it("never names the program it was pointed at by its path, in the helper's refusal or in a line it echoes", async () => {
+    for (const image of PATHS) {
+      const said = [
+        await reasonFor(
+          image,
+          () => String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not ${image}`,
+        ),
+        await reasonFor(
+          image,
+          (line) =>
+            `the recorder couldn't follow the command ${line} (Input string was not in a correct format)`,
+        ),
+        await reasonFor(image, (line) => `the recorder doesn't know the command ${line}`),
+      ];
+
+      expect(said, image).toEqual([
+        REFUSED_REASON,
+        `the recorder couldn't follow the command {"target":{"pid":5353,"image":"voicecap's NVDA"}} (Input string was not in a correct format)`,
+        `the recorder doesn't know the command {"target":{"pid":5353,"image":"voicecap's NVDA"}}`,
+      ]);
+      for (const reason of said) expect(reason, image).not.toMatch(/guidepup/i);
+    }
+  });
+
+  it("leaves out the path of the program it was last pointed at, as the NVDA it records changes", async () => {
+    // A restart gives the next NVDA's target: the one the path of which must be left out is that one.
+    const later = String.raw`C:\Users\cschw\AppData\Local\guidepup\nvda\all\0.2.1-2026.3\extracted\nvda.exe`;
+    const helper = played();
+    const starting = startRecorder({ spawnRecorder: helper.spawnRecorder });
+    await helper.say({ ready: { build: 26200 } });
+    const recorder = await starting;
+    const first = recorder.target(4242, NVDA);
+    await helper.say({ targeted: { pid: 4242 } });
+    await first;
+    const refused = recorder.target(5353, later).then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+    await helper.say({
+      error: String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not ${later}`,
+    });
+
+    expect(errorMessage(await refused)).toBe(REFUSED_REASON);
+  });
+
+  it("leaves the program it found as the helper named it, whatever it is", async () => {
+    const found = String.raw`C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_1.22.0_x64__8wekyb3d8bbwe\wt.exe`;
+    expect(
+      await reasonFor(NVDA, () => `process 5353 runs ${found}, not ${NVDA}`),
+      "a program with spaces in its path",
+    ).toBe(`process 5353 runs ${found}, not voicecap's NVDA`);
+    expect(
+      await reasonFor(NVDA, () => "process 5353 isn't running"),
+      "a reason that names no program",
+    ).toBe("process 5353 isn't running");
+  });
+
+  it("gives no reason that names Guidepup, in any case: not the client's own, not the helper's fixed words", async () => {
+    // The helper's own words are all in its script (its C# included). The client's own reasons (the
+    // helper that didn't start, stopped answering, or ended) are checked as they're collected for
+    // `recorderIsGone`, above, and what it gives of the helper's answers, here.
+    expect(RECORDER_SCRIPT).not.toMatch(/guidepup/i);
+    const helper = fake({ refuse: [5353], stopErrors: [DEVICE_GONE] });
+    const recorder = await startRecorder({ spawnRecorder: helper.spawnRecorder });
+    const reasons: string[] = [];
+    const reasonOf = async (promise: Promise<unknown>): Promise<void> => {
+      reasons.push(
+        errorMessage(
+          await promise.then(
+            () => null,
+            (reason: unknown) => reason,
+          ),
+        ),
+      );
+    };
+    await reasonOf(recorder.target(5353, NVDA));
+    await reasonOf(recorder.start(HOME));
+    await recorder.target(4242, NVDA);
+    await recorder.start(HOME);
+    await reasonOf(recorder.stop());
+    await recorder.close();
+    await reasonOf(recorder.target(4242, NVDA));
+
+    expect(reasons).toHaveLength(4);
+    for (const reason of reasons) expect(reason).not.toMatch(/guidepup/i);
   });
 });

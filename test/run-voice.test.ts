@@ -492,10 +492,9 @@ describe("a page's recording of NVDA's voice, in a run", () => {
       expect(aboutVoice(logger)).toEqual([]);
     });
 
-    it("says nothing of any reason that is one page's: NVDA not found, a refusal, a failed recording, an unreadable file", async () => {
+    it("says nothing of any reason that is one page's: a refusal, a failed recording, NVDA's process ending, an unreadable file", async () => {
       for (const why of [
-        "NVDA's process wasn't found",
-        "process 5353 runs C:\\Windows\\System32\\notepad.exe, not nvda.exe",
+        "process 5353 runs C:\\Windows\\System32\\notepad.exe, not voicecap's NVDA",
         "the recording couldn't start: Windows didn't open the recording within 3 seconds",
         "the recording failed: the sound device changed or went away (0x88890004)",
         "the recorder has no program to record",
@@ -512,6 +511,36 @@ describe("a page's recording of NVDA's voice, in a run", () => {
         { bytes: new Uint8Array(3) },
       );
       expect(aboutVoice(logger)).toEqual([]);
+    });
+
+    // NVDA's process not being found is for a whole start of NVDA: its process id is looked up once,
+    // as NVDA starts, so every page until NVDA is started again says it wasn't found, and the pages
+    // are read all the same. It's told as the helper's being gone is, once a session.
+    it("says so once, with the page's reason, when NVDA's process wasn't found for every page", async () => {
+      const why = "NVDA's process wasn't found";
+      const { run, logger, dir } = await everyPage({ error: why });
+      expect(run.outcome).toBe("completed");
+
+      expect(aboutVoice(logger)).toEqual([
+        `NVDA's voice isn't being recorded: ${why}. The pages are read as usual.`,
+      ]);
+      expect(logger.text("error")).toBe("");
+      expect(run.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
+      expect(await problemsIn(dir)).toBe(0);
+    });
+
+    it("says it once a session, whichever comes first: NVDA's process not found, or the helper gone", async () => {
+      const gone = "the recorder stopped answering";
+      const notFound = "NVDA's process wasn't found";
+      for (const [first, then] of [
+        [notFound, gone],
+        [gone, notFound],
+      ] as const) {
+        const { logger } = await threePages({ error: first }, { error: then }, { error: then });
+        expect(aboutVoice(logger), first).toEqual([
+          `NVDA's voice isn't being recorded: ${first}. The pages are read as usual.`,
+        ]);
+      }
     });
 
     it("says nothing when every recording is kept, or when the driver records none", async () => {

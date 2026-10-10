@@ -650,6 +650,28 @@ describe("renderVoicePage", () => {
       );
     });
 
+    // The section says a reason word for word, so what the recorder gives is what the page says: it
+    // names the program it was asked for voicecap's NVDA, since that program's path is in Guidepup's
+    // folder, and Guidepup isn't named on the page.
+    it("gives the reason for a target the helper refused as the recorder words it, with no Guidepup on the page", () => {
+      const refused = String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not voicecap's NVDA`;
+      const textOfPage = (model: ShareModel): string =>
+        textOf(
+          pageOf(model, new Map([...recordingsOf([]), ...soundsFor(model)])).replace(
+            /<(style|script)\b[\s\S]*?<\/\1>/g,
+            "",
+          ),
+        );
+      const model = withEarlier("0.18.0", reason(refused));
+
+      expect(whyOf(model)).toBe(`Not recorded: ${refused}.`);
+      expect(textOfPage(model)).not.toMatch(/guidepup/i);
+      // The scan sees it when it's there: the path a refusal used to name is in Guidepup's folder.
+      const path = String.raw`C:\Users\cschw\AppData\Local\guidepup\nvda\all\0.2.1-2026.2\extracted\nvda.exe`;
+      const named = withEarlier("0.18.0", reason(refused.replace("voicecap's NVDA", path)));
+      expect(textOfPage(named)).toMatch(/guidepup/i);
+    });
+
     it("says the file isn't as its run recorded it, when the loader holds none, and the run's record can't be read", () => {
       const model = withEarlier("0.18.0", other.record);
       expect(whyOf(model)).toBe(
@@ -868,6 +890,9 @@ describe("the voice page's links to the shareable page", () => {
   const PAGE = VOICE_PAGE.replace(".voice.html", ".html");
   const WORD = VOICE_PAGE.replace(".voice.html", ".docx");
 
+  /** What each link to a page's transcripts shows, whatever the page. */
+  const VISIBLE = "The full transcript, on the shareable page";
+
   /** The id of each full transcript's fold on a shareable page: what an address to a fold points at. */
   const foldsOf = (html: string): string[] =>
     [...html.matchAll(/<details class="fold tx-page" id="([^"]*)"/g)].map(([, id = ""]) => id);
@@ -924,12 +949,37 @@ describe("the voice page's links to the shareable page", () => {
     const link = /<a href="[^"]*#tx-[^"]*">.*?<\/a>/s.exec(section)?.[0] ?? "";
 
     expect(link).toBe(
-      `<a href="${PAGE}#tx-${about?.slug}">The full transcript<span class="sr"> of /about/</span>, on the shareable page</a>`,
+      `<a href="${PAGE}#tx-${about?.slug}">The full transcript, on the shareable page<span class="sr">: /about/</span></a>`,
     );
-    expect(textOf(link, "")).toBe("The full transcript of /about/, on the shareable page");
+    expect(textOf(link, "")).toBe("The full transcript, on the shareable page: /about/");
     // In a paragraph of its own, as the card's line on the voice page is, and after the recording.
     expect(section).toContain(`<p class="sub">${link}</p>`);
     expect(section.indexOf("<audio")).toBeLessThan(section.indexOf(link));
+  });
+
+  // WCAG 2.5.3, Label in Name: what a link shows is the start of what it's called, so a person who
+  // speaks the words they read (to Voice Control, or Dragon) is understood, and a screen reader says
+  // first what the eye reads first. The page's address goes after the visible words, for a screen
+  // reader alone, and that is what keeps the links, which go to different places, from reading alike.
+  it("names each link by its visible words, whole and first, then by its page, so that no two read alike", () => {
+    const model = sharedModel(recorded.run);
+    const voicePage = pageOf(model, recordingsOf([recorded.run]));
+    const inner = [...voicePage.matchAll(/<a href="[^"]*#tx-[^"]*">(.*?)<\/a>/gs)].map(
+      ([, markup = ""]) => markup,
+    );
+    // The words a sighted reader sees: what's left once the text for a screen reader alone is out.
+    const visible = (markup: string): string =>
+      textOf(markup.replace(/<span class="sr">.*?<\/span>/gs, ""), "");
+
+    expect(inner).toHaveLength(3);
+    for (const markup of inner) {
+      expect(visible(markup)).toBe(VISIBLE);
+      const name = textOf(markup, "");
+      expect(name.startsWith(visible(markup)), name).toBe(true);
+    }
+    const names = inner.map((markup) => textOf(markup, ""));
+    expect(names).toEqual(["/", "/about/", "/apply/"].map((path) => `${VISIBLE}: ${path}`));
+    expect(new Set(names).size).toBe(names.length);
   });
 
   it("gives a page with no recording its transcripts' link too, since they are what it has", () => {

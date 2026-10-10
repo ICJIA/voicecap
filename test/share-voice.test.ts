@@ -8,6 +8,7 @@
  * Nothing here plays a sound.
  */
 import os from "node:os";
+import { join } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -454,11 +455,13 @@ describe("what the details say when no page has a recording, and a run gave reas
   it("has the home folder replaced in the reason, as it does in every other reason it says", () => {
     const home = os.homedir();
     const { model } = modelOf([
-      runOf([read("/", reason(`process 4242 runs ${home}\nvda.exe, not another`))]),
+      runOf([read("/", reason(`process 4242 runs ${join(home, "nvda.exe")}, not another`))]),
     ]);
     expect(model.voicePage).not.toBeNull();
     expect(JSON.stringify(model.voicePage)).not.toContain(home.replaceAll("\\", "\\\\"));
     expect(detailsSaid(model)).not.toContain(home);
+    // Only the folder is replaced: its program's name, and what comes after it, are as they were.
+    expect(detailsSaid(model)).toMatch(/ runs (?:%USERPROFILE%|~)[\\/]nvda\.exe, not another\.$/);
   });
 
   it("is today's words when the latest run's pages gave no reason: a driver that records none, a page not read", () => {

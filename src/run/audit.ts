@@ -5,7 +5,7 @@ import path from "node:path";
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { VoicecapConfig } from "../config/schema.js";
 import { createDriver, selectDriver, type DriverSelection } from "../drivers/index.js";
-import { recorderIsGone } from "../drivers/guidepup/voice-recorder.js";
+import { voiceIsGone } from "../drivers/guidepup/voice-recorder.js";
 import { loadPlatformReadiness } from "../drivers/readiness.js";
 import { BROWSER_WINDOW, type ScreenReaderDriver } from "../drivers/types.js";
 import { evaluateFlags, flagRulesSha256 } from "../flags/evaluate.js";
@@ -614,9 +614,10 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
 }
 
 /**
- * What the run says, once, when the helper that records NVDA's voice is gone for the rest of it: why,
- * as the page's record keeps it (the home folder replaced, on one line), and that the pages are
- * read as usual. Nothing else on the screen would say that no sound is being kept.
+ * What the run says, once a session, when no page after one will have a recording of NVDA's voice:
+ * the helper that records it is gone for the rest of the run, or NVDA's process wasn't found. Why, as
+ * the page's record keeps it (the home folder replaced, on one line), and that the pages are read as
+ * usual. Nothing else on the screen would say that no sound is being kept.
  */
 function voiceNotRecorded(reason: string): string {
   // The sentence puts its own full stop after the reason, which has none of its own to double.
@@ -763,9 +764,11 @@ async function transcribePages(
         remainingMs: estimateRemaining(durations, todo.length - index - 1),
       }),
     );
-    // The first page whose record says the helper is gone, which every page after it will say too.
+    // The first page whose record says no page after it will have a recording either: the helper is
+    // gone for the rest of the run, or NVDA's process wasn't found, which every page of that start of
+    // NVDA says too.
     if (!toldOfVoice && outcome.voice !== undefined && "error" in outcome.voice) {
-      if (recorderIsGone(outcome.voice.error)) {
+      if (voiceIsGone(outcome.voice.error)) {
         toldOfVoice = true;
         logger.warn(voiceNotRecorded(outcome.voice.error));
       }

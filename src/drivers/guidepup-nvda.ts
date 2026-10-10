@@ -95,7 +95,12 @@ import {
   voiceFolder,
   type GuidepupInstall,
 } from "./guidepup/paths.js";
-import { startRecorder, type Recorder, type RecorderStop } from "./guidepup/voice-recorder.js";
+import {
+  NO_NVDA_PROCESS,
+  startRecorder,
+  type Recorder,
+  type RecorderStop,
+} from "./guidepup/voice-recorder.js";
 import {
   cleanupOrphans,
   foregroundWindow,
@@ -350,9 +355,11 @@ const OPTIONAL_SETTINGS_SECTIONS = ["presentation", "general"];
 /*
  * Why a page has no recording of NVDA's voice, when the driver is the one that knows. Each is a
  * clause in lowercase with no full stop, as it's the page's reason once the run has recorded it.
+ * The first, NO_NVDA_PROCESS ("NVDA's process wasn't found": NVDA isn't running, or its process id
+ * couldn't be found), is imported from the recorder's module, where the test the run makes of every
+ * page's reason is too: whether it says that no page after it will have a recording either
+ * (voiceIsGone).
  */
-/** There's no NVDA to record: it isn't running, or its process id couldn't be found. */
-const NO_NVDA_PROCESS = "NVDA's process wasn't found";
 /** The NVDA recorded had exited by the time the recording was stopped: what follows is silence. */
 const NVDA_ENDED = "NVDA's process ended during the recording";
 /** The recording was ended by the driver, which was stopped, so its sound is gone. */

@@ -159,9 +159,12 @@ describe.runIf(process.platform === "win32" && process.env.VOICECAP_SOUND_TEST =
         (reason: unknown) => reason,
       );
       expect(error).toBeInstanceOf(EnvironmentError);
+      // The helper says it with the path it was sent, and the client leaves the path out: the reason
+      // names voicecap's NVDA, and keeps the program it found (Windows' spelling of its path).
       expect(errorMessage(error).toLowerCase()).toBe(
-        `process ${target.pid} runs ${POWERSHELL}, not ${nvda}`.toLowerCase(),
+        `process ${target.pid} runs ${POWERSHELL}, not voicecap's NVDA`.toLowerCase(),
       );
+      expect(errorMessage(error).toLowerCase()).not.toContain(nvda.toLowerCase());
       // The program it had before is forgotten: it records nothing, never that one.
       await expect(recorder.start(path.join(await folder(ctx), "none.pcm"))).rejects.toThrow(
         "the recorder has no program to record",

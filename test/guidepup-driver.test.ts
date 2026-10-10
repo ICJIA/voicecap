@@ -12,7 +12,11 @@ import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import { GuidepupNvdaDriver, type GuidepupDriverDeps } from "../src/drivers/guidepup-nvda.js";
 import { voiceFolder, voiceFolderPid } from "../src/drivers/guidepup/paths.js";
-import type { Recorder, RecorderStop } from "../src/drivers/guidepup/voice-recorder.js";
+import {
+  voiceIsGone,
+  type Recorder,
+  type RecorderStop,
+} from "../src/drivers/guidepup/voice-recorder.js";
 import { ForegroundError, type EventRecorder } from "../src/drivers/types.js";
 import type { NewRunEvent } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
@@ -2463,7 +2467,10 @@ describe("recording NVDA's voice", () => {
     deps.screenReaderPid = () => Promise.resolve(null);
     await driver.start();
     const recording = await driver.recordVoice();
-    expect(await recording.stop()).toEqual({ error: "NVDA's process wasn't found" });
+    const stopped = await recording.stop();
+    expect(stopped).toEqual({ error: "NVDA's process wasn't found" });
+    // The run tells the person, once a session, that no page after this one will have a recording.
+    expect("error" in stopped && voiceIsGone(stopped.error)).toBe(true);
     expect(recorderStarts.count).toBe(0);
     expect(voiceRecorder.calls).toEqual([]);
   });
@@ -2472,7 +2479,9 @@ describe("recording NVDA's voice", () => {
     const { driver } = setup();
     // Never started.
     const recording = await driver.recordVoice();
-    expect(await recording.stop()).toEqual({ error: "NVDA's process wasn't found" });
+    const stopped = await recording.stop();
+    expect(stopped).toEqual({ error: "NVDA's process wasn't found" });
+    expect("error" in stopped && voiceIsGone(stopped.error)).toBe(true);
   });
 
   it("gives what the recorder says of a recording, and where its sound is, for the run to read", async () => {

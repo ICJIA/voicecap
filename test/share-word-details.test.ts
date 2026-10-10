@@ -351,6 +351,31 @@ describe("NVDA's voice, in the Word copy's details", () => {
     expect(textOf(html ?? "", "")).toBe(saidOf(model));
   });
 
+  // The details repeat the reason word for word, so what the recorder gives is what the Word copy
+  // says: it names the program it was asked for voicecap's NVDA, since that program's path is in
+  // Guidepup's folder, and Guidepup isn't named in the Word copy's paragraph on NVDA's voice.
+  it("gives the reason for a target the helper refused as the recorder words it, with no Guidepup in the paragraph", () => {
+    const refused = String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not voicecap's NVDA`;
+    const refusedBy = (why: string) =>
+      modelOf([
+        { path: "/", files: TRANSCRIPTS, voice: { error: why, recordedAt: VOICE_RECORDED_AT } },
+        {
+          path: "/about/",
+          files: TRANSCRIPTS,
+          voice: { error: why, recordedAt: VOICE_RECORDED_AT },
+        },
+      ]);
+
+    expect(saidOf(refusedBy(refused))).toBe(
+      `${VOICE_TEXT.details.lead} ${VOICE_TEXT.details.noRecordingBecause(refused)}`,
+    );
+    expect(saidOf(refusedBy(refused))).toMatch(/, not voicecap's NVDA\.$/);
+    expect(saidOf(refusedBy(refused))).not.toMatch(/guidepup/i);
+    // The scan sees it when it's there: the path a refusal used to name is in Guidepup's folder.
+    const path = String.raw`C:\Users\cschw\AppData\Local\guidepup\nvda\all\0.2.1-2026.2\extracted\nvda.exe`;
+    expect(saidOf(refusedBy(refused.replace("voicecap's NVDA", path)))).toMatch(/guidepup/i);
+  });
+
   it("says why there is no voice page, in place of the link, when no page has a recording or the copy is the live one", () => {
     const none = modelOf([{ path: "/", files: TRANSCRIPTS }]);
     const live = modelOf(RECORDED, { voiceName: null });

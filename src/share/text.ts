@@ -883,15 +883,16 @@ export const VOICE_TEXT = {
   unreadable: "Not shown: the run's record of this page's recording couldn't be read.",
   /**
    * A section's link to its page's full transcript on the shareable page beside this one, which is
-   * the text of what the recording says (WCAG 1.2.1): "The full transcript, on the shareable page",
-   * and for a screen reader alone which page it is of (`of`, set apart, between the two), so that no
-   * two links read alike and go to different places. A page no run read in full has no transcript,
-   * and no link.
+   * the text of what the recording says (WCAG 1.2.1): "The full transcript, on the shareable page"
+   * (`link`, the words a reader sees, whole), and for a screen reader alone which page it is of
+   * (`of`, set apart, after them: ": /about/"), so that no two links read alike and go to different
+   * places. The words a reader sees are the start of the link's name, unbroken, so a person who says
+   * what they read is understood (WCAG 2.5.3, Label in Name). A page no run read in full has no
+   * transcript, and no link.
    */
   transcript: {
-    lead: "The full transcript",
-    of: (path: string): string => ` of ${path}`,
-    after: ", on the shareable page",
+    link: "The full transcript, on the shareable page",
+    of: (path: string): string => `: ${path}`,
   },
   /**
    * The page's own check: the heading of its section, and what the check proves, which is what it

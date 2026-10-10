@@ -11,7 +11,8 @@
  * on its output, ASCII-safe too.
  *
  * Every error message here is the reason a page has no recording, as its record keeps it: a clause in
- * lowercase, with no full stop.
+ * lowercase, with no full stop. None gives the path of the program it records, which is in Guidepup's
+ * folder: it calls that program voicecap's NVDA (see Recorder.target).
  */
 import { spawn } from "node:child_process";
 import type { Readable, Writable } from "node:stream";
@@ -50,7 +51,9 @@ export interface Recorder {
    * Points the recorder at process `pid`, once Windows says its program is `image` (letter case
    * aside). Not while it records. Its exit, whenever it comes, is kept for the stops that follow.
    * The recorder forgets its previous target first: after a target it refuses, it records nothing
-   * until it takes another.
+   * until it takes another. A reason about the target never gives `image`: the program it was
+   * asked for is "voicecap's NVDA", and the program it found there, as Windows names it, stays
+   * ("process 4821 runs C:\Windows\System32\notepad.exe, not voicecap's NVDA").
    */
   target(pid: number, image: string): Promise<void>;
   /** Records the target into `pcmPath`, as 16 kHz mono 16-bit PCM, from now until stop(). */
@@ -422,6 +425,13 @@ export const RECORDER_SCRIPT = [
 /** How many of the lines PowerShell writes to its error output say why it stopped. */
 const COMPLAINT_LINES = 3;
 
+/**
+ * What a reason calls the program the recorder is pointed at: voicecap's NVDA, never its path. The
+ * path is in Guidepup's folder, and a reason is repeated word for word by the pages and the Word
+ * copy of a report, where Guidepup isn't named.
+ */
+const NVDA_NAME = "voicecap's NVDA";
+
 /** Why each call rejects once the helper has been ended for not answering. */
 const STOPPED_ANSWERING = "the recorder stopped answering";
 
@@ -434,9 +444,9 @@ const ENDED = "the recorder stopped";
 /**
  * Whether `reason`, as a page's record keeps it, says the helper is gone for the rest of the run:
  * it didn't start, stopped answering, or ended. Each call after that rejects with the same reason,
- * so every page after it has it, and the run says so once (see audit.ts). Any other reason is one
- * page's: NVDA's process not found, a target or a start the helper refused, a recording that
- * failed. The words are the messages' own, below, built from the same pieces.
+ * so every page after it has it. Any other reason the recorder gives is one page's: a target or a
+ * start the helper refused, a recording that failed. The words are the messages' own, below, built
+ * from the same pieces. (The run asks voiceIsGone, which counts one more reason, the driver's.)
  */
 export function recorderIsGone(reason: string): boolean {
   return (
@@ -444,6 +454,25 @@ export function recorderIsGone(reason: string): boolean {
     reason.startsWith(STOPPED_ANSWERING) ||
     reason.startsWith(`${ENDED}:`)
   );
+}
+
+/**
+ * Why a page has no recording when NVDA's process couldn't be found: the driver gives it, as no
+ * recorder has a say in it. It looks the process up once, as NVDA starts, so every page until NVDA
+ * is started again gives it, as there is no process to point the recorder at.
+ */
+export const NO_NVDA_PROCESS = "NVDA's process wasn't found";
+
+/**
+ * Whether `reason`, as a page's record keeps it, says that no page after it will have a recording
+ * either, until something changes: the helper is gone (recorderIsGone), or NVDA's process wasn't
+ * found (NO_NVDA_PROCESS), which every page of that start of NVDA says. The run says so once in a
+ * session, when the first page does (see audit.ts). Any other reason is one page's: NVDA's process
+ * ending during its recording, a target or a start the helper refused, a recording that failed or
+ * is empty or silent.
+ */
+export function voiceIsGone(reason: string): boolean {
+  return recorderIsGone(reason) || reason.startsWith(NO_NVDA_PROCESS);
 }
 
 /** Why each call rejects after close(). */
@@ -521,6 +550,22 @@ export async function startRecorder(
   /** The process the helper records, once it has said so, and whether it has said that one exited. */
   let target: number | null = null;
   let targetExited = false;
+  /** The path of the program the helper was last asked to record: what no reason may give. */
+  let pointedAt: string | null = null;
+
+  /**
+   * What the helper says in a reason, with the path of the program the recorder is pointed at
+   * replaced by its name. The helper repeats the path it was sent: in its refusal of a target ("process
+   * 4821 runs <a program>, not <that path>"), and in the line it echoes of a command it can't follow
+   * or doesn't know, where the path is as JSON spells it. The program it found is left as it is.
+   */
+  const unnamed = (message: string): string => {
+    if (pointedAt === null || pointedAt === "") return message;
+    return [pointedAt, asciiJson(pointedAt).slice(1, -1)].reduce(
+      (said, path) => said.split(path).join(NVDA_NAME),
+      message,
+    );
+  };
 
   /** From now on, every command rejects with `why`, the waiting one too. The first reason stays. */
   const fail = (why: string): void => {
@@ -541,7 +586,7 @@ export async function startRecorder(
       if (waiting === null) return;
       // A line that answers nothing, as a later helper might add, is skipped.
       if (typeof answer.error === "string") {
-        waiting.fail(new EnvironmentError(clause(answer.error)));
+        waiting.fail(new EnvironmentError(clause(unnamed(answer.error))));
       } else if (waiting.answer in answer) {
         waiting.take(answer[waiting.answer]);
       }
@@ -631,9 +676,10 @@ export async function startRecorder(
         targetExited = false;
       });
       // Sent: the helper forgets its target before it looks at this one, whether or not it takes
-      // it, and so does this.
+      // it, and so does this. Its path is the one to leave out of the reasons that follow.
       target = null;
       targetExited = false;
+      pointedAt = image;
       return targeting;
     },
     start(pcmPath) {

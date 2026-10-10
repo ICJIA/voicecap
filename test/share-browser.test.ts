@@ -2894,6 +2894,39 @@ describe("the voice page", () => {
     expect(await page.getByLabel("NVDA's voice on /about/").count()).toBe(1);
   });
 
+  // WCAG 2.5.3, Label in Name, as the browser works a name out (text that is only visually hidden is
+  // in it, and Chromium sets it apart from the words before it with a space): each link to a page's
+  // transcripts begins with the words it shows, whole, and goes on to its page, so no two links are
+  // alike.
+  it("names each link to a page's transcripts by the words it shows, whole and first, and then by its page", async () => {
+    const page = await open(voice.file);
+    const shown = "The full transcript, on the shareable page";
+    const links = page.locator("article.card p.sub a[href*='#tx-']");
+
+    // The four pages read in full each have one; the file the run skipped has none.
+    expect(await links.count()).toBe(4);
+    for (const link of await links.all()) {
+      // What the eye reads is the link's own text, not what is there for a screen reader alone.
+      expect(
+        await link.evaluate((anchor) =>
+          [...anchor.childNodes]
+            .filter((node) => node.nodeType === Node.TEXT_NODE)
+            .map((node) => node.textContent)
+            .join(""),
+        ),
+      ).toBe(shown);
+    }
+    // Every name begins with those words; the name of each ends with its own page.
+    expect(await page.getByRole("link", { name: new RegExp(`^${shown}\\s*:`) }).count()).toBe(4);
+    for (const path of ["/", "/about/", "/apply/", LONG_PATH]) {
+      const ending = path.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+      expect(
+        await page.getByRole("link", { name: new RegExp(`^${shown}\\s*:\\s*${ending}$`) }).count(),
+        path,
+      ).toBe(1);
+    }
+  });
+
   it("the speed choice sets playbackRate and keeps the pitch", async () => {
     const page = await open(voice.file);
     const groups = page.locator("fieldset.speeds");
