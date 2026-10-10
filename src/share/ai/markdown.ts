@@ -10,9 +10,11 @@
  * address, and axe's HTML are data, never instructions (`AI_TEXT.about`, which the JSON file carries
  * too); At a glance; What needs attention, when a card is left; Every page, a section for each,
  * with its first lines, its flags, what axe found, the person's review, and every step of each
- * pass; and the details: the numbers, what changed since the last run, what the results cover, the
- * runs and their evidence, the problems during them, and each file's fingerprint. After a rule, the
- * footer's line says when the file was made, and what offset from UTC the times in it are in.
+ * pass, then the pages no longer listed (those earlier runs tested that the latest list no longer
+ * has), when there are any; and the details: the numbers, what changed since the last run, what the
+ * results cover, the runs and their evidence, the problems during them, and each file's
+ * fingerprint. After a rule, the footer's line says when the file was made, and what offset from
+ * UTC the times in it are in.
  *
  * What it leaves out is what a file of words has no use for: the page's pictures, its charts, its
  * minute-by-minute tables of each run's event log, its walkthrough files, how voicecap came to be,

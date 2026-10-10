@@ -12,13 +12,14 @@
  * newline at the end, so the same model gives the same bytes. Its parts follow the Markdown's: the
  * note (`AI_TEXT.about`, which both files carry), the header (the site's name and the dates, with
  * its address last), At a glance as `verdict`, `summary`, and `counts`, What needs attention, Every
- * page, and the details (what is still to do and how complete the test was, what changed since the
- * last run, what the results cover, the runs and their evidence, the problems during them, and the
- * fingerprints), then when it was made. A page has its findings first and its transcripts last, as
- * the Markdown has them, so a reader of the start of a long file sees what was found before every
- * word NVDA said: its address, title, and status, its first lines, its flags, axe's results, and
- * the review, then its transcripts (where they are from, a note on them, and their steps). Each of
- * a page's two notes sits beside the list it explains.
+ * page (`pages`, then `noLongerListed`: the pages earlier runs tested that the latest list no
+ * longer has), and the details (what is still to do and how complete the test was, what changed
+ * since the last run, what the results cover, the runs and their evidence, the problems during
+ * them, and the fingerprints), then when it was made. A page has its findings first and its
+ * transcripts last, as the Markdown has them, so a reader of the start of a long file sees what was
+ * found before every word NVDA said: its address, title, and status, its first lines, its flags,
+ * axe's results, and the review, then its transcripts (where they are from, a note on them, and
+ * their steps). Each of a page's two notes sits beside the list it explains.
  *
  * What it leaves out is what a file of data has no use for: the page's pictures and charts, each
  * run's minute-by-minute event log, its walkthrough files, how voicecap came to be, and the
