@@ -12,7 +12,7 @@
 import type { ShareResult } from "../model.js";
 import { plural } from "../report/html.js";
 import { dateAndTime, longDate } from "../share/format.js";
-import { MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+import { MAC_HASH, POWERSHELL_HASH, TOP_TEXT, VOICE_TEXT } from "../share/text.js";
 
 /** The website's title, which its own page is headed by, and which every page's title ends with. */
 const SITE_TITLE = "Screen reader test results";
@@ -172,7 +172,7 @@ export const SITE_TEXT = {
    */
   files: {
     page: "The report, to open",
-    voice: "NVDA's voice",
+    voice: VOICE_TEXT.eyebrow,
     word: "The Word copy",
     walkthrough: (run: string | null): string =>
       run === null ? "A walkthrough file" : `The walkthrough file of run ${run}`,

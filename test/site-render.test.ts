@@ -23,6 +23,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { DEMO_CANONICAL } from "../src/demo/server.js";
 import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { SHARE_CSS, THEME_CSS } from "../src/share/html/style.js";
+import { VOICE_TEXT } from "../src/share/text.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import { backLink, siteBar, siteFooter, sitePage, type SitePage } from "../src/site/frame.js";
 import { inlineHashes } from "../src/site/headers.js";
@@ -1270,6 +1271,8 @@ describe("renderSiteIndex", () => {
         `${label} ${name} ${size}, SHA-256 ${fingerprintOf(name)}`;
 
       expect(SITE_TEXT.files.voice).toBe("NVDA's voice");
+      // It's what the voice page calls itself, above the site's name, from one place.
+      expect(SITE_TEXT.files.voice).toBe(VOICE_TEXT.eyebrow);
       expect(filesIn(block ?? "")).toEqual([
         item("The report, to open", `${DVFR}_2026-10-03.html`, "324 KB"),
         item("The Word copy", `${DVFR}_2026-10-03.docx`, "51 KB"),

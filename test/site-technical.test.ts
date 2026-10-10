@@ -416,13 +416,22 @@ describe("renderTechnical", () => {
     const shown = bodyOf(tableOf(html, "toolchain"));
 
     expect(rows.length).toBeGreaterThan(10);
+    // The one row that says more than its package's license: libopus-wasm holds libopus, a C library
+    // of Xiph.Org's under a BSD license of its own, which the package's notice gives as it ships it.
+    const NOTES: Record<string, string> = { "libopus-wasm": " (libopus: BSD, Xiph.Org)" };
     for (const { npm = "", license, tool } of rows) {
       const installed = JSON.parse(
         readFileSync(path.join(packageRoot(), "node_modules", npm, "package.json"), "utf8"),
       ) as { license?: unknown };
-      expect(license, npm).toBe(installed.license);
+      expect(license, npm).toBe(`${String(installed.license)}${NOTES[npm] ?? ""}`);
       expect(shown.find(([name]) => name === tool)?.[2], npm).toBe(license);
     }
+    const notice = readFileSync(
+      path.join(packageRoot(), "node_modules", "libopus-wasm", "THIRD_PARTY_NOTICES.md"),
+      "utf8",
+    );
+    expect(notice).toMatch(/Xiph\.Org/);
+    expect(notice).toMatch(/BSD/);
     // Every package voicecap installs to run has its row, and voicecap's own license is its own.
     expect(
       Object.keys(own.dependencies).filter((name) => !rows.some((row) => row.npm === name)),
@@ -481,7 +490,7 @@ describe("renderTechnical", () => {
     expect(bodyOf(tableOf(html, "toolchain")).find(([tool]) => tool === "libopus-wasm")).toEqual([
       "libopus-wasm",
       `Encodes each page's recording of NVDA's voice as Opus, in a small WebM file: ${libopus} compiled to WebAssembly. This package is pinned at version ${version}, so that the same sound always gives the same file`,
-      "MIT",
+      "MIT (libopus: BSD, Xiph.Org)",
       "A run",
     ]);
     // It links to its package on npm, as each package's row does, and the row is the one row for it.

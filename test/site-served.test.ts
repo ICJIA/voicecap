@@ -777,14 +777,20 @@ describe("a share's voice page, served as Netlify serves it", () => {
       }
     });
 
-    await expect
-      .poll(() => violationsOf(page))
-      .toEqual(expect.arrayContaining([expect.stringMatching(/^media-src blocked data/)]));
+    // Each of the three players is refused twice: once as the page loads (its element holds the
+    // recording's address, and that is a load the policy refuses), and once more when it's asked to
+    // load, above. The page is held until every refusal has come, here and in the console's messages,
+    // which reach the test a moment after the page's own, and which are read just after: one that
+    // came later would be taken for something the page did wrong, when the test ends.
+    const players = await page.locator("audio").count();
+    expect(players).toBe(3);
+    await expect.poll(async () => (await violationsOf(page)).length).toBe(players * 2);
+    await expect.poll(() => reported.length).toBe(players * 2);
     const refused = await violationsOf(page);
     expect(refused.every((violation) => violation.startsWith("media-src blocked data"))).toBe(true);
     // What the browser reported to its console is those refusals, and nothing else.
     const messages = reported.splice(0);
-    expect(messages.length).toBeGreaterThan(0);
+    expect(messages).toHaveLength(players * 2);
     for (const message of messages) expect(message).toContain("Content Security Policy");
   });
 

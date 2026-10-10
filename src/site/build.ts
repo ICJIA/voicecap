@@ -469,10 +469,10 @@ function redirectRules(
       .flatMap(({ reports }) => reports)
       .flatMap(({ files }) => files)
       .flatMap(({ kind, href }) =>
-        // A page, a voice page too, is served at its own address and at the same without ".html".
-        kind === "page" || kind === "voice"
-          ? [`/${href}`, `/${href.slice(0, -".html".length)}`]
-          : [`/${href}`],
+        // A report's page is served at its own address and at the same without ".html". A voice page
+        // is too, but its form without ".html" is never a rule's address: a rule is for a report's
+        // page, and none is named `.voice.html` (see fileKind), so its address is the only one taken.
+        kind === "page" ? [`/${href}`, `/${href.slice(0, -".html".length)}`] : [`/${href}`],
       ),
   );
   const rules: RedirectRule[] = [];

@@ -85,9 +85,8 @@ const DOT_AT_EDGE = /^\.|\.$/;
 /**
  * What a published file's name ends with: .html (a page, or, as .voice.html, a share's voice page),
  * .docx (its Word copy), or .json (a walkthrough file), in lower case, as voicecap names its
- * copies. Any other kind would be served
- * from the site's own address with no policy of its own, and an .svg or an .htm that holds a script
- * would run there.
+ * copies. Any other kind would be served from the site's own address with no policy of its own, and
+ * an .svg or an .htm that holds a script would run there.
  */
 const PUBLISHED_KIND = /\.(?:html|docx|json)$/;
 /**

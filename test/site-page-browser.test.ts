@@ -625,7 +625,11 @@ describe("the site's page", () => {
     "passes axe with zero violations, dark and light, with each kind of verdict on a card",
     async () => {
       const page = await open(files.verdicts);
+      // Closed, a fold's files aren't drawn, so axe wouldn't check them: this page has a share's voice
+      // page among them, listed as NVDA's voice, and the folds are opened so that axe sees it.
+      await openFolds(page);
       expect(await page.locator("p.verdict").count()).toBe(3);
+      expect(await page.locator("li", { hasText: "NVDA's voice" }).isVisible()).toBe(true);
 
       expect(await axeFindings(page, 1280), "dark").toEqual([]);
       await page.locator("#theme-toggle").click();
