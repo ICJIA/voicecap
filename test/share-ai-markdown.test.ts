@@ -1030,11 +1030,11 @@ describe("renderAiMarkdown", () => {
   it("names no one who prepared it when the records name no one, and the voicecap of an older run", () => {
     const lines = renderAiMarkdown(demo).split("\n");
 
-    expect(lines[0]).toBe("# Screen reader review: voicecap.netlify.app");
+    expect(lines[0]).toBe("# Screen reader review: voicecap.icjia.app");
     expect(lines[2]).toBe(
       "Tested 29 September 2026, 14:02 · As of 30 September 2026 · Screen reader: NVDA · Run with voicecap 0.4.1",
     );
-    expect(lines[4]).toBe("Site address: `https://voicecap.netlify.app/demo-site/`");
+    expect(lines[4]).toBe("Site address: `https://voicecap.icjia.app/demo-site/`");
   });
 
   it("says a run's record names no voicecap in the page's words, when it doesn't", () => {
@@ -1842,7 +1842,7 @@ describe("renderAiMarkdown", () => {
     // What the results cover, the two bars, and what is still to do. The sitemap's address is
     // voicecap's own, so it is in code.
     expect(sectionOf(details, 3, "What these results cover")).toContain(
-      "- 7 pages from the sitemap `https://voicecap.netlify.app/demo-site/sitemap.xml`.",
+      "- 7 pages from the sitemap `https://voicecap.icjia.app/demo-site/sitemap.xml`.",
     );
     expect(sectionOf(details, 3, "Flags by rule")).toContain("- `generic-link-text`: 2");
     expect(sectionOf(details, 3, "The human review")).toContain("- Transcripts reviewed: 0 of 7");
@@ -1852,7 +1852,7 @@ describe("renderAiMarkdown", () => {
     // The page's own line, in its own words: the owner keeps "a closer listen" for what flags
     // point to. The page's address is voicecap's own, so it is in code.
     expect(todo).toContain(
-      "- Take a closer listen to `https://voicecap.netlify.app/demo-site/common-mistakes/`, where flags were raised, and record what you decide.",
+      "- Take a closer listen to `https://voicecap.icjia.app/demo-site/common-mistakes/`, where flags were raised, and record what you decide.",
     );
     // Take that phrase out, and nothing else in the list says "listen": no one is said to have listened.
     expect(todo.replaceAll("Take a closer listen to", "")).not.toMatch(/listen/i);

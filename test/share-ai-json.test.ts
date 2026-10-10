@@ -1181,12 +1181,12 @@ describe("renderAiJson", () => {
   it("names no one who prepared it when the records name no one, and the voicecap of an older run", () => {
     const report = reportOf(demo);
 
-    expect(report.site).toBe("voicecap.netlify.app");
+    expect(report.site).toBe("voicecap.icjia.app");
     expect(report.testedAt).toBe("29 September 2026, 14:02");
     expect(report.asOf).toBe("30 September 2026");
     expect(report.preparedBy).toBeNull();
     expect(report.voicecapVersion).toBe("0.4.1");
-    expect(report.siteAddress).toBe("https://voicecap.netlify.app/demo-site/");
+    expect(report.siteAddress).toBe("https://voicecap.icjia.app/demo-site/");
   });
 
   it("says a run's record names no voicecap in the page's words, when it doesn't, and names none when no run counts", () => {
