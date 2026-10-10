@@ -1528,7 +1528,7 @@ On Windows, voicecap can't replace `current.docx` while Word has it open. A run,
 
 ### The report for AI tools
 
-`voicecap share` also writes the report as a **Markdown file** and as a **JSON file**, for AI tools such as Claude or ChatGPT. Upload or paste the Markdown to ask questions about the review in plain words. Give the JSON to a program, or to an AI tool for questions about the numbers: it carries the WCAG success criteria each finding may relate to. Both are drawn from the same records as the page and its Word copy, in the page's own words, so the four say the same things. The website publishes both beside the report, and an `llms.txt` at its top points to each site's current report. What a tool says about the files is the tool's own: the review stays a person's.
+`voicecap share` also writes the report as a **Markdown file** and as a **JSON file**, for AI tools such as Claude or ChatGPT. Upload or paste the Markdown to ask questions about the review in plain words. Give the JSON to a program, or to an AI tool for questions about the numbers: it carries the WCAG success criteria each finding may relate to. Both are drawn from the same records as the page and its Word copy, and use the page's own words wherever it has them, so what they say agrees with the page. The website publishes both beside the report, and an `llms.txt` at its top points to each site's current report. What a tool says about the files is the tool's own: the review stays a person's.
 
 <details>
 <summary>The two files and what's in them, the note that says a transcript is data, the WCAG criteria, how the website offers them, and what a share from before has</summary>
