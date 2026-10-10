@@ -14,6 +14,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { PassName, ReviewsFile } from "../src/model.js";
+import { runPass } from "../src/passes/index.js";
 import {
   escapeSentence,
   fenced,
@@ -30,9 +31,10 @@ import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import * as text from "../src/share/text.js";
 import { byteCount, heardFirstLine } from "../src/share/words.js";
-import { stepLine } from "../src/transcripts/format.js";
+import { bodyLines, stepLine } from "../src/transcripts/format.js";
 import { fileHash } from "../src/transcripts/write.js";
 import { rawNode, rawRule, type RawAxeRule } from "./helpers/raw-axe.js";
+import { ScriptedDriver } from "./helpers/scripted-driver.js";
 import { withCards } from "./helpers/share-attention.js";
 import { failedAttempt, shareRun } from "./helpers/share-data.js";
 import {
@@ -2792,6 +2794,50 @@ describe("stepsOf", () => {
       { n: 1, key: "Ctrl+End", said: "a" },
       { n: 2, key: "Ctrl+End", said: "b" },
     ]);
+  });
+
+  // The read pass voicecap runs (src/passes/read.ts) presses Ctrl+End once more at the repeat limit,
+  // as its last step, and its transcript writes that step as it writes the first Ctrl+End
+  // (src/transcripts/format.ts). The real pass and the real transcript lines are read here, so a
+  // change to either that parts them from these files fails.
+  it("reads a real read pass that pressed Ctrl+End again at the repeat limit, each step with its own key", async () => {
+    // r3.illinois.gov's case: Ctrl+End from the top says the contact link, and the page's end moves
+    // to a "Scroll to top" button as NVDA reads down, which NVDA then repeats.
+    const url = "https://example.illinois.gov/page";
+    const driver = new ScriptedDriver([
+      {
+        url,
+        lines: [
+          "banner landmark, link, Home",
+          "heading, level 1, Meetings",
+          "link, Contact",
+          "button, Scroll to top",
+        ],
+        bottom: ["link, Contact", "button, Scroll to top"],
+      },
+    ]);
+    await driver.openPage(url);
+    const result = await runPass("read", driver, {
+      cap: 400,
+      repeatLimit: 10,
+      endConfirmations: 1,
+      noNextHeading: /^no next heading$/i,
+      stepTimeoutMs: 1000,
+    });
+    const body = bodyLines({ steps: result.steps, pass: "read" });
+
+    expect(result.stopReason).toBe("end-reached");
+    expect(body.at(-1)).toBe("[to bottom] button, Scroll to top");
+    const steps = stepsOf(transcript("read", body));
+    // Ctrl+End, Ctrl+Home, the twelve lines to the tenth "Scroll to top", and Ctrl+End again.
+    expect(steps.map(({ key }) => key)).toEqual([
+      "Ctrl+End",
+      "Ctrl+Home",
+      ...Array.from({ length: 12 }, () => "Down Arrow"),
+      "Ctrl+End",
+    ]);
+    expect(steps[0]).toEqual({ n: 1, key: "Ctrl+End", said: "link, Contact" });
+    expect(steps.at(-1)).toEqual({ n: 15, key: "Ctrl+End", said: "button, Scroll to top" });
   });
 
   it("never cuts words that begin like a label anywhere else: in the middle of the read pass, twice, or in another pass", () => {
