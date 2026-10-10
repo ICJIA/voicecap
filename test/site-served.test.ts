@@ -377,7 +377,7 @@ describe("the site, served as Netlify serves it", () => {
     }
   });
 
-  it("serves a share's Markdown and JSON to be read in the browser: with their types, no attachment, and the text as it was shared", async () => {
+  it("serves a share's Markdown and JSON to be read in the browser: with their types, no attachment, a policy that runs nothing in them, and the text as it was shared", async () => {
     const page = await newPage();
     const site = built.content.sites.find(({ folders }) => folders.includes(FIXTURE_FOLDER));
     const report = site?.reports[0];
@@ -396,7 +396,10 @@ describe("the site, served as Netlify serves it", () => {
       expect(response?.status(), file.name).toBe(200);
       expect(response?.headers()["content-type"], file.name).toBe(types[kind]);
       expect(response?.headers()["content-disposition"], file.name).toBeUndefined();
-      expect(response?.headers()["content-security-policy"], file.name).toBeUndefined();
+      // Under a policy that loads nothing and runs nothing in it: the text is shown all the same.
+      expect(response?.headers()["content-security-policy"], file.name).toBe(
+        "default-src 'none'; sandbox",
+      );
       // What it shows is the file's text, whole, as shared.
       const shared = await readFile(path.join(built.out, file.href), "utf8");
       expect(await page.locator("pre").textContent(), file.name).toBe(shared);

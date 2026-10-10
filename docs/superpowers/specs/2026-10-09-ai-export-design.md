@@ -89,7 +89,7 @@ The Markdown stays a file a tool takes as an upload: for the i2i fixture's 32 pa
 
 ## The website
 
-- **The files:** the site publishes both files of a share, as it does the page and its Word copy. The Markdown is served as `text/markdown; charset=utf-8` and the JSON as `application/json; charset=utf-8`, neither with a `Content-Disposition`, so a browser can show them where it can; the link to each on the page saves it. The walkthrough files keep their download. The website tells a walkthrough file by its `_walkthrough.json` ending, since the report's JSON ends in `.json` too.
+- **The files:** the site publishes both files of a share, as it does the page and its Word copy. The Markdown is served as `text/markdown; charset=utf-8` and the JSON as `application/json; charset=utf-8`, each with `Content-Security-Policy: default-src 'none'; sandbox` and neither with a `Content-Disposition`, so a browser can show them where it can; the link to each on the page saves it. The walkthrough files keep their download. The website tells a walkthrough file by its `_walkthrough.json` ending, since the report's JSON ends in `.json` too.
 - **A site's current report** gets one line under its buttons: "For AI tools such as Claude or ChatGPT: the report as Markdown, or as JSON". It shows only when the share has them and the site published them. Earlier reports keep their one line, with their page and Word links, and their two files are in the files' fold, as "For AI tools (Markdown)" and "For AI tools (JSON)", with each report's files. The demo's card is a current report's, so it has the line too when its share has the files.
 - **`llms.txt`** at the site's root, after the llms.txt convention (llmstxt.org). Its links are relative, as the page's are, since the build doesn't know the website's address:
   - the website's name as its title, and a one-line summary;
@@ -169,3 +169,4 @@ Each is easy to change:
 - **A renderer that throws stops the share,** with nothing written, so every share this release makes has both files.
 - **Only a site's current report has the card's line;** earlier reports keep their one line, with the files in the fold. `llms.txt` has an "Optional" section, lists only current reports that have the files, never the demo, with relative links.
 - **The JSON is served with a charset:** `application/json; charset=utf-8`.
+- **Both files are served under a policy of their own:** `Content-Security-Policy: default-src 'none'; sandbox`, which the design didn't have. They are text, so nothing in them needs to load or run, and the policy keeps it so beside their types.

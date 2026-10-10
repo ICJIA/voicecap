@@ -155,6 +155,11 @@ const CSP = "Content-Security-Policy";
 const DEMO_PAGES = "demo-site";
 /** The demo's canonical address: its own pages are published there, in demo-site/. */
 const DEMO_CANONICAL = "https://voicecap.netlify.app/demo-site/";
+/**
+ * The policy each of a share's Markdown and JSON is served with: they are text to read, so a browser
+ * is told to load nothing and run nothing in them, whatever they hold.
+ */
+const AI_FILE_POLICY = "default-src 'none'; sandbox";
 /** The policy each of the demo's pages is served with, at each address it answers at. */
 const DEMO_POLICY =
   "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
@@ -685,7 +690,8 @@ describe("buildSite", () => {
     // their own (each with the policy of its own bytes), the demo's own pages by a rule for each
     // address each answers at, then each published file in the order the site lists them: a page
     // at both its addresses, with the policy of its own bytes, fonts and all, a Word copy or a
-    // walkthrough file as a download, and the report for AI tools as text to read, with its type.
+    // walkthrough file as a download, and the report for AI tools as text to read, with its type
+    // and a policy that lets nothing load or run in it.
     const trustPolicy = contentSecurityPolicy(inlineHashes(trust), { fonts: false });
     const whatsNewPolicy = contentSecurityPolicy(inlineHashes(whatsNew), { fonts: false });
     const technicalPolicy = contentSecurityPolicy(inlineHashes(technical), { fonts: false });
@@ -711,9 +717,21 @@ describe("buildSite", () => {
       } else if (file.kind === "word" || file.kind === "walkthrough") {
         expected.push([`/${file.href}`, [["Content-Disposition", "attachment"]]]);
       } else if (file.kind === "markdown") {
-        expected.push([`/${file.href}`, [["Content-Type", "text/markdown; charset=utf-8"]]]);
+        expected.push([
+          `/${file.href}`,
+          [
+            ["Content-Type", "text/markdown; charset=utf-8"],
+            [CSP, AI_FILE_POLICY],
+          ],
+        ]);
       } else if (file.kind === "data") {
-        expected.push([`/${file.href}`, [["Content-Type", "application/json; charset=utf-8"]]]);
+        expected.push([
+          `/${file.href}`,
+          [
+            ["Content-Type", "application/json; charset=utf-8"],
+            [CSP, AI_FILE_POLICY],
+          ],
+        ]);
       }
     }
     expect(rules).toEqual(expected);
@@ -1257,9 +1275,12 @@ describe("buildSite", () => {
           const original = await readFile(path.join(home, from, "share", name));
           expect(copy.equals(original), name).toBe(true);
           expect(copy.length, name).toBeGreaterThan(0);
-          // Served as text, in UTF-8, to be read in the browser: _headers gives its type, and nothing
-          // that would save the file in its place.
-          expect(rules.get(`/${on}/${name}`), name).toEqual([["Content-Type", type]]);
+          // Served as text, in UTF-8, to be read in the browser: _headers gives its type, a policy
+          // that lets nothing load or run in it, and nothing that would save the file in its place.
+          expect(rules.get(`/${on}/${name}`), name).toEqual([
+            ["Content-Type", type],
+            [CSP, AI_FILE_POLICY],
+          ]);
         }
       }
       // They're the report's files of two kinds the site tells apart, with no run, and in the record's order
@@ -1273,13 +1294,15 @@ describe("buildSite", () => {
         ["walkthrough", "2026-09-29_1315"],
         ["walkthrough", "2026-09-29_1402"],
       ]);
-      // No rule of _headers saves one, and none of a page's policy is theirs.
+      // No rule of _headers saves one, and the only policy of one is the policy that lets nothing
+      // load or run in it, never a page's, which allows its own script and style.
       for (const [rulePath, headers] of rules) {
         if (!/\.(?:md|json)$/.test(rulePath) || /_walkthrough\.json$/.test(rulePath)) continue;
         expect(
           headers.map(([header]) => header),
           rulePath,
-        ).toEqual(["Content-Type"]);
+        ).toEqual(["Content-Type", CSP]);
+        expect(headers.find(([header]) => header === CSP)?.[1], rulePath).toBe(AI_FILE_POLICY);
       }
     });
 

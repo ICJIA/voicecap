@@ -12,6 +12,7 @@ import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { renderSharePage } from "../src/share/html/document.js";
 import { SHARE_CSS } from "../src/share/html/style.js";
 import {
+  AI_FILE_POLICY,
   contentSecurityPolicy,
   DEMO_SITE_POLICY,
   demoSiteRules,
@@ -21,6 +22,7 @@ import {
   inlineHashes,
   JSON_TYPE,
   MARKDOWN_TYPE,
+  POLICY_HEADER,
   REDIRECTS_FIRST_LINE,
   redirectsFile,
   type RedirectRule,
@@ -615,20 +617,40 @@ describe("ROBOTS_TXT", () => {
   });
 });
 
-describe("the types of a share's report for AI tools", () => {
+describe("the types and the policy of a share's report for AI tools", () => {
   it("serves the Markdown as text/markdown and the JSON as application/json, each in UTF-8", () => {
     expect(TYPE_HEADER).toBe("Content-Type");
     expect(MARKDOWN_TYPE).toBe("text/markdown; charset=utf-8");
     expect(JSON_TYPE).toBe("application/json; charset=utf-8");
   });
 
-  it("writes each as a rule Netlify reads, with its type and no attachment", () => {
+  it("allows each no resource and no script, form, or popup: nothing is loaded, and nothing runs", () => {
+    expect(POLICY_HEADER).toBe("Content-Security-Policy");
+    expect(AI_FILE_POLICY).toBe("default-src 'none'; sandbox");
+    // It holds no hash and allows no source: a text file has no code of its own, so a script it
+    // could be made to hold has nothing to run under. And `sandbox` has no allow- value.
+    expect(AI_FILE_POLICY).not.toMatch(/sha256|'self'|'unsafe|data:|allow-/);
+  });
+
+  it("writes each as a rule Netlify reads, with its type and its policy and no attachment", () => {
     const markdown = "/dvfr.illinois.gov/dvfr.illinois.gov_2027-01-15.md";
     const json = "/dvfr.illinois.gov/dvfr.illinois.gov_2027-01-15.json";
 
     const text = headersFile([
-      { path: markdown, headers: [[TYPE_HEADER, MARKDOWN_TYPE]] },
-      { path: json, headers: [[TYPE_HEADER, JSON_TYPE]] },
+      {
+        path: markdown,
+        headers: [
+          [TYPE_HEADER, MARKDOWN_TYPE],
+          [POLICY_HEADER, AI_FILE_POLICY],
+        ],
+      },
+      {
+        path: json,
+        headers: [
+          [TYPE_HEADER, JSON_TYPE],
+          [POLICY_HEADER, AI_FILE_POLICY],
+        ],
+      },
     ]);
 
     expect(text).toBe(
@@ -637,9 +659,11 @@ describe("the types of a share's report for AI tools", () => {
         "",
         markdown,
         "  Content-Type: text/markdown; charset=utf-8",
+        "  Content-Security-Policy: default-src 'none'; sandbox",
         "",
         json,
         "  Content-Type: application/json; charset=utf-8",
+        "  Content-Security-Policy: default-src 'none'; sandbox",
         "",
       ].join("\n"),
     );

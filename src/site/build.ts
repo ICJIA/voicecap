@@ -91,6 +91,7 @@ import { OS_LITTER } from "../util/os-litter.js";
 import { voicecapVersion } from "../util/version.js";
 import { readVoicecapFacts, recordFactsOf, type VoicecapFacts } from "./facts.js";
 import {
+  AI_FILE_POLICY,
   contentSecurityPolicy,
   demoSiteRules,
   headersFile,
@@ -982,28 +983,52 @@ async function readCopy(
  * The rules of _headers for one published file, from the bytes written: a page is given the policy of
  * its own bytes at its address and at the same without ".html", which is how Netlify serves it too;
  * a Word copy and a walkthrough file are downloads; the report for AI tools is text to read in the
- * browser, given its type (the Markdown's and the JSON's, see ./headers.ts) and no attachment; any
- * other file has none.
+ * browser, given its type and a policy that runs nothing in it (the Markdown's and the JSON's, see
+ * ./headers.ts) and no attachment; any other file has none.
+ *
+ * Every kind is met here, with `never` after them, so a kind that is added to `PublishedFile` and
+ * left without its rules is a type error, not a file served with no policy and no type.
  */
 function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
   const address = `/${file.href}`;
-  if (file.kind === "page") {
-    const policy = contentSecurityPolicy(inlineHashes(bytes.toString("utf8")));
-    return [
-      { path: address, headers: [[POLICY_HEADER, policy]] },
-      { path: address.slice(0, -".html".length), headers: [[POLICY_HEADER, policy]] },
-    ];
+  switch (file.kind) {
+    case "page": {
+      const policy = contentSecurityPolicy(inlineHashes(bytes.toString("utf8")));
+      return [
+        { path: address, headers: [[POLICY_HEADER, policy]] },
+        { path: address.slice(0, -".html".length), headers: [[POLICY_HEADER, policy]] },
+      ];
+    }
+    case "word":
+    case "walkthrough":
+      return [{ path: address, headers: [["Content-Disposition", "attachment"]] }];
+    case "markdown":
+      return [
+        {
+          path: address,
+          headers: [
+            [TYPE_HEADER, MARKDOWN_TYPE],
+            [POLICY_HEADER, AI_FILE_POLICY],
+          ],
+        },
+      ];
+    case "data":
+      return [
+        {
+          path: address,
+          headers: [
+            [TYPE_HEADER, JSON_TYPE],
+            [POLICY_HEADER, AI_FILE_POLICY],
+          ],
+        },
+      ];
+    case "other":
+      return [];
+    default: {
+      const _exhaustive: never = file.kind;
+      return _exhaustive;
+    }
   }
-  if (file.kind === "word" || file.kind === "walkthrough") {
-    return [{ path: address, headers: [["Content-Disposition", "attachment"]] }];
-  }
-  if (file.kind === "markdown") {
-    return [{ path: address, headers: [[TYPE_HEADER, MARKDOWN_TYPE]] }];
-  }
-  if (file.kind === "data") {
-    return [{ path: address, headers: [[TYPE_HEADER, JSON_TYPE]] }];
-  }
-  return [];
 }
 
 /**
