@@ -18,7 +18,8 @@
  * here, and a card's parts are paragraphs and lists, which a heading of their own would only repeat
  * across every card.
  */
-import { esc, idFragment } from "../../report/html.js";
+import { esc } from "../../report/html.js";
+import { cardAnchor } from "../anchors.js";
 import type { AttentionCard } from "../attention.js";
 import { attentionWords, type AttentionWords } from "../attention-words.js";
 import type { ShareModel } from "../model.js";
@@ -67,7 +68,7 @@ function fixOf(fix: AttentionWords["fixes"][number]): string {
  */
 function pagesOf(card: AttentionCard): string {
   const items = card.pages.map(({ slug, name, detail }) => {
-    const link = `<a href="#pg-${idFragment(slug)}">${esc(name)}</a>`;
+    const link = `<a href="#${cardAnchor(slug)}">${esc(name)}</a>`;
     return `<li>${detail === null || detail.trim() === "" ? link : `${link}: ${esc(detail)}`}</li>`;
   });
   const list = `<ul>${items.join("")}</ul>`;

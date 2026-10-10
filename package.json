@@ -70,6 +70,7 @@
     "fast-xml-parser": "^5.11.1",
     "jiti": "^2.7.0",
     "jsonc-parser": "^3.3.1",
+    "libopus-wasm": "0.4.1",
     "picomatch": "^4.0.7",
     "playwright": "^1.63.0",
     "zod": "^4.6.5"

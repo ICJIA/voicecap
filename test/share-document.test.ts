@@ -8,6 +8,7 @@
  * The page's own script is tried in Chromium too, on the demo's page opened from a file: the theme,
  * the two buttons it shows, and that each part of the page's one script starts on its own.
  */
+import { createHash } from "node:crypto";
 import type * as FsPromises from "node:fs/promises";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,17 +29,20 @@ import { renderSharePage } from "../src/share/html/document.js";
 import { SHARE_CSS } from "../src/share/html/style.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { STORY } from "../src/share/text.js";
+import { wordOutline } from "../src/share/word/outline.js";
 import { launchBrowser } from "./helpers/axe.js";
 import { paragraphsOf, unzipDocx } from "./helpers/docx.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
 import { rawNode, rawRule } from "./helpers/raw-axe.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
+import { i2iModel } from "./helpers/share-attention.js";
 import { attributes, decode, foldsIn, textOf } from "./helpers/share-html.js";
 import {
   AXE_RAN_AT,
   axeFilesOf,
   demoModel,
   downloadOf,
+  heldRecordings,
   inputOf,
   keptAxe,
   LINES,
@@ -46,6 +50,8 @@ import {
   picturesOf,
   storeOf,
   TRANSCRIPTS,
+  VOICE_PAGE,
+  voiceRecord,
   withNestedSettings,
 } from "./helpers/share-model.js";
 
@@ -62,6 +68,12 @@ const LINKS_OUT = [
 
 /** Where axe's pages on its rules are: a card's fold links to the page on each rule it names. */
 const AXE_RULES = "https://dequeuniversity.com/rules/axe/";
+
+/**
+ * A link to the voice page, which a share writes beside the page, in the same folder: a file's name,
+ * by itself, ending `.voice.html`, and at most the id of a section of it (`#voice-…`).
+ */
+const VOICE_LINK = /^[A-Za-z0-9._-]+\.voice\.html(#voice-[A-Za-z0-9_-]+)?$/;
 
 /**
  * The sections' headings, in the spec's order. What needs attention is there only when a card
@@ -214,6 +226,42 @@ function shotsModel(): ShareModel {
   });
   return buildShareModel(
     inputOf([run], { transcripts: storeOf(), screenshots: picturesOf([run]) }),
+  );
+}
+
+/**
+ * A run of voicecap 0.18.0 whose three pages NVDA's voice was recorded on, beside the page a share
+ * writes (VOICE_PAGE): each card links to its page's section of the voice page, and the details
+ * link to the voice page itself. The third page failed after it was recorded, so its card has no
+ * transcripts and a line all the same.
+ */
+function voiceModel(): ShareModel {
+  const run = shareRun({
+    id: "2026-10-09_0900",
+    voicecapVersion: "0.18.0",
+    pages: [
+      { path: "/", files: TRANSCRIPTS, passes: LINES, voice: voiceRecord(134.2) },
+      {
+        path: "/grants/",
+        label: "Grants",
+        files: TRANSCRIPTS,
+        passes: LINES,
+        voice: voiceRecord(61),
+      },
+      {
+        path: "/apply/",
+        status: "failed",
+        failedAttempts: [failedAttempt({ n: 1 })],
+        voice: voiceRecord(7),
+      },
+    ],
+  });
+  return buildShareModel(
+    inputOf([run], {
+      transcripts: storeOf(),
+      recordings: heldRecordings([run]),
+      voiceName: VOICE_PAGE,
+    }),
   );
 }
 
@@ -400,6 +448,28 @@ function sharedSite(withAxe: boolean): { model: ShareModel; axeBytes: number } {
   return { model, axeBytes };
 }
 
+/**
+ * A run of voicecap 0.18.0 of 32 pages, each read in full, as a share makes its model: the voice
+ * page beside it (VOICE_PAGE), and, `withVoice`, each page recorded, with its file held. Without,
+ * no page has a record of a recording, as for a run whose driver doesn't record.
+ */
+function voicedSite(withVoice: boolean): ShareModel {
+  const pages = Array.from({ length: 32 }, (_, at): SharePageSpec => ({
+    path: `/page-${at + 1}/`,
+    files: TRANSCRIPTS,
+    passes: LINES,
+    ...(withVoice ? { voice: voiceRecord(60 + at) } : {}),
+  }));
+  const run = shareRun({ id: "2026-10-09_0900", voicecapVersion: "0.18.0", pages });
+  return buildShareModel(
+    inputOf([run], {
+      transcripts: storeOf(),
+      recordings: heldRecordings([run]),
+      voiceName: VOICE_PAGE,
+    }),
+  );
+}
+
 /** A site whose only run was a replay, so no run counts yet. */
 function noRunModel(): ShareModel {
   return buildShareModel(
@@ -452,6 +522,7 @@ function unlistedLinks(markup: string): string[] {
       .filter((href) => {
         if (href.startsWith("#") || LINKS_OUT.includes(href)) return false;
         if (link && href.startsWith(AXE_RULES)) return false;
+        if (link && VOICE_LINK.test(href)) return false;
         const file = link && DOWNLOAD_ADDRESS.test(href);
         return !(file && download.endsWith("_walkthrough.json"));
       })
@@ -549,6 +620,7 @@ describe("renderSharePage", () => {
       ["a run with its event log", loggedModel()],
       ["a run with its screenshots", shotsModel()],
       ["a run with its axe results", axeModel()],
+      ["a run with its recordings", voiceModel()],
     ];
     pages = models.map(([name, model]) => ({
       name,
@@ -790,6 +862,108 @@ describe("renderSharePage", () => {
     expect(page).toBeLessThan(1_750_000);
   });
 
+  it("adds no line, and no change, for a run from before 0.18.0", async () => {
+    // The shareable page and the Word copy's blocks for three models of runs from before voicecap
+    // recorded NVDA's voice: i2i's 32 pages, the demo's two runs, and a run with its log. Each is
+    // its length and SHA-256: the page as renderSharePage(model, { fontCss: "" }) gives it, without
+    // its fonts, and the blocks as JSON.stringify(wordOutline(model)) gives them. They were made
+    // with voicecap's last change before the voice page was linked (the voice page's own commit). The
+    // merge of main (0.16.1 and the fixes after it) re-pinned them from the merged code, since main's
+    // TIMELINE gained the rows of 0.15.0 and 0.16.0, which the story on every page and in every Word
+    // copy shows: each page grew by 564 characters, and each copy's blocks by 567. With those two
+    // rows taken out, the merged code gives the values pinned before it, exactly. A change to either,
+    // for such a run, fails here: plan 11 adds to a report only where a run recorded. A change meant
+    // for every report, such as a release's row of the timeline, re-pins them, and says so here.
+    // To re-pin one, log what the loop below computes ([page.length, sha(page)] and [word.length,
+    // sha(word)] of each model, the page without its fonts) and paste the new values in: a pin
+    // that changes for a reason that isn't such a change is the failure this test is for.
+    const before = {
+      i2i: {
+        page: [217_565, "efb20f2a24405c4d9df5c10585a02f616d8bf5c902c780975b81f50e37cbe33a"],
+        word: [59_697, "af3d85676afb0d7b743a7ed24b8677773529ca0064f217708130334171d43a39"],
+      },
+      demo: {
+        page: [252_001, "9a714838b59107bbfd96ced7acb48190ccccb3335bdb8326ed8254e1a2bd3877"],
+        word: [82_429, "da2845fc837fb8361bfc79108cba0e0168528b04965a2d1395ae96a8c55359ca"],
+      },
+      logged: {
+        page: [134_495, "92899550c3408156b849bb0822924095605ad4eacb65740ddfcde48a6ad5ea48"],
+        word: [41_199, "ad325426125c3d259f6e19251ba401f9c0d7c7b02b444d78339b67360f777eec"],
+      },
+    };
+    const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };
+    const sha = (text: string): string => createHash("sha256").update(text).digest("hex");
+
+    for (const [name, model] of Object.entries(models) as [keyof typeof models, ShareModel][]) {
+      const page = renderSharePage(model, { fontCss: "" });
+      const word = JSON.stringify(wordOutline(model));
+
+      expect([page.length, sha(page)], `${name}'s page`).toEqual(before[name].page);
+      expect([word.length, sha(word)], `${name}'s Word copy`).toEqual(before[name].word);
+      expect(model.voicePage, name).toBeNull();
+      expect(
+        model.pages.every((card) => card.voice === null),
+        name,
+      ).toBe(true);
+    }
+  });
+
+  it("keeps the shareable page's size: a 32-page share with recordings is no larger than without them, but for the lines", () => {
+    const withVoice = voicedSite(true);
+    const without = voicedSite(false);
+    const page = renderSharePage(withVoice, { fontCss: "" });
+    const bare = renderSharePage(without, { fontCss: "" });
+
+    // The recordings themselves are on the voice page: none is on this one, and the check's data has
+    // no recordings in it. It holds the runs' records as they were recorded, each page's `voice`
+    // among them (a fingerprint and a length: about 160 bytes a page), and that is all it gains.
+    expect(page).not.toContain("<audio");
+    expect(page).not.toMatch(/data:audio\/webm;base64,[A-Za-z0-9+/]/);
+    const data = /<script type="application\/json" id="fp-data">([\s\S]*?)<\/script>/;
+    const dataOf = (html: string): string => data.exec(html)?.[1] ?? "";
+    expect(JSON.parse(dataOf(page))).not.toHaveProperty("recordings");
+    expect(dataOf(page).length - dataOf(bare).length).toBeLessThan(32 * 200);
+    // What else it adds is a line on each of the 32 cards, a row for each recording among the run's
+    // fingerprints, and the details' paragraph, which says where the voice page is: take those out,
+    // and the data, and the page is the page it was.
+    const line =
+      /<p class="sub"><a href="[^"]*\.voice\.html#[^"]*">[^<]*<span class="sr">[^<]*<\/span><\/a><\/p>\s*/g;
+    const row =
+      /<tr><td>[^<]*<\/td><td>voice\.webm<\/td><td>[^<]*<\/td><td><code>[0-9a-f]{64}<\/code><\/td><\/tr>/g;
+    const paragraph = /<p class="gist">NVDA&#39;s voice:.*?<\/p>\s*/s;
+    expect(page.match(line)).toHaveLength(32);
+    expect(page.match(row)).toHaveLength(32);
+    expect(bare.match(line)).toBeNull();
+    expect(bare.match(row)).toBeNull();
+    // (The run's walkthrough file, which the page carries, holds its seal, which its records change.)
+    const plain = (html: string): string =>
+      withoutBase64Data(html)
+        .replace(line, "")
+        .replace(row, "")
+        .replace(paragraph, "")
+        .replace(data, "<script></script>");
+    expect(plain(page)).toBe(plain(bare));
+    // So it's a few hundred bytes a page: its line, its row, and its record, and nothing of the sound.
+    expect(Buffer.byteLength(page) - Buffer.byteLength(bare)).toBeLessThan(32 * 800 + 700);
+  });
+
+  it("allows a link to the voice page, beside the page, and no other file", () => {
+    const own = `<a href="${VOICE_PAGE}#voice-home">x</a><a href="${VOICE_PAGE}">y</a>`;
+
+    expect(unlistedLinks(own)).toEqual([]);
+    const refused: [why: string, link: string][] = [
+      ["a page that isn't the voice page", '<a href="report.html#voice-home">x</a>'],
+      ["a folder above", '<a href="../report.voice.html">x</a>'],
+      ["a folder below", '<a href="more/report.voice.html">x</a>'],
+      ["a path from the root", '<a href="/report.voice.html">x</a>'],
+      ["another site", '<a href="https://example.com/report.voice.html">x</a>'],
+      ["a query", '<a href="report.voice.html?a=b">x</a>'],
+      ["a section that isn't a page's", '<a href="report.voice.html#elsewhere">x</a>'],
+      ["a tag that isn't an <a>", '<area href="report.voice.html#voice-home">'],
+    ];
+    for (const [why, link] of refused) expect(unlistedLinks(link), why).toHaveLength(1);
+  });
+
   it("puts the sections in the spec's order, each h2 outside every fold, and What needs attention only with a card", () => {
     // Both kinds are among the pages: the demo's five cards, and a run whose pages need nothing.
     expect(new Set(pages.map(({ cards }) => cards === 0)).size).toBe(2);
@@ -844,8 +1018,12 @@ describe("renderSharePage", () => {
     // the check holds each card's fold of what axe found to its file: its counts, its chip, and each
     // rule's heading, impact, number of elements not listed, elements, and words on how to fix
     // them. That took it to about 30,400 characters, so its budget went from 30,000 to 32,000: room
-    // for a fix, and a script that grows past it is a choice to make here, on purpose.
-    expect((SHARE_SCRIPT + CHECK_SCRIPT).length).toBeLessThan(32_000);
+    // for a fix, and a script that grows past it is a choice to make here, on purpose. From 0.18.0
+    // the voice page's check holds each recording to its record in the same script (the page's
+    // players are `audio` elements as a screenshot's are `img`s, and a change caught can be one
+    // byte of a recording): about 2,000 characters more, 32,500 in all, so its budget is 34,000,
+    // the same room as before.
+    expect((SHARE_SCRIPT + CHECK_SCRIPT).length).toBeLessThan(34_000);
   });
 
   it("has a head with its language, its character set, the viewport, and the site's name", async () => {

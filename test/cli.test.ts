@@ -1828,7 +1828,7 @@ describe("voicecap share", () => {
 
     expect(help.code).toBe(0);
     expect(squeezed(help.out)).toContain(
-      "share [options] make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
+      "share [options] make a dated copy of the shareable page, its Word copy, a voice page when a page has a recording, and each run's walkthrough file to send, and record them",
     );
   });
 
@@ -1838,7 +1838,7 @@ describe("voicecap share", () => {
     expect(help.code).toBe(0);
     const said = squeezed(help.out);
     expect(said).toContain(
-      "make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
+      "make a dated copy of the shareable page, its Word copy, a voice page when a page has a recording, and each run's walkthrough file to send, and record them",
     );
     expect(said).toContain(
       "--site <url> the site's address, or its canonical address (default: the home's only site)",

@@ -197,7 +197,8 @@ export async function replayReview(
     throw new UsageError(NOTHING_TO_HEAR.noRun(siteDir));
   }
 
-  const input = await loadShareInput({ siteDir, config });
+  // No recording of NVDA's voice: the replay reads pages aloud from their transcripts.
+  const input = await loadShareInput({ siteDir, config, recordings: false });
   const model = buildShareModel(input);
   if (model.header.tested === null) throw new UsageError(NOTHING_TO_HEAR.noCountedRun);
   const asked =

@@ -12,7 +12,7 @@
 import type { ShareResult } from "../model.js";
 import { plural } from "../report/html.js";
 import { dateAndTime, longDate } from "../share/format.js";
-import { MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+import { MAC_HASH, POWERSHELL_HASH, TOP_TEXT, VOICE_TEXT } from "../share/text.js";
 
 /** The website's title, which its own page is headed by, and which every page's title ends with. */
 const SITE_TITLE = "Screen reader test results";
@@ -165,9 +165,14 @@ export const SITE_TEXT = {
    * after its site (in the list by date): "prepared by Pat Lee".
    */
   listedBy: (by: string): string => `prepared by ${by}`,
-  /** What each kind of file is called. A walkthrough file is of a run, when the record says which. */
+  /**
+   * What each kind of file is called. A walkthrough file is of a run, when the record says which.
+   * A share's voice page, the page that plays what NVDA said aloud on each page, is called what it
+   * plays, as the voice page calls itself.
+   */
   files: {
     page: "The report, to open",
+    voice: VOICE_TEXT.eyebrow,
     word: "The Word copy",
     walkthrough: (run: string | null): string =>
       run === null ? "A walkthrough file" : `The walkthrough file of run ${run}`,

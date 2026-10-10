@@ -75,6 +75,7 @@ import {
   STEP_LIMIT_PROBLEM,
   storeOf,
   TRANSCRIPTS,
+  voiceRecord,
   withOwnFiles,
   withStepLimit,
 } from "./helpers/share-model.js";
@@ -648,6 +649,84 @@ describe("wordEvidence", () => {
         { page: "/c", file: "axe.json", bytes: kept.record.bytes, sha256: kept.record.sha256 },
       ]);
       expect(files?.rows).toHaveLength(model.evidence[0]?.fingerprints.length ?? -1);
+    });
+
+    it("lists voice.webm in the Word copy's fingerprints, after the page's axe.json", () => {
+      const axe = keptAxe({ passes: 3 });
+      const voice = voiceRecord(61.5);
+      const run = shareRun({
+        id: "r1",
+        voicecapVersion: "0.18.0",
+        pages: [
+          {
+            path: "/",
+            files: ["read.txt"],
+            screenshot: TINY_RECORD,
+            axe: axe.record,
+            voice,
+          },
+          {
+            path: "/b",
+            files: ["read.txt"],
+            voice: { error: "no program", recordedAt: voice.recordedAt },
+          },
+          { path: "/c", voice },
+        ],
+      });
+      const model = buildShareModel(inputOf([run]));
+      const part = partOf(runParts(model), 0);
+      const files = tablesIn(part).find((table) => table.head[0] === "Page");
+      const row = `${byteCount(voice.bytes)} | ${voice.sha256}`;
+      const axeRow = `${byteCount(axe.record.bytes)} | ${axe.record.sha256}`;
+
+      // After the page's transcripts, its screenshot, and its axe results, as the page lists them;
+      // a record of why there's none lists no file, as the others don't.
+      expect(files && wordsOf([files])).toEqual([
+        "Page | File | Size | SHA-256",
+        `/ | read.txt | ${byteCount(1)} | ${"0".repeat(64)}`,
+        `/ | screenshot.jpg | ${byteCount(TINY_RECORD.bytes)} | ${TINY_RECORD.sha256}`,
+        `/ | axe.json | ${axeRow}`,
+        `/ | voice.webm | ${row}`,
+        `/b | read.txt | ${byteCount(1)} | ${"0".repeat(64)}`,
+        `/c | voice.webm | ${row}`,
+      ]);
+      // The fingerprint is in the fixed-width font, as every one is, and the rest is not.
+      const voiceRows = files?.rows.filter((cells) => cellLines(cells[1]).includes("voice.webm"));
+      expect(voiceRows?.map((cells) => cells[3])).toEqual([
+        monoCell(voice.sha256),
+        monoCell(voice.sha256),
+      ]);
+      expect(voiceRows?.flatMap((cells) => cells.slice(0, 3).map((cell) => cell.mono))).toEqual(
+        Array.from({ length: 6 }, () => undefined),
+      );
+      // The model lists the same files, and the copy says no more and no less.
+      expect(model.evidence[0]?.fingerprints.filter(({ file }) => file === "voice.webm")).toEqual([
+        { page: "/", file: "voice.webm", bytes: voice.bytes, sha256: voice.sha256 },
+        { page: "/c", file: "voice.webm", bytes: voice.bytes, sha256: voice.sha256 },
+      ]);
+      expect(files?.rows).toHaveLength(model.evidence[0]?.fingerprints.length ?? -1);
+    });
+
+    it("lists no voice.webm for a record no voicecap writes, or for a run that recorded none", () => {
+      const odd = shareRun({
+        id: "r1",
+        voicecapVersion: "0.18.0",
+        pages: [
+          { path: "/", files: ["read.txt"], voice: null as never },
+          { path: "/b", files: ["read.txt"], voice: "voice.webm" as never },
+        ],
+      });
+      const plain = shareRun({ id: "r2", pages: [{ path: "/", files: ["read.txt"] }] });
+
+      for (const run of [odd, plain]) {
+        const model = buildShareModel(inputOf([run]));
+        const files = tablesIn(partOf(runParts(model), 0)).find(
+          (table) => table.head[0] === "Page",
+        );
+
+        expect(files && wordsOf([files]).join("\n")).not.toContain("voice.webm");
+        expect(model.evidence[0]?.fingerprints.map(({ file }) => file)).not.toContain("voice.webm");
+      }
     });
 
     it("lists the run's own files first, its event log as the run's, as the page does", () => {

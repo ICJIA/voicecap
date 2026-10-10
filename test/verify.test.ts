@@ -378,6 +378,107 @@ describe("verifyHome", () => {
     });
   });
 
+  describe("a page's recording of NVDA's voice", () => {
+    const VOICE = `${RUN}/pages/home/voice.webm`;
+    const RECORDED_AT = "2026-09-27T11:02:05.000-05:00";
+    const ONE_PROBLEM = `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`;
+    // Bytes verify hashes and doesn't play: it checks the file against the run's record of it.
+    const sound = Buffer.from(
+      "not a WebM file, but bytes the run could have recorded all the same",
+    );
+    const recorded = { ...fileHash(sound), seconds: 2, lostMs: 0, recordedAt: RECORDED_AT };
+
+    /** A copy of the home whose home page has a recording, in its folder and in its record. */
+    async function withVoice(): Promise<string> {
+      const home = await changingPage("home", (page) => {
+        page.voice = recorded;
+      });
+      await writeFile(at(home, VOICE), sound);
+      return home;
+    }
+
+    it("finds nothing wrong with a recording that's as the run recorded it", async () => {
+      expect((await verify(await withVoice())).lines).toEqual([MATCHES]);
+    });
+
+    it("reports a changed voice.webm, whether or not its size changed", async () => {
+      const added = await withVoice();
+      await appendFile(at(added, VOICE), "An added byte.");
+      expect((await verify(added)).lines).toEqual([
+        `${VOICE}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+
+      // One byte for another: the file's size is as it was.
+      const sameSize = await withVoice();
+      const bytes = await readFile(at(sameSize, VOICE));
+      bytes[bytes.length - 3] = (bytes[bytes.length - 3] ?? 0) ^ 0xff;
+      await writeFile(at(sameSize, VOICE), bytes);
+      expect((await verify(sameSize)).lines).toEqual([
+        `${VOICE}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+    });
+
+    it("reports a missing voice.webm", async () => {
+      const home = await withVoice();
+      await rm(at(home, VOICE));
+      expect((await verify(home)).lines).toEqual([`${VOICE}: missing`, ONE_PROBLEM]);
+    });
+
+    it("reports a voice.webm the run doesn't record, as it does any file", async () => {
+      // A page with no voice in its record, and one whose record says why it has none.
+      for (const voice of [
+        undefined,
+        { error: "the recording is silent", recordedAt: RECORDED_AT },
+      ]) {
+        const home = await changingPage("home", (page) => {
+          if (voice) page.voice = voice;
+        });
+        await writeFile(at(home, VOICE), sound);
+        expect((await verify(home)).lines).toEqual([
+          `${VOICE}: not recorded by the run`,
+          ONE_PROBLEM,
+        ]);
+      }
+    });
+
+    it("finds nothing wrong with a record of why there's none", async () => {
+      const home = await changingPage("home", (page) => {
+        page.voice = { error: "the recording is silent", recordedAt: RECORDED_AT };
+      });
+      expect((await verify(home)).lines).toEqual([MATCHES]);
+    });
+
+    it("is filed in its own page's folder", async () => {
+      // The flawed page records one, with no file in its folder; the file is in the home page's.
+      const flawed = "flawed-68c5de39bc";
+      const home = await changingPage(flawed, (page) => {
+        page.voice = recorded;
+      });
+      await writeFile(at(home, VOICE), sound);
+      expect((await verify(home)).lines).toEqual([
+        `${RUN}/pages/${flawed}/voice.webm: missing`,
+        `${VOICE}: not recorded by the run`,
+        `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 2 problems.`,
+      ]);
+    });
+
+    it("passes a run from before 0.18.0, which records none", async () => {
+      const run = JSON.parse(await readFile(at(untouched, `${RUN}/run.json`), "utf8")) as RunJson;
+      expect(run.pages.length).toBeGreaterThan(0);
+      for (const page of run.pages) expect(page).not.toHaveProperty("voice");
+      expect(existsSync(at(untouched, VOICE))).toBe(false);
+      expect((await verify(untouched)).lines).toEqual([MATCHES]);
+
+      // The i2i fixture is sealed by 0.11.0, and passes with no recording too.
+      const { lines } = await verify(fixture("i2i-v3-run"));
+      expect(lines).toEqual([
+        "v3--i2i.netlify.app: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.",
+      ]);
+    });
+  });
+
   it("checks the event log its run recorded", async () => {
     const run = JSON.parse(await readFile(at(untouched, `${RUN}/run.json`), "utf8")) as RunJson;
     expect(Object.keys(run.files ?? {})).toEqual(["events.jsonl"]);

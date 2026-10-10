@@ -10,6 +10,7 @@ import {
   selectDriver,
   type DriverSelection,
 } from "../drivers/index.js";
+import { voiceIsGone } from "../drivers/guidepup/voice-recorder.js";
 import { loadPlatformReadiness } from "../drivers/readiness.js";
 import { BROWSER_WINDOW, type ScreenReaderDriver } from "../drivers/types.js";
 import { evaluateFlags, flagRulesSha256 } from "../flags/evaluate.js";
@@ -645,6 +646,18 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
 }
 
 /**
+ * What the run says, once a session, when no page after one will have a recording of NVDA's voice:
+ * the helper that records it is gone for the rest of the run, or NVDA's process wasn't found. Why, as
+ * the page's record keeps it (the home folder replaced, on one line), and that the pages are read as
+ * usual. Nothing else on the screen would say that no sound is being kept.
+ */
+function voiceNotRecorded(reason: string): string {
+  // The sentence puts its own full stop after the reason, which has none of its own to double.
+  const said = reason.replace(/[.\s]+$/, "");
+  return `NVDA's voice isn't being recorded: ${said}. The pages are read as usual.`;
+}
+
+/**
  * The size and SHA-256 of one of the run's own files (its event log, or a copy of the screen
  * reader's log), or null when there's none to read: one that couldn't be written, so the run
  * records no file for it.
@@ -723,6 +736,8 @@ async function transcribePages(
   const durations: number[] = [];
   let consecutiveFailures = 0;
   let sinceRestart = 0;
+  // Whether the person has been told that NVDA's voice isn't being recorded: once a session.
+  let toldOfVoice = false;
   const passSettings = (pass: PassName): PassSettings => ({
     cap: run.settings.stepCaps[pass],
     repeatLimit: config.repeatLimit,
@@ -782,6 +797,15 @@ async function transcribePages(
         remainingMs: estimateRemaining(durations, todo.length - index - 1),
       }),
     );
+    // The first page whose record says no page after it will have a recording either: the helper is
+    // gone for the rest of the run, or NVDA's process wasn't found, which every page of that start of
+    // NVDA says too.
+    if (!toldOfVoice && outcome.voice !== undefined && "error" in outcome.voice) {
+      if (voiceIsGone(outcome.voice.error)) {
+        toldOfVoice = true;
+        logger.warn(voiceNotRecorded(outcome.voice.error));
+      }
+    }
 
     // An HTTP error means the site answered: the screen reader and browser are fine, so it neither
     // counts toward stopping the run nor needs a restart. A page that already failed in an earlier
@@ -886,6 +910,9 @@ function applyOutcome(
   // The same for axe's results: an earlier attempt's axe.json was moved aside with the files.
   if (outcome.axe) page.axe = outcome.axe;
   else delete page.axe;
+  // And for the recording of NVDA's voice: an earlier attempt's voice.webm was moved aside too.
+  if (outcome.voice) page.voice = outcome.voice;
+  else delete page.voice;
   page.errors = outcome.errors;
   page.flags = outcome.status === "done" ? evaluateFlags(outcome.results, config.flags) : [];
   if (outcome.finalUrl !== undefined) page.finalUrl = outcome.finalUrl;

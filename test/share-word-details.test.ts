@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderDetails } from "../src/share/html/details.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
-import { DETAILS_TEXT } from "../src/share/text.js";
+import { DETAILS_TEXT, VOICE_TEXT } from "../src/share/text.js";
 import { demoted, heading, para, wordsOf, type Block } from "../src/share/word/blocks.js";
 import { wordChanges } from "../src/share/word/changes.js";
 import { wordDetails } from "../src/share/word/details.js";
@@ -27,9 +27,17 @@ import {
   wordHow,
 } from "../src/share/word/top.js";
 import { keptLogsModel, problemEntry } from "./helpers/nvda-log.js";
-import { shareRun } from "./helpers/share-data.js";
+import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { textOf } from "./helpers/share-html.js";
-import { demoModel, inputOf } from "./helpers/share-model.js";
+import {
+  demoModel,
+  heldRecordings,
+  inputOf,
+  TRANSCRIPTS,
+  VOICE_PAGE,
+  VOICE_RECORDED_AT,
+  voiceRecord,
+} from "./helpers/share-model.js";
 import { hrefsOf, outlineOf, partsAt } from "./helpers/word.js";
 
 /** A site whose only run was a replay, so no run counts. */
@@ -259,5 +267,145 @@ describe("wordDetails", () => {
         "https://www.deque.com/blog/automated-testing-study-identifies-57-percent-of-digital-accessibility-issues/",
       ]),
     );
+  });
+});
+
+describe("NVDA's voice, in the Word copy's details", () => {
+  /** A run of voicecap 0.18.0, the first to record NVDA's voice, of these pages. */
+  const runOf = (pages: SharePageSpec[], version = "0.18.0") =>
+    shareRun({ id: "2026-09-29_1402", voicecapVersion: version, pages });
+
+  /** The model of a run: the share's (a voice page beside it), unless `voiceName` says. */
+  function modelOf(
+    pages: SharePageSpec[],
+    more: { version?: string; voiceName?: string | null } = {},
+  ): ShareModel {
+    const run = runOf(pages, more.version);
+    return buildShareModel(
+      inputOf([run], {
+        recordings: heldRecordings([run]),
+        voiceName: more.voiceName === undefined ? VOICE_PAGE : more.voiceName,
+      }),
+    );
+  }
+
+  const RECORDED: SharePageSpec[] = [
+    { path: "/", files: TRANSCRIPTS, voice: voiceRecord(61) },
+    { path: "/about/", files: TRANSCRIPTS },
+  ];
+
+  /** What the paragraph on NVDA's voice says, when the details have one. */
+  const saidOf = (model: ShareModel): string | undefined =>
+    wordsOf(wordDetails(model)).find((words) => words.startsWith("NVDA's voice:"));
+
+  it("says what the recordings are, and links to the voice page by its file name, right under the details' line", () => {
+    const model = modelOf(RECORDED);
+    const details = wordDetails(model);
+
+    expect(details.slice(0, 3)).toEqual([
+      heading(1, DETAILS_TEXT.title),
+      para(DETAILS_TEXT.gist),
+      para(
+        VOICE_TEXT.details.lead,
+        " ",
+        { text: VOICE_TEXT.details.open, href: VOICE_PAGE },
+        " (",
+        { text: VOICE_PAGE, mono: true },
+        ").",
+      ),
+    ]);
+    expect(saidOf(model)).toBe(
+      `NVDA's voice: what NVDA said aloud on each page is recorded and sealed with the run, and the voice page plays it at slower speeds. Open the voice page (${VOICE_PAGE}).`,
+    );
+    // Its one link is to the voice page.
+    expect(hrefsOf(details.slice(2, 3))).toEqual([VOICE_PAGE]);
+  });
+
+  it("says it in the page's words", () => {
+    for (const model of [
+      modelOf(RECORDED),
+      modelOf([{ path: "/", files: TRANSCRIPTS }]),
+      modelOf(RECORDED, { voiceName: null }),
+    ]) {
+      const html = /<p class="gist">(NVDA&#39;s voice:.*?)<\/p>/s.exec(renderDetails(model))?.[1];
+
+      expect(html).toBeDefined();
+      expect(saidOf(model)).toBe(textOf(html ?? "", ""));
+    }
+  });
+
+  it("names the reason the run's pages gave, in the same words as the page, when no page has a recording", () => {
+    const why =
+      "the recorder didn't start: PowerShell couldn't compile its C#: Add-Type isn't allowed";
+    const model = modelOf([
+      { path: "/", files: TRANSCRIPTS, voice: { error: why, recordedAt: VOICE_RECORDED_AT } },
+      { path: "/about/", files: TRANSCRIPTS, voice: { error: why, recordedAt: VOICE_RECORDED_AT } },
+    ]);
+
+    expect(saidOf(model)).toBe(
+      `${VOICE_TEXT.details.lead} ${VOICE_TEXT.details.noRecordingBecause(why)}`,
+    );
+    expect(saidOf(model)).toBe(
+      "NVDA's voice: what NVDA said aloud on each page is recorded and sealed with the run, and the voice page plays it at slower speeds. There is no voice page: no page has a recording. The latest run gave this reason: the recorder didn't start: PowerShell couldn't compile its C#: Add-Type isn't allowed.",
+    );
+    expect(hrefsOf(wordDetails(model))).not.toContain(VOICE_PAGE);
+    // The page says it the same: the Word copy's words are the page's, made from the same text.
+    const html = /<p class="gist">(NVDA&#39;s voice:.*?)<\/p>/s.exec(renderDetails(model))?.[1];
+    expect(textOf(html ?? "", "")).toBe(saidOf(model));
+  });
+
+  // The details repeat the reason word for word, so what the recorder gives is what the Word copy
+  // says: it names the program it was asked for voicecap's NVDA, since that program's path is in
+  // Guidepup's folder, and Guidepup isn't named in the Word copy's paragraph on NVDA's voice.
+  it("gives the reason for a target the helper refused as the recorder words it, with no Guidepup in the paragraph", () => {
+    const refused = String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not voicecap's NVDA`;
+    const refusedBy = (why: string) =>
+      modelOf([
+        { path: "/", files: TRANSCRIPTS, voice: { error: why, recordedAt: VOICE_RECORDED_AT } },
+        {
+          path: "/about/",
+          files: TRANSCRIPTS,
+          voice: { error: why, recordedAt: VOICE_RECORDED_AT },
+        },
+      ]);
+
+    expect(saidOf(refusedBy(refused))).toBe(
+      `${VOICE_TEXT.details.lead} ${VOICE_TEXT.details.noRecordingBecause(refused)}`,
+    );
+    expect(saidOf(refusedBy(refused))).toMatch(/, not voicecap's NVDA\.$/);
+    expect(saidOf(refusedBy(refused))).not.toMatch(/guidepup/i);
+    // The scan sees it when it's there: the path a refusal used to name is in Guidepup's folder.
+    const path = String.raw`C:\Users\cschw\AppData\Local\guidepup\nvda\all\0.2.1-2026.2\extracted\nvda.exe`;
+    expect(saidOf(refusedBy(refused.replace("voicecap's NVDA", path)))).toMatch(/guidepup/i);
+  });
+
+  it("says why there is no voice page, in place of the link, when no page has a recording or the copy is the live one", () => {
+    const none = modelOf([{ path: "/", files: TRANSCRIPTS }]);
+    const live = modelOf(RECORDED, { voiceName: null });
+
+    expect(saidOf(none)).toBe(`${VOICE_TEXT.details.lead} ${VOICE_TEXT.details.noRecording}`);
+    expect(saidOf(live)).toBe(`${VOICE_TEXT.details.lead} ${VOICE_TEXT.details.liveCopy}`);
+    for (const model of [none, live]) expect(hrefsOf(wordDetails(model))).not.toContain(VOICE_PAGE);
+  });
+
+  it("adds nothing for a report whose runs are from before voicecap recorded NVDA's voice", async () => {
+    const before = modelOf([{ path: "/", files: TRANSCRIPTS }], { version: "0.17.0" });
+
+    expect(saidOf(before)).toBeUndefined();
+    expect(wordsOf(wordDetails(before)).join("\n")).not.toContain("voice page");
+    expect(wordsOf(wordDetails(await demoModel())).join("\n")).not.toContain("voice page");
+  });
+
+  it("keeps the details' parts as they were: it is a paragraph, with no heading of its own", () => {
+    const withVoice = wordDetails(modelOf(RECORDED));
+    const without = wordDetails(
+      modelOf(
+        RECORDED.map(({ voice: _voice, ...page }) => page),
+        { version: "0.17.0" },
+      ),
+    );
+
+    expect(partsOf(withVoice)).toEqual(partsOf(without));
+    expect(outlineOf(withVoice)).toEqual(outlineOf(without));
   });
 });

@@ -237,6 +237,26 @@ export const AXE_FILE = "axe.json";
 export type AxeRecord =
   (FileHash & AxeSummary & { ranAt: string }) | { error: string; ranAt: string };
 
+/** A page's recording of what NVDA said aloud, in the page's folder (pages/<slug>/). */
+export const VOICE_FILE = "voice.webm";
+
+/**
+ * A page's recording of NVDA's voice, as the page's record keeps it, beside its screenshot's and
+ * axe's. A recording that was kept has the file's SHA-256 and size, its length in seconds (to the
+ * sample, so a fraction), the sound the recorder lost by falling behind, in milliseconds, which is
+ * normally 0, and when its first sample was (`startedAt`, a local ISO time to the millisecond, as
+ * `recordedAt` is, which the recorder's own UTC time is turned into). `startedAt` is optional: a
+ * record without it is whole, and never fails verify, and a driver's time that isn't a time is left
+ * out. One that couldn't be kept has the first line of the reason, at most 300 characters,
+ * with the account's home folder in it replaced, and no file: the recorder couldn't run, NVDA's
+ * process wasn't found or ended during the recording, the recording is empty or silent, or it
+ * couldn't be encoded. Both have when the run recorded it (a local ISO time to the millisecond), a
+ * moment after the driver stopped the recording.
+ */
+export type VoiceRecord =
+  | (FileHash & { seconds: number; lostMs: number; startedAt?: string; recordedAt: string })
+  | { error: string; recordedAt: string };
+
 export interface PassSummary {
   steps: number;
   stopReason: StopReason;
@@ -404,6 +424,15 @@ export interface PageRecord extends PageRef {
    * is from before voicecap 0.16.0.
    */
   axe?: AxeRecord;
+  /**
+   * What NVDA said aloud while the page was read, recorded from the start of its last attempt to its
+   * end. Kept apart from `files` for the screenshot's reason: a review copies those to find a page
+   * that changed since it was reviewed, and the sound isn't what the transcripts say. Absent when the
+   * page has none: the driver can't record, the page wasn't read (it was skipped, the site answered
+   * with an HTTP error, or the page wouldn't open), it's pending, or the run is from before voicecap
+   * 0.18.0.
+   */
+  voice?: VoiceRecord;
   flags: FlagResult[];
   errors: string[];
 }

@@ -53,8 +53,10 @@
  * site's page at "/" and "/index.html", the trust page at "/trust.html" and "/trust", What's New
  * at "/whats-new.html" and "/whats-new", and Technical details at "/technical-details.html" and
  * "/technical-details", whose policies allow no font, since they embed none, where a report's
- * allows the fonts it embeds), the demo's pages theirs at each address they answer at (see
- * demoSiteRules), and each download its Content-Disposition. In the home it writes .gitattributes
+ * allows the fonts it embeds, and a share's voice page's also allows the media it plays: its
+ * recordings, which it holds as data: addresses, so it has `media-src data:` and no other page
+ * has), the demo's pages theirs at each address they answer at (see demoSiteRules), and each
+ * download its Content-Disposition. In the home it writes .gitattributes
  * and .gitignore when they aren't there, as a run does, so a home's first build keeps _site/ out of
  * Git with the rest of what voicecap keeps out, then netlify.toml and .nvmrc the first time. None
  * of them is ever written again.
@@ -452,9 +454,11 @@ function newestFirst(a: Share, b: Share): number {
  * The rules of _redirects: the page of each share a site leaves off, at its own address and at the
  * same without ".html" (which is how Netlify serves a page too), sent on to the site's current
  * report's page, or to the website's front page when that page isn't published. `kept` and `sites`
- * are the same sites, in the page's order, and each site's older shares come the newest first. An
- * address a published file is at is never sent on: Netlify would serve the file all the same, and
- * the rule would say what isn't so. Nor is an address sent on twice.
+ * are the same sites, in the page's order, and each site's older shares come the newest first. Only a
+ * report's page is sent on, never a voice page, which is no report's page: neither the current
+ * report's, which is published, nor an older share's, whose files are gone with it. An address a
+ * published file is at is never sent on: Netlify would serve the file all the same, and the rule
+ * would say what isn't so. Nor is an address sent on twice.
  */
 function redirectRules(
   kept: readonly { older: readonly Share[] }[],
@@ -465,6 +469,9 @@ function redirectRules(
       .flatMap(({ reports }) => reports)
       .flatMap(({ files }) => files)
       .flatMap(({ kind, href }) =>
+        // A report's page is served at its own address and at the same without ".html". A voice page
+        // is too, but its form without ".html" is never a rule's address: a rule is for a report's
+        // page, and none is named `.voice.html` (see fileKind), so its address is the only one taken.
         kind === "page" ? [`/${href}`, `/${href.slice(0, -".html".length)}`] : [`/${href}`],
       ),
   );
@@ -969,12 +976,16 @@ async function readCopy(
 /**
  * The rules of _headers for one published file, from the bytes written: a page is given the policy of
  * its own bytes at its address and at the same without ".html", which is how Netlify serves it too;
- * a Word copy and a walkthrough file are downloads; any other file has none.
+ * a share's voice page is given that too, with one more directive, `media-src data:`, so that it can
+ * play the recordings it holds as data: addresses, and no other page's policy has it; a Word copy and
+ * a walkthrough file are downloads; any other file has none.
  */
 function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
   const address = `/${file.href}`;
-  if (file.kind === "page") {
-    const policy = contentSecurityPolicy(inlineHashes(bytes.toString("utf8")));
+  if (file.kind === "page" || file.kind === "voice") {
+    const policy = contentSecurityPolicy(inlineHashes(bytes.toString("utf8")), {
+      media: file.kind === "voice",
+    });
     return [
       { path: address, headers: [[POLICY_HEADER, policy]] },
       { path: address.slice(0, -".html".length), headers: [[POLICY_HEADER, policy]] },
@@ -992,8 +1003,8 @@ function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
  * each), which allows no font, since the website's own pages embed none; the demo's own pages' rules
  * (`demoRules`, made by demoSiteRules: a rule for each address a page answers at); then each
  * published file's, in the order the site lists them (the demo's report first, then each site's
- * reports as they're shown), a report's page allowing the fonts it embeds. A path has one rule,
- * however many reports list its file.
+ * reports as they're shown), a report's page allowing the fonts it embeds, and a voice page the
+ * media it plays besides (see rulesFor). A path has one rule, however many reports list its file.
  */
 function headerRules(
   content: SiteContent,

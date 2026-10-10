@@ -22,23 +22,25 @@ import {
 import { normalizeSpeech } from "../passes/steps.js";
 import { MAIN_COMMAND, stepLine } from "../transcripts/format.js";
 import { jpegSize } from "../util/jpeg.js";
+import { voiceAnchor } from "./anchors.js";
 import { axeViewOf, type AxeView } from "./axe-view.js";
 import type { CheckData } from "./check.js";
 import { longDate, pagePath, type Shown } from "./format.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
 import { READ_STOPPED, readStoppedOf, type ProblemsSection } from "./problems.js";
-import { axeRecordOf, screenshotRecordOf } from "./records.js";
+import { axeRecordOf, screenshotRecordOf, voiceRecordOf } from "./records.js";
 import type { PageReview } from "./review.js";
 import {
   keepsAxe,
   keepsScreenshots,
+  keepsVoice,
   notRecordedBy,
   sessionVersion,
   versionOf,
 } from "./run-evidence.js";
 import { cardRecord, type PageStanding, type Standing } from "./standing.js";
 import { SKIP_REASONS } from "./summary.js";
-import { AXE_TEXT, SCREENSHOT_TEXT } from "./text.js";
+import { AXE_TEXT, SCREENSHOT_TEXT, VOICE_TEXT } from "./text.js";
 
 export interface PageCard {
   key: string;
@@ -130,6 +132,25 @@ export interface PageCard {
   axe?:
     | { view: AxeView; text: string; bytes: number; sha256: string; run: string; slug: string }
     | { notRecorded: string };
+  /**
+   * The record the card speaks for, as its files are filed: the run, and the page's slug in it. It's
+   * the record whose transcripts the card shows, else a page never transcribed's latest failure's
+   * (see `cardRecord`), and null for a page with neither. The card's screenshot, axe results, and
+   * recording are of this record, and the loader holds each file under `<run>/<slug>` of it, so the
+   * voice page, which plays the recordings, takes the record of each of its sections from here and
+   * works nothing out of its own.
+   */
+  speaksFor: { run: string; slug: string } | null;
+  /**
+   * NVDA's voice on the page, for the card's line: the recording's length in seconds, as its record
+   * gives it (null when the record's isn't a length), and the address of the page's section of the
+   * voice page, which is beside the page and written by the same share (`voiceName`). Only a page
+   * that has a recording to play has one: the record the card speaks for has a recording (not the
+   * reason it has none), and the loader holds its file as the record has it. Null for every other
+   * page, and for every page of a copy with no voice page beside it (the live copy). The voice page
+   * has a section that plays a recording for exactly the pages that have this.
+   */
+  voice: { seconds: number | null; href: string } | null;
   /** When the shown transcripts come from an older run than the latest: its id, and its date. */
   from: { run: string; date: string } | null;
   /** The latest run's failure, or why it skipped the page, in plain words; home replaced. */
@@ -177,6 +198,10 @@ interface CardsInput {
   screenshots: ShareInput["screenshots"];
   /** The axe files the page can show (ShareInput.axeFiles). */
   axeFiles: ShareInput["axeFiles"];
+  /** The recordings the voice page can play (ShareInput.recordings). */
+  recordings: ShareInput["recordings"];
+  /** The voice page's file name beside the page, or null where there is none (ShareInput.voiceName). */
+  voiceName: ShareInput["voiceName"];
   /** A run's screen reader, as its environment records it ("NVDA"). */
   screenReader: (run: RunJson) => string;
   /** The home folder replaced, in what a record's reason says. */
@@ -243,6 +268,8 @@ export function cardsOf(input: CardsInput): PageCard[] {
       heardFirst: readShown ? firstLinesOf(readSteps) : [],
       screenshot: screenshotOf(source, version, name, input, tookAny),
       axe: axeOf(source, version, input, checkedAny),
+      speaksFor: source === null ? null : { run: source.run.id, slug: source.page.slug },
+      voice: voiceOf(source, page, input),
       from:
         shown !== null && shown.run !== standing.latest
           ? { run: shown.run.id, date: longDate(shown.run.createdAt) }
@@ -373,6 +400,90 @@ function axeOf(
   const view = axeViewOf(text);
   if (view === null) return { notRecorded: AXE_TEXT.notResults };
   return { view, text, bytes: record.bytes, sha256: record.sha256, run: run.id, slug: page.slug };
+}
+
+/**
+ * What a card says of NVDA's voice on its page: a line, for a page that has a recording to play, and
+ * none for a page that hasn't. The record the card speaks for has a recording when it lists a file
+ * (a record of why there's none lists no file, and neither does a record of no kind voicecap writes,
+ * read through `voiceRecordOf`), and the voice page can play it when the loader holds that file as
+ * its record has it (it holds only a file that is). The line links to the page's section of the
+ * voice page, which a share writes beside the page: a copy with none beside it has no line.
+ *
+ * A record is data, so a length that isn't a number (or is below 0) is left unsaid: the line is
+ * there, with no length.
+ */
+function voiceOf(
+  source: { run: RunJson; page: PageRecord } | null,
+  card: PageStanding,
+  input: CardsInput,
+): PageCard["voice"] {
+  if (source === null || input.voiceName === null) return null;
+  const record = voiceRecordOf(source.page);
+  if (record === undefined || record === "unreadable" || "error" in record) return null;
+  if (!input.recordings.has(`${source.run.id}/${source.page.slug}`)) return null;
+  const { seconds } = record;
+  return {
+    seconds:
+      typeof seconds === "number" && Number.isFinite(seconds) && seconds >= 0 ? seconds : null,
+    href: `${input.voiceName}#${voiceAnchor(card.slug)}`,
+  };
+}
+
+/**
+ * What the details say of the voice page: where it is, or why there is none. Nothing when the
+ * report draws on no run from a voicecap that records NVDA's voice (`keepsVoice`) and no card has a
+ * recording, so a report from before voicecap recorded it is as it always was. Otherwise:
+ * - the voice page's file name, when a card has a line (the voice page is written beside the page
+ *   exactly then);
+ * - that the live copy has none beside it, for a copy with no voice page (`voiceName` null);
+ * - that no page has a recording to play, for a share of runs that recorded none that can be shown,
+ *   with the reason the latest run's pages gave, when they gave one (see `latestReasonOf`): the
+ *   report has no voice page then, which is where each page's own reason would be said.
+ */
+export function voiceNoteOf(
+  standing: Standing,
+  cards: PageCard[],
+  voiceName: string | null,
+  redact: (text: string) => string,
+): { name: string } | { why: string } | null {
+  const recorded = cards.some((card) => card.voice !== null);
+  const records = standing.drawnOn.some((run) => keepsVoice(versionOf(run)));
+  if (!recorded && !records) return null;
+  if (voiceName === null) return { why: VOICE_TEXT.details.liveCopy };
+  if (recorded) return { name: voiceName };
+  const reason = latestReasonOf(standing, redact);
+  return {
+    why:
+      reason === null
+        ? VOICE_TEXT.details.noRecording
+        : VOICE_TEXT.details.noRecordingBecause(reason),
+  };
+}
+
+/**
+ * The reason the pages of the latest run (the run that decides the pages in scope) most often gave
+ * for having no recording, as its pages' records keep them: the home folder replaced, on one line,
+ * with no full stop at its end, which the sentence puts after it. The first page's of those given as
+ * often as each other. Null when none of its pages gave one: a run whose driver records nothing, or
+ * from before voicecap recorded NVDA's voice (the report then says only that there is none), or one
+ * that read no page. A page's record that isn't one voicecap writes gives none, read through
+ * `voiceRecordOf`, as a record that lists a file does.
+ */
+function latestReasonOf(standing: Standing, redact: (text: string) => string): string | null {
+  const counts = new Map<string, number>();
+  for (const page of standing.latest?.pages ?? []) {
+    const record = voiceRecordOf(page);
+    if (record === undefined || record === "unreadable" || !("error" in record)) continue;
+    const reason = reasonOf(record.error, redact);
+    if (reason !== "") counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  for (const [reason, count] of counts) {
+    // Map keeps the order reasons were first seen in, so a tie stays with the earlier page's.
+    if (best === null || count > (counts.get(best) ?? 0)) best = reason;
+  }
+  return best;
 }
 
 /**

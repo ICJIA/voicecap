@@ -4,10 +4,13 @@
  * The wording is voicecap's, as on the shareable page and in the README: voicecap is a human
  * review, sped up; a person hears NVDA at work, reads the transcripts, and decides.
  *
- * Every number about voicecap in these words is taken, and none is typed here:
+ * Every number about voicecap in these words is taken, and none is typed here, but three that the
+ * test of the page holds to where they come from (see below):
  * - from voicecap's own code, which this module imports: its passes (PASS_NAMES), its built-in flag
  *   rules (BUILT_IN_RULES) and their thresholds, its defaults (DEFAULT_CONFIG), the exit codes of
- *   `voicecap verify` (ExitCode), and what a silent step is written as (NO_SPEECH);
+ *   `voicecap verify` (ExitCode), what a silent step is written as (NO_SPEECH), the name of the
+ *   file a page's recording is kept in (VOICE_FILE), and the speeds the voice page plays at
+ *   (VOICE_TEXT);
  * - from what the page is given, through a function for each line that holds one: the version and
  *   its day, what its release recorded of its tests, how many shares a site keeps, and what the
  *   records count. A fact that isn't there is said not to be ("not recorded in this build of
@@ -16,8 +19,15 @@
  * What's typed is words, and the test of the page holds the names they use to the code: every
  * command it names is one voicecap's command line declares, with its options, every file is in the
  * repository, every rule is a built-in one, and every npm package's license is the one of the
- * package voicecap installs. The stop reasons are typed against the model's (`StopReason`), so a
- * reason added there and not here doesn't compile.
+ * package voicecap installs (libopus-wasm's row adds the license of the libopus inside it, which
+ * its own notice gives). The three numbers typed are the version of the encoder in the
+ * toolchain (0.4.1), which is the one package.json pins and the installed package is; the version of
+ * libopus inside it (1.6.1), which the test holds to what the library itself says
+ * (`loadLibopus()`); and the Windows build that recording needs (20348), which is the one the
+ * recorder checks for (WINDOWS_BUILD). The same test holds what the page says of NVDA's voice to
+ * the recorder's own code: that it records one program's sound, and picks no device, so no
+ * microphone and no speaker's mix is in it. The stop reasons are typed against the model's
+ * (`StopReason`), so a reason added there and not here doesn't compile.
  *
  * Guidepup is named only in the toolchain's rows, as the owner chose: everywhere else, it's
  * voicecap's NVDA driver.
@@ -29,10 +39,10 @@
  */
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { BUILT_IN_RULES, type BuiltInRule } from "../flags/evaluate.js";
-import { PASS_NAMES, type PassName, type StopReason } from "../model.js";
+import { PASS_NAMES, type PassName, type StopReason, VOICE_FILE } from "../model.js";
 import { plural } from "../report/html.js";
 import { count, names } from "../share/format.js";
-import { HOW_TEXT, MAC_HASH, POWERSHELL_HASH } from "../share/text.js";
+import { HOW_TEXT, MAC_HASH, POWERSHELL_HASH, VOICE_TEXT } from "../share/text.js";
 import { NO_SPEECH } from "../transcripts/format.js";
 import { ExitCode } from "../util/errors.js";
 import type { RecordFacts, ReleaseFacts } from "./facts.js";
@@ -111,6 +121,20 @@ const STOP_REASONS = Object.keys({
 
 /** How many ways NVDA goes through a page: one for each pass, in words. */
 const WAYS = inWords(PASS_NAMES.length);
+
+/**
+ * The speeds a share's voice page plays a recording at, as its own words give them: "1×, 0.75×, 0.5×,
+ * and 0.25×".
+ */
+const VOICE_SPEEDS = names(VOICE_TEXT.speed.rates.map((rate) => VOICE_TEXT.speed.label(rate)));
+
+/**
+ * The Windows build that recording one program's sound needs, which Windows' process loopback came
+ * with: Windows 11 or Windows Server 2022. The recorder checks for it before anything else, and gives
+ * it in its own words (RECORDER_SCRIPT in src/drivers/guidepup/voice-recorder.ts, which the website's
+ * code never imports): typed here, and held to that check by the test of the page.
+ */
+const WINDOWS_BUILD = 20348;
 
 /** What NVDA says after the last heading, from the pattern voicecap matches it by. */
 const NO_NEXT_HEADING = DEFAULT_CONFIG.phrasing.noNextHeading.replace(/^\^|\$$/g, "");
@@ -289,6 +313,9 @@ export const TECHNICAL_TEXT = {
               { code: "shares.json" },
               ".",
             ],
+            [
+              `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${VOICE_SPEEDS}, with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
+            ],
           ],
         },
         {
@@ -388,7 +415,7 @@ export const TECHNICAL_TEXT = {
                     {
                       name: "run.json",
                       words: [
-                        "The run's record: its settings, each page and every failed try at it, the fingerprints of the event log, of each copy of NVDA's own log, and of each page's transcripts, screenshot, and axe results, and, once it completes, its seal",
+                        "The run's record: its settings, each page and every failed try at it, the fingerprints of the event log, of each copy of NVDA's own log, and of each page's transcripts, screenshot, axe results, and recording of NVDA's voice, and, once it completes, its seal",
                       ],
                     },
                     {
@@ -409,9 +436,11 @@ export const TECHNICAL_TEXT = {
                         { code: ".json" },
                         " of every step (the key, the words, and their timing), ",
                         { code: "screenshot.jpg" },
-                        ", and ",
+                        ", ",
                         { code: "axe.json" },
-                        ", what axe-core found on the page",
+                        ", what axe-core found on the page, and ",
+                        { code: VOICE_FILE },
+                        ", what NVDA said aloud on the page",
                       ],
                     },
                     { name: "attempts/", words: ["The earlier tries at a page, kept"] },
@@ -443,7 +472,7 @@ export const TECHNICAL_TEXT = {
                 {
                   name: "share/",
                   words: [
-                    "The shareable page, its Word copy, the dated copies, the walkthrough files, and ",
+                    "The shareable page, its Word copy, the dated copies, the voice pages, the walkthrough files, and ",
                     { code: "shares.json" },
                   ],
                 },
@@ -457,6 +486,17 @@ export const TECHNICAL_TEXT = {
           "What a run's record of the computer keeps: the system, processor, memory, display, browser window, time zone, language, and versions.",
         ],
         ["What it never keeps: the computer's maker, model, or name, or the account."],
+        [
+          "Only NVDA's sound is recorded, never the whole computer's and never a microphone's. voicecap uses Windows' process loopback, which takes the sound of one program and of the programs it starts: here the NVDA voicecap started, whose program it checks before it records.",
+        ],
+        [
+          `Recording needs Windows 11 or Windows Server 2022 (Windows build ${WINDOWS_BUILD} or later). A page that can't be recorded keeps the reason in its record, and is read as usual.`,
+        ],
+        [
+          "Each recording is kept as ",
+          { code: VOICE_FILE },
+          ", Opus sound in a small WebM file made with libopus-wasm: the same sound always gives the same bytes. Its SHA-256 is in the run's record, so the run's seal covers it.",
+        ],
       ] satisfies Sentence[],
     },
     flags: {
@@ -484,7 +524,7 @@ export const TECHNICAL_TEXT = {
       heading: ["Fingerprints, seals, and ", { code: "voicecap verify" }] satisfies Sentence,
       points: [
         [
-          "A run's record holds the SHA-256 of each page's transcripts, screenshot, and axe results, recorded as each is written, and of the event log and each copy of NVDA's own log, recorded at the end of each session. Earlier tries a run kept, its own report, and its comparisons have none. A run also records the SHA-256 of its page list, or of each sitemap it read, and of its config, and ",
+          "A run's record holds the SHA-256 of each page's transcripts, screenshot, axe results, and recording of NVDA's voice, recorded as each is written, and of the event log and each copy of NVDA's own log, recorded at the end of each session. Earlier tries a run kept, its own report, and its comparisons have none. A run also records the SHA-256 of its page list, or of each sitemap it read, and of its config, and ",
           { code: "shares.json" },
           " records each shared copy's.",
         ],
@@ -500,6 +540,9 @@ export const TECHNICAL_TEXT = {
         ],
         [
           "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, axe results, run seals, and review chain the report carries. It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",
+        ],
+        [
+          'The voice page has a "Check the fingerprints" of its own, which checks the recordings it plays and the seals of the runs they come from, in the same way.',
         ],
         [
           "What no check can catch: someone who edits a record and seals it, and every record after it, again; and someone who deletes the newest records, or a whole run. The Git history, pushed to a protected branch, shows both.",
@@ -521,6 +564,9 @@ export const TECHNICAL_TEXT = {
           ],
           ["A file only when its size and SHA-256 are the ones recorded when it was shared."],
           [
+            `A share's voice page is published with its report's other files, and listed with them as ${SITE_TEXT.files.voice}.`,
+          ],
+          [
             "The pages of voicecap's own demo site, in ",
             { code: "demo-site/" },
             ", from voicecap itself.",
@@ -536,6 +582,11 @@ export const TECHNICAL_TEXT = {
           ],
           [
             "Each one's Content Security Policy is made from the SHA-256 of its own style and script, and allows no connection.",
+          ],
+          [
+            "A voice page's policy also lets it play audio from the recordings it holds, which are in the page as data: addresses (",
+            { code: "media-src data:" },
+            "); no other page's does.",
           ],
           [
             "The demo site's pages have their style sheet beside them, and a policy of their own, which allows it and no script.",
@@ -797,7 +848,7 @@ export const TECHNICAL_TEXT = {
     },
     {
       name: "voicecap share",
-      job: "Makes a dated copy of the shareable page, its Word copy, and each run's walkthrough file, to send, and records them.",
+      job: "Makes a dated copy of the shareable page, its Word copy, a voice page when a page has a recording, and each run's walkthrough file, to send, and records them.",
     },
     { name: "voicecap site", job: "Builds this website from the shares." },
     { name: "voicecap verify", job: "Checks the records against their fingerprints and seals." },
@@ -915,6 +966,13 @@ export const TECHNICAL_TEXT = {
       license: "MPL-2.0",
       where: "A run, and voicecap's tests",
       npm: "axe-core",
+    },
+    {
+      tool: "libopus-wasm",
+      job: "Encodes each page's recording of NVDA's voice as Opus, in a small WebM file: libopus 1.6.1 compiled to WebAssembly. This package is pinned at version 0.4.1, so that the same sound always gives the same file",
+      license: "MIT (libopus: BSD, Xiph.Org)",
+      where: "A run",
+      npm: "libopus-wasm",
     },
     {
       tool: "Vitest",

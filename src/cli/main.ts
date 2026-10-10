@@ -550,7 +550,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
   program
     .command("share")
     .description(
-      "make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
+      "make a dated copy of the shareable page, its Word copy, a voice page when a page has a recording, and each run's walkthrough file to send, and record them",
     )
     .option(
       "--site <url>",

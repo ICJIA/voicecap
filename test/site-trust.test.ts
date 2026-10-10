@@ -840,11 +840,13 @@ describe("renderTrustPage", () => {
     expect(textsOf(evidence, "p")[0]).toBe("the evidence");
     expect(pointsOf(evidence)).toEqual([
       {
-        // A run's record has the fingerprints of each page's transcripts, its screenshot, and its
-        // axe results (PageRecord.files, .screenshot, and .axe), and a report's check counts the
-        // last in those words ("9 of 9 axe results match their fingerprints").
+        // A run's record has the fingerprints of each page's transcripts, its screenshot, its axe
+        // results, and its recording of NVDA's voice (PageRecord.files, .screenshot, .axe, and
+        // .voice). A report's check counts the third in those words ("9 of 9 axe results match
+        // their fingerprints"), and the voice page's the last ("3 of 3 recordings match their
+        // fingerprints").
         words:
-          "Every transcript, screenshot, and axe result has a SHA-256 fingerprint. Every run's record is sealed, and every share and every review is chained to the one before it.",
+          "Every transcript, screenshot, axe result, and recording of NVDA's voice has a SHA-256 fingerprint. Every run's record is sealed, and every share and every review is chained to the one before it.",
         link: { href: README.auditRecord, words: "The audit record" },
       },
       {

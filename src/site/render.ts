@@ -23,7 +23,9 @@
  * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
  * page and to download its Word copy. Its earlier reports are a line each under it, and every
  * report's files, with their sizes and fingerprints, are in a fold, closed, for whoever checks a
- * copy. Each view's heading and each site's name has a picture before it, and the views of the
+ * copy: a share's voice page (from 0.18.0), which plays NVDA's recordings, is one of them, listed as
+ * NVDA's voice, and is no part of a report's card or line, which are of its page and its Word copy.
+ * Each view's heading and each site's name has a picture before it, and the views of the
  * sites and of every report by date say beside their headings how many they hold (from 0.13.1).
  *
  * The page is a page about accessibility, so it follows the report's rules: headings in order (the
@@ -45,7 +47,12 @@ import { type KickerPart, SITE_TEXT, type Sentence } from "./text.js";
 
 /** A file the site publishes. */
 export interface PublishedFile {
-  kind: "page" | "word" | "walkthrough" | "other";
+  /**
+   * What the file is: the report's page, a share's voice page (from 0.18.0, the page that plays NVDA's
+   * recordings: it opens in the browser, as the page does, but is never the report's page), its Word
+   * copy, a walkthrough file, or another file. See `fileKind`.
+   */
+  kind: "page" | "voice" | "word" | "walkthrough" | "other";
   name: string;
   /** Its address from the site's top: "dvfr.illinois.gov/dvfr.illinois.gov_2026-10-03.html". */
   href: string;
@@ -89,10 +96,15 @@ export interface SiteContent {
 }
 
 /**
- * A file's kind, by its extension: `.html` is the page, `.docx` the Word copy, `.json` a walkthrough
- * file, and anything else other.
+ * A file's kind, by its extension: `.voice.html` is a share's voice page, any other `.html` the page,
+ * `.docx` the Word copy, `.json` a walkthrough file, and anything else other. The voice page is
+ * named for its pair, the pair's name and `.voice.html` (`voicecap share` writes it so), and the
+ * pair's page is named with its day or its number last, so no report's page ends `.voice.html`.
+ * Only that ending, in lower case as voicecap writes it, makes a voice page: any other page, which
+ * plays nothing, is the page, and has the page's policy (see rulesFor in ./build.ts).
  */
 export function fileKind(name: string): PublishedFile["kind"] {
+  if (name.endsWith(".voice.html")) return "voice";
   if (name.endsWith(".html")) return "page";
   if (name.endsWith(".docx")) return "word";
   if (name.endsWith(".json")) return "walkthrough";
@@ -165,8 +177,9 @@ function fileItem(file: PublishedFile): string {
     file.kind === "walkthrough"
       ? SITE_TEXT.files.walkthrough(file.run)
       : SITE_TEXT.files[file.kind];
-  // The page opens in the browser. Every other file is a download.
-  const download = file.kind === "page" ? "" : " download";
+  // The page opens in the browser, and so does the voice page, which is a page that plays sound.
+  // Every other file is a download.
+  const download = file.kind === "page" || file.kind === "voice" ? "" : " download";
   return [
     `<li><span class="kind">${esc(label)}</span>`,
     `<a href="${esc(file.href)}"${download}>${esc(file.name)}</a>`,

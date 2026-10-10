@@ -354,16 +354,16 @@ export async function startSystemVoice(
 }
 
 /** How a voice's program ended: with its exit code (null when a signal ended it), or unstarted. */
-type Ending = { code: number | null } | { error: Error };
+export type Ending = { code: number | null } | { error: Error };
 
 /**
  * Reads `child`'s output a line at a time, in UTF-8, and its error output too, when it has one
  * (`onComplaint`), and settles once the program has ended: once it has exited and both have been
  * read to the end (Node can report the exit before the last of them), or once it couldn't start.
  * The error output is read as it comes, even with no one to hear it, so it never fills and stalls
- * the program.
+ * the program. The recorder (src/drivers/guidepup/voice-recorder.ts) watches its helper with it too.
  */
-function watch(
+export function watch(
   child: VoiceChild,
   onLine: (line: string) => void,
   onComplaint: (line: string) => void = () => {},
@@ -425,7 +425,7 @@ export async function settlesWithin(promise: Promise<unknown>, ms: number): Prom
 }
 
 /** A line the script printed, as the JSON object it is; {} for any other line. */
-function answerOf(text: string): Record<string, unknown> {
+export function answerOf(text: string): Record<string, unknown> {
   try {
     const value: unknown = JSON.parse(text);
     return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
@@ -438,7 +438,7 @@ function answerOf(text: string): Record<string, unknown> {
  * Another program's message as part of a sentence: on one line, without its own full stop. An
  * ellipsis ("..."), as PowerShell ends a line of the script it quotes, is kept.
  */
-function clause(message: string): string {
+export function clause(message: string): string {
   return message
     .replace(/\s+/g, " ")
     .trim()
@@ -446,6 +446,6 @@ function clause(message: string): string {
 }
 
 /** "PowerShell ended with exit code 1", or "PowerShell ended" when a signal ended it. */
-function endedWith(program: string, code: number | null): string {
+export function endedWith(program: string, code: number | null): string {
   return code === null ? `${program} ended` : `${program} ended with exit code ${code}`;
 }

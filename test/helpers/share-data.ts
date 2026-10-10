@@ -21,6 +21,7 @@ import {
   type SessionRecord,
   type SkipReason,
   type StopReason,
+  type VoiceRecord,
 } from "../../src/model.js";
 import { pageSlug } from "../../src/pages/slug.js";
 import { canonicalKey } from "../../src/pages/url.js";
@@ -84,6 +85,12 @@ export interface SharePageSpec {
    * Default: none, as for a run whose driver doesn't check pages with axe.
    */
   axe?: AxeRecord;
+  /**
+   * What NVDA said aloud on the page, as the record's `voice` (see test/helpers/share-model.ts's
+   * recordedVoice). No file is written: a test that shows the voice page gives it the file's bytes.
+   * Default: none, as for a run from before voicecap 0.18.0, or whose driver doesn't record.
+   */
+  voice?: VoiceRecord;
 }
 
 /** One session of a run (see ShareRunSpec.sessions). */
@@ -146,6 +153,11 @@ export interface ShareRunSpec {
   sessions?: ShareSessionSpec[];
   /** Default: a page list file, as report-data.ts's runs have. */
   source?: PageSource;
+  /**
+   * The driver the run's settings record (`settings.driver`). Default: "replay" for a replayed run,
+   * "guidepup" for any other, the driver that reads with NVDA and records its voice.
+   */
+  driver?: string;
   /**
    * The voicecap version the session's environment records, as `environment.voicecap.version`:
    * "0.5.0" gives a run from before attempt records were kept. Default: report-data.ts's.
@@ -227,7 +239,7 @@ export function shareRun(spec: ShareRunSpec): RunJson {
       include: [],
       exclude: [],
       limit: null,
-      driver: replayed ? "replay" : "guidepup",
+      driver: spec.driver ?? (replayed ? "replay" : "guidepup"),
       replayFrom: replayed ? "fixture/replay-run" : null,
       capture: "complete",
       stepCaps: { read: 400, headings: 200, tab: 300 },
@@ -307,6 +319,7 @@ function sharePage(page: SharePageSpec, site: string): PageRecord {
     files: Object.fromEntries((page.files ?? []).map((name) => [name, PLACEHOLDER_FILE])),
     ...(page.screenshot === undefined ? {} : { screenshot: page.screenshot }),
     ...(page.axe === undefined ? {} : { axe: page.axe }),
+    ...(page.voice === undefined ? {} : { voice: page.voice }),
     flags: page.flags ?? [],
     errors: page.errors ?? [],
   };

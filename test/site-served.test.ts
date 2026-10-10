@@ -3,7 +3,9 @@
  * served over HTTP with each path's headers from the site's _headers (test/helpers/site-server.ts),
  * and opened in headless Chromium. The pages' own tests open them from files, where no Content
  * Security Policy applies. Here each page runs under the policy its own bytes make, and a download is
- * an attachment. Nothing here starts a screen reader or Word.
+ * an attachment. A share's voice page loads the recordings it holds under its own policy, which
+ * lets it, and would be refused them under the shareable page's: they are loaded and measured, and
+ * never played. Nothing here starts a screen reader or Word, or makes a sound.
  */
 import { createHash } from "node:crypto";
 import { readFile, rm, writeFile } from "node:fs/promises";
@@ -26,8 +28,12 @@ import {
   FIXTURE_FOLDER,
   FIXTURE_NAME,
   homeWithShares,
+  homeWithVoiceShare,
   recordOf,
   sealedEntry,
+  VOICE_FOLDER,
+  VOICE_PAGE,
+  VOICE_STEM,
   writeRecord,
 } from "./helpers/site-home.js";
 import { serveSite, type SiteServer } from "./helpers/site-server.js";
@@ -665,5 +671,202 @@ describe("the demo's own pages, served as Netlify serves them", () => {
       kind: "urlset",
       locs: DEMO_PAGE_PATHS.slice(0, 7).map((where) => `${DEMO_CANONICAL}${where}`),
     });
+  });
+});
+
+// A share's voice page is published beside its report, and plays the recordings it holds: each is in
+// its player's address, as data:, which its policy allows (and the shareable page's doesn't). The
+// recordings are loaded and measured here, never played: nothing in these tests makes a sound.
+describe("a share's voice page, served as Netlify serves it", () => {
+  let voiceBuilt: BuildSiteResult;
+  let voiceServer: SiteServer;
+  /** The pair's page and the voice page, as addresses from the site's top. */
+  const PAGE_HREF = `${VOICE_FOLDER}/${VOICE_STEM}.html`;
+  const VOICE_HREF = `${VOICE_FOLDER}/${VOICE_PAGE}`;
+  const addressOf = (href: string): string => new URL(href, voiceServer.url).href;
+
+  beforeAll(async () => {
+    const home = await homeWithVoiceShare();
+    folders.push(path.dirname(home));
+    voiceBuilt = await build(home);
+    voiceServer = await serveSite(voiceBuilt.out);
+    servers.push(voiceServer);
+  });
+
+  /** Ask each player of the page how long its recording is, which loads it: nothing is played. */
+  const lengthsOf = (page: Page): Promise<number[]> =>
+    page.evaluate(() =>
+      Promise.all(
+        [...document.querySelectorAll("audio")].map(
+          (sound) =>
+            new Promise<number>((resolve, reject) => {
+              const timer = setTimeout(() => reject(new Error("No length in 10 s.")), 10_000);
+              sound.addEventListener(
+                "loadedmetadata",
+                () => {
+                  clearTimeout(timer);
+                  resolve(sound.duration);
+                },
+                { once: true },
+              );
+              sound.addEventListener("error", () => reject(new Error(sound.error?.message)), {
+                once: true,
+              });
+              sound.preload = "metadata";
+              sound.load();
+            }),
+        ),
+      ),
+    );
+
+  it("loads each recording from the address it holds, under its policy, with no violation, and plays none", async () => {
+    const page = await newPage();
+    const voice = await readFile(path.join(voiceBuilt.out, VOICE_HREF), "utf8");
+
+    const policy = await visit(page, addressOf(VOICE_HREF));
+
+    // The policy of its own bytes, which allows its style and script by their hashes, and the data:
+    // addresses of its recordings as media.
+    expect(policy).toMatch(A_HASHED_POLICY);
+    expect(policy).toBe(contentSecurityPolicy(inlineHashes(voice), { media: true }));
+    expect(policy).toContain("; img-src data:; media-src data:; font-src data:;");
+    // Each of the three pages has a player, and the browser knows how long its file is: two seconds
+    // of the first page's sound, and a second and a half of each other's.
+    const lengths = await lengthsOf(page);
+    expect(lengths).toHaveLength(3);
+    expect(lengths.toSorted((a, b) => a - b)).toEqual([
+      expect.closeTo(1.5, 2),
+      expect.closeTo(1.5, 2),
+      expect.closeTo(2, 2),
+    ]);
+    expect(await violationsOf(page)).toEqual([]);
+    // Loaded and never played, from the start.
+    expect(
+      await page.evaluate(() =>
+        [...document.querySelectorAll("audio")].map((sound) => [sound.paused, sound.currentTime]),
+      ),
+    ).toEqual([
+      [true, 0],
+      [true, 0],
+      [true, 0],
+    ]);
+  });
+
+  it("would be refused its recordings under the shareable page's policy, so media-src data: is what lets it play", async () => {
+    const page = await newPage();
+    const address = addressOf(VOICE_HREF);
+    const voice = await readFile(path.join(voiceBuilt.out, VOICE_HREF), "utf8");
+    // The same page, as the shareable page's policy of its own bytes would serve it.
+    const shareable = contentSecurityPolicy(inlineHashes(voice));
+    expect(shareable).not.toContain("media-src");
+    await page.route(address, async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({
+        response,
+        headers: { ...response.headers(), "content-security-policy": shareable },
+      });
+    });
+
+    await page.goto(address);
+    // Its own style and script run, as they do under the policy it has: only the sound is refused.
+    expect(await page.locator("fieldset.speeds").first().isVisible()).toBe(true);
+    await page.evaluate(() => {
+      for (const sound of document.querySelectorAll("audio")) {
+        sound.preload = "metadata";
+        sound.load();
+      }
+    });
+
+    // Each of the three players is refused twice: once as the page loads (its element holds the
+    // recording's address, and that is a load the policy refuses), and once more when it's asked to
+    // load, above. The page is held until every refusal has come, here and in the console's messages,
+    // which reach the test a moment after the page's own, and which are read just after: one that
+    // came later would be taken for something the page did wrong, when the test ends.
+    const players = await page.locator("audio").count();
+    expect(players).toBe(3);
+    await expect.poll(async () => (await violationsOf(page)).length).toBe(players * 2);
+    await expect.poll(() => reported.length).toBe(players * 2);
+    const refused = await violationsOf(page);
+    expect(refused.every((violation) => violation.startsWith("media-src blocked data"))).toBe(true);
+    // What the browser reported to its console is those refusals, and nothing else.
+    const messages = reported.splice(0);
+    expect(messages).toHaveLength(players * 2);
+    for (const message of messages) expect(message).toContain("Content Security Policy");
+  });
+
+  it("runs its speed choice and its check under the policy, and the check matches its recordings", async () => {
+    const page = await newPage();
+    await visit(page, addressOf(VOICE_HREF));
+
+    // The script showed each choice, and a choice sets the speed with the pitch kept.
+    const group = page.locator("fieldset.speeds").first();
+    await group.getByRole("radio", { name: "0.5×" }).check();
+    expect(
+      await page.evaluate(() => {
+        const sound = document.querySelector("audio");
+        return sound === null ? null : [sound.playbackRate, sound.preservesPitch, sound.paused];
+      }),
+    ).toEqual([0.5, true, true]);
+    // The check reads each recording from its own address and hashes it, with nothing sent anywhere.
+    await page.locator("#fp-run").click();
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toBe(
+        "Checked just now, in this browser. " +
+          "3 of 3 recordings match their fingerprints, and the run's seal checks out.",
+      );
+    await page.locator("#theme-toggle").click();
+    expect(await violationsOf(page)).toEqual([]);
+  });
+
+  it("is where the report's cards link to, at each page's section, from both the report's addresses", async () => {
+    const page = await newPage();
+    for (const where of [PAGE_HREF, PAGE_HREF.replace(/\.html$/, "")]) {
+      await visit(page, addressOf(where));
+      // Each recorded page's card links to its section of the voice page, and the details link to
+      // the page itself: all in the share's own folder, as the report is.
+      const links = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLAnchorElement>('a[href*=".voice.html"]')].map(
+          (link) => link.href,
+        ),
+      );
+      expect(links.length, where).toBeGreaterThanOrEqual(4);
+      for (const link of links) {
+        expect(link.startsWith(addressOf(VOICE_HREF)), `${where}: ${link}`).toBe(true);
+      }
+      const sections = links.flatMap((link) =>
+        link.includes("#") ? [link.split("#")[1] ?? ""] : [],
+      );
+      expect(sections).toHaveLength(3);
+      // The page they lead to is there, under its policy, and each lands on a section of it that
+      // has its player.
+      const policy = await visit(page, addressOf(VOICE_HREF));
+      expect(policy, where).toContain("; media-src data:;");
+      for (const section of sections) {
+        expect(await page.locator(`article[id="${section}"] audio`).count(), section).toBe(1);
+      }
+      expect(await violationsOf(page), where).toEqual([]);
+    }
+  });
+
+  it("is listed with the report's files on the site's page, as NVDA's voice, and opens there under its policy", async () => {
+    const page = await newPage();
+    await page.goto(voiceServer.url);
+
+    // In the fold of the report's files, which a reader opens first; it's no download.
+    for (const summary of await page.locator("summary").all()) await summary.click();
+    const item = page.locator("li", { hasText: "NVDA's voice" });
+    expect(await item.count()).toBe(1);
+    expect(await item.locator(`a[href="${VOICE_HREF}"]`).getAttribute("download")).toBeNull();
+    await Promise.all([
+      page.waitForURL(addressOf(VOICE_HREF)),
+      item.locator(`a[href="${VOICE_HREF}"]`).click(),
+    ]);
+
+    expect(await page.title()).toMatch(/^NVDA's voice: example\.illinois\.gov, /);
+    const response = await page.request.get(addressOf(VOICE_HREF));
+    expect(response.headers()["content-security-policy"]).toContain("; media-src data:;");
+    expect(response.headers()["content-disposition"]).toBeUndefined();
+    expect(await violationsOf(page)).toEqual([]);
   });
 });

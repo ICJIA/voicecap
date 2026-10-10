@@ -44,6 +44,7 @@ import { createMemoryLogger, type Logger, type MemoryLogger } from "../src/util/
 import { footerWords, paragraphsOf, propertyOf, unzipDocx } from "./helpers/docx.js";
 import { config, options, outDir, SITE, setup, sitePages } from "./helpers/run-site.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
+import { speechAndPauses } from "./helpers/voice-signal.js";
 
 // Every write goes through as it did, and is kept, so a test can see what was written how.
 vi.mock("../src/util/atomic-write.js", async (importOriginal) => {
@@ -425,6 +426,36 @@ describe("writeShareFiles", () => {
     expect(renderWordCopy).toHaveBeenCalledTimes(1);
     expect(vi.mocked(renderSharePage).mock.calls[0]?.[0]).toBe(built?.value);
     expect(vi.mocked(renderWordCopy).mock.calls[0]?.[0]).toBe(built?.value);
+  });
+
+  it("writes no voice page beside the live copies, whatever the run recorded, and links to none", async () => {
+    const dir = await setup();
+    try {
+      const voice = { samples: speechAndPauses() };
+      const pages = sitePages({ home: { voice }, about: { voice }, resources: { voice } });
+      const result = await runAudit(options(dir, new ScriptedDriver(pages)));
+      expect(result.outcome).toBe("completed");
+      expect(result.run.pages.every((page) => "sha256" in (page.voice ?? {}))).toBe(true);
+      const site = outDir(dir);
+      await rm(shareDir(site), { recursive: true, force: true });
+
+      const files = await writeShareFiles({
+        siteDir: site,
+        config: DEFAULT_CONFIG,
+        logger: createMemoryLogger(),
+      });
+
+      // The live copies are the page and the Word copy alone: a voice page is written by a share,
+      // beside the dated copies, and a live copy that linked to one would link to nothing.
+      expect(files).toEqual({ page: sharePath(site), word: shareWordPath(site) });
+      expect((await readdir(shareDir(site))).sort()).toEqual(["current.docx", "current.html"]);
+      const page = await readFile(sharePath(site), "utf8");
+      expect(page).not.toContain(".voice.html");
+      expect(page).not.toContain("<audio");
+      expect(page).toContain("how its pages read aloud");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("dates both files from the time it's given", async () => {

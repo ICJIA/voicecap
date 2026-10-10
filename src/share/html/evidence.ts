@@ -105,23 +105,27 @@ export function renderCoverage(model: ShareModel): string {
 
 // The evidence.
 
+// The parts of the check that follow (why it can recompute a seal, its buttons, its result, the line
+// for a page read without scripts, and its list) are exported: the voice page (../voice-page.ts)
+// draws the same check, with the same elements, which the check's script finds by their ids.
+
 /** Why the check can recompute a seal: the page carries the records as they were written. */
-const EXACT_COPIES = `<p class="fp-what">This page carries the sealed records exactly as voicecap wrote them, so the check can recompute their seals.</p>`;
+export const EXACT_COPIES = `<p class="fp-what">This page carries the sealed records exactly as voicecap wrote them, so the check can recompute their seals.</p>`;
 
 /** The check's two buttons. They start hidden: the page's script shows them. */
-const CHECK_BUTTONS = `<div class="fp-row"><button type="button" id="fp-run" class="fp-button" hidden>Check the fingerprints</button><button type="button" id="fp-demo" class="fp-demo" hidden>Show a change being caught</button></div>`;
+export const CHECK_BUTTONS = `<div class="fp-row"><button type="button" id="fp-run" class="fp-button" hidden>Check the fingerprints</button><button type="button" id="fp-demo" class="fp-demo" hidden>Show a change being caught</button></div>`;
 
 /** Where the check says what it found. A live region, so a screen reader says it as it appears. */
-const CHECK_RESULT = `<p id="fp-result" class="fp-result" role="status"></p>`;
+export const CHECK_RESULT = `<p id="fp-result" class="fp-result" role="status"></p>`;
 
 /**
  * Said where the buttons would be. It shows unless the script hides it, so nothing but the
  * `hidden` attribute may stand in the way of it.
  */
-const NO_SCRIPT = `<p class="fp-result fp-noscript">To check the fingerprints without scripts, use those two commands.</p>`;
+export const NO_SCRIPT = `<p class="fp-result fp-noscript">To check the fingerprints without scripts, use those two commands.</p>`;
 
 /** Every file the check looked at, in a fold that stays hidden until a check has run. */
-function checkedList(): string {
+export function checkedList(): string {
   const head = columns(["File", "Recorded fingerprint", "Result"]);
   const table = `<table class="plain"><caption class="sr">Files checked</caption>${head}<tbody id="fp-rows"></tbody></table>`;
   const summary = `<span class="what">Every file checked</span> <span class="sub" id="fp-count"></span>`;

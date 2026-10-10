@@ -61,6 +61,7 @@ import {
   resumedLoggedRun,
   storeOf,
   TRANSCRIPTS,
+  voiceRecord,
   withOwnFiles,
   withStepLimit,
 } from "./helpers/share-model.js";
@@ -633,6 +634,26 @@ describe("renderEvidence", () => {
         "Page | File | Size | SHA-256",
         `/ | read.txt | 1 byte | ${"0".repeat(64)}`,
         `/ | screenshot.jpg | ${plural(TINY_RECORD.bytes, "byte")} | ${TINY_RECORD.sha256}`,
+      ]);
+    });
+
+    it("lists a page's recording of NVDA's voice among the run's files, after the page's transcripts and its screenshot, with its size and fingerprint", () => {
+      const voice = voiceRecord(61.5);
+      const model = modelOf([
+        { path: "/", files: ["read.txt"], screenshot: TINY_RECORD, voice },
+        { path: "/b", voice: { error: "no program", recordedAt: voice.recordedAt } },
+        { path: "/c", voice },
+      ]);
+      const [fold = ""] = runFolds(renderEvidence(model));
+      const part = partOf(fold, "Fingerprints (SHA-256)");
+
+      // A record of why there's none lists no file.
+      expect(rowsOf(tableOf(part, "plain"))).toEqual([
+        "Page | File | Size | SHA-256",
+        `/ | read.txt | 1 byte | ${"0".repeat(64)}`,
+        `/ | screenshot.jpg | ${plural(TINY_RECORD.bytes, "byte")} | ${TINY_RECORD.sha256}`,
+        `/ | voice.webm | ${plural(voice.bytes, "byte")} | ${voice.sha256}`,
+        `/c | voice.webm | ${plural(voice.bytes, "byte")} | ${voice.sha256}`,
       ]);
     });
 

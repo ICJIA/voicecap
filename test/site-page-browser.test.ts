@@ -61,16 +61,18 @@ const MONO = 'ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospa
 
 /**
  * A site whose names are as long as a name can be: a host of 88 characters, a person's name that is
- * one word, and file names that hold both, in its current report and in an earlier one. Nothing in
- * the page may run past a window 320 pixels wide.
+ * one word, and file names that hold both, in its current report and in an earlier one, the current
+ * report's with its voice page (from 0.18.0) among them. Nothing in the page may run past a window
+ * 320 pixels wide.
  */
 function longContent(): SiteContent {
   const folder = "research-hub-of-the-criminal-justice-information-authority.example.illinois.gov";
   const by = "Maximilian-Alexander-Bartholomew-Wolfeschlegelsteinhausenbergerdorff-Junior";
   const run = `2026-10-03_${"1".repeat(80)}`;
-  const files = (day: string) => [
+  const files = (day: string, voice = false) => [
     published("page", folder, `${folder}_${day}.html`, 324),
     published("word", folder, `${folder}_${day}.docx`, 51),
+    ...(voice ? [published("voice", folder, `${folder}_${day}.voice.html`, 2_048)] : []),
     published("walkthrough", folder, `${folder}_${day}_${run}_walkthrough.json`, 5, run),
   ];
   return {
@@ -87,7 +89,7 @@ function longContent(): SiteContent {
             id: `report-${folder}-2`,
             at: "2026-10-03T14:05:00-05:00",
             by,
-            files: files("2026-10-03"),
+            files: files("2026-10-03", true),
             notPublished: [
               { name: `${folder}_2026-10-03_${"x".repeat(60)}.docx`, reason: "missing" },
             ],
@@ -108,7 +110,7 @@ function longContent(): SiteContent {
 
 /**
  * Three sites whose current reports say each kind of verdict: nothing needs attention, problems that
- * need attention, and pages NVDA didn't read.
+ * need attention, and pages NVDA didn't read. The first's report lists its voice page too.
  */
 function verdictContent(): SiteContent {
   const results: NonNullable<PublishedReport["result"]>[] = [
@@ -128,6 +130,9 @@ function verdictContent(): SiteContent {
         files: [
           published("page", folder, `${folder}_2026-10-0${index + 1}.html`, 100),
           published("word", folder, `${folder}_2026-10-0${index + 1}.docx`, 40),
+          ...(index === 0
+            ? [published("voice", folder, `${folder}_2026-10-0${index + 1}.voice.html`, 900)]
+            : []),
         ],
         notPublished: [],
         result,
@@ -620,7 +625,11 @@ describe("the site's page", () => {
     "passes axe with zero violations, dark and light, with each kind of verdict on a card",
     async () => {
       const page = await open(files.verdicts);
+      // Closed, a fold's files aren't drawn, so axe wouldn't check them: this page has a share's voice
+      // page among them, listed as NVDA's voice, and the folds are opened so that axe sees it.
+      await openFolds(page);
       expect(await page.locator("p.verdict").count()).toBe(3);
+      expect(await page.locator("li", { hasText: "NVDA's voice" }).isVisible()).toBe(true);
 
       expect(await axeFindings(page, 1280), "dark").toEqual([]);
       await page.locator("#theme-toggle").click();
@@ -681,6 +690,25 @@ describe("the site's page", () => {
       "1 problem needs attention, on 32 pages",
       "2 problems need attention, on 2 pages",
     ]);
+  });
+
+  it("lists a share's voice page in its fold as NVDA's voice, a link that opens in the browser", async () => {
+    const page = await open(files.verdicts);
+    await openFolds(page);
+    const folder = "site-1.example.illinois.gov";
+
+    // One report has a voice page, and its item is drawn in the fold, as every file's is: its
+    // label, its link, its size, and its SHA-256.
+    const item = page.locator("li", { hasText: "NVDA's voice" });
+    expect(await item.count()).toBe(1);
+    expect(await item.isVisible()).toBe(true);
+    expect(await item.locator(".kind").textContent()).toBe("NVDA's voice");
+    const link = item.locator("a");
+    expect(await link.getAttribute("href")).toBe(`${folder}/${folder}_2026-10-01.voice.html`);
+    // It opens in the browser, as the page does, and is no download, as the Word copy is.
+    expect(await link.getAttribute("download")).toBeNull();
+    expect(await page.locator(`a[href$=".docx"]`).first().getAttribute("download")).not.toBeNull();
+    expect(await item.locator(".meta").textContent()).toMatch(/^900 KB, SHA-256 [0-9a-f]{64}$/);
   });
 
   it.each([

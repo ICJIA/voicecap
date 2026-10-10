@@ -13,7 +13,7 @@ import { decodeManualInput } from "../../manual/detect.js";
 import type { MachineRecord } from "../../model.js";
 import type { MachineProbe } from "../../run/machine-record.js";
 import { NVDA_LOG_FILE } from "./nvda-log.js";
-import { PROFILE_PREFIX, type GuidepupInstall } from "./paths.js";
+import { PROFILE_PREFIX, voiceFolderPid, type GuidepupInstall } from "./paths.js";
 
 const run = promisify(execFile);
 
@@ -537,8 +537,12 @@ export function windowsMachineProbe(
 /**
  * Clean up after a voicecap run that crashed or was killed: shut down Guidepup's NVDA (found by
  * its exact executable path, so another NVDA is never touched), close browsers whose profile is a
- * voicecap-chrome-* folder in `tmpDir`, and delete those profiles. Only called when no voicecap
- * holds the NVDA lock, so none of them is in use. Returns what was done, for the console.
+ * voicecap-chrome-* folder in `tmpDir`, and delete those profiles. Also delete the sound a run
+ * left in its voice folder, voicecap-voice-<process id> (see voiceFolder), when that process isn't
+ * running: a run that crashed, or was ended by a second Ctrl+C while its recorder still held the
+ * file, can't delete it, and each minute of NVDA's voice is about 1.9 MB of it. A folder whose
+ * process is running is left alone, whoever's it is. Only called when no voicecap holds the NVDA
+ * lock, so none of them is in use. Returns what was done, for the console.
  */
 export async function cleanupOrphans(tmpDir: string, nvdaExe: string): Promise<string[]> {
   const notes: string[] = [];
@@ -584,19 +588,38 @@ export async function cleanupOrphans(tmpDir: string, nvdaExe: string): Promise<s
     }
   }
 
-  let deleted = 0;
-  const leftovers = existsSync(tmpDir)
-    ? readdirSync(tmpDir).filter((name) => name.startsWith(PROFILE_PREFIX))
-    : [];
-  for (const name of leftovers) {
-    const dir = path.join(tmpDir, name);
-    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(
-      () => {},
-    );
-    if (!existsSync(dir)) deleted++;
+  const entries = existsSync(tmpDir) ? readdirSync(tmpDir, { withFileTypes: true }) : [];
+  const deleteAll = async (names: string[]): Promise<number> => {
+    let deleted = 0;
+    for (const name of names) {
+      const dir = path.join(tmpDir, name);
+      await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(
+        () => {},
+      );
+      if (!existsSync(dir)) deleted++;
+    }
+    return deleted;
+  };
+
+  const profiles = await deleteAll(
+    entries.filter((entry) => entry.name.startsWith(PROFILE_PREFIX)).map((entry) => entry.name),
+  );
+  if (profiles > 0) {
+    notes.push(`Deleted ${plural(profiles, "browser profile")} left by an earlier run.`);
   }
-  if (deleted > 0)
-    notes.push(`Deleted ${plural(deleted, "browser profile")} left by an earlier run.`);
+  // Only a folder: a file with such a name isn't one voicecap made. A folder whose file the
+  // recorder's helper still holds stays, as the delete fails, and is deleted by a later run.
+  const sounds = await deleteAll(
+    entries
+      .filter((entry) => {
+        const pid = voiceFolderPid(entry.name);
+        return entry.isDirectory() && pid !== null && !isRunning(pid);
+      })
+      .map((entry) => entry.name),
+  );
+  if (sounds > 0) {
+    notes.push(`Deleted ${plural(sounds, "folder")} of recorded sound left by an earlier run.`);
+  }
   return notes;
 }
 
