@@ -428,6 +428,114 @@ describe("verifyHome", () => {
     ]);
   });
 
+  // The cleaned copies of NVDA's own log that a run keeps (from voicecap 0.17.0), one for each time
+  // its NVDA quit: nvda-log/<session>-<n>.txt, recorded in run.files beside the event log.
+  describe("a run's copies of NVDA's log", () => {
+    const COPY = `${RUN}/nvda-log/1-1.txt`;
+    const LOG =
+      "# A cleaned copy of NVDA's log.\nIO - speech.speech.speak:\nSpeaking ['Welcome']\n";
+
+    /** A copy of the home, whose run has kept `LOG` as nvda-log/1-1.txt and recorded it, sealed. */
+    async function homeWithCopy(): Promise<string> {
+      const home = await copyOfHome();
+      await mkdir(at(home, `${RUN}/nvda-log`));
+      await writeFile(at(home, COPY), LOG);
+      await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+        run.files = { ...run.files, "nvda-log/1-1.txt": fileHash(LOG) };
+        run.seal = sealOf(run);
+      });
+      return home;
+    }
+
+    const ONE_PROBLEM = `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`;
+
+    it("passes a copy as the run recorded it", async () => {
+      const home = await homeWithCopy();
+      expect((await verify(home)).lines).toEqual([MATCHES]);
+    });
+
+    it("catches a copy that was edited", async () => {
+      const home = await homeWithCopy();
+      await appendFile(at(home, COPY), "Speaking ['Something said']\n");
+      const { result, lines } = await verify(home);
+      expect(lines).toEqual([
+        `${COPY}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+      expect(result.problems).toBe(1);
+    });
+
+    it("catches a copy that was removed", async () => {
+      const home = await homeWithCopy();
+      await rm(at(home, COPY));
+      expect((await verify(home)).lines).toEqual([`${COPY}: missing`, ONE_PROBLEM]);
+      // The folder gone with it says the same.
+      await rm(at(home, `${RUN}/nvda-log`), { recursive: true });
+      expect((await verify(home)).lines).toEqual([`${COPY}: missing`, ONE_PROBLEM]);
+    });
+
+    it("catches a copy the run doesn't record, which nothing vouches for", async () => {
+      const home = await homeWithCopy();
+      await writeFile(at(home, `${RUN}/nvda-log/1-2.txt`), LOG);
+      expect((await verify(home)).lines).toEqual([
+        `${RUN}/nvda-log/1-2.txt: not recorded by the run`,
+        ONE_PROBLEM,
+      ]);
+    });
+
+    it("catches a file the run doesn't record, at any depth in the folder", async () => {
+      const home = await homeWithCopy();
+      await mkdir(at(home, `${RUN}/nvda-log/more`));
+      await writeFile(at(home, `${RUN}/nvda-log/more/2-1.txt`), LOG);
+      expect((await verify(home)).lines).toEqual([
+        `${RUN}/nvda-log/more/2-1.txt: not recorded by the run`,
+        ONE_PROBLEM,
+      ]);
+    });
+
+    it("catches a folder of copies in a run that records none", async () => {
+      // A run from before voicecap kept them, or one that kept none, with a copy put in its folder.
+      const home = await copyOfHome();
+      await mkdir(at(home, `${RUN}/nvda-log`));
+      await writeFile(at(home, COPY), LOG);
+      expect((await verify(home)).lines).toEqual([`${COPY}: not recorded by the run`, ONE_PROBLEM]);
+    });
+
+    it("reports each problem with a copy in the order of the files' paths, the event log's first", async () => {
+      const home = await homeWithCopy();
+      await appendFile(at(home, COPY), "An added line\n");
+      await writeFile(at(home, `${RUN}/nvda-log/1-2.txt`), LOG);
+      await appendFile(at(home, `${RUN}/events.jsonl`), "\n");
+      expect((await verify(home)).lines).toEqual([
+        `${RUN}/events.jsonl: changed since it was recorded (SHA-256 differs)`,
+        `${COPY}: changed since it was recorded (SHA-256 differs)`,
+        `${RUN}/nvda-log/1-2.txt: not recorded by the run`,
+        `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 3 problems.`,
+      ]);
+    });
+
+    it("doesn't mind the files an operating system leaves in the folder", async () => {
+      const home = await homeWithCopy();
+      await writeFile(at(home, `${RUN}/nvda-log/.DS_Store`), "Finder's view settings");
+      await writeFile(at(home, `${RUN}/nvda-log/Thumbs.db`), "Explorer's thumbnails");
+      await writeFile(at(home, `${RUN}/nvda-log/desktop.ini`), "[.ShellClassInfo]\r\n");
+      expect((await verify(home)).lines).toEqual([MATCHES]);
+    });
+
+    it("doesn't check the copies of a run that isn't sealed yet", async () => {
+      // An incomplete run's files can change until it's completed and sealed: it's listed only.
+      const home = await copyOfHome();
+      await interruptedRun(home);
+      const incomplete = `${FOLDER}/2026-09-27/1200`;
+      await mkdir(at(home, `${incomplete}/nvda-log`));
+      await writeFile(at(home, `${incomplete}/nvda-log/1-1.txt`), LOG);
+      expect((await verify(home)).lines).toEqual([
+        `${incomplete}: incomplete run, not sealed yet`,
+        `${FOLDER}: 2 runs (1 incomplete), 1 manual session, 2 reviews, 0 shares checked: everything matches.`,
+      ]);
+    });
+  });
+
   it("checks each file a run records beside its pages, in a folder or not", async () => {
     const home = await copyOfHome();
     const notes = "Kept with the run.\n";

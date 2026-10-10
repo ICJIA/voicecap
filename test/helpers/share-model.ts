@@ -3,14 +3,17 @@
  * (`inputOf`), the demo runs of 29 September 2026 as a model (`demoModel`), transcripts held in
  * memory (`storeOf`), screenshots held in memory (`picturesOf`), axe's results kept as a run keeps
  * them, with their files held in memory (`keptAxe`, `axeFilesOf`), a run with its event log held in
- * memory (`loggedRun`), and a site of many pages read in full (`manyPages`). The tests that render
- * the page, and the one that builds its model, share them, so each file says only what it adds.
+ * memory (`loggedRun`), and a site of many pages read in full (`manyPages`). `inputOf` has the
+ * keys NVDA's driver gives (`gestureOf`), as the commands that make the page give them, and no copy
+ * of NVDA's log. The tests that render the page, and the one that builds its model, share them, so
+ * each file says only what it adds.
  */
 import os from "node:os";
 import path from "node:path";
 
 import { keptAxeResults } from "../../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
+import { gestureOf } from "../../src/drivers/guidepup/nvda-log.js";
 import type {
   AxeRecord,
   FileHash,
@@ -138,6 +141,8 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     manual: [],
     transcripts: NO_TRANSCRIPTS,
     events: new Map(),
+    nvdaLogs: new Map(),
+    gestureOf,
     screenshots: new Map(),
     axeFiles: new Map(),
     flagsAsRecorded: [],

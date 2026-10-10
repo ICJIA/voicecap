@@ -21,6 +21,7 @@
  * each one level down (./details.ts). Pure.
  */
 import { firstSentenceBold, lineOfMarkup, type Line } from "../line.js";
+import { nvdaLogWords } from "../log-words.js";
 import type { EvidenceRow, RunEvidence, ShareModel } from "../model.js";
 import {
   ABOUT,
@@ -187,12 +188,42 @@ function eventLogBlocks({ timeline, unlogged }: RunEvidence): Block[] {
 }
 
 /**
+ * A run's NVDA log, checked against the transcripts, in the page's words (../log-words.ts): its three
+ * counts as a list, the steps that weren't checked, straight under them, as the page says them, that
+ * every line agrees, or each list of the lines that differ under a bold line of its own, and how many
+ * lines NVDA spoke outside the steps. The part is under a heading 3, which the details set to a 4,
+ * and a Word heading goes no lower, so the lists have no headings: each bold line is followed by its
+ * list, which the document keeps with it. Where there is no check, why, as the model words it, or,
+ * for a copy made without NVDA's keys, that this Word copy was (the page says it of itself).
+ */
+function nvdaLogBlocks({ nvdaLog }: RunEvidence): Block[] {
+  if ("withoutKeys" in nvdaLog) return [para(WORD_TEXT.evidence.noKeys)];
+  if ("notRecorded" in nvdaLog) return [para(notRecordedLine(nvdaLog.notRecorded))];
+  const words = nvdaLogWords(nvdaLog);
+  return [
+    list(words.tiles.map(({ big, label }) => `${big} ${label}`)),
+    ...words.notChecked.map((line) => para(line)),
+    ...(words.same === null ? [] : [para(...firstSentenceBold(words.same))]),
+    ...words.lists.flatMap(({ title, lines }) => [
+      para({ text: title, bold: true }),
+      list(
+        lines.map(({ where, words: said }): Line => [
+          { text: `${where}: `, bold: true },
+          `“${said}”`,
+        ]),
+      ),
+    ]),
+    para(words.outside),
+  ];
+}
+
+/**
  * A run: its title as a heading 2, when it ran and that it completed and was sealed, its facts, and
  * its five parts. The event log, minute by minute, is each session's summary and its table of
- * events (from voicecap 0.11.0); NVDA's own log, which no version records yet, says so, as the model
- * words it. The test environment is a table. The fingerprints are a table, and after it how to check
- * them against the recorded files, with the command as a fixed-width block. The walkthrough file is
- * last.
+ * events (from voicecap 0.11.0); NVDA's own log, checked against the transcripts (from 0.17.0), is
+ * the counts and the lines that differ, or says why not, as the model words it. The test
+ * environment is a table. The fingerprints are a table, and after it how to check them against the
+ * recorded files, with the command as a fixed-width block. The walkthrough file is last.
  */
 function runBlocks(each: RunEvidence): Block[] {
   const { run } = each;
@@ -202,7 +233,7 @@ function runBlocks(each: RunEvidence): Block[] {
     para(`${whenOf(run)}. ${WORD_TEXT.evidence.status}`),
     rowsTable(each.facts),
     ...partBlocks(parts.timeline, run.id, eventLogBlocks(each)),
-    ...partBlocks(parts.nvdaLog, run.id, [para(notRecordedLine(each.nvdaLog.notRecorded))]),
+    ...partBlocks(parts.nvdaLog, run.id, nvdaLogBlocks(each)),
     ...partBlocks(parts.environment, run.id, [rowsTable(each.environment)]),
     ...partBlocks(parts.fingerprints, run.id, [
       ...fingerprintBlocks(each.fingerprints),

@@ -24,6 +24,17 @@ export type Speech = string;
  */
 export interface EventRecorder {
   record(event: NewRunEvent, at?: Date): void;
+
+  /**
+   * The screen reader's own log of the session that has just ended, cleaned by the driver down to
+   * what the run keeps of it (for NVDA: its speech, voicecap's keys, and its warnings and errors).
+   * The run keeps it as a copy in its folder, records it in the event log (`screen-reader-log`, with
+   * the copy's file), and lists it among the run's files. Like `record`, it never throws: a copy
+   * that can't be kept is recorded as none, with why. Optional: a recorder that keeps no copies
+   * leaves it out, and a driver reads the screen reader's log only for a recorder that has it, so a
+   * driver run with none (doctor's live check, fixture capture) reads nothing.
+   */
+  screenReaderLog?(cleaned: string): void;
 }
 
 /** A recorder that records nothing: what a driver reports to until a run gives it a real one. */

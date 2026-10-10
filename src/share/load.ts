@@ -1,8 +1,9 @@
 /**
  * What the shareable page is made from, read from a site's folder in the transcripts home: its
- * runs, reviews, and manual sessions, the transcripts the page shows or compares, the event logs of
- * the runs it draws on, and the screenshots and axe results it shows. Every read is here;
- * buildShareModel (./model.ts) works from what this gives it, and reads nothing itself.
+ * runs, reviews, and manual sessions, the transcripts the page shows or compares, the event logs
+ * and the copies of NVDA's own log of the runs it draws on, and the screenshots and axe results it
+ * shows. Every read is here; buildShareModel (./model.ts) works from what this gives it, and reads
+ * nothing itself.
  */
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
@@ -31,14 +32,15 @@ import {
 } from "../model.js";
 import { recordedCanonical } from "../pages/canonical.js";
 import { readReviews } from "../reviews/store.js";
-import { EVENT_LOG, readEventLog } from "../run/events.js";
+import { EVENT_LOG, isCopyPath, readEventLog } from "../run/events.js";
 import { homeFolder } from "../run/failure.js";
-import { eventLogFile, pageDir, runJsonPath } from "../run/paths.js";
+import { eventLogFile, pageDir, runDir, runJsonPath } from "../run/paths.js";
 import { listRuns } from "../run/store.js";
 import { fileHash } from "../transcripts/write.js";
 import { UsageError } from "../util/errors.js";
 import { isoLocal } from "../util/time.js";
-import { axeRecordOf, screenshotRecordOf } from "./records.js";
+import { axeRecordOf, isFileHash, screenshotRecordOf } from "./records.js";
+import type { GestureOf } from "./run-log-check.js";
 import { cardRecord, runBefore, standingOf, type Standing } from "./standing.js";
 
 /** The transcripts the page shows or compares, by run id, page slug, and pass. */
@@ -91,6 +93,22 @@ export interface ShareInput {
    * seal covers: a run without one isn't in it.
    */
   events: Map<string, { events: RunEvent[]; unreadable: number }>;
+  /**
+   * The cleaned copies of NVDA's own log (nvda-log/<session>-<n>.txt) of each run the page draws on,
+   * by run id, then by the copy's path from the run's folder, as its record lists it. Only a copy
+   * its run's record lists whose file is as recorded there (its size and SHA-256), so the page shows
+   * only what the run's seal covers: a copy that isn't (missing, unreadable, or changed), and a
+   * path that is not a copy's, is left out, and a run with none isn't in the map. Which session a
+   * copy belongs to is the run's event log's to say, never its number.
+   */
+  nvdaLogs: Map<string, Map<string, string>>;
+  /**
+   * The key a step's command presses, as the screen reader's own log names it (NVDA's), which the
+   * check of NVDA's log goes by. It comes from the driver layer, which the page never imports. Null
+   * when whatever made this input has none (a page made without the check): the loader then reads
+   * no steps beyond those the page shows, and the check says it wasn't made.
+   */
+  gestureOf: GestureOf | null;
   /**
    * The screenshot file of each page the page shows a picture for, by run id and page slug
    * ("2026-09-29_1402/home"): the file of the record its card speaks for (the one whose transcripts
@@ -164,6 +182,8 @@ export async function loadShareInput(options: {
   now?: Date;
   fileName?: string;
   wordName?: string;
+  /** NVDA's keys, from the driver layer (see ShareInput.gestureOf). Default: none. */
+  gestureOf?: GestureOf | null;
 }): Promise<ShareInput> {
   const { siteDir, config } = options;
   const records = await listRuns(siteDir);
@@ -176,14 +196,23 @@ export async function loadShareInput(options: {
   for (const { run, page } of pagesToRead(standing)) {
     read.set(storeKey(run.id, page.slug), await readPage(siteDir, run.id, page));
   }
-  const [reviews, manual, unreadableRuns, events, screenshots, axeFiles] = await Promise.all([
-    readReviews(siteDir),
-    listManualSessions(siteDir),
-    runsNotRead(siteDir, records),
-    eventLogsOf(siteDir, standing.drawnOn),
-    screenshotsOf(siteDir, standing),
-    axeFilesOf(siteDir, standing),
-  ]);
+  const [reviews, manual, unreadableRuns, events, nvdaLogs, screenshots, axeFiles] =
+    await Promise.all([
+      readReviews(siteDir),
+      listManualSessions(siteDir),
+      runsNotRead(siteDir, records),
+      eventLogsOf(siteDir, standing.drawnOn),
+      nvdaLogsOf(siteDir, standing.drawnOn),
+      screenshotsOf(siteDir, standing),
+      axeFilesOf(siteDir, standing),
+    ]);
+  const gestureOf = options.gestureOf ?? null;
+  // The steps of every page of a run that kept copies, which its copies are checked against: read
+  // only when there is a check to make.
+  const kept =
+    gestureOf === null
+      ? new Map<string, KeptSteps>()
+      : await stepsOf(siteDir, standing.drawnOn, nvdaLogs, read);
   const flagsAsRecorded: ShareInput["flagsAsRecorded"] = [];
   return {
     readOrigin: (standing.latest ?? newest).site,
@@ -201,8 +230,10 @@ export async function loadShareInput(options: {
     unreadableRuns,
     reviews,
     manual,
-    transcripts: storeOf(read),
+    transcripts: storeOf(read, kept),
     events,
+    nvdaLogs,
+    gestureOf,
     screenshots,
     axeFiles,
     siteName: config.report.siteName,
@@ -293,6 +324,74 @@ async function eventLogsOf(siteDir: string, runs: RunJson[]): Promise<ShareInput
     logs.set(run.id, readEventLog(bytes.toString("utf8")));
   }
   return logs;
+}
+
+/**
+ * The cleaned copies of NVDA's log of each run, by run id and then by path: each one the run's
+ * record lists (RunJson.files) under a path that is a copy's (isCopyPath), whose file is there and is
+ * as its record has it. A copy that isn't (missing, unreadable, or changed since its run's seal) is
+ * left out, and the page says so; `voicecap verify` names it. A run with no copy isn't in the map.
+ */
+async function nvdaLogsOf(siteDir: string, runs: RunJson[]): Promise<ShareInput["nvdaLogs"]> {
+  const logs: ShareInput["nvdaLogs"] = new Map();
+  for (const run of runs) {
+    const listed: unknown = run.files;
+    if (typeof listed !== "object" || listed === null) continue;
+    const copies = new Map<string, string>();
+    for (const [file, recorded] of Object.entries(listed)) {
+      if (!isCopyPath(file) || !isFileHash(recorded)) continue;
+      let bytes: Buffer;
+      try {
+        bytes = await readFile(path.join(runDir(siteDir, run.id), ...file.split("/")));
+      } catch {
+        continue;
+      }
+      const { sha256, bytes: size } = fileHash(bytes);
+      if (sha256 === recorded.sha256 && size === recorded.bytes) {
+        copies.set(file, bytes.toString("utf8"));
+      }
+    }
+    if (copies.size > 0) logs.set(run.id, copies);
+  }
+  return logs;
+}
+
+/** The steps of a page's passes, by pass. */
+type KeptSteps = Partial<Record<PassName, StepRecord[]>>;
+
+/**
+ * The steps of every pass of every page read in full, in each run that kept copies of NVDA's log, by
+ * run id and slug: what its copies are checked against, whether or not the page shows the page's
+ * transcripts. A page that is read already is left out (its steps are in `read`). Each pass's JSON is
+ * read one at a time, like a screenshot, and only its steps are kept.
+ */
+async function stepsOf(
+  siteDir: string,
+  runs: RunJson[],
+  copies: ShareInput["nvdaLogs"],
+  read: Map<string, PageTranscripts>,
+): Promise<Map<string, KeptSteps>> {
+  const steps = new Map<string, KeptSteps>();
+  for (const run of runs) {
+    if (!copies.has(run.id)) continue;
+    for (const page of run.pages) {
+      const key = storeKey(run.id, page.slug);
+      if (page.status !== "done" || read.has(key)) continue;
+      const dir = pageDir(siteDir, run.id, page.slug);
+      const found: KeptSteps = {};
+      for (const pass of PASS_NAMES) {
+        const files: unknown = page.files;
+        if (page.passes?.[pass] === undefined || typeof files !== "object" || files === null) {
+          continue;
+        }
+        if (!Object.hasOwn(files, `${pass}.json`)) continue;
+        const transcript = await readTranscript(path.join(dir, `${pass}.json`));
+        if (transcript !== null) found[pass] = transcript.steps;
+      }
+      steps.set(key, found);
+    }
+  }
+  return steps;
 }
 
 /**
@@ -454,9 +553,15 @@ function flagsOf(
   return evaluateFlags(passes, rules);
 }
 
-function storeOf(read: Map<string, PageTranscripts>): TranscriptStore {
+function storeOf(
+  read: Map<string, PageTranscripts>,
+  kept: Map<string, KeptSteps>,
+): TranscriptStore {
   return {
     txt: (run, slug, pass) => read.get(storeKey(run, slug))?.txt[pass] ?? null,
-    steps: (run, slug, pass) => read.get(storeKey(run, slug))?.json[pass]?.steps ?? null,
+    steps: (run, slug, pass) => {
+      const key = storeKey(run, slug);
+      return read.get(key)?.json[pass]?.steps ?? kept.get(key)?.[pass] ?? null;
+    },
   };
 }

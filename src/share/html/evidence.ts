@@ -19,9 +19,11 @@
  *
  * The mockup showed the evidence with two sample runs and a timeline drawn from a watcher's log. A
  * run records its own event log from voicecap 0.11.0, and the page draws each session's timeline
- * from it (./timeline.ts). Where a run didn't record something, the model says "Not recorded: this
- * run used voicecap <version>", and so does the page. The walkthrough file the mockup showed is
- * made of each run's record (../run-evidence.ts).
+ * from it (./timeline.ts). A run records a cleaned copy of NVDA's own log from 0.17.0, and the page
+ * shows it checked against the transcripts: three tiles (the mockup's `.cross`), the lines that
+ * differ, and what the check left out. Where a run didn't record something, the model says "Not
+ * recorded: this run used voicecap <version>", and so does the page. The walkthrough file the
+ * mockup showed is made of each run's record (../run-evidence.ts).
  *
  * Where the mockup set a style attribute, the page's style block gives the same look instead: the
  * box of the two panels (`.limits`), the story's first two paragraphs (`#story-h + .gist`, and the
@@ -33,12 +35,14 @@ import { esc, idFragment, plural } from "../../report/html.js";
 import { checkDataJson } from "../check.js";
 import { sizeWords } from "../format.js";
 import { firstSentenceBold, type Line } from "../line.js";
+import { nvdaLogWords } from "../log-words.js";
 import type { EvidenceRow, RunEvidence, ShareModel } from "../model.js";
 import {
   ABOUT,
   COVERAGE_TEXT,
   EVIDENCE_TEXT,
   FOOTER_TEXT,
+  NVDA_LOG_TEXT,
   STORY,
   STORY_TEXT,
   TIMELINE,
@@ -58,7 +62,7 @@ import {
   whenOf,
   whyLine,
 } from "../words.js";
-import { chip, fold, lineHtml, notRecorded, scroll } from "./parts.js";
+import { chip, fold, lineHtml, notRecorded, scroll, verdictLine } from "./parts.js";
 import { renderTimelines } from "./timeline.js";
 
 /** The header cells of a table, from the words of each column. */
@@ -235,10 +239,45 @@ function timelinePart({ run, timeline, unlogged, screenReader }: RunEvidence): s
 }
 
 /**
+ * A run's NVDA log, checked against the transcripts: three tiles with the counts, the steps that
+ * weren't checked, straight under them (so nothing after them reads as speaking for those steps),
+ * that every line agrees or the lists of the lines that differ (each under a heading of its own,
+ * which sits one level under the part's), and how many lines NVDA spoke outside the steps. Where
+ * there is no check, why, as the model words it, or, for a page made without NVDA's keys, that this
+ * page was. A line's words are text, whatever they hold, in the box the cards of what needs
+ * attention use for what NVDA said.
+ */
+function nvdaLogPart({ nvdaLog }: RunEvidence): string {
+  if ("withoutKeys" in nvdaLog) return notRecorded(NVDA_LOG_TEXT.noKeys);
+  if ("notRecorded" in nvdaLog) return notRecorded(nvdaLog.notRecorded);
+  const words = nvdaLogWords(nvdaLog);
+  const tiles = words.tiles.map(
+    ({ big, label }) =>
+      `<div><div class="big">${esc(big)}</div><div class="sub">${esc(label)}</div></div>`,
+  );
+  const lists = words.lists.map(({ title, lines }) => {
+    const items = lines.map(
+      ({ where, words: said }) =>
+        `<li class="place"><span class="pass">${esc(where)}:</span><code>“${esc(said)}”</code></li>`,
+    );
+    return `<h4>${esc(title)}</h4><ul class="diffs">${items.join("")}</ul>`;
+  });
+  const parts = [
+    `<div class="cross">${tiles.join("")}</div>`,
+    ...words.notChecked.map((line) => `<p>${esc(line)}</p>`),
+    words.same === null ? "" : verdictLine(words.same),
+    ...lists,
+    `<p>${esc(words.outside)}</p>`,
+  ];
+  return `<div class="log-check">${parts.filter((part) => part !== "").join("")}</div>`;
+}
+
+/**
  * A run's fold, behind its id, when it ran, and chips that say it completed and was sealed. Inside:
  * its facts, then five parts: the event log, minute by minute (from voicecap 0.11.0), and NVDA's own
- * log, which no version records yet (each says what the run didn't record, as the model words it),
- * the test environment, the fingerprints, and the walkthrough file that repeats the run.
+ * log, checked against the transcripts (from 0.17.0; each says what the run didn't record, as the
+ * model words it), the test environment, the fingerprints, and the walkthrough file that repeats
+ * the run.
  */
 function runFold(each: RunEvidence): string {
   const { run } = each;
@@ -248,7 +287,7 @@ function runFold(each: RunEvidence): string {
   const body = [
     factsOf(each.facts),
     runPart(parts.timeline, run.id, timelinePart(each)),
-    runPart(parts.nvdaLog, run.id, notRecorded(each.nvdaLog.notRecorded)),
+    runPart(parts.nvdaLog, run.id, nvdaLogPart(each)),
     runPart(parts.environment, run.id, environmentTable(each.environment, run.id)),
     runPart(
       parts.fingerprints,

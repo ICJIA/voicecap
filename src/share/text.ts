@@ -23,6 +23,7 @@ import type { OnlyInOnePage } from "./changes.js";
 import { count } from "./format.js";
 import type { Line } from "./line.js";
 import type { Problem } from "./problems.js";
+import type { WhyNotChecked } from "./run-log-check.js";
 import type { VerdictKind } from "./verdict.js";
 
 /**
@@ -525,6 +526,9 @@ export const ISSUES_URL = "https://github.com/ICJIA/voicecap/issues";
 /** The address as the request to report an error, and the table of kinds, print it. */
 const ISSUES_ADDRESS = "github.com/ICJIA/voicecap/issues";
 
+/** What a problem's record calls the copy of NVDA's own log, where it says what the run lacks. */
+const NVDA_OWN_LOG = "NVDA's own log";
+
 /**
  * "Problems during the runs": its heading, what it says of what's in it, the labels of a problem's
  * questions, the request to report an unexpected error, the words for whether a problem happened
@@ -573,13 +577,34 @@ export const PROBLEMS_TEXT = {
    * What a problem says its run didn't record, each where it matters, before "not recorded" and the
    * voicecap the run used: the step and the key (an error from a pass's step, written as text), the
    * program in front (a foreground loss), the event log and NVDA's own log together (a voicecap that
-   * kept neither), or NVDA's own log alone (one that keeps the event log).
+   * kept neither), or NVDA's own log alone (one that keeps the event log but not a copy of NVDA's).
    */
   unrecorded: {
     stepAndKey: "The step and the key",
     program: "Which program came to the front",
     logs: "The event log and NVDA's own log",
-    nvdaLog: "NVDA's own log",
+    nvdaLog: NVDA_OWN_LOG,
+  },
+  /**
+   * What a problem's record says in place of NVDA's own log, for an attempt of a voicecap that keeps
+   * a copy of it (KEEPS_NVDA_LOG_FROM and later) when the page doesn't have the copy of the NVDA
+   * session the attempt ran in, each as a line of what the record lacks, as the event log's are
+   * (TIMELINE_TEXT.gaps): the run's screen reader isn't NVDA; voicecap kept no copy for that session
+   * (`noCopy`, or `reason`, in the run's own words where its log gives some); the copy, which the
+   * run's record lists, isn't as the run recorded it (`changed`: missing, unreadable, or changed,
+   * and `voicecap verify` names it); the run's record doesn't list the copy its event log names
+   * (`unlisted`, which verify never looks for); or the session can't be told (`unplaced`: the page
+   * has no event log to say which NVDA session the attempt ran in, or the log shows none at the
+   * attempt's start). A copy the page read that holds nothing in the attempt's window says nothing:
+   * its record has no row from it.
+   */
+  nvdaLog: {
+    notNvda: `${NVDA_OWN_LOG}: not recorded: this run's screen reader isn't NVDA.`,
+    noCopy: `${NVDA_OWN_LOG}: not recorded: voicecap kept no copy of it for the NVDA session this attempt ran in.`,
+    reason: (reason: string): string => `${NVDA_OWN_LOG}: not recorded: ${reason}.`,
+    changed: `${NVDA_OWN_LOG}: not shown: the copy for the NVDA session this attempt ran in isn't as the run recorded it; voicecap verify names it.`,
+    unlisted: `${NVDA_OWN_LOG}: not shown: the run's record doesn't list the copy of NVDA's log that its event log names for the NVDA session this attempt ran in.`,
+    unplaced: `${NVDA_OWN_LOG}: not shown: the event log doesn't show which NVDA session this attempt ran in.`,
   },
   /**
    * Which program came to the front, for a foreground loss in a run that looked (0.11.0 on), said
@@ -748,6 +773,108 @@ export const EVIDENCE_TEXT = {
 };
 
 /**
+ * "NVDA's own log, checked against the transcripts": what a run's part says, around the numbers and
+ * the lines it works out. The wording is the plan's (the owner reads it with the release). The page
+ * and its Word copy both say these, from ./log-words.ts, and the Word copy has no headings under the
+ * part's own, so its two lists' headings are bold lines. What a sentence takes, it takes as a number
+ * or a string, so it is the same sentence wherever it is said.
+ */
+export const NVDA_LOG_TEXT = {
+  /**
+   * The three tiles, what each counts after its number ("204 lines in voicecap's transcripts for this
+   * run"). The page sets the number large and the rest small; the Word copy says each as a line. When
+   * some steps weren't checked, the first counts only the lines that were (`checked`).
+   */
+  tiles: {
+    transcripts: (lines: number): string =>
+      `${lines === 1 ? "line" : "lines"} in voicecap's transcripts for this run`,
+    checked: (lines: number): string =>
+      `${lines === 1 ? "line" : "lines"} in voicecap's transcripts that ${lines === 1 ? "was" : "were"} checked`,
+    inLog: (lines: number): string =>
+      `${lines === 1 ? "line" : "lines"} NVDA's own log has for those steps`,
+    agree: (lines: number): string => (lines === 1 ? "agrees" : "agree"),
+  },
+  /** The headings of the two lists of lines that differ, in the order the lists come. */
+  lists: {
+    onlyInLog: "Said in NVDA's own log, not in the transcripts",
+    onlyInTranscripts: "In the transcripts, not in NVDA's own log",
+  },
+  /** Where a line that differs is, before its words: "/about/, Read pass, step 12". */
+  where: (page: string, pass: PassName, step: number): string =>
+    `${page}, ${PASS_TITLE[pass]} pass, step ${step}`,
+  /** Said when both lists are empty, always beside the three tiles. */
+  same: "Every line agrees.",
+  /** Said in its place when some steps weren't checked: it speaks only for the lines that were. */
+  sameChecked: "Every line that was checked agrees.",
+  /**
+   * Said after it when the transcripts have more lines than the log does: steps that said nothing,
+   * in the transcripts and in the log alike, so there is no line of theirs to compare.
+   */
+  noWords: (steps: number): string =>
+    `${plural(steps, "step")} had no words in the transcripts or in NVDA's own log.`,
+  /**
+   * How much speech the check leaves out, and why. When some steps weren't checked, the speech of
+   * those in a copy that was checked is among it (a page the event log doesn't place, or a pass
+   * whose steps couldn't be read), and the sentence says so.
+   */
+  outside: (lines: number, someNotChecked: boolean): string => {
+    const when = someNotChecked
+      ? "while pages loaded, before the run, in attempts that were thrown out, or in steps that weren't checked"
+      : "while pages loaded, before the run, or in attempts that were thrown out";
+    return `${count(lines)} ${lines === 1 ? "line" : "lines"} NVDA spoke outside voicecap's steps (${when}) ${lines === 1 ? "isn't" : "aren't"} compared or shown.`;
+  },
+  /**
+   * Why some steps weren't checked, each as a clause that follows "...weren't checked: " and "Not
+   * shown: ". The reason a run's own log gives for a session with no copy is said in its own words,
+   * and `none` where the log gives none.
+   */
+  because: {
+    none: "voicecap kept no copy of NVDA's log for that session",
+    altered: "NVDA's log isn't as the run recorded it; voicecap verify names it",
+    unlisted: "the run's record doesn't list the copy of NVDA's log that its event log names",
+    silent:
+      "NVDA's log has no speech in it, as when NVDA's logging level is below input and output",
+    initial:
+      "this run kept only the first thing NVDA said for each step, so a step can't be compared with all that NVDA's log has",
+    times: "the times of the pages couldn't be read",
+    unread: "the transcripts' steps couldn't be read here",
+    placed: "the event log doesn't show when the pages were read",
+  } satisfies Record<Exclude<WhyNotChecked, "reason">, string>,
+  /**
+   * Some steps that weren't checked, with when the NVDA session they were read in started, as the
+   * event log's rows give a time, when they belong to one: "6 steps from the NVDA session that
+   * started 26 September 2026, 14:04 weren't checked: voicecap kept no copy of NVDA's log for that
+   * session."
+   */
+  notChecked: (steps: number, when: string | null, because: string): string => {
+    const from = when === null ? "" : ` from the NVDA session that started ${when}`;
+    return `${plural(steps, "step")}${from} ${steps === 1 ? "wasn't" : "weren't"} checked: ${because}.`;
+  },
+  /** What the part says when no step was checked, for one reason, and, for mixed reasons, first. */
+  notShown: (because: string): string => `Not shown: ${because}.`,
+  noneChecked: "Not shown: no step could be checked.",
+  /** The part of a run with no step to check against, which read no page in full. */
+  noSteps: "Not recorded: this run has no transcripts to check NVDA's log against.",
+  /** The part of a run of a voicecap that keeps NVDA's log, with no copy in its record. */
+  noCopy: "Not recorded: this run kept no copy of NVDA's log.",
+  /** The part of a run whose screen reader isn't NVDA's. */
+  notNvda: "Not recorded: this check is NVDA's only, since VoiceOver keeps no log of what it says.",
+  /**
+   * The part of a run whose event log the page can't show, which pairs each copy with its steps: the
+   * event log's own reason (TIMELINE_TEXT.gaps), then what it means here.
+   */
+  needsEventLog: (reason: string): string =>
+    `${reason} NVDA's log is paired with the steps by the event log, so it can't be checked here.`,
+  /**
+   * The part of a page made without the keys voicecap presses for each step, which the check goes
+   * by. The Word copy says it of itself (`WORD_TEXT.evidence.noKeys`), since "this page", in a Word
+   * document, reads as the printed page.
+   */
+  noKeys:
+    "Not shown: this page was made without the keys voicecap presses for each step, which the check needs.",
+};
+
+/**
  * Each event of a run's event log (events.jsonl), in the words its row of the table says, and the
  * problems' records quote. `sr` is the run's screen reader as its environment records it ("NVDA");
  * `name` is a page as the page names it, and `n` its number in the run. The screen reader voicecap
@@ -814,6 +941,13 @@ export const EVENT_TEXT = {
    */
   foregroundEscape: (closed: string): string =>
     `voicecap pressed Escape to close ${closed}, which had come in front of the browser`,
+  /**
+   * The screen reader's own log of a session that has just ended: the copy voicecap kept (its path
+   * from the run's folder), or, with the reason when the log gives one, that it kept none.
+   */
+  logKept: (sr: string, file: string): string => `voicecap kept a copy of ${sr}'s own log: ${file}`,
+  logNotKept: (sr: string, reason: string | null): string =>
+    `voicecap kept no copy of ${sr}'s own log${reason === null ? "" : `: ${reason}`}`,
 };
 
 /**
@@ -1198,7 +1332,7 @@ export const TIMELINE: TimelineRow[] = [
   {
     date: null,
     release: null,
-    pc: "NVDA's own log, checked against the transcripts, recorded at the PC.",
+    pc: "NVDA's voice: a recording of what NVDA said on each page, sealed with the run.",
     mac: "Full runs with VoiceOver, with voicecap's VoiceOver driver.",
     both: null,
   },
@@ -1368,6 +1502,12 @@ export const WORD_TEXT = {
      * page's "on this page" (`EVIDENCE_TEXT.leftOut.lead`). The sentence that follows is the page's.
      */
     leftOutLead: "These runs aren't counted in any result in this report.",
+    /**
+     * What a run's check of NVDA's own log says in the Word copy when it was made without the keys
+     * voicecap presses for each step: the page's sentence (`NVDA_LOG_TEXT.noKeys`), of this copy.
+     */
+    noKeys:
+      "Not shown: this Word copy was made without the keys voicecap presses for each step, which the check needs.",
     /**
      * A run's walkthrough file, which the Word copy can't carry: how to get it, from the web page
      * or with a command (`lead`, then the command), and then (`then`) the command that repeats the

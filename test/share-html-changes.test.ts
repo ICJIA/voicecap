@@ -12,11 +12,14 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { FlagResult, PassName } from "../src/model.js";
+import { esc } from "../src/report/html.js";
 import { renderChanges } from "../src/share/html/changes.js";
 import { renderProblems } from "../src/share/html/problems.js";
+import { SHARE_CSS } from "../src/share/html/style.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { KIND_ROWS } from "../src/share/problems.js";
+import { keptLogsModel, problemEntry } from "./helpers/nvda-log.js";
 import {
   failedAttempt,
   shareRun,
@@ -1388,6 +1391,71 @@ describe("renderProblems", () => {
       expect(kinds).toContain(
         `with a link to report it (<a href="${ISSUES}">github.com/ICJIA/voicecap/issues</a>)`,
       );
+    });
+  });
+
+  describe("for an entry of several lines", () => {
+    /** The cells of a record table's rows from a source, as their markup, in order. */
+    const cellsOf = (table: string, source: string): string[] =>
+      [
+        ...table.matchAll(new RegExp(`<td class="src">${source}</td>(<td>.*?</td>)</tr>`, "gs")),
+      ].map((found) => found[1] ?? "");
+    /** A traceback's lines: markup, an ampersand, a blank line, and the spaces that indent it. */
+    const TRACEBACK = [
+      "Error accepting connection",
+      "Traceback (most recent call last):",
+      '  File "<frozen importlib._bootstrap>", line 1, in <module>',
+      "    <img src=x onerror=alert(1)> & more",
+      "",
+      "ssl.SSLEOFError: EOF occurred",
+    ];
+
+    it("shows NVDA's own warning or error line by line, after its level, each line escaped, with its spaces kept", () => {
+      const model = keptLogsModel([problemEntry("ERROR", "14:04:20.123", ...TRACEBACK)]);
+      const [fold = ""] = foldsIn(renderProblems(model));
+      const table = tableOf(fold, "logtable");
+      const [cell] = cellsOf(table, "nvda-log");
+      const [first = "", ...rest] = TRACEBACK;
+
+      // One code, a line break after each line but the last, and every character of each escaped.
+      expect(cell).toBe(
+        `<td><code>${[`ERROR: ${first}`, ...rest].map(esc).join("<br>")}</code></td>`,
+      );
+      expect(cell?.match(/<br>/g)).toHaveLength(TRACEBACK.length - 1);
+      expect(cell).toContain("    &lt;img src=x onerror=alert(1)&gt; &amp; more");
+      expect(cell).not.toContain("<img");
+      // The reader gets the markup as the words it is, and the time and the source beside it.
+      expect(textOf(cell ?? "")).toContain("<img src=x onerror=alert(1)> & more ssl.SSLEOFError");
+      expect(table).toContain('<td class="lt">14:04:20.123</td><td class="src">nvda-log</td>');
+      expect(cellsOf(table, "nvda-log")).toHaveLength(1);
+    });
+
+    it("shows a failure's message of several lines the same way, a call log among them", () => {
+      const message =
+        'page.goto: net::ERR_NAME_NOT_RESOLVED at https://example.gov/\r\nCall log:\n  - navigating to "https://example.gov/", waiting until "load"';
+      const model = failedModel([failedAttempt({ n: 1, cause: "unreachable", message })]);
+      const [fold = ""] = foldsIn(renderProblems(model));
+      const cells = cellsOf(tableOf(fold, "logtable"), "run.json");
+
+      expect(cells.at(-1)).toBe(
+        `<td><code>${[
+          "Failed: unreachable: page.goto: net::ERR_NAME_NOT_RESOLVED at https://example.gov/",
+          "Call log:",
+          '  - navigating to "https://example.gov/", waiting until "load"',
+        ]
+          .map(esc)
+          .join("<br>")}</code></td>`,
+      );
+      // An entry of one line is as it was: one code, no break.
+      expect(cells[0]).toBe("<td><code>Attempt 1 started</code></td>");
+    });
+
+    it("keeps the spaces of an entry, in the record's table and nowhere else", () => {
+      const rule = /table\.logtable td code \{([^}]*)\}/.exec(SHARE_CSS)?.[1] ?? "";
+
+      // break-spaces, not pre-wrap: a space where a line wraps takes room, so axe can tell what each
+      // letter is drawn on (see .place code).
+      expect(rule).toContain("white-space: break-spaces;");
     });
   });
 

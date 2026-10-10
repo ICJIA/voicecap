@@ -58,6 +58,14 @@
  *   the first line of its reason. So is one that takes over 20 seconds, which can't be stopped, and
  *   says it's still under way in the page (leftRunning): the core opens the page again, and that
  *   load's fresh browser closes this one, ending the check with it. Neither fails the page.
+ * - NVDA's own log is turned on at the input/output level, through Guidepup's settings (a
+ *   general.loggingLevel the config sets itself wins). Each time voicecap's NVDA has quit, the driver
+ *   reads that log, cleans it (./guidepup/nvda-log.ts), and hands the copy to the run's recorder,
+ *   before anything starts NVDA again: NVDA moves the last log aside to nvda-old.log whenever it
+ *   starts, as the person's own NVDA does when the final stop starts it again. It reads nothing
+ *   for a recorder that keeps no copies, and a log it can't have (none, one it can't read, or one
+ *   older than the NVDA session, an earlier NVDA's) is recorded as no copy, with why, and the
+ *   console is told, once for a driver: it never stops a stop.
  */
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -67,6 +75,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { AXE_LIMIT_MS, axeErrorReason, axeScript, keptAxeResults } from "../axe/results.js";
 import type { VoicecapConfig } from "../config/schema.js";
 import { isHtmlContentType } from "../pages/url.js";
+import { redactHome } from "../run/failure.js";
 import { EnvironmentError, errorMessage } from "../util/errors.js";
 import { closedProgram } from "../util/foreground.js";
 import { acquireLockFile, isStale, readLockHolder } from "../util/lock-file.js";
@@ -74,6 +83,7 @@ import type { Logger } from "../util/log.js";
 import { formatDuration } from "../util/time.js";
 import { launchChrome, LimitReachedError, withinLimit } from "./guidepup/chrome.js";
 import { loadGuidepupNvda } from "./guidepup/nvda.js";
+import { beganWithSession, cleanNvdaLog, withNvdaLog } from "./guidepup/nvda-log.js";
 import {
   guidepupInstall,
   nvdaLockFile,
@@ -90,6 +100,7 @@ import {
   nvdaLanguage,
   nvdaProcesses,
   ownNvdaPaths,
+  readNvdaLog,
   restartNvda,
   restartNvdaDetached,
   sessionLocked,
@@ -235,6 +246,17 @@ export interface GuidepupDriverDeps {
    * once Guidepup's NVDA has quit.
    */
   restartNvdaDetached: (exe: string) => void;
+  /**
+   * NVDA's own log as NVDA left it (the decoded text of nvda.log in the temp folder), or null when
+   * there is no such file. Rejects when it can't be read (another program has it locked, say). Asked
+   * once each time voicecap's NVDA has quit, and only for a recorder that keeps copies of it.
+   */
+  readNvdaLog: () => Promise<string | null>;
+  /**
+   * The account's home folder, which a copy of NVDA's log writes as %USERPROFILE%, and so does the
+   * reason a log couldn't be had, which is kept with the run.
+   */
+  home: string;
   /** The machine-wide lock: only one voicecap drives NVDA at a time. */
   lockFile: string;
   system: () => SystemInfo;
@@ -287,6 +309,8 @@ export function createGuidepupNvdaDriver(
     ownNvda: () => ownNvdaPaths(install),
     restartNvda,
     restartNvdaDetached: (exe) => restartNvdaDetached(exe, install.nvdaExe),
+    readNvdaLog: () => readNvdaLog(os.tmpdir()),
+    home: os.homedir(),
     lockFile: nvdaLockFile(process.env, os.homedir()),
     system: () => (system ??= { ...windowsSystemInfo(), guidepupVersion: guidepup.version }),
     cleanupOrphans: () => cleanupOrphans(os.tmpdir(), install.nvdaExe),
@@ -347,6 +371,16 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   private events: EventRecorder = NO_EVENTS;
   /** The process id of the NVDA voicecap started, for the event that says it stopped. */
   private nvdaPid: number | null = null;
+  /**
+   * When voicecap last began to start its NVDA: a log it keeps a copy of must have begun since (see
+   * cleanedNvdaLog).
+   */
+  private nvdaBegan: Date | null = null;
+  /**
+   * Whether the console has been told that a copy of NVDA's log wasn't kept: it's told once for a
+   * driver, the first time, whichever copy it was and whatever the reason.
+   */
+  private noCopyWarned = false;
   private session: BrowserSession | null = null;
   /** Whether the current session has loaded a page (the next load gets a fresh browser). */
   private sessionUsed = false;
@@ -486,10 +520,11 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     this.nvdaOwner = generation;
     this.setNvdaState("starting");
     const began = this.deps.now();
+    this.nvdaBegan = began;
     try {
       await nvda.start({
         capture: this.options.config.capture,
-        settings: this.options.config.nvdaSettings,
+        settings: withNvdaLog(this.options.config.nvdaSettings),
       });
     } catch (error) {
       this.setNvdaState("stopped");
@@ -1125,6 +1160,65 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     const restarting = this.stopping !== null && !this.finalStop;
     this.events.record({ type: "screen-reader-stopped", pid: this.nvdaPid, restarting });
     this.nvdaPid = null;
+    await this.keepNvdaLog();
+  }
+
+  /**
+   * NVDA has quit: read its log, clean it, and hand the copy to the run's recorder, which keeps it
+   * (EventRecorder.screenReaderLog). It's read here, by whoever stopped NVDA, because NVDA moves the
+   * last log aside to nvda-old.log whenever it starts, which the next start does, and so does the
+   * person's own NVDA when the final stop starts it again. Only an NVDA that this driver ran and
+   * has just quit has a log to read: one that never started has none of this run's. A recorder that
+   * keeps no copies is given none, and nothing is read, as doctor's live check and fixture capture
+   * run the driver with none. A log that can't be had (see cleanedNvdaLog) is recorded as no copy,
+   * with why, and the console is told, once for a driver; it never stops the stop that was under
+   * way. What the recorder does with a copy is its own: it never throws, as `record` never does.
+   */
+  private async keepNvdaLog(): Promise<void> {
+    const recorder = this.events;
+    if (recorder.screenReaderLog === undefined) return;
+    const log = await this.cleanedNvdaLog();
+    if ("cleaned" in log) {
+      recorder.screenReaderLog(log.cleaned);
+      return;
+    }
+    recorder.record({ type: "screen-reader-log", file: null, reason: log.reason });
+    if (!this.noCopyWarned) {
+      this.noCopyWarned = true;
+      this.options.logger.warn(
+        `NVDA's own log of one NVDA session wasn't kept: ${sentence(log.reason)} The run goes on.`,
+      );
+    }
+  }
+
+  /**
+   * NVDA's log, read and cleaned, or why it can't be had: there is no file, or it's empty, or it
+   * can't be read (another program has it locked, say), or it began before this NVDA session's
+   * start did, so it's an earlier NVDA's (beganWithSession). Nothing is read when the account's home
+   * folder isn't known: a copy says it has the home folder written as %USERPROFILE%, and the
+   * account's name in a path would stay in it. Never throws.
+   */
+  private async cleanedNvdaLog(): Promise<{ cleaned: string } | { reason: string }> {
+    const { home, platform } = this.deps;
+    if (home.trim() === "") {
+      return {
+        reason: "The account's home folder isn't known, so NVDA's log couldn't be cleaned of it.",
+      };
+    }
+    try {
+      const raw = await this.deps.readNvdaLog();
+      if (raw === null || raw.trim() === "") return { reason: "NVDA's log wasn't there." };
+      const began = this.nvdaBegan;
+      if (began !== null && !beganWithSession(raw, began, this.deps.now())) {
+        return {
+          reason: "NVDA's log is older than this NVDA session, so it isn't this session's.",
+        };
+      }
+      return { cleaned: cleanNvdaLog(raw, { home, platform }) };
+    } catch (error) {
+      // The run keeps the reason, and a path in an error's message names the account.
+      return { reason: redactHome(errorMessage(error), home, platform) };
+    }
   }
 
   private async stopNvda(nvda: NvdaControl): Promise<void> {
@@ -1244,6 +1338,11 @@ function lostForeground(program: string | null): ForegroundError {
     "The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs.",
     { program },
   );
+}
+
+/** A reason as a sentence of its own: its words, with one full stop at the end. */
+function sentence(reason: string): string {
+  return `${reason.trim().replace(/[\s.]+$/, "")}.`;
 }
 
 function describeError(error: unknown): string {

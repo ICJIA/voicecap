@@ -111,6 +111,7 @@ const KINDS: Record<NewRunEvent["type"], EventKind> = {
   "screen-reader-started": "screen-reader",
   "screen-reader-stopped": "screen-reader",
   "screen-reader-restarting": "screen-reader",
+  "screen-reader-log": "screen-reader",
   "own-screen-reader-closed": "own",
   "own-screen-reader-restarted": "own",
   "browser-launched": "browser",
@@ -275,6 +276,16 @@ function wordsOf(event: Fields, said: EventWords): string | null {
       return program === null
         ? null
         : EVENT_TEXT.foregroundEscape(closedProgram(program)?.words ?? said.redact(program));
+    }
+    case "screen-reader-log": {
+      // A copy's path, or none and the reason the log gives for it, which is empty or a sentence.
+      const { file, reason } = event;
+      const kept = words(file);
+      if (file !== null && kept === null) return null;
+      if (reason !== null && reason !== undefined && typeof reason !== "string") return null;
+      if (kept !== null) return EVENT_TEXT.logKept(sr, said.redact(kept));
+      const why = words(reason);
+      return EVENT_TEXT.logNotKept(sr, why === null ? null : said.redact(why));
     }
     default:
       return null;
@@ -560,25 +571,47 @@ export function restartsOf(
 const AFTER_FAILURE_MS = 10_000;
 
 /**
- * What the log has of an attempt at a page, for its problem's record: its events from its own start
- * until the next attempt at the page starts, or, when none followed it in its session, until 10
- * seconds after it ended.
+ * The window a problem's record has of an attempt at a page: the log's events in it, and the time it
+ * covers, which the record's other sources (NVDA's own log, say) are taken over too.
+ */
+export interface AttemptWindow {
+  /** The log's events in the window, in the order the log has them. */
+  events: RunEvent[];
+  /**
+   * When the window begins: the time of its first event, as the log has it, else (the log has no
+   * event in the attempt's time) the attempt's start, as its record has it.
+   */
+  from: string;
+  /** How long it lasts, in milliseconds after `from`. */
+  lasts: number;
+  /**
+   * Whether the moment `lasts` after `from` is in it: the moment the next attempt starts is not (it
+   * is in that attempt's window), and the moment 10 seconds after the failure is.
+   */
+  inclusive: boolean;
+}
+
+/**
+ * The window a problem's record has of an attempt at a page: its events from its own start until
+ * the next attempt at the page starts, or, when none followed it in its session, until 10 seconds
+ * after it ended.
  *
  * Its own start is the last start of its number between its start and its end, as the attempt's
  * record times them: a resumed session takes a number again when Ctrl+C stopped the attempt that had
  * it, as an attempt it stopped isn't counted. A log with no such start begins it at its first event
  * within the attempt's time; one with none there (an attempt of a session the log doesn't have, in a
- * run begun before voicecap kept one) has nothing of it.
+ * run begun before voicecap kept one) has no event in the window, and its time is the attempt's
+ * own. Null where the attempt's times can't be read.
  */
-export function attemptEvents(
+export function attemptWindow(
   log: { events: RunEvent[] },
   page: string,
   attempt: { n: number; startedAt: string; endedAt: string },
-): RunEvent[] {
+): AttemptWindow | null {
   const events = log.events.filter((event) => isEventTime(event.at));
   const began = Date.parse(attempt.startedAt);
   const ended = Date.parse(attempt.endedAt);
-  if (!Number.isFinite(began) || !Number.isFinite(ended)) return [];
+  if (!Number.isFinite(began) || !Number.isFinite(ended)) return null;
   const until = ended + AFTER_FAILURE_MS;
   const within = (event: RunEvent, last: number) => {
     const at = Date.parse(event.at);
@@ -592,17 +625,56 @@ export function attemptEvents(
   );
   if (start === -1) start = events.findIndex((event) => within(event, until));
   const [first, ...rest] = start === -1 ? [] : events.slice(start);
-  if (first === undefined) return [];
+  if (first === undefined) {
+    return {
+      events: [],
+      from: attempt.startedAt,
+      lasts: Math.max(0, until - began),
+      inclusive: true,
+    };
+  }
+  const from = Date.parse(first.at);
 
   // The next attempt at the page, in the same session: the record ends where it starts.
   const turn = rest.findIndex((event) => startsPage(event) || event.type === "run-started");
-  if (turn !== -1 && startsPage(rest[turn])) return [first, ...rest.slice(0, turn)];
+  const next = rest[turn];
+  if (next !== undefined && startsPage(next)) {
+    return {
+      events: [first, ...rest.slice(0, turn)],
+      from: first.at,
+      lasts: Math.max(0, Date.parse(next.at) - from),
+      inclusive: false,
+    };
+  }
 
   // None followed it: until 10 seconds after it ended, short of a later session's attempt.
   const window = [first];
+  let lasts = Math.max(0, until - from);
+  let inclusive = true;
   for (const event of rest) {
-    if (startsPage(event) || Date.parse(event.at) > until) break;
+    if (startsPage(event)) {
+      // A later session's attempt, started within those 10 seconds: the window ends where it starts.
+      const starts = Date.parse(event.at);
+      if (starts <= until) {
+        lasts = Math.max(0, starts - from);
+        inclusive = false;
+      }
+      break;
+    }
+    if (Date.parse(event.at) > until) break;
     window.push(event);
   }
-  return window;
+  return { events: window, from: first.at, lasts, inclusive };
+}
+
+/**
+ * What the log has of an attempt at a page, for its problem's record: the events of its window (see
+ * `attemptWindow`), none where the attempt's times can't be read.
+ */
+export function attemptEvents(
+  log: { events: RunEvent[] },
+  page: string,
+  attempt: { n: number; startedAt: string; endedAt: string },
+): RunEvent[] {
+  return attemptWindow(log, page, attempt)?.events ?? [];
 }

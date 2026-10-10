@@ -4,7 +4,12 @@ import path from "node:path";
 
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { VoicecapConfig } from "../config/schema.js";
-import { createDriver, selectDriver, type DriverSelection } from "../drivers/index.js";
+import {
+  createDriver,
+  nvdaGestureOf,
+  selectDriver,
+  type DriverSelection,
+} from "../drivers/index.js";
 import { loadPlatformReadiness } from "../drivers/readiness.js";
 import { BROWSER_WINDOW, type ScreenReaderDriver } from "../drivers/types.js";
 import { evaluateFlags, flagRulesSha256 } from "../flags/evaluate.js";
@@ -51,7 +56,7 @@ import { createConsoleLogger, type Logger } from "../util/log.js";
 import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
 import { DriverSession } from "./driver-session.js";
-import { EVENT_LOG, openEventLog, type EventLog } from "./events.js";
+import { copiesInFolder, EVENT_LOG, openEventLog, type EventLog } from "./events.js";
 import { withCurrentFlags } from "./flags.js";
 import { ensureGitFiles } from "./git-files.js";
 import { acquireRunLock } from "./lock.js";
@@ -359,8 +364,13 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
     if (decision.resume && options.compare) await resolveCompareBase(outDir, run, options.compare);
 
     // The run's event log, opened now its folder is there. A resumed run adds to its earlier
-    // sessions' events.
-    const events = openEventLog(eventLogFile(outDir, run.id), { now, logger });
+    // sessions' events. The log names this session's copies of the screen reader's log by the
+    // session's number.
+    const events = openEventLog(eventLogFile(outDir, run.id), {
+      now,
+      logger,
+      session: nextSessionNumber(run),
+    });
 
     return await execute({
       run,
@@ -481,6 +491,15 @@ interface ExecuteContext {
   walkthrough: Walkthrough | null;
 }
 
+/**
+ * The number of the session that is about to begin: one more than the run's sessions so far. The
+ * session's record gets it as it's added to the run, and the event log is opened with it before
+ * that, to name the session's copies of the screen reader's log.
+ */
+function nextSessionNumber(run: RunJson): number {
+  return run.sessions.length + 1;
+}
+
 async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
   const { run, config, outDir, logger, now } = ctx;
   const reviewer = findReviewer({
@@ -497,7 +516,7 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
     );
   }
   const session: SessionRecord = {
-    n: run.sessions.length + 1,
+    n: nextSessionNumber(run),
     startedAt: isoLocal(now()),
     reviewer,
     endedAt: null,
@@ -526,11 +545,24 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
     session.endedAt = isoLocal(now());
     session.endReason = reason;
     // The log's last line for the session, and then it's closed and hashed into the run's record,
-    // so that a completed run's seal covers it and nothing is written to it after.
+    // with each copy of the screen reader's log the session kept, so that a completed run's seal
+    // covers them and nothing is written to them after. The copies of earlier sessions that the run
+    // doesn't list yet go in too: a session that never reached this point (it crashed, or its window
+    // was closed) listed none of its own, and a run that a later session completes must list what it
+    // left, as it lists its event log, which every session's end hashes whole. Left as they are: a
+    // copy the run lists already (an edit made since is still found), and any file that isn't a copy
+    // of one of its sessions (`voicecap verify` names it).
     ctx.events.record({ type: "run-ended", session: session.n, reason });
     ctx.events.close();
-    const log = await hashOfEventLog(eventLogFile(outDir, run.id));
-    if (log) (run.files ??= {})[EVENT_LOG] = log;
+    const folder = runDir(outDir, run.id);
+    const unlisted = copiesInFolder(folder, session.n).filter(
+      (name) => run.files?.[name] === undefined,
+    );
+    for (const name of new Set([EVENT_LOG, ...unlisted, ...ctx.events.copies()])) {
+      // Each is named by its path from the run's folder, written with "/", as the record lists it.
+      const hash = await hashOfFile(path.join(folder, ...name.split("/")));
+      if (hash) (run.files ??= {})[name] = hash;
+    }
     await writeRunJson(outDir, run);
   };
 
@@ -613,10 +645,11 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
 }
 
 /**
- * The event log's size and SHA-256, or null when there's no log to read: one that couldn't be
- * written (the run warned of it), so the run records no file for it.
+ * The size and SHA-256 of one of the run's own files (its event log, or a copy of the screen
+ * reader's log), or null when there's none to read: one that couldn't be written, so the run
+ * records no file for it.
  */
-async function hashOfEventLog(file: string): Promise<FileHash | null> {
+async function hashOfFile(file: string): Promise<FileHash | null> {
   try {
     return fileHash(await readFile(file));
   } catch {
@@ -812,7 +845,13 @@ async function complete(ctx: ExecuteContext): Promise<void> {
   });
   // The shareable page and its Word copy too, now the sealed run is on disk. One that can't be
   // written is a warning, never a failed run.
-  await writeShareFiles({ siteDir: outDir, config, logger, now: now() });
+  await writeShareFiles({
+    siteDir: outDir,
+    config,
+    logger,
+    now: now(),
+    gestureOf: nvdaGestureOf,
+  });
   logger.info(`Run ${run.id} complete. Report: ${live.file}`);
   // A repeat says how it sounds against the original, from its own finished record.
   if (ctx.walkthrough) {

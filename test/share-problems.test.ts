@@ -12,8 +12,9 @@ import type {
   RunEvent,
   RunJson,
 } from "../src/model.js";
-import { buildShareModel } from "../src/share/model.js";
+import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import {
+  KEEPS_NVDA_LOG_FROM,
   KIND_ROWS,
   kindFromWording,
   problemsOf,
@@ -21,10 +22,29 @@ import {
   type ProblemKind,
 } from "../src/share/problems.js";
 import { standingOf } from "../src/share/standing.js";
+import { sealOf } from "../src/util/hash.js";
+import {
+  copyOf,
+  FIRST_COPY,
+  keptLogsRun,
+  keyAt,
+  problemEntry,
+  saidAt,
+  timeOfDay,
+  usingVersion,
+} from "./helpers/nvda-log.js";
 import { findPage, SITE } from "./helpers/report-data.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
-import { inputOf, logged, loggedModel, loggedRun, PRIVATE_TITLE } from "./helpers/share-model.js";
+import {
+  inputOf,
+  LOG_HASH,
+  logged,
+  loggedModel,
+  loggedRun,
+  PRIVATE_TITLE,
+  withOwnFiles,
+} from "./helpers/share-model.js";
 
 // What voicecap 0.4.1 and 0.5.0 wrote into a page's errors, word for word (from the drivers in
 // src/drivers/guidepup-nvda.ts, guidepup/chrome.ts, and guidepup/nvda.ts, the timeouts in
@@ -2614,6 +2634,604 @@ describe("problemsOf: the record's lines from the event log", () => {
       expect(said.length).toBe(3);
       expect(said.filter((line) => /this run used voicecap/.test(line))).toEqual([]);
     });
+  });
+});
+
+describe("problemsOf: NVDA's own warnings and errors in the record", () => {
+  const FIRST = FIRST_COPY;
+  const entry = problemEntry;
+  /** An error with a traceback, as the real run of 6 October 2026 logged one. */
+  const TRACEBACK = [
+    "Error accepting connection",
+    "Traceback (most recent call last):",
+    '  File "_remoteClient\\server.pyc", line 385, in acceptNewConnection',
+    '  File "ssl.pyc", line 1418, in accept',
+    "ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)",
+  ];
+  const NO_COPY =
+    "NVDA's own log: not recorded: voicecap kept no copy of it for the NVDA session this attempt ran in.";
+  const CHANGED =
+    "NVDA's own log: not shown: the copy for the NVDA session this attempt ran in isn't as the run recorded it; voicecap verify names it.";
+  const UNLISTED =
+    "NVDA's own log: not shown: the run's record doesn't list the copy of NVDA's log that its event log names for the NVDA session this attempt ran in.";
+  const UNPLACED =
+    "NVDA's own log: not shown: the event log doesn't show which NVDA session this attempt ran in.";
+  const NOT_NVDA = "NVDA's own log: not recorded: this run's screen reader isn't NVDA.";
+
+  type Log = { events: RunEvent[]; unreadable: number };
+  interface Change {
+    run?: RunJson;
+    log?: Log | null;
+    /** The copies the page has (by path); none by default but the first session's, which holds `entries`. */
+    copies?: Map<string, string> | null;
+  }
+
+  /**
+   * The run that keeps NVDA's log (keptLogsRun: three NVDA sessions, the first of which loses Apply to
+   * another window), its first session's copy holding `entries` and no speech, as the page has it.
+   */
+  function modelWith(entries: string[][], change: Change = {}): ShareModel {
+    const kept = keptLogsRun();
+    const run = change.run ?? kept.run;
+    const log = change.log === undefined ? kept.log : change.log;
+    const copies =
+      change.copies === undefined
+        ? new Map(kept.copies).set(FIRST, copyOf(...entries))
+        : change.copies;
+    return buildShareModel(
+      inputOf([run], {
+        transcripts: kept.transcripts,
+        events: log === null ? new Map() : new Map([[run.id, log]]),
+        nvdaLogs: copies === null ? new Map() : new Map([[run.id, copies]]),
+      }),
+    );
+  }
+
+  /** The record's rows that NVDA's log gave. */
+  const fromNvda = (problem: Problem | undefined) =>
+    (problem?.record ?? []).filter((row) => row.source === "nvda-log");
+
+  /** A problem's record as rows of its time of day, where it's from, and what it says. */
+  const rowsOf = (problem: Problem | undefined) =>
+    (problem?.record ?? [])
+      .filter((row) => row.source !== "stack")
+      .map((row) => `${row.time?.slice(11, 23) ?? "-"} | ${row.source} | ${row.entry}`);
+
+  /** The run with the voicecap each session used (the first of them, then the second), sealed again. */
+  function usedVersions(run: RunJson, versions: string[]): RunJson {
+    const { seal: _seal, ...unsealed } = run;
+    const sessions = unsealed.sessions.map((session, index) => ({
+      ...session,
+      environment:
+        session.environment === null
+          ? null
+          : {
+              ...session.environment,
+              voicecap: { ...session.environment.voicecap, version: versions[index] ?? "0.1.0" },
+            },
+    }));
+    const changed: RunJson = { ...unsealed, sessions };
+    return { ...changed, seal: sealOf(changed) };
+  }
+
+  /** The run with every `screen-reader-log` event the log has of `file` changed by `change`, or gone. */
+  function withLogEvent(
+    file: string,
+    change: ((event: Extract<RunEvent, { type: "screen-reader-log" }>) => RunEvent) | null,
+  ): Log {
+    const { log } = keptLogsRun();
+    const events = log.events.flatMap((event) => {
+      if (event.type !== "screen-reader-log" || event.file !== file) return [event];
+      return change === null ? [] : [change(event)];
+    });
+    return { events, unreadable: 0 };
+  }
+
+  it("adds an ERROR entry with a traceback, inside the problem's window, as a row from nvda-log, with its time, its level, and its lines", () => {
+    const model = modelWith([entry("ERROR", "14:04:20.123", ...TRACEBACK)]);
+    const [problem] = model.problems.problems;
+
+    expect(fromNvda(problem)).toEqual([
+      {
+        time: "2026-09-26T14:04:20.123-05:00",
+        source: "nvda-log",
+        entry: `ERROR: ${TRACEBACK.join("\n")}`,
+      },
+    ]);
+  });
+
+  it("leaves out an entry outside the window", () => {
+    // Apply's first attempt began at 14:03:56.000, and the next began at 14:04:48.000.
+    const model = modelWith([
+      entry("WARNING", "14:03:30.000", "While Home was being read."),
+      entry("ERROR", "14:04:48.000", "As the next attempt began."),
+      entry("ERROR", "14:09:00.000", "Long after."),
+    ]);
+
+    expect(fromNvda(model.problems.problems[0])).toEqual([]);
+  });
+
+  it("no longer says NVDA's own log isn't recorded, for a run of the version that keeps a copy and kept one", () => {
+    const kept = keptLogsRun();
+    const run = usingVersion(kept.run, KEEPS_NVDA_LOG_FROM);
+
+    // With a warning in the window, and with none: the copy was read either way.
+    for (const entries of [[entry("WARNING", "14:04:20.000", "Something.")], []]) {
+      const [problem] = modelWith(entries, { run }).problems.problems;
+
+      expect(problem?.notRecorded).toEqual([]);
+    }
+  });
+
+  it.each(["0.11.0", "0.14.0", "0.16.9"])(
+    "still says NVDA's own log isn't recorded for a run of voicecap %s, and shows none of it",
+    (version) => {
+      const run = usingVersion(keptLogsRun().run, version);
+      const model = modelWith([entry("ERROR", "14:04:20.123", ...TRACEBACK)], { run });
+      const [problem] = model.problems.problems;
+
+      expect(problem?.notRecorded).toEqual([
+        `NVDA's own log: not recorded: this run used voicecap ${version}.`,
+      ]);
+      expect(fromNvda(problem)).toEqual([]);
+    },
+  );
+
+  it("puts them among the record's other rows by time, after the others where the time is the same", () => {
+    const model = modelWith([
+      entry("ERROR", "14:04:20.123", ...TRACEBACK),
+      entry("WARNING", "14:04:41.300", "As the attempt failed."),
+    ]);
+
+    expect(rowsOf(model.problems.problems[0])).toEqual([
+      "14:03:56.000 | run.json | Attempt 1 started",
+      "14:03:56.000 | events.jsonl | Page 2 started: Apply",
+      `14:04:20.123 | nvda-log | ERROR: ${TRACEBACK.join("\n")}`,
+      "14:04:41.250 | events.jsonl | Another window came to the front: Microsoft Teams",
+      `14:04:41.300 | run.json | Failed: foreground: ${FOREGROUND}`,
+      "14:04:41.300 | events.jsonl | Page 2 failed: another window took the screen",
+      "14:04:41.300 | nvda-log | WARNING: As the attempt failed.",
+      "14:04:41.350 | events.jsonl | voicecap restarted NVDA: to try Apply again (attempt 2 of 5)",
+      "14:04:43.900 | events.jsonl | voicecap's NVDA stopped: process 65720, to restart",
+      "14:04:43.900 | events.jsonl | voicecap kept a copy of NVDA's own log: nvda-log/1-1.txt",
+      "14:04:44.100 | events.jsonl | The browser closed: process 7002",
+      "14:04:44.150 | events.jsonl | voicecap released the NVDA lock",
+      "14:04:44.160 | events.jsonl | voicecap took the NVDA lock",
+      "14:04:45.729 | events.jsonl | voicecap's NVDA started: process 54568",
+      "14:04:47.000 | events.jsonl | The browser started: process 7003",
+    ]);
+  });
+
+  it("takes the entries from the attempt's start until the next attempt's start, that start itself not", () => {
+    const model = modelWith([
+      entry("WARNING", "14:03:55.999", "A millisecond before."),
+      entry("WARNING", "14:03:56.000", "As it began."),
+      entry("WARNING", "14:04:47.999", "A millisecond before the next."),
+      entry("WARNING", "14:04:48.000", "As the next began."),
+    ]);
+
+    expect(fromNvda(model.problems.problems[0]).map((row) => row.entry)).toEqual([
+      "WARNING: As it began.",
+      "WARNING: A millisecond before the next.",
+    ]);
+  });
+
+  describe("when no attempt followed the failed one", () => {
+    const page = `${SITE}a`;
+
+    /**
+     * A run of one page, whose only attempt began and ended at the times given and was the last in
+     * its session, and a way to date its log's events (on `day`, unless given another).
+     */
+    function lastAttempt(day: string, startedAt: string, endedAt: string) {
+      const run = shareRun({
+        id: "r1",
+        voicecapVersion: KEEPS_NVDA_LOG_FROM,
+        pages: [
+          {
+            path: "/a",
+            status: "failed",
+            failedAttempts: [failedAttempt({ n: 1, startedAt, endedAt, program: null })],
+          },
+        ],
+      });
+      const on = (time: string, event: NewRunEvent, when = day) => logged(when, time, event);
+      return { run, on };
+    }
+
+    /** The model of a run, given its log's events and the copy of NVDA's log of its one session. */
+    const modelOf = (run: RunJson, events: RunEvent[], copy: string): ShareModel =>
+      buildShareModel(
+        inputOf([run], {
+          events: new Map([[run.id, { events, unreadable: 0 }]]),
+          nvdaLogs: new Map([[run.id, new Map([[FIRST, copy]])]]),
+        }),
+      );
+
+    it("takes them until 10 seconds after the attempt ended, that moment too", () => {
+      const { run, on } = lastAttempt("2026-09-26", at(5, 0), at(5, 10));
+      const events = [
+        on("14:04:00.000", { type: "run-started", session: 1, resumed: false }),
+        on("14:04:30.000", { type: "screen-reader-started", pid: 100 }),
+        on("14:05:00.000", { type: "page-started", page, attempt: 1 }),
+        on("14:05:09.000", { type: "foreground-lost", program: null, title: PRIVATE_TITLE }),
+        on("14:05:10.000", {
+          type: "page-failed",
+          page,
+          attempt: 1,
+          cause: "foreground",
+          message: FOREGROUND,
+        }),
+        on("14:05:19.999", { type: "screen-reader-stopped", pid: 100, restarting: false }),
+        on("14:05:19.999", { type: "screen-reader-log", file: FIRST, reason: null }),
+        on("14:05:20.000", { type: "screen-reader-lock-released" }),
+        on("14:05:20.001", { type: "run-ended", session: 1, reason: "completed" }),
+      ];
+      const copy = copyOf(
+        entry("WARNING", "14:04:59.999", "A millisecond before."),
+        entry("WARNING", "14:05:00.000", "As it began."),
+        entry("WARNING", "14:05:20.000", "Ten seconds after it ended."),
+        entry("WARNING", "14:05:20.001", "A millisecond after that."),
+      );
+      const [problem] = modelOf(run, events, copy).problems.problems;
+
+      expect(fromNvda(problem).map((row) => row.entry)).toEqual([
+        "WARNING: As it began.",
+        "WARNING: Ten seconds after it ended.",
+      ]);
+      // The same window as the event log's rows: the last of them is the lock let go at that moment.
+      expect(
+        rowsOf(problem)
+          .filter((row) => row.includes("events.jsonl"))
+          .at(-1),
+      ).toBe("14:05:20.000 | events.jsonl | voicecap released the NVDA lock");
+    });
+
+    it.each([
+      ["2026-09-26", "2026-09-27"],
+      ["2026-12-31", "2027-01-01"],
+      ["2028-02-28", "2028-02-29"],
+    ])("puts an entry after midnight on the next day, from %s into %s", (day, next) => {
+      const { run, on } = lastAttempt(
+        day,
+        `${day}T23:59:50.000-05:00`,
+        `${day}T23:59:58.000-05:00`,
+      );
+      const events = [
+        on("23:59:00.000", { type: "run-started", session: 1, resumed: false }),
+        on("23:59:30.000", { type: "screen-reader-started", pid: 100 }),
+        on("23:59:50.000", { type: "page-started", page, attempt: 1 }),
+        on("23:59:58.000", {
+          type: "page-failed",
+          page,
+          attempt: 1,
+          cause: "foreground",
+          message: FOREGROUND,
+        }),
+        on("00:00:09.000", { type: "screen-reader-stopped", pid: 100, restarting: false }, next),
+        on("00:00:09.000", { type: "screen-reader-log", file: FIRST, reason: null }, next),
+      ];
+      const copy = copyOf(
+        entry("WARNING", "23:59:49.999", "A millisecond before."),
+        entry("WARNING", "23:59:59.500", "Before midnight."),
+        entry("ERROR", "00:00:00.500", "After midnight."),
+        entry("WARNING", "00:00:08.000", "Ten seconds after it ended."),
+        entry("WARNING", "00:00:08.001", "A millisecond after that."),
+      );
+      const [problem] = modelOf(run, events, copy).problems.problems;
+
+      expect(fromNvda(problem).map((row) => [row.time, row.entry])).toEqual([
+        [`${day}T23:59:59.500-05:00`, "WARNING: Before midnight."],
+        [`${next}T00:00:00.500-05:00`, "ERROR: After midnight."],
+        [`${next}T00:00:08.000-05:00`, "WARNING: Ten seconds after it ended."],
+      ]);
+    });
+  });
+
+  it("takes only WARNING, ERROR, and CRITICAL entries, each after its level, never the speech or the keys beside them", () => {
+    const moment = timeOfDay("2026-09-26T14:04:20.000-05:00");
+    const model = modelWith([
+      keyAt(moment, "downArrow"),
+      saidAt(moment + 40, "Grants"),
+      entry("INFO", "14:04:20.100", "Starting NVDA."),
+      entry("DEBUGWARNING", "14:04:20.200", "A debug warning."),
+      entry("WARNING", "14:04:20.300", "A warning."),
+      entry("ERROR", "14:04:20.400", "An error."),
+      entry("CRITICAL", "14:04:20.500", "A critical entry."),
+    ]);
+
+    expect(fromNvda(model.problems.problems[0]).map((row) => row.entry)).toEqual([
+      "WARNING: A warning.",
+      "ERROR: An error.",
+      "CRITICAL: A critical entry.",
+    ]);
+  });
+
+  it("shows an entry of one line after its level, and an entry with no message by its level and its code path", () => {
+    const model = modelWith([
+      entry("WARNING", "14:04:20.100", "Invalid voice: HKEY_LOCAL_MACHINE\\SOFTWARE\\Voices"),
+      entry("ERROR", "14:04:20.200"),
+    ]);
+
+    expect(fromNvda(model.problems.problems[0]).map((row) => row.entry)).toEqual([
+      "WARNING: Invalid voice: HKEY_LOCAL_MACHINE\\SOFTWARE\\Voices",
+      "ERROR: _remoteClient.server.LocalRelayServer.acceptNewConnection",
+    ]);
+  });
+
+  it("takes them from the copy of the NVDA session the attempt ran in, and no other", () => {
+    // The attempt's window runs on into the next NVDA session, which started at 14:04:45.729; that
+    // session's start-up isn't about this attempt, and a later day's session is nothing to do with it.
+    const kept = keptLogsRun();
+    const copies = new Map(kept.copies)
+      .set(FIRST, copyOf(entry("WARNING", "14:04:30.000", "In the attempt's session.")))
+      .set("nvda-log/1-2.txt", copyOf(entry("ERROR", "14:04:46.000", "In the next session.")))
+      .set("nvda-log/2-1.txt", copyOf(entry("ERROR", "14:04:30.000", "On the day after.")));
+    const model = modelWith([], { copies });
+
+    expect(fromNvda(model.problems.problems[0]).map((row) => row.entry)).toEqual([
+      "WARNING: In the attempt's session.",
+    ]);
+  });
+
+  it("takes each attempt's entries from the copy of its own session, and gates each session by its voicecap", () => {
+    // Apply's attempt was in session 1 (voicecap 0.16.1, which kept no copy); Contact's, in session
+    // 2 (0.17.0), which did.
+    const kept = keptLogsRun();
+    const [home, apply, contact] = kept.run.pages;
+    const failedContact = {
+      ...contact!,
+      attempts: 2,
+      failedAttempts: [
+        failedAttempt({
+          n: 1,
+          startedAt: "2026-09-28T09:00:08.000-05:00",
+          endedAt: "2026-09-28T09:00:30.000-05:00",
+          program: null,
+        }),
+      ],
+    };
+    const { seal: _seal, ...unsealed } = kept.run;
+    const run = usedVersions({ ...unsealed, pages: [home!, apply!, failedContact] }, [
+      "0.16.1",
+      KEEPS_NVDA_LOG_FROM,
+    ]);
+    const copies = new Map(kept.copies)
+      .set(FIRST, copyOf(entry("ERROR", "14:04:20.123", ...TRACEBACK)))
+      .set("nvda-log/2-1.txt", copyOf(entry("WARNING", "09:00:12.000", "In Contact's session.")));
+    const [first, second] = modelWith([], { run, copies }).problems.problems;
+
+    expect(first?.page.slug).toContain("apply");
+    expect(first?.notRecorded).toEqual([
+      "NVDA's own log: not recorded: this run used voicecap 0.16.1.",
+    ]);
+    expect(fromNvda(first)).toEqual([]);
+    expect(second?.page.slug).toContain("contact");
+    expect(second?.notRecorded).toEqual([]);
+    expect(fromNvda(second)).toEqual([
+      {
+        time: "2026-09-28T09:00:12.000-05:00",
+        source: "nvda-log",
+        entry: "WARNING: In Contact's session.",
+      },
+    ]);
+  });
+
+  it("shows the home folder in an entry as it does everywhere", () => {
+    const home = os.homedir();
+    const model = modelWith([
+      entry("ERROR", "14:04:20.123", `Failed to load ${path.join(home, "AppData", "tool.py")}`),
+    ]);
+    const entries = fromNvda(model.problems.problems[0]).map((row) => row.entry);
+    const replaced = process.platform === "win32" ? "%USERPROFILE%" : "~";
+
+    expect(entries.join("\n")).not.toContain(home);
+    expect(entries[0]).toMatch(new RegExp(`^ERROR: Failed to load ${escapeRegExp(replaced)}`));
+  });
+
+  describe("where the page has none of the attempt's NVDA session", () => {
+    it("says why the run kept no copy of it, in the run's own words", () => {
+      const log = withLogEvent(FIRST, (event) => ({
+        ...event,
+        file: null,
+        reason: "NVDA's log wasn't there.",
+      }));
+      const [problem] = modelWith([entry("ERROR", "14:04:20.123", ...TRACEBACK)], { log }).problems
+        .problems;
+
+      expect(problem?.notRecorded).toEqual([
+        "NVDA's own log: not recorded: NVDA's log wasn't there.",
+      ]);
+      expect(fromNvda(problem)).toEqual([]);
+    });
+
+    it("shows the home folder in the run's own words as it does everywhere", () => {
+      const home = os.homedir();
+      const log = withLogEvent(FIRST, (event) => ({
+        ...event,
+        file: null,
+        reason: `couldn't read ${path.join(home, "AppData", "nvda.log")}.`,
+      }));
+      const [problem] = modelWith([], { log }).problems.problems;
+      const replaced = process.platform === "win32" ? "%USERPROFILE%" : "~";
+
+      expect(problem?.notRecorded.join("\n")).not.toContain(home);
+      expect(problem?.notRecorded[0]).toMatch(
+        new RegExp(`^NVDA's own log: not recorded: couldn't read ${escapeRegExp(replaced)}`),
+      );
+    });
+
+    it("says voicecap kept no copy of it when the log says nothing of why, or has no line for the session's end", () => {
+      const reasonless = withLogEvent(FIRST, (event) => ({ ...event, file: null, reason: null }));
+      const blank = withLogEvent(FIRST, (event) => ({ ...event, file: null, reason: " . " }));
+      const unended = withLogEvent(FIRST, null);
+
+      for (const log of [reasonless, blank, unended]) {
+        const [problem] = modelWith([], { log }).problems.problems;
+
+        expect(problem?.notRecorded).toEqual([NO_COPY]);
+      }
+    });
+
+    it("says the copy isn't as the run recorded it, when the run's record lists it and the page didn't read it", () => {
+      for (const copies of [new Map<string, string>(), null]) {
+        const [problem] = modelWith([], { copies }).problems.problems;
+
+        expect(problem?.notRecorded).toEqual([CHANGED]);
+        expect(fromNvda(problem)).toEqual([]);
+      }
+    });
+
+    it("says the run's record doesn't list the copy its event log names, when it doesn't, with nothing said of verify", () => {
+      // verify goes by the record, so a copy the record doesn't list is one it never looks for.
+      const run = withOwnFiles(keptLogsRun().run, { "events.jsonl": LOG_HASH });
+      for (const copies of [new Map<string, string>(), null]) {
+        const [problem] = modelWith([entry("ERROR", "14:04:20.123", ...TRACEBACK)], {
+          run,
+          copies,
+        }).problems.problems;
+
+        expect(problem?.notRecorded).toEqual([UNLISTED]);
+        expect(fromNvda(problem)).toEqual([]);
+      }
+    });
+
+    it("says it can't tell which NVDA session the attempt ran in, where the page has no event log to say", () => {
+      const [problem] = modelWith([entry("ERROR", "14:04:20.123", ...TRACEBACK)], { log: null })
+        .problems.problems;
+
+      expect(problem?.notRecorded).toEqual([
+        "The event log: not shown: it isn't as the run recorded it; voicecap verify names it.",
+        UNPLACED,
+      ]);
+      expect(fromNvda(problem)).toEqual([]);
+    });
+
+    it("says it can't tell when the log has no NVDA session at or before the attempt", () => {
+      const kept = keptLogsRun();
+      // The log begins after the attempt did: its first NVDA session started a minute later.
+      const events = kept.log.events.filter((event) => event.at >= "2026-09-26T14:05:00");
+      const [problem] = modelWith([], { log: { events, unreadable: 0 } }).problems.problems;
+
+      expect(problem?.notRecorded).toContain(UNPLACED);
+      expect(fromNvda(problem)).toEqual([]);
+    });
+
+    it("says the run's screen reader isn't NVDA, for a run of another screen reader", () => {
+      const kept = keptLogsRun();
+      const { seal: _seal, ...unsealed } = kept.run;
+      const run: RunJson = {
+        ...unsealed,
+        sessions: unsealed.sessions.map((session) => {
+          const reader = session.environment?.screenReader;
+          return session.environment === null || !reader
+            ? session
+            : {
+                ...session,
+                environment: {
+                  ...session.environment,
+                  screenReader: { ...reader, name: "VoiceOver" },
+                },
+              };
+        }),
+      };
+      const [problem] = modelWith([entry("ERROR", "14:04:20.123", ...TRACEBACK)], {
+        run: { ...run, seal: sealOf(run) },
+      }).problems.problems;
+
+      expect(problem?.notRecorded).toEqual([NOT_NVDA]);
+      expect(fromNvda(problem)).toEqual([]);
+    });
+
+    it("leaves a problem written as text, in a run before the attempts were recorded, as it was", () => {
+      const run = shareRun({
+        id: "r1",
+        voicecapVersion: "0.4.1",
+        pages: [{ path: "/a", status: "failed", errors: ["read pass: HTTP 500"] }],
+      });
+      const [problem] = buildShareModel(inputOf([run])).problems.problems;
+
+      expect(problem?.notRecorded).toContain(
+        "The event log and NVDA's own log: not recorded: this run used voicecap 0.4.1.",
+      );
+    });
+
+    it("says voicecap kept no copy of it when problemsOf is given none to read, for the version that keeps one", () => {
+      const run = shareRun({
+        id: "r1",
+        voicecapVersion: KEEPS_NVDA_LOG_FROM,
+        pages: [
+          {
+            path: "/a",
+            status: "failed",
+            failedAttempts: [failedAttempt({ n: 1, program: null })],
+          },
+        ],
+      });
+      const [problem] = problemsFor(run).problems;
+
+      expect(problem?.notRecorded).toEqual([
+        "The event log: not recorded: it has no line of this attempt.",
+        NO_COPY,
+      ]);
+    });
+  });
+
+  it("keeps them apart from everything the verdict, the ring, and What needs attention go by", () => {
+    const quiet = modelWith([]);
+    const noisy = modelWith([
+      entry("ERROR", "14:04:20.123", ...TRACEBACK),
+      entry("CRITICAL", "14:04:21.000", "NVDA could not recover."),
+    ]);
+
+    expect(fromNvda(noisy.problems.problems[0])).toHaveLength(2);
+    expect(noisy.result).toEqual(quiet.result);
+    expect(noisy.ring).toEqual(quiet.ring);
+    expect(noisy.attention).toEqual(quiet.attention);
+    expect(noisy.summary).toEqual(quiet.summary);
+    expect(noisy.pages).toEqual(quiet.pages);
+    expect(noisy.problems.line).toBe(quiet.problems.line);
+    expect(noisy.problems.unexpected).toBe(quiet.problems.unexpected);
+    // The problem itself differs in its record alone.
+    const { record: _record, ...rest } = noisy.problems.problems[0]!;
+    const { record: _quiet, ...same } = quiet.problems.problems[0]!;
+    expect(rest).toEqual(same);
+  });
+
+  it("doesn't change the copies or the event log it reads", () => {
+    const kept = keptLogsRun();
+    const copies = new Map(kept.copies).set(
+      FIRST,
+      copyOf(entry("ERROR", "14:04:20.123", ...TRACEBACK)),
+    );
+    const before = structuredClone({ copies, log: kept.log, run: kept.run });
+
+    modelWith([], { copies });
+
+    expect({ copies, log: kept.log, run: kept.run }).toEqual(before);
+  });
+
+  it.each([
+    ["an empty copy", ""],
+    ["a copy of one line", "# NVDA's own log of one NVDA session in this run.\n"],
+    ["a copy with no header in it", "Traceback (most recent call last):\n  File x\n"],
+    ["a header with no message", "ERROR - a.b (14:04:20.123) - T (1):\n"],
+    ["a time that is no time of day", "ERROR - a.b (99:99:99.999) - T (1):\nMessage\n"],
+    ["lines that end in carriage returns", "ERROR - a.b (14:04:20.123) - T (1):\r\nA\r\nB\r\n"],
+    [
+      "a copy that goes back in time",
+      "ERROR - a.b (14:04:20.123) - T (1):\nA\nERROR - a.b (03:00:00.000) - T (1):\nB\n",
+    ],
+    ["a copy that is not text", "\u0000\u0001\u{FFFD}\ud800 - ERROR - ("],
+  ])("shows whatever a copy holds, or nothing, without failing: %s", (_name, copy) => {
+    const copies = new Map(keptLogsRun().copies).set(FIRST, copy);
+    const model = modelWith([], { copies });
+
+    expect(model.problems.problems).toHaveLength(1);
+    for (const row of fromNvda(model.problems.problems[0])) {
+      expect(typeof row.entry).toBe("string");
+      expect(Number.isFinite(Date.parse(row.time ?? ""))).toBe(true);
+    }
   });
 });
 

@@ -1,16 +1,18 @@
 /**
  * Windows details for the Guidepup driver: processes, the window in front, the OS version, NVDA's
- * language, and this computer's details for a run's record.
+ * language and its own log file, and this computer's details for a run's record.
  */
 import { execFile, spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { decodeManualInput } from "../../manual/detect.js";
 import type { MachineRecord } from "../../model.js";
 import type { MachineProbe } from "../../run/machine-record.js";
+import { NVDA_LOG_FILE } from "./nvda-log.js";
 import { PROFILE_PREFIX, type GuidepupInstall } from "./paths.js";
 
 const run = promisify(execFile);
@@ -192,6 +194,21 @@ export function restartNvdaDetached(exe: string, after: string): void {
   // nothing listening, that event would end voicecap.
   helper.on("error", () => {});
   helper.unref();
+}
+
+/**
+ * NVDA's own log as NVDA left it: the text of nvda.log in the temp folder `tmpDir`, decoded as an
+ * imported log is (NVDA writes UTF-8). The file is only read, never moved or changed. Null when
+ * there is no such file; the older log, nvda-old.log, is never read. Rejects when the file can't be
+ * read (another program has it locked, say), with the system's error.
+ */
+export async function readNvdaLog(tmpDir: string): Promise<string | null> {
+  try {
+    return decodeManualInput(await readFile(path.join(tmpDir, NVDA_LOG_FILE))).text;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 /** A Windows path in one spelling, for comparing: Windows ignores letter case in paths. */

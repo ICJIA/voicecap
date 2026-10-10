@@ -62,7 +62,7 @@ export const NO_IO_ENTRIES_MESSAGE =
 /**
  * Split a log into entries: each starts with a header line (see LOG_HEADER) and its message is
  * every following line up to the next header. Lines before the first header (an excerpt that
- * starts mid-entry) are ignored.
+ * starts mid-entry, or the "# " line a cleaned copy of a log starts with) are ignored.
  */
 export function splitLogEntries(text: string): LogEntry[] {
   const entries: LogEntry[] = [];
@@ -98,6 +98,31 @@ function finish(entry: LogEntry & { lines: string[] }): LogEntry {
 }
 
 /**
+ * When each entry was logged, in milliseconds since midnight of the log's first day. The log has
+ * times of day only, so a backwards jump larger than CROSSING_THRESHOLD_MS is a midnight crossing.
+ */
+export function entryTimes(entries: readonly LogEntry[]): number[] {
+  let day = 0;
+  let previousMs: number | null = null;
+  return entries.map((entry) => {
+    if (previousMs !== null && entry.timeMs < previousMs - CROSSING_THRESHOLD_MS) day += 1;
+    previousMs = entry.timeMs;
+    return day * DAY_MS + entry.timeMs;
+  });
+}
+
+/**
+ * A time of day on a log's timeline (as entryTimes counts it), for a log whose first entry was at
+ * `startMs` past midnight: the first moment with that time of day that isn't more than
+ * CROSSING_THRESHOLD_MS before the log's start, the same day the log would put it on.
+ */
+export function timeOnLog(timeOfDayMs: number, startMs: number): number {
+  let at = timeOfDayMs;
+  while (at < startMs - CROSSING_THRESHOLD_MS) at += DAY_MS;
+  return at;
+}
+
+/**
  * Extract, in order, the input gestures, the speech NVDA produced, and typed words from an
  * NVDA log at Input/output level; everything else is discarded. The formats come from NVDA's
  * source:
@@ -108,16 +133,16 @@ function finish(entry: LogEntry & { lines: string[] }): LogEntry {
  */
 export function parseNvdaLog(text: string): ParsedNvdaLog {
   const entries = splitLogEntries(text);
+  const times = entryTimes(entries);
   const events: LogEvent[] = [];
   const warnings: string[] = [];
   let nvdaVersion: string | null = null;
   let day = 0;
-  let previousMs: number | null = null;
 
-  for (const entry of entries) {
-    if (previousMs !== null && entry.timeMs < previousMs - CROSSING_THRESHOLD_MS) day += 1;
-    previousMs = entry.timeMs;
-    const base = { time: entry.time, day, at: day * DAY_MS + entry.timeMs, line: entry.line };
+  for (const [index, entry] of entries.entries()) {
+    const at = times[index]!;
+    day = Math.floor(at / DAY_MS);
+    const base = { time: entry.time, day, at, line: entry.line };
     const firstLine = entry.message.split("\n", 1)[0] ?? "";
 
     if (entry.level === "IO" && firstLine.startsWith("Input: ")) {

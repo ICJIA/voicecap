@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { BUILT_IN_RULES } from "../src/flags/evaluate.js";
 import { AXE_FILE, PASS_NAMES, SCREENSHOT_FILE } from "../src/model.js";
+import { NVDA_LOG_FOLDER } from "../src/run/events.js";
 import { count } from "../src/share/format.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import { recordFactsOf, type VoicecapFacts } from "../src/site/facts.js";
@@ -595,16 +596,21 @@ describe("renderTechnical", () => {
     // A part's words as a reader gets them, with a command in a sentence read in its place.
     const part = (id: string): string => textOf(partOf(html, id), "");
 
-    // A run's record holds the fingerprints of the event log and of each page's transcripts,
-    // screenshot, and axe results (PageRecord.files, .screenshot, and .axe), and nothing else of
-    // the run's: not of kept tries, its report, or its comparisons.
+    // A run's record holds the fingerprints of the event log, of each copy of NVDA's own log
+    // (RunJson.files), and of each page's transcripts, screenshot, and axe results
+    // (PageRecord.files, .screenshot, and .axe), and nothing else of the run's: not of kept tries,
+    // its report, or its comparisons.
     const record = part("what-a-run-records");
     expect(record).toContain(
-      "the fingerprints of the event log and of each page's transcripts, screenshot, and axe results",
+      "the fingerprints of the event log, of each copy of NVDA's own log, and of each page's transcripts, screenshot, and axe results",
     );
     // A page's folder holds its screenshot and its axe results, by the names a run gives them.
     expect(record).toContain(
       `(the key, the words, and their timing), ${SCREENSHOT_FILE}, and ${AXE_FILE}, what axe-core found on the page`,
+    );
+    // The run's copies of NVDA's own log, in the folder a run gives them.
+    expect(record).toContain(
+      `${NVDA_LOG_FOLDER}/NVDA's own log, cleaned: a copy for each time voicecap's NVDA quit`,
     );
     // The tree is the home's main parts, not all of it (a site's report.html and compare/, say,
     // aren't in it), and a manual session's sealed record is one of them.
@@ -617,7 +623,7 @@ describe("renderTechnical", () => {
     }
     const evidence = part("fingerprints-and-seals");
     expect(evidence).toContain(
-      "A run's record holds the SHA-256 of each page's transcripts, screenshot, and axe results, recorded as each is written, and of the event log, recorded at the end of each session.",
+      "A run's record holds the SHA-256 of each page's transcripts, screenshot, and axe results, recorded as each is written, and of the event log and each copy of NVDA's own log, recorded at the end of each session.",
     );
     expect(evidence).toContain(
       "Earlier tries a run kept, its own report, and its comparisons have none.",
@@ -687,6 +693,13 @@ describe("renderTechnical", () => {
       "A run with --sitemap, or voicecap list-urls, reads the site's sitemap.",
     );
     expect(part("privacy-and-security")).toContain("which the README says to keep private");
+    // A window's title is the event log's, never shown, and a run's copies of NVDA's own log can
+    // hold more of another window, its text as NVDA read it too (the PC session of 2026-10-10 found
+    // a Notepad document's first line in one), which a page counts and never shows.
+    expect(part("privacy-and-security")).toContain(
+      "A window's title, which can hold private text, is kept in the event log, never on a page or in a Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. A page counts what NVDA said outside voicecap's steps, and never shows it.",
+    );
+    expect(part("privacy-and-security")).not.toContain("only in the event log");
 
     // The rules say their thresholds, and nothing they don't count.
     expect(TECHNICAL_TEXT.rules["repeated-phrase"]).not.toContain("twice");

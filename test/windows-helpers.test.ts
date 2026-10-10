@@ -1,5 +1,13 @@
 import { execFile, spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -22,6 +30,7 @@ import {
   personsNvda,
   powershellCommand,
   powershellString,
+  readNvdaLog,
   restartAfterScript,
   restartNvda,
   sessionLocked,
@@ -908,5 +917,57 @@ describe("Guidepup's folder, when NVDA can't start from it", () => {
     for (const text of [...steps, ...message.split("\n").slice(1)]) {
       expect(text).not.toMatch(/PowerShell|Git Bash|&&|\bthen\b/);
     }
+  });
+});
+
+// NVDA writes its log to nvda.log in the temp folder, and moves the last one to nvda-old.log
+// whenever it starts. voicecap reads nvda.log once its own NVDA has quit; these use a folder of
+// their own, never the real temp folder's log.
+describe("reading NVDA's own log", () => {
+  function tempFolder(): string {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "voicecap-nvda-log-"));
+    temps.push(dir);
+    return dir;
+  }
+
+  it("reads nvda.log in the folder, and no other file", async () => {
+    const dir = tempFolder();
+    writeFileSync(
+      path.join(dir, "nvda.log"),
+      "IO - speech.speech.speak:\nSpeaking ['Welcome ©']\n",
+    );
+    writeFileSync(path.join(dir, "nvda-old.log"), "The log of the NVDA before.\n");
+    await expect(readNvdaLog(dir)).resolves.toBe(
+      "IO - speech.speech.speak:\nSpeaking ['Welcome ©']\n",
+    );
+  });
+
+  it("reads it as NVDA writes it, in UTF-8, and decodes it as an imported log is", async () => {
+    const dir = tempFolder();
+    writeFileSync(path.join(dir, "nvda.log"), Buffer.from("\ufeffSpeaking ['Café']\r\n", "utf8"));
+    // A byte order mark isn't part of the text.
+    await expect(readNvdaLog(dir)).resolves.toBe("Speaking ['Café']\r\n");
+  });
+
+  it("gives null when there is no log, whatever else is in the folder", async () => {
+    const dir = tempFolder();
+    await expect(readNvdaLog(dir)).resolves.toBeNull();
+    writeFileSync(path.join(dir, "nvda-old.log"), "The log of the NVDA before.\n");
+    await expect(readNvdaLog(dir)).resolves.toBeNull();
+    // A folder that isn't there has no log either.
+    await expect(readNvdaLog(path.join(dir, "missing"))).resolves.toBeNull();
+  });
+
+  it("gives an empty log as empty text, which is for the caller to judge", async () => {
+    const dir = tempFolder();
+    writeFileSync(path.join(dir, "nvda.log"), "");
+    await expect(readNvdaLog(dir)).resolves.toBe("");
+  });
+
+  it("fails, saying why, when the log can't be read", async () => {
+    const dir = tempFolder();
+    // A folder where the file goes: nothing can be read from it.
+    mkdirSync(path.join(dir, "nvda.log"));
+    await expect(readNvdaLog(dir)).rejects.toThrow(/EISDIR/);
   });
 });

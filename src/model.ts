@@ -523,7 +523,15 @@ export type NewRunEvent =
    * never the window's title. It's recorded once the key is sent, not once the program has closed:
    * the next try says whether it did.
    */
-  | { type: "foreground-escape"; program: string };
+  | { type: "foreground-escape"; program: string }
+  /**
+   * The screen reader's own log of one of its sessions: kept as a cleaned copy in the run's folder
+   * (`file`, its path from the run folder, written with "/": "nvda-log/1-2.txt" is the second copy
+   * of session 1, and `reason` is null), or not kept (`file` is null, and `reason` says why: the log
+   * wasn't there, or couldn't be read or written). A copy is recorded as the screen reader's session
+   * ends, so a restart's copy comes before the next start.
+   */
+  | { type: "screen-reader-log"; file: string | null; reason: string | null };
 
 /**
  * A line of the event log: an event, and when it was recorded, as a local ISO time to the
@@ -563,9 +571,13 @@ export interface RunJson {
   pages: PageRecord[];
   /**
    * The run's own evidence files, beside its pages': each one's SHA-256 and size, by its path from
-   * the run's folder, written with "/". Today that's "events.jsonl", the run's event log. Each
-   * session's end sets them, so the seal covers every file, and `voicecap verify` checks each one.
-   * Absent in runs from before voicecap 0.11.0, and while a run has no file to record.
+   * the run's folder, written with "/". Those are "events.jsonl", the run's event log (from voicecap
+   * 0.11.0), and, from 0.17.0, each cleaned copy of the screen reader's own log that a session kept
+   * ("nvda-log/<session>-<n>.txt"). Each session's end sets them, so the seal covers every file, and
+   * `voicecap verify` checks each one, and reports an event log or a copy that the run doesn't list.
+   * A session that never reached its end (it crashed, or its window was closed) lists no copy of its
+   * own, so the end of a later session lists the copies it left. Absent in runs from before voicecap
+   * 0.11.0, and while a run has no file to record.
    */
   files?: Record<string, FileHash>;
   /**

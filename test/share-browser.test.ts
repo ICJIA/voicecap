@@ -10,11 +10,14 @@
  * page that failed, whose runs record their event logs; a site whose transcripts hold markup and a
  * closing script tag; a site whose host is one long word, with no name set and no title on its home
  * page; a site whose config gives it a canonical address and a long name, which the page leads
- * with; and a site whose only run was a replay, as in CI's smoke test. Seven more pages are written
+ * with; and a site whose only run was a replay, as in CI's smoke test. Ten more pages are written
  * from models: a run whose event log has all a chart can draw, three of what needs attention, with
  * 5 cards, 6 cards, and i2i's one card on 32 pages, two with no problem to name: one where every
- * page was read, and one with a page skipped; and one of 13 pages, whose 11 with nothing to note
- * fold behind one line, each card holding a fold of its own transcript.
+ * page was read, and one with a page skipped; one of 13 pages, whose 11 with nothing to note
+ * fold behind one line, each card holding a fold of its own transcript; two of the real run of
+ * 6 October 2026 with NVDA's own log checked against its transcripts: one where every line agrees,
+ * and one with a line that differs in each direction and steps that weren't checked; and a problem
+ * whose record has NVDA's own warnings and errors in it, a traceback among them.
  *
  * axe finds no background for words drawn in an SVG, so the words of an event log's chart are
  * measured here instead, against the bars and the fold they're drawn on, in both themes.
@@ -29,12 +32,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { keptAxeResults } from "../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
+import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
 import { addManualSession } from "../src/manual-add.js";
 import { addReview } from "../src/reviews/review.js";
 import { runAudit } from "../src/run/audit.js";
 import { runDir, sharePath } from "../src/run/paths.js";
 import { fontFaceCss } from "../src/share/fonts.js";
 import { renderSharePage } from "../src/share/html/document.js";
+import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { writeShareFiles } from "../src/share/write.js";
@@ -43,6 +48,7 @@ import { createMemoryLogger } from "../src/util/log.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { footerInTwoWindows, footerPlacement } from "./helpers/footer.js";
 import { TINY_JPEG } from "./helpers/jpeg.js";
+import { keptLogsModel, nvdaFixtureSite, problemEntry } from "./helpers/nvda-log.js";
 import { rawAxe, rawNode, rawRule } from "./helpers/raw-axe.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
@@ -108,6 +114,19 @@ const PHRASES = ["click here", "read more", "learn more", "here", "more", "more 
 
 /** The ids of the demo's five cards of what needs attention, all open as the page is written. */
 const DEMO_CARDS = ["need-1", "need-2", "need-3", "need-4", "need-5"];
+
+/**
+ * An error of NVDA's own log with a traceback: lines with the spaces that indent them, markup and
+ * an ampersand, and a blank line, as a problem's record shows it line by line.
+ */
+const TRACEBACK = [
+  "Error accepting connection",
+  "Traceback (most recent call last):",
+  '  File "_remoteClient\\server.pyc", line 385, in acceptNewConnection',
+  "    <b>raise</b> OSError & more",
+  "",
+  "ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol",
+];
 
 /** What the check's data holds, as far as these tests look at it. */
 interface Data {
@@ -297,6 +316,41 @@ async function modelPage(model: ShareModel, name: string): Promise<string> {
   return file;
 }
 
+/**
+ * The model of the real run of 6 October 2026 as a voicecap that keeps NVDA's log could have made
+ * it. With `differing`, NVDA's log says something else of two steps (one more word in one, one
+ * fewer in the other), so the check lists a line in each direction, and two groups of steps weren't
+ * checked.
+ */
+async function nvdaLogModel(differing: boolean): Promise<ShareModel> {
+  const { siteDir } = await nvdaFixtureSite({
+    change: (parts) => {
+      if (!differing) return;
+      parts.copy = parts.copy
+        .replace(
+          "'This small site shows how voicecap works, one page at a time.'",
+          "'This small site shows how voicecap works, one page at a time, today.'",
+        )
+        .replace("'Welcome to the voicecap demo'", "'Welcome'");
+    },
+  });
+  const model = buildShareModel(
+    await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf }),
+  );
+  const [first, ...rest] = model.evidence;
+  if (!differing || first === undefined || !("agree" in first.nvdaLog)) return model;
+  const notChecked = [
+    {
+      steps: 8,
+      from: "2026-10-06T08:08:14.442-05:00",
+      why: "reason" as const,
+      detail: "NVDA's log wasn't there.",
+    },
+    { steps: 3, from: null, why: "unread" as const, detail: null },
+  ];
+  return { ...model, evidence: [{ ...first, nvdaLog: { ...first.nvdaLog, notChecked } }, ...rest] };
+}
+
 /** A word as long as an element's HTML can be in an axe.json (300 code units), less its markup. */
 const LONG_WORD = "x".repeat(280);
 
@@ -391,6 +445,11 @@ let pages: {
   named: string;
   replay: string;
   logged: string;
+  /** NVDA's own log, checked against the transcripts: every line agrees, and lines that differ. */
+  nvdaAgree: string;
+  nvdaDiffers: string;
+  /** A problem's record with NVDA's own warnings and errors among its rows, a traceback too. */
+  nvdaRecord: string;
   /** What needs attention: 5 cards (all open), 6 (all folded), and i2i's one card on 32 pages. */
   five: string;
   six: string;
@@ -421,6 +480,19 @@ beforeAll(async () => {
   const named = await namedPage();
   const replay = await replayPage();
   const logged = await loggedPage();
+  const nvdaAgree = await modelPage(await nvdaLogModel(false), "nvda-agree");
+  const nvdaDiffers = await modelPage(await nvdaLogModel(true), "nvda-differs");
+  const nvdaRecord = await modelPage(
+    keptLogsModel([
+      problemEntry(
+        "WARNING",
+        "14:04:10.000",
+        "Invalid voice: HKEY_LOCAL_MACHINE\\SOFTWARE\\Voices",
+      ),
+      problemEntry("ERROR", "14:04:20.123", ...TRACEBACK),
+    ]),
+    "nvda-record",
+  );
   const five = await modelPage(linkModel(PHRASES.slice(0, 5)), "five");
   const six = await modelPage(linkModel(PHRASES.slice(0, 6)), "six");
   const i2i = await modelPage(i2iModel(), "i2i");
@@ -445,6 +517,9 @@ beforeAll(async () => {
     named,
     replay: replay.file,
     logged,
+    nvdaAgree,
+    nvdaDiffers,
+    nvdaRecord,
     five,
     six,
     i2i,
@@ -812,6 +887,109 @@ describe("axe, in Chromium", () => {
     AXE_TIMEOUT,
   );
 
+  it.each([1280, 390, 320])(
+    "has no axe violations at %i px on a page with NVDA's own log checked against the transcripts, folds closed and open, dark and light",
+    async (width) => {
+      // The check: three tiles, a line that differs in each direction (two in each list), and two
+      // groups of steps that weren't checked. The first page has every line agreeing.
+      for (const which of ["nvdaAgree", "nvdaDiffers"] as const) {
+        const page = await open(pages[which]);
+        const lists = which === "nvdaDiffers" ? 2 : 0;
+
+        expect(await axeFindings(page, width), `${which}, dark, folds closed`).toEqual([]);
+        await page.locator("#open-all").click();
+        // Open, the part is in view: its tiles, and its lists of lines.
+        const part = page.locator(".log-check").first();
+        expect(await part.isVisible(), which).toBe(true);
+        expect(await part.locator(".cross > div").count(), which).toBe(3);
+        expect(await part.locator("ul.diffs").count(), which).toBe(lists);
+        expect(await part.locator("h5").count(), which).toBe(lists);
+        for (const line of await part.locator("ul.diffs li").all()) {
+          expect(await line.isVisible(), which).toBe(true);
+        }
+        expect(await axeFindings(page, width), `${which}, dark, folds open`).toEqual([]);
+        await page.locator("#theme-toggle").click();
+        expect(await axeFindings(page, width), `${which}, light, folds open`).toEqual([]);
+        await page.locator("#open-all").click();
+        expect(await axeFindings(page, width), `${which}, light, folds closed`).toEqual([]);
+      }
+    },
+    AXE_TIMEOUT,
+  );
+
+  it.each([1280, 390, 320])(
+    "has no axe violations at %i px on a problem's record with NVDA's own warnings and errors in it, a traceback among them, folds closed and open, dark and light",
+    async (width) => {
+      const page = await open(pages.nvdaRecord);
+
+      expect(await axeFindings(page, width), "dark, folds closed").toEqual([]);
+      await page.locator("#open-all").click();
+      // Open, the record has a row from NVDA's log for each entry, and the traceback's lines in view.
+      const rows = page
+        .locator("table.logtable tr")
+        .filter({ has: page.locator("td.src", { hasText: /^nvda-log$/ }) });
+      expect(await rows.count()).toBe(2);
+      for (const row of await rows.all()) expect(await row.isVisible()).toBe(true);
+      expect(await axeFindings(page, width), "dark, folds open").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await axeFindings(page, width), "light, folds open").toEqual([]);
+      await page.locator("#open-all").click();
+      expect(await axeFindings(page, width), "light, folds closed").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it("draws an entry of NVDA's own log line by line, each line with its spaces, so a traceback keeps its indentation", async () => {
+    const page = await open(pages.nvdaRecord);
+    await page.locator("#open-all").click();
+
+    // The traceback's cell: the second row from NVDA's log. Each line's text is a node of its own,
+    // between the line breaks (the blank line has none).
+    const drawn = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll("table.logtable td.src")].filter(
+        (cell) => cell.textContent === "nvda-log",
+      );
+      const code = rows[1]?.nextElementSibling?.querySelector("code");
+      if (!code) throw new Error("The record has no traceback from NVDA's log.");
+      const box = code.getBoundingClientRect();
+      const lines = [...code.childNodes]
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => {
+          // Where the line's first word begins: after the spaces that indent it.
+          const text = node.textContent ?? "";
+          const spaces = text.length - text.trimStart().length;
+          const range = document.createRange();
+          range.setStart(node, spaces);
+          range.setEnd(node, spaces + 1);
+          const first = range.getBoundingClientRect();
+          return { text, indent: first.left - box.left, top: first.top };
+        });
+      return {
+        whiteSpace: getComputedStyle(code).whiteSpace,
+        breaks: code.querySelectorAll("br").length,
+        lines,
+      };
+    });
+
+    expect(drawn.whiteSpace).toBe("break-spaces");
+    expect(drawn.breaks).toBe(TRACEBACK.length - 1);
+    // The words as written, markup and all, each line in order, the first after the entry's level,
+    // and the blank line between.
+    const [message = "", ...traceback] = TRACEBACK;
+    expect(drawn.lines.map(({ text }) => text)).toEqual(
+      [`ERROR: ${message}`, ...traceback].filter((line) => line !== ""),
+    );
+    const [first, second, indented, deeper, last] = drawn.lines.map(({ indent }) => indent);
+    expect([first, second, last].map((indent) => Math.round(indent ?? NaN))).toEqual([0, 0, 0]);
+    // Two spaces, then four: each drawn as wide as it is, not collapsed to nothing.
+    expect(indented).toBeGreaterThan(5);
+    expect(deeper).toBeGreaterThan((indented ?? 0) + 5);
+    // Each on a row of its own, in order.
+    const tops = drawn.lines.map(({ top }) => top);
+    expect(tops).toEqual([...tops].sort((a, b) => a - b));
+    expect(new Set(tops).size).toBe(tops.length);
+  });
+
   it.each(["dark", "light"])(
     "draws every word of a chart of the event log in colors that meet WCAG AA against what it's on: %s",
     async (theme) => {
@@ -1022,6 +1200,7 @@ describe("a page in a narrow window", () => {
         "longHost",
         "named",
         "logged",
+        "nvdaRecord",
         "six",
         "i2i",
         "many",

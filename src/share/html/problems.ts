@@ -13,9 +13,11 @@
  *
  * The mockup showed this with two sample problems, and sample lines of an event log. A run records
  * its own event log from voicecap 0.11.0, and a problem's record has the log's lines of its attempt
- * among its own, by time, from events.jsonl. Where the mockup had nothing to say (the record of a
- * problem with no time, the stack, how the kind was decided), the words are new, and use the
- * mockup's own classes.
+ * among its own, by time, from events.jsonl. From the voicecap that keeps a copy of NVDA's own log
+ * it has NVDA's warnings and errors in the attempt's window too, from nvda-log, an entry of several
+ * lines (a traceback) line by line. Where the mockup had nothing to say (the record of a problem
+ * with no time, the stack, how the kind was decided), the words are new, and use the mockup's own
+ * classes.
  */
 import { esc, idFragment } from "../../report/html.js";
 import type { ShareModel } from "../model.js";
@@ -64,10 +66,24 @@ function questions(problem: Problem): string {
   return `<dl class="qa">${rows.join("")}</dl>`;
 }
 
+/** A line ends at a newline, or a carriage return with or without one. */
+const LINE_END = /\r\n|\r|\n/;
+
 /**
- * The record of a problem, word for word, as a table of its time, its source, and its entry. A
- * stack is shown apart (see `stackBox`), where its lines can be read. A time the run didn't record
- * says so, never a blank.
+ * An entry's words as one cell holds them: each of its lines escaped, with a line break after each
+ * but the last, so an entry of several lines, such as a traceback or a call log, is read line by
+ * line, and an entry of one is its words as they are. The page keeps the spaces of each line
+ * (`white-space` in ./style.ts), so a traceback keeps its indentation. A blank line stays a blank
+ * line.
+ */
+function entryHtml(entry: string): string {
+  return entry.split(LINE_END).map(esc).join("<br>");
+}
+
+/**
+ * The record of a problem, word for word, as a table of its time, its source, and its entry. An
+ * entry of several lines is shown line by line (see `entryHtml`). A stack is shown apart (see
+ * `stackBox`), where its lines can be read. A time the run didn't record says so, never a blank.
  */
 function recordBox(problem: Problem, where: string): string {
   const { record } = PROBLEMS_TEXT;
@@ -75,7 +91,7 @@ function recordBox(problem: Problem, where: string): string {
     .filter((entry) => entry.source !== "stack")
     .map(
       (entry) =>
-        `<tr><td class="lt">${esc(recordTime(entry.time))}</td><td class="src">${esc(entry.source)}</td><td><code>${esc(entry.entry)}</code></td></tr>`,
+        `<tr><td class="lt">${esc(recordTime(entry.time))}</td><td class="src">${esc(entry.source)}</td><td><code>${entryHtml(entry.entry)}</code></td></tr>`,
     );
   const columns = record.head.map((words) => `<th scope="col">${esc(words)}</th>`);
   const table = `<table class="logtable"><caption class="sr">The record of this problem</caption><thead><tr>${columns.join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;

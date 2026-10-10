@@ -5,11 +5,13 @@
  *
  * Each section's parts come from their own modules: the standing, the problems, the changes since
  * the run before, the human review and the summary, the page cards (./cards.ts), the cards of what
- * needs attention (./attention.ts), each run's evidence (./run-evidence.ts), and each run's event
- * log (./timeline.ts), whose events the evidence and the problems' records say in the same words.
- * This puts them together, and works out the top, the result the verdict goes by and the ring of
- * the pages, the sample of what NVDA said, what the results cover, each page's transcripts (the
- * model's `appendix`, which the page's card folds in), and the fingerprint check's data.
+ * needs attention (./attention.ts), each run's evidence (./run-evidence.ts), each run's event log
+ * (./timeline.ts), whose events the evidence and the problems' records say in the same words, and
+ * its copies of NVDA's own log, whose warnings and errors the problems' records show
+ * (./nvda-log-rows.ts) and whose speech the evidence checks (./run-log-check.ts). This puts them
+ * together, and works out the top, the result the verdict goes by and the ring of the pages, the
+ * sample of what NVDA said, what the results cover, each page's transcripts (the model's
+ * `appendix`, which the page's card folds in), and the fingerprint check's data.
  *
  * The home folder is replaced in everything the page shows: flags' and reviewers' words here, and
  * the description of a custom rule, which names its card; the problems' in problemsOf, the
@@ -56,11 +58,13 @@ import {
   dateRange,
   longDate,
   names,
+  pageTitle,
   seconds,
   utcOffset,
   type Shown,
 } from "./format.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
+import { nvdaLogRows } from "./nvda-log-rows.js";
 import { problemsOf, type EventRows, type ProblemsSection } from "./problems.js";
 import { reviewOf, type PageReview } from "./review.js";
 import {
@@ -85,10 +89,13 @@ import {
 export type { NoLongerListed, PageCard } from "./cards.js";
 export type {
   EvidenceRow,
+  NvdaLogChecked,
+  NvdaLogSource,
   RunEvidence,
   RunWalkthrough,
   WalkthroughDownload,
 } from "./run-evidence.js";
+export type { NotChecked } from "./run-log-check.js";
 
 /**
  * A transcript file a page's card folds in (the model's `appendix`): what NVDA said in a pass, with
@@ -251,10 +258,18 @@ export function buildShareModel(input: ShareInput): ShareModel {
     }));
     return { rows };
   };
+  // What the copy of NVDA's own log has of an attempt, for the same record: its warnings and errors
+  // in the same window, or why the page has none of the NVDA session the attempt ran in.
+  const nvdaRows = nvdaLogRows({
+    eventLog,
+    copies: (run) => input.nvdaLogs.get(run.id) ?? new Map<string, string>(),
+    redact,
+  });
   const problems = problemsOf(standing, {
     home: input.home,
     platform: input.platform,
     eventRows,
+    nvdaRows,
   });
   const { latest } = standing;
   const before = latest && runBefore(standing.counted, latest);
@@ -328,6 +343,14 @@ export function buildShareModel(input: ShareInput): ShareModel {
       redact,
       eventLog,
       words: wordsFor,
+      // A page is named in the lists of lines that differ as its card gives its path: its label, else
+      // its address without the site's.
+      nvdaLog: (run) => ({
+        copies: input.nvdaLogs.get(run.id) ?? new Map<string, string>(),
+        steps: (slug, pass) => input.transcripts.steps(run.id, slug, pass),
+        gestureOf: input.gestureOf,
+        pageName: pageTitle,
+      }),
     }),
     leftOut: leftOutOf(standing, input.unreadableRuns),
     appendix: appendixOf(standing, input.transcripts, nameOf),

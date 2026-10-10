@@ -13,7 +13,9 @@
  */
 import { describe, expect, it } from "vitest";
 
-import type { MachineRecord, PassName } from "../src/model.js";
+import { DEFAULT_CONFIG } from "../src/config/defaults.js";
+import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
+import type { MachineRecord, PassName, RunEvent } from "../src/model.js";
 import {
   renderCoverage,
   renderEvidence,
@@ -21,8 +23,14 @@ import {
   renderStory,
 } from "../src/share/html/evidence.js";
 import { firstSentenceBold, lineOfMarkup, lineText } from "../src/share/line.js";
-import type { ShareInput, TranscriptStore } from "../src/share/load.js";
-import { buildShareModel, type ShareModel } from "../src/share/model.js";
+import { renderWordCopy } from "../src/share/docx.js";
+import { loadShareInput, type ShareInput, type TranscriptStore } from "../src/share/load.js";
+import {
+  buildShareModel,
+  type NvdaLogChecked,
+  type RunEvidence,
+  type ShareModel,
+} from "../src/share/model.js";
 import {
   ABOUT,
   EVIDENCE_TEXT,
@@ -47,7 +55,9 @@ import {
 } from "../src/share/words.js";
 import { heading, mono, monoCell, para, wordsOf, type Block } from "../src/share/word/blocks.js";
 import { wordCoverage, wordEvidence, wordFooter, wordStory } from "../src/share/word/evidence.js";
+import { keptWithNext, unzipDocx } from "./helpers/docx.js";
 import { TINY_RECORD } from "./helpers/jpeg.js";
+import { FIRST_COPY, keptLogsRun, nvdaFixtureSite } from "./helpers/nvda-log.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { foldsIn, rowsOf, termsOf, textOf } from "./helpers/share-html.js";
 import {
@@ -938,6 +948,295 @@ describe("wordEvidence", () => {
     });
   });
 
+  describe("a run's NVDA log, checked against the transcripts", () => {
+    const TITLE = EVIDENCE_TEXT.parts.nvdaLog;
+    const OUTSIDE =
+      "(while pages loaded, before the run, or in attempts that were thrown out) aren't compared or shown.";
+    /** The same, for a run some of whose steps weren't checked: their speech is among it. */
+    const OUTSIDE_SOME =
+      "(while pages loaded, before the run, in attempts that were thrown out, or in steps that weren't checked) aren't compared or shown.";
+
+    /** The model of the real run of 6 October 2026, as a voicecap that keeps NVDA's log could have made it. */
+    async function fixtureModel(
+      options: Parameters<typeof nvdaFixtureSite>[0] = {},
+    ): Promise<ShareModel> {
+      const { siteDir } = await nvdaFixtureSite(options);
+      return buildShareModel(await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf }));
+    }
+
+    /** The model with the check its first run shows replaced. */
+    function showing(model: ShareModel, nvdaLog: RunEvidence["nvdaLog"]): ShareModel {
+      const [first, ...rest] = model.evidence;
+      if (first === undefined) throw new Error("The model has no run.");
+      return { ...model, evidence: [{ ...first, nvdaLog }, ...rest] };
+    }
+
+    /** A check of 12 steps, all agreed, with 3 lines of speech outside them, and what a test changes. */
+    function checked(overrides: Partial<NvdaLogChecked> = {}): NvdaLogChecked {
+      return {
+        transcriptLines: 12,
+        logLines: 12,
+        agree: 12,
+        onlyInLog: [],
+        onlyInTranscripts: [],
+        outside: 3,
+        notChecked: [],
+        ...overrides,
+      };
+    }
+
+    /** The blocks of the first run's NVDA-log part, under its heading. */
+    function logOf(model: ShareModel): Block[] {
+      const [run] = model.evidence;
+      return under(partOf(runParts(model), 0), `${TITLE} ${inRun(run?.run.id ?? "")}`);
+    }
+
+    it("says the real run's three counts as a list, that every line agrees, and the speech left out", async () => {
+      const log = logOf(await fixtureModel());
+
+      expect(wordsOf(log)).toEqual([
+        "204 lines in voicecap's transcripts for this run",
+        "204 lines NVDA's own log has for those steps",
+        "204 agree",
+        "Every line agrees.",
+        `177 lines NVDA spoke outside voicecap's steps ${OUTSIDE}`,
+      ]);
+      expect(log.map(({ kind }) => kind)).toEqual(["list", "para", "para"]);
+      expect(boldIn(linesIn(log)[3] ?? [])).toEqual(["Every line agrees."]);
+    });
+
+    it("lists the lines that differ, each list under a bold line of its own, and none under a heading", async () => {
+      const model = showing(
+        await fixtureModel(),
+        checked({
+          transcriptLines: 204,
+          logLines: 204,
+          agree: 202,
+          onlyInLog: [{ page: "/about/", pass: "read", step: 12, text: "Read the guides." }],
+          onlyInTranscripts: [
+            { page: "/about/", pass: "read", step: 12, text: "Read the guide." },
+            { page: "Home", pass: "tab", step: 3, text: "Skip to main content, link" },
+          ],
+        }),
+      );
+      const log = logOf(model);
+
+      expect(wordsOf(log)).toEqual([
+        "204 lines in voicecap's transcripts for this run",
+        "204 lines NVDA's own log has for those steps",
+        "202 agree",
+        "Said in NVDA's own log, not in the transcripts",
+        "/about/, Read pass, step 12: “Read the guides.”",
+        "In the transcripts, not in NVDA's own log",
+        "/about/, Read pass, step 12: “Read the guide.”",
+        "Home, Tab pass, step 3: “Skip to main content, link”",
+        `3 lines NVDA spoke outside voicecap's steps ${OUTSIDE}`,
+      ]);
+      // The part sits under a heading 3 that the details set to 4, and a Word heading goes no lower:
+      // the two lists' heads are bold lines, each followed by its list.
+      expect(log.map(({ kind }) => kind)).toEqual(["list", "para", "list", "para", "list", "para"]);
+      expect(boldIn(linesIn(log)[3] ?? [])).toEqual([
+        "Said in NVDA's own log, not in the transcripts",
+      ]);
+      expect(boldIn(linesIn(log)[4] ?? [])).toEqual(["/about/, Read pass, step 12: "]);
+      expect(boldIn(linesIn(log)[5] ?? [])).toEqual(["In the transcripts, not in NVDA's own log"]);
+      // Nothing says they all agree.
+      expect(wordsOf(log)).not.toContain("Every line agrees.");
+    });
+
+    it("keeps each bold head with the list it heads, in the document", async () => {
+      const model = showing(
+        await fixtureModel(),
+        checked({
+          onlyInLog: [{ page: "/", pass: "read", step: 1, text: "x" }],
+          onlyInTranscripts: [{ page: "/", pass: "read", step: 1, text: "y" }],
+        }),
+      );
+      const { document } = await unzipDocx(await renderWordCopy(model));
+      const kept = keptWithNext(document);
+
+      expect(kept).toContain("Said in NVDA's own log, not in the transcripts");
+      expect(kept).toContain("In the transcripts, not in NVDA's own log");
+    });
+
+    it("has no heading under the part's own, which the details set a level down", async () => {
+      const model = showing(
+        await fixtureModel(),
+        checked({ onlyInLog: [{ page: "/", pass: "read", step: 1, text: "x" }], agree: 11 }),
+      );
+
+      expect(logOf(model).filter((block) => block.kind === "heading")).toEqual([]);
+      // The whole evidence: a heading 3 at most before the details set each one level down.
+      expect(
+        Math.max(...wordEvidence(model).flatMap((b) => (b.kind === "heading" ? [b.level] : []))),
+      ).toBe(3);
+    });
+
+    it("says in the singular what is one, and how many steps had no words", () => {
+      const log = logOf(
+        showing(
+          modelOf([{ path: "/" }]),
+          checked({ transcriptLines: 3, logLines: 1, agree: 1, outside: 1 }),
+        ),
+      );
+
+      expect(wordsOf(log)).toEqual([
+        "3 lines in voicecap's transcripts for this run",
+        "1 line NVDA's own log has for those steps",
+        "1 agrees",
+        "Every line agrees. 2 steps had no words in the transcripts or in NVDA's own log.",
+        `1 line NVDA spoke outside voicecap's steps ${OUTSIDE.replace("aren't", "isn't")}`,
+      ]);
+      expect(boldIn(linesIn(log)[3] ?? [])).toEqual(["Every line agrees."]);
+    });
+
+    it("says how many steps weren't checked, and why, for each group, straight under the counts, which count only what was checked", () => {
+      const log = logOf(
+        showing(
+          modelOf([{ path: "/" }]),
+          checked({
+            notChecked: [
+              {
+                steps: 8,
+                from: "2026-09-26T14:04:45.729-05:00",
+                why: "reason",
+                detail: "NVDA's log wasn't there.",
+              },
+              { steps: 1, from: null, why: "unread", detail: null },
+            ],
+          }),
+        ),
+      );
+
+      // Before what the check found, so it never reads as speaking for the steps it didn't check.
+      expect(wordsOf(log)).toEqual([
+        "12 lines in voicecap's transcripts that were checked",
+        "12 lines NVDA's own log has for those steps",
+        "12 agree",
+        "8 steps from the NVDA session that started 26 September 2026, 14:04 weren't checked: NVDA's log wasn't there.",
+        "1 step wasn't checked: the transcripts' steps couldn't be read here.",
+        "Every line that was checked agrees.",
+        `3 lines NVDA spoke outside voicecap's steps ${OUTSIDE_SOME}`,
+      ]);
+      expect(log.map(({ kind }) => kind)).toEqual(["list", "para", "para", "para", "para"]);
+      expect(boldIn(linesIn(log)[5] ?? [])).toEqual(["Every line that was checked agrees."]);
+    });
+
+    it("says what it checked of a run whose NVDA sessions were checked in part, the groups that weren't with why, then the lines that differ", () => {
+      const kept = keptLogsRun();
+      // NVDA said "Grant" for "Grants" in the first session (Home); the second session kept no copy,
+      // and its log says why; the third's stop has no event of its copy, so the log names none.
+      const copies = new Map(kept.copies).set(
+        FIRST_COPY,
+        (kept.copies.get(FIRST_COPY) ?? "").replaceAll("'Grants'", "'Grant'"),
+      );
+      const events = kept.log.events.flatMap((event): RunEvent[] => {
+        if (event.type !== "screen-reader-log") return [event];
+        if (event.file === "nvda-log/1-2.txt") {
+          return [{ ...event, file: null, reason: "NVDA's log wasn't there." }];
+        }
+        return event.file === "nvda-log/2-1.txt" ? [] : [event];
+      });
+      const model = buildShareModel(
+        inputOf([kept.run], {
+          transcripts: kept.transcripts,
+          events: new Map([[kept.run.id, { events, unreadable: 0 }]]),
+          nvdaLogs: new Map([[kept.run.id, copies]]),
+        }),
+      );
+
+      expect(wordsOf(logOf(model))).toEqual([
+        "8 lines in voicecap's transcripts that were checked",
+        "8 lines NVDA's own log has for those steps",
+        "6 agree",
+        "8 steps from the NVDA session that started 26 September 2026, 14:04 weren't checked: NVDA's log wasn't there.",
+        "8 steps from the NVDA session that started 28 September 2026, 09:00 weren't checked: voicecap kept no copy of NVDA's log for that session.",
+        "Said in NVDA's own log, not in the transcripts",
+        "Home, Read pass, step 2: “heading, level 1, Grant”",
+        "Home, Headings pass, step 1: “heading, level 1, Grant”",
+        "In the transcripts, not in NVDA's own log",
+        "Home, Read pass, step 2: “heading, level 1, Grants”",
+        "Home, Headings pass, step 1: “heading, level 1, Grants”",
+        `9 lines NVDA spoke outside voicecap's steps ${OUTSIDE_SOME}`,
+      ]);
+    });
+
+    it("says what stands in its place as the page does", async () => {
+      for (const words of [
+        "Not recorded: this run kept no copy of NVDA's log.",
+        "Not recorded: this check is NVDA's only, since VoiceOver keeps no log of what it says.",
+        "Not shown: NVDA's log isn't as the run recorded it; voicecap verify names it.",
+      ]) {
+        expect(logOf(showing(await fixtureModel(), { notRecorded: words }))).toEqual([para(words)]);
+      }
+      // A run whose record lists no copy, and whose event log names none, kept none.
+      const unlisted = await fixtureModel({
+        unlisted: true,
+        change: (parts) => {
+          parts.events = parts.events.filter((line) => !line.includes('"screen-reader-log"'));
+        },
+      });
+      expect(logOf(unlisted)).toEqual([para("Not recorded: this run kept no copy of NVDA's log.")]);
+      // One whose event log names a copy that its record doesn't list: the record has no line of it.
+      expect(logOf(await fixtureModel({ unlisted: true }))).toEqual([
+        para(
+          "Not shown: the run's record doesn't list the copy of NVDA's log that its event log names.",
+        ),
+      ]);
+    });
+
+    it("says, of a Word copy made without NVDA's keys, that this Word copy was made without them", () => {
+      const kept = keptLogsRun();
+      const model = buildShareModel(
+        inputOf([kept.run], {
+          transcripts: kept.transcripts,
+          events: new Map([[kept.run.id, kept.log]]),
+          nvdaLogs: new Map([[kept.run.id, kept.copies]]),
+          gestureOf: null,
+        }),
+      );
+
+      // "This page", in a Word document, would read as the printed page.
+      expect(logOf(model)).toEqual([
+        para(
+          "Not shown: this Word copy was made without the keys voicecap presses for each step, which the check needs.",
+        ),
+      ]);
+    });
+
+    it("says the same words as the page, in the same order", async () => {
+      const models = [
+        await fixtureModel(),
+        showing(
+          modelOf([{ path: "/" }]),
+          checked({
+            transcriptLines: 14,
+            logLines: 13,
+            agree: 12,
+            onlyInLog: [{ page: "/a/", pass: "headings", step: 2, text: "Grants & more" }],
+            onlyInTranscripts: [{ page: "/a/", pass: "headings", step: 2, text: "Grants" }],
+            notChecked: [{ steps: 2, from: null, why: "placed", detail: null }],
+          }),
+        ),
+      ];
+
+      for (const model of models) {
+        const html = renderEvidence(model);
+        const start = html.indexOf('<div class="log-check">');
+        const part = html.slice(start, html.indexOf("<div><h3>", start));
+        const onPage = [
+          ...part.matchAll(
+            /<div class="big">(.*?)<\/div><div class="sub">(.*?)<\/div>|<p[^>]*>(.*?)<\/p>|<h4>(.*?)<\/h4>|<li class="place">(.*?)<\/li>/gs,
+          ),
+        ].map(([, big, label, paragraph, heading, item]) =>
+          textOf(big === undefined ? (paragraph ?? heading ?? item ?? "") : `${big} ${label}`),
+        );
+
+        expect(wordsOf(logOf(model))).toEqual(onPage);
+      }
+    });
+  });
+
   describe("runs left out", () => {
     it("has no part for them when every run counted", () => {
       const model = modelOf([{ path: "/" }]);
@@ -1407,7 +1706,7 @@ describe("wordStory", () => {
       const { rows } = tableAt(wordStory(await demoModel()), 0);
 
       expect(cellLines(rows.at(-1)?.[1])).toEqual([
-        "Windows PC, with NVDA: NVDA's own log, checked against the transcripts, recorded at the PC.",
+        "Windows PC, with NVDA: NVDA's voice: a recording of what NVDA said on each page, sealed with the run.",
         "Mac, with VoiceOver: Full runs with VoiceOver, with voicecap's VoiceOver driver.",
       ]);
     });
