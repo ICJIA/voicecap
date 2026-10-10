@@ -1675,11 +1675,11 @@ describe("renderAiMarkdown", () => {
     const todo = sectionOf(details, 3, "What's still to do");
 
     expect(todo).toContain("Read it again.");
-    // The page's words ask for the transcripts to be read again: no one listened (Q7).
+    // The page's own line, in its own words: the owner keeps "a closer listen" for what flags
+    // point to (Q14). The page's address is voicecap's own, so it is in code.
     expect(todo).toContain(
-      "- Read the transcripts of `https://voicecap.netlify.app/demo-site/common-mistakes/` again, where flags were raised, and record what you decide.",
+      "- Take a closer listen to `https://voicecap.netlify.app/demo-site/common-mistakes/`, where flags were raised, and record what you decide.",
     );
-    expect(todo).not.toMatch(/listen/i);
     expect(read(evidence).blocks[0]?.lines).toContain(
       "Operating system: Windows 11 Pro 25H2 (10.0.26200)",
     );
@@ -2401,10 +2401,10 @@ describe("markdownSentence", () => {
   it("sets each plain address in a sentence of voicecap's own in code, and escapes the rest", () => {
     expect(
       markdownSentence(
-        "Read the transcripts of https://a.example/b/, https://c.example/ again, where flags were raised.",
+        "Take a closer listen to https://a.example/b/ and https://c.example/, where flags were raised.",
       ),
     ).toBe(
-      "Read the transcripts of `https://a.example/b/`, `https://c.example/` again, where flags were raised.",
+      "Take a closer listen to `https://a.example/b/` and `https://c.example/`, where flags were raised.",
     );
     // An address ends at a space or an angle bracket; the marks after it that end a sentence or
     // close a bracket aren't its own.

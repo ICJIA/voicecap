@@ -377,7 +377,7 @@ describe("the details' parts that were the summary's panels and bars", () => {
     expect(todoPart(summary)).toBe(
       '<section aria-labelledby="todo-h"><h3 id="todo-h">What&#39;s still to do</h3><div class="panel"><ul>' +
         "<li>http://127.0.0.1:4848/how-a-run-works/ couldn&#39;t be read in the latest run (another window took the screen). Its transcripts are from run 2026-09-29_1315. Read it again.</li>" +
-        "<li>Read the transcripts of http://127.0.0.1:4848/common-mistakes/ again, where flags were raised, and record what you decide.</li></ul></div></section>",
+        "<li>Take a closer listen to http://127.0.0.1:4848/common-mistakes/, where flags were raised, and record what you decide.</li></ul></div></section>",
     );
     expect(whenHowPart(summary)).toBe(
       '<section aria-labelledby="whenhow-h"><h3 id="whenhow-h">When and how</h3><div class="panel"><ul>' +

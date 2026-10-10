@@ -320,7 +320,7 @@ describe("the addresses a model shows", () => {
     expect(namesOnCards(model)).toEqual([on("common-mistakes/"), on("how-a-run-works/")]);
     expect(model.summary.todo).toEqual([
       `${on("how-a-run-works/")} couldn't be read in the latest run (another window took the screen). Its transcripts are from run 2026-09-29_1315. Read it again.`,
-      `Read the transcripts of ${on("common-mistakes/")} again, where flags were raised, and record what you decide.`,
+      `Take a closer listen to ${on("common-mistakes/")}, where flags were raised, and record what you decide.`,
     ]);
     expect(model.coverage.covered[0]).toBe(`7 pages from the sitemap ${on("sitemap.xml")}.`);
     const rows = new Map(model.evidence[0]?.environment.map((row) => [row.label, row.value]));
@@ -497,7 +497,7 @@ describe("every address the page shows for a page", () => {
     expect(model.summary.todo).toEqual([
       `${on("broken/")} couldn't be read in the latest run (the website couldn't be reached). Its transcripts are from run ${EARLIER.id}. Read it again.`,
       `${on("skipped/")} was skipped: the site didn't answer with an HTML page. Check whether it belongs on the list.`,
-      `Read the transcripts of ${on("forms/")} again, where flags were raised, and record what you decide.`,
+      `Take a closer listen to ${on("forms/")}, where flags were raised, and record what you decide.`,
     ]);
   });
 

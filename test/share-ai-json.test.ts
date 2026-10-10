@@ -2310,10 +2310,11 @@ describe("the details of renderAiJson", () => {
     const report = reportOf(i2i);
 
     expect(report.stillToDo).toEqual(i2i.summary.todo);
+    // The page's own line, in its own words: the owner keeps "a closer listen" for what flags
+    // point to (Q14).
     expect(report.stillToDo[0]).toMatch(
-      /^Read the transcripts of .* again, where flags were raised, and record what you decide\.$/,
+      /^Take a closer listen to .*, where flags were raised, and record what you decide\.$/,
     );
-    expect(report.stillToDo.join(" ")).not.toMatch(/listen/i);
     expect(report.howComplete).toEqual(i2i.summary.complete);
     expect(report.whenAndHow).toEqual(i2i.summary.whenHow);
     expect(report.coverage).toEqual({
@@ -2902,7 +2903,6 @@ describe("the words of a record or a website in renderAiJson", () => {
       const ours = [
         report.about,
         report.summary,
-        report.stillToDo,
         report.howComplete,
         report.coverage,
         report.runProblemsLine,
@@ -2911,6 +2911,11 @@ describe("the words of a record or a website in renderAiJson", () => {
       ];
 
       expect(stringsIn(ours).join("\n")).not.toMatch(/automated|listen|guidepup|accessib/i);
+      // What's still to do is the page's own list, in its own words, which keep "a closer listen"
+      // for the pages flags point to (Q14): it never says a person listened to a run, though, and
+      // never calls voicecap automated or a page accessible.
+      expect(stringsIn(report.stillToDo).join("\n")).not.toMatch(/automated|guidepup|accessib/i);
+      expect(stringsIn(report.stillToDo).join("\n")).not.toMatch(/\blistened\b/i);
     }
   });
 
