@@ -5,7 +5,15 @@ import { readLatestRunId, listRuns, readRunJson } from "../run/store.js";
 import { UsageError } from "../util/errors.js";
 import { assertNotRewritten } from "../util/git-bash.js";
 import { pageSlug } from "./slug.js";
-import { canonicalKey, hasScheme, parseSiteUrl, resolvePageUrl, sameOrigin } from "./url.js";
+import {
+  addressWithCredentials,
+  canonicalKey,
+  hasScheme,
+  PAGE_CREDENTIALS_REFUSAL,
+  parseSiteUrl,
+  resolvePageUrl,
+  sameOrigin,
+} from "./url.js";
 
 export interface PageArgument {
   /** Absolute URL. */
@@ -21,7 +29,8 @@ export interface PageArgument {
  * site. Without it, a path resolves against the site of the latest run in `outDir`, a site's
  * folder, and must stay on that site too. A --site that gave its canonical address, and found
  * `outDir` by what its runs recorded (see chooseSiteDir), counts as the address those runs read
- * (see siteOfPages).
+ * (see siteOfPages). A page whose address has a user name or password in it is refused, before
+ * anything repeats it: the address would be kept in the record of the review.
  */
 export async function resolvePageArgument(
   value: string,
@@ -30,6 +39,7 @@ export async function resolvePageArgument(
 ): Promise<PageArgument> {
   assertNotRewritten("--page", value);
   const trimmed = value.trim();
+  if (addressWithCredentials(trimmed) !== null) throw new UsageError(PAGE_CREDENTIALS_REFUSAL);
   const given = site === undefined || site === null ? null : await siteOfPages(site, outDir);
   let url: URL | null;
   if (hasScheme(trimmed)) {

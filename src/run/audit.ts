@@ -26,7 +26,7 @@ import {
   type RunSettings,
   type SessionRecord,
 } from "../model.js";
-import { chooseCanonicalRoot, normalizeCanonical } from "../pages/canonical.js";
+import { chooseCanonicalRoot, isNearbyHost, normalizeCanonical } from "../pages/canonical.js";
 import { compilePattern } from "../pages/filter.js";
 import {
   pageSourceFor,
@@ -400,6 +400,11 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
  * file's own. An option is refused before the file is read, so it's what's said whether or not the
  * file can be read. All of this comes first, before the config is loaded, the readiness is checked,
  * or a folder is touched.
+ *
+ * A file whose site is this computer, an IP address, or a name of one word (`http://intranet`) can
+ * point the browser at a computer on this network, which Windows signs the browser in to by itself.
+ * A live repeat of one is refused unless `site` names it, which the person who runs it does by
+ * choice. A replay (`replayFrom`) opens no browser, so it goes ahead, as CI's smoke test runs one.
  */
 async function readRepeat(options: RunAuditOptions, cwd: string): Promise<WalkthroughFile | null> {
   if (options.walkthrough === undefined || options.walkthrough === null) return null;
@@ -428,6 +433,14 @@ async function readRepeat(options: RunAuditOptions, cwd: string): Promise<Walkth
     parseSiteUrl(options.site).origin !== parseSiteUrl(walkthrough.parsed.site).origin
   ) {
     throw refused("--site");
+  }
+  if (options.site === undefined && !options.replayFrom) {
+    const { hostname, origin } = parseSiteUrl(walkthrough.parsed.site);
+    if (isNearbyHost(hostname)) {
+      throw new UsageError(
+        `This walkthrough file reads ${origin}, an IP address, a local address, or a one-word name, which can be a computer on this network. To read it, name it yourself: add --site ${origin}.`,
+      );
+    }
   }
   return walkthrough;
 }

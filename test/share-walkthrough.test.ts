@@ -1060,21 +1060,62 @@ describe("parseWalkthrough", () => {
       "w.json isn't a voicecap walkthrough file: its original.nvdaSettings is nested more than 32 levels deep.",
     ],
     // The file's own words reach a transcript's header and the terminal as they are, so a control
-    // character in them is refused (Ruling P22).
+    // character in them is refused (Ruling P22), and so is a character that can't be seen: a
+    // right-to-left override that turns the words around, a zero-width space, a line separator.
     [
       "a label with an escape sequence in it",
       (w) => withPageText(w, 0, "label", "Home\u{1b}]52;c;ZWNobyBwd25lZA==\u{7}\u{1b}[2J"),
-      "w.json isn't a voicecap walkthrough file: page 1's label has a control character in it.",
+      "w.json isn't a voicecap walkthrough file: page 1's label has a control or invisible character in it.",
     ],
     [
       "a template with a bell in it",
       (w) => withPageText(w, 1, "template", "grants\u{7}"),
-      "w.json isn't a voicecap walkthrough file: page 2's template has a control character in it.",
+      "w.json isn't a voicecap walkthrough file: page 2's template has a control or invisible character in it.",
     ],
     [
       "notes with a C1 control character in them, a single-character CSI",
       (w) => withPageText(w, 2, "notes", "Check\u{9b}2J the table."),
-      "w.json isn't a voicecap walkthrough file: page 3's notes has a control character in it.",
+      "w.json isn't a voicecap walkthrough file: page 3's notes has a control or invisible character in it.",
+    ],
+    [
+      "a label with a right-to-left override in it",
+      (w) => withPageText(w, 0, "label", "Home \u{202e}esaelp"),
+      "w.json isn't a voicecap walkthrough file: page 1's label has a control or invisible character in it.",
+    ],
+    [
+      "notes with a zero-width space in them",
+      (w) => withPageText(w, 2, "notes", "Check\u{200b} the table."),
+      "w.json isn't a voicecap walkthrough file: page 3's notes has a control or invisible character in it.",
+    ],
+    [
+      "a template with a line separator in it",
+      (w) => withPageText(w, 1, "template", "grants\u{2028}fake"),
+      "w.json isn't a voicecap walkthrough file: page 2's template has a control or invisible character in it.",
+    ],
+    [
+      "a page address with a user name and a password in it",
+      (w) => withPageUrl(w, 0, "https://u:p@example.illinois.gov/x"),
+      "w.json isn't a voicecap walkthrough file: page 1's address has a user name or password in it.",
+    ],
+    [
+      "a page address with a user name and a password in it, on another site",
+      (w) => withPageUrl(w, 1, "https://u:p@elsewhere.example/x"),
+      "w.json isn't a voicecap walkthrough file: page 2's address has a user name or password in it.",
+    ],
+    [
+      "a site address with a user name and a password in it",
+      (w) => ({ ...w, site: "https://u:p@example.illinois.gov" }),
+      "w.json isn't a voicecap walkthrough file: its site has a user name or password in it.",
+    ],
+    [
+      "a site that is two dots",
+      (w) => ({ ...w, site: "http://../" }),
+      "w.json isn't a voicecap walkthrough file: its site isn't a web address.",
+    ],
+    [
+      "a ready selector that is Playwright's own",
+      (w) => withReadySelector(w, "text=/a+$/"),
+      "w.json isn't a voicecap walkthrough file: its settings.readiness.readySelector isn't plain CSS: a walkthrough file can't use Playwright's own selectors (text=, xpath=, >>).",
     ],
     [
       "a ready selector with an escape sequence in it",
@@ -1184,9 +1225,11 @@ describe("parseWalkthrough", () => {
       "isn't on its site",
     ],
     [
+      // The user name is what looks like the site, and the host is another: it has a user name, which
+      // is refused before the host is looked at, so the address is never repeated.
       "an address whose user name is the site's",
       (w) => withPageUrl(w, 0, "https://example.illinois.gov@elsewhere.example/"),
-      "isn't on its site",
+      "page 1's address has a user name or password in it",
     ],
     [
       "an address of another kind altogether",
@@ -1242,6 +1285,89 @@ describe("parseWalkthrough", () => {
 
     expect(message.startsWith(NOT_A_WALKTHROUGH)).toBe(true);
     expect(message).toContain(reason);
+  });
+
+  // A host with an empty part isn't a name, and a folder named for one is the home, or the folder
+  // that holds it (`new URL("http://../").host` is ".."): a file whose site is one is refused.
+  it.each<[name: string, site: string]>([
+    ["two dots", "http://../"],
+    ["two dots, written percent-encoded", "http://%2e%2e/"],
+    ["three dots", "http://.../"],
+    ["one dot", "http://./"],
+    ["an empty part in the middle", "https://a..b.org/"],
+    ["a dot at its start", "https://.example.org/"],
+    ["a dot at its end", "https://example.org./"],
+  ])("refuses a file whose site has a host of %s: its site isn't a web address", (_name, site) => {
+    const reason = "its site isn't a web address.";
+
+    expect(refusal(textOf({ ...valid(), site }))).toBe(`${NOT_A_WALKTHROUGH}${reason}`);
+    expect(walkthroughProblem({ ...valid(), site })).toBe(reason);
+  });
+
+  it("refuses a site first, when its pages are on it, as it does for any other site", () => {
+    const pages = valid().pages.map((page) => ({ ...page, url: "http://../a" }));
+
+    expect(refusal(textOf({ ...valid(), site: "http://../", pages }))).toBe(
+      `${NOT_A_WALKTHROUGH}its site isn't a web address.`,
+    );
+  });
+
+  // A user name or password in an address would be kept in the records and on the website. The file
+  // says which page it is by its place, and never repeats the address.
+  it.each<[name: string, address: string]>([
+    ["a user name and a password", "https://u:p@example.illinois.gov/x"],
+    ["a user name alone", "https://jane@example.illinois.gov/x"],
+    ["a password alone", "https://:p@example.illinois.gov/x"],
+    ["a user name and a password, on the site's other scheme", "http://u:p@example.illinois.gov/x"],
+    ["a user name and a password, on another site", "https://u:p@elsewhere.example/x"],
+    ["no slashes after the scheme", "https:u:p@example.illinois.gov/x"],
+  ])("refuses a page address with %s, without repeating it", (_name, address) => {
+    const walkthrough = withPageUrl(valid(), 0, address);
+    const reason = "page 1's address has a user name or password in it.";
+
+    const message = refusal(textOf(walkthrough));
+
+    expect(message).toBe(`${NOT_A_WALKTHROUGH}${reason}`);
+    expect(message).not.toContain("u:p");
+    expect(message).not.toContain("jane");
+    expect(walkthroughProblem(walkthrough)).toBe(reason);
+  });
+
+  it("says the first page that has something wrong, whether it's a password in an address or a character in its words", () => {
+    const walkthrough = withPageUrl(
+      withPageUrl(valid(), 2, "https://u:p@example.illinois.gov/x"),
+      3,
+      "https://v:q@example.illinois.gov/y",
+    );
+
+    expect(refusal(textOf(walkthrough))).toBe(
+      `${NOT_A_WALKTHROUGH}page 3's address has a user name or password in it.`,
+    );
+    expect(refusal(textOf(withPageText(walkthrough, 0, "label", "Home\u{200b}")))).toBe(
+      `${NOT_A_WALKTHROUGH}page 1's label has a control or invisible character in it.`,
+    );
+  });
+
+  it("refuses a site address with a user name or a password in it, without repeating it", () => {
+    for (const site of ["https://u:p@example.illinois.gov", "https://u@example.illinois.gov/"]) {
+      const message = refusal(textOf({ ...valid(), site }));
+
+      expect(message).toBe(`${NOT_A_WALKTHROUGH}its site has a user name or password in it.`);
+      expect(message).not.toContain("u:p");
+    }
+  });
+
+  it("takes an address whose @ is in its path, query, or fragment, which is no user name", () => {
+    for (const address of [
+      "https://example.illinois.gov/@jane",
+      "https://example.illinois.gov/x?mail=a@b.c",
+      "https://example.illinois.gov/x#@jane",
+    ]) {
+      const walkthrough = withPageUrl(valid(), 0, address);
+
+      expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
+      expect(walkthroughProblem(walkthrough)).toBeNull();
+    }
   });
 
   it("accepts the site's own address in any case, with or without a trailing slash on the site", () => {
@@ -1324,7 +1450,6 @@ describe("parseWalkthrough", () => {
   );
 
   it.each<[name: string, address: string]>([
-    ["the site's own credentials", "https://user:pass@example.illinois.gov/x"],
     ["a query and a fragment", "https://example.illinois.gov/x?y=1&z=2#top"],
     ["a space and a newline written percent-encoded", "https://example.illinois.gov/a%20b%0Ac"],
     ["exactly 8,192 characters", addressOfLength(ADDRESS_LIMIT)],
@@ -1345,7 +1470,10 @@ describe("parseWalkthrough", () => {
   // header of every transcript it writes, as they are. A control character in them (U+0000 to
   // U+001F, and U+007F to U+009F) could clear or rewrite the screen of whoever reads a transcript
   // with `type` or `cat`, so it's refused: all but a tab, a carriage return, and a line feed. A note
-  // from a CSV may run over several lines, and the header folds those (Ruling P22).
+  // from a CSV may run over several lines, and the header folds those (Ruling P22). A character
+  // that can't be seen is refused too: a format character (a zero-width space, a right-to-left
+  // override, a byte-order mark, a soft hyphen) or a line separator (U+2028, U+2029) can turn the
+  // words around or start a line of its own.
   describe.each(["label", "template", "notes"] as const)("a page's %s", (field) => {
     it.each<[name: string, character: string]>([
       ["a null character", "\u{0}"],
@@ -1360,12 +1488,39 @@ describe("parseWalkthrough", () => {
       ["a next-line character", "\u{85}"],
       ["a single-character CSI", "\u{9b}"],
       ["the last of the C1 block", "\u{9f}"],
+      ["a soft hyphen", "\u{ad}"],
+      ["an Arabic letter mark", "\u{61c}"],
+      ["a zero-width space", "\u{200b}"],
+      ["a zero-width non-joiner", "\u{200c}"],
+      ["a zero-width joiner", "\u{200d}"],
+      ["a left-to-right mark", "\u{200e}"],
+      ["a right-to-left mark", "\u{200f}"],
+      ["a line separator", "\u{2028}"],
+      ["a paragraph separator", "\u{2029}"],
+      ["a left-to-right embedding", "\u{202a}"],
+      ["a right-to-left override", "\u{202e}"],
+      ["a word joiner", "\u{2060}"],
+      ["a left-to-right isolate", "\u{2066}"],
+      ["a pop directional isolate", "\u{2069}"],
+      ["a byte-order mark", "\u{feff}"],
+      ["a language tag, past the first plane", "\u{e0001}"],
+      ["a tag letter, past the first plane", "\u{e0041}"],
     ])("refuses %s, naming the page", (_name, character) => {
       const walkthrough = withPageText(valid(), 1, field, `a${character}b`);
-      const reason = `page 2's ${field} has a control character in it.`;
+      const reason = `page 2's ${field} has a control or invisible character in it.`;
 
       expect(refusal(textOf(walkthrough))).toBe(`${NOT_A_WALKTHROUGH}${reason}`);
       expect(walkthroughProblem(walkthrough)).toBe(reason);
+    });
+
+    it("refuses a character that can't be seen at either end of the words, or alone", () => {
+      for (const text of ["\u{200b}Home", "Home\u{200b}", "\u{2028}", "a\u{202e}"]) {
+        const walkthrough = withPageText(valid(), 1, field, text);
+
+        expect(walkthroughProblem(walkthrough)).toBe(
+          `page 2's ${field} has a control or invisible character in it.`,
+        );
+      }
     });
 
     it.each<[name: string, text: string]>([
@@ -1376,11 +1531,13 @@ describe("parseWalkthrough", () => {
       ["a tab, a carriage return, and a line feed together", "\tone\r\ntwo\n\tthree\r"],
       ["a space and a tilde, either side of the control characters", " ~"],
       ["a non-breaking space", "a\u{a0}b"],
+      ["spaces of other widths, which can be seen", "a\u{2003}b\u{3000}c"],
       ["letters with accents, and from another script", "Caf\u{e9} \u{43f}\u{440}\u{438}"],
       [
-        "an emoji joined with a zero-width joiner, a format character",
-        "\u{1f469}\u{200d}\u{1f4bb}",
+        "an emoji, and a variation selector that asks for its picture",
+        "\u{2764}\u{fe0f} \u{1f469}",
       ],
+      ["a combining accent", "e\u{301}"],
       ["nothing at all", ""],
     ])("accepts %s", (_name, text) => {
       const walkthrough = withPageText(valid(), 1, field, text);
@@ -1399,7 +1556,7 @@ describe("parseWalkthrough", () => {
     );
 
     expect(refusal(textOf(walkthrough))).toBe(
-      `${NOT_A_WALKTHROUGH}page 2's notes has a control character in it.`,
+      `${NOT_A_WALKTHROUGH}page 2's notes has a control or invisible character in it.`,
     );
   });
 
@@ -1418,6 +1575,9 @@ describe("parseWalkthrough", () => {
 
   // The ready selector goes into the message of every attempt that doesn't find it, which is printed
   // to the terminal and kept in run.json: so it has a length, and no control or format character.
+  // And it's plain CSS, as the README says: Playwright's own selectors (text=, xpath=, >>) can read
+  // a page's words by a regular expression, or follow a path of engines, and a file from anyone may
+  // not ask a browser for those.
   it("takes a ready selector of exactly 1,024 characters", () => {
     const walkthrough = withReadySelector(valid(), `#${"a".repeat(SELECTOR_LIMIT - 1)}`);
     expect(walkthrough.settings.readiness?.readySelector).toHaveLength(SELECTOR_LIMIT);
@@ -1436,6 +1596,101 @@ describe("parseWalkthrough", () => {
 
     expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
     expect(walkthroughProblem(walkthrough)).toBeNull();
+  });
+
+  /** What a file with a ready selector that isn't plain CSS is refused with. */
+  const NOT_PLAIN_CSS =
+    "its settings.readiness.readySelector isn't plain CSS: a walkthrough file can't use Playwright's own selectors (text=, xpath=, >>).";
+
+  it.each<[name: string, selector: string]>([
+    ["text with a regular expression", "text=/a+$/"],
+    ["an XPath, named", "xpath=//main"],
+    ["an XPath, written as a path", "//main"],
+    ["an XPath that goes up", "../main"],
+    ["a chain of selectors", "main >> text=Ready"],
+    ["a chain of two CSS selectors", "main >> div"],
+    ["a pseudo-class that matches text", 'div:has-text("Ready")'],
+    ["a quoted text", '"Ready"'],
+    ["a quoted text, in single quotes", "'Ready'"],
+    ["an internal engine", 'internal:text="x"'],
+    ["an engine with a name", "role=button"],
+    ["an engine with a name, in capitals", "TEXT=Ready"],
+    ["an engine with a space before its equals sign", "text =Ready"],
+    ["an engine with a hyphen in its name", "data-testid=save"],
+    ["a group in parentheses", "(//main)[1]"],
+    ["leading spaces, then an XPath", "  //main"],
+    ["a text pseudo-class", "p:text('x')"],
+    ["an exact text pseudo-class", "p:text-is('x')"],
+    ["a pattern text pseudo-class", "p:text-matches('x')"],
+    ["a numbered match", "p:nth-match(div, 2)"],
+    ["a visibility pseudo-class", "button:visible"],
+    ["a position pseudo-class, to the left", "input:left-of(button)"],
+    ["a position pseudo-class, to the right", "input:right-of(button)"],
+    ["a position pseudo-class, above", "input:above(button)"],
+    ["a position pseudo-class, below", "input:below(button)"],
+    ["a position pseudo-class, near", "input:near(button)"],
+    // A CSS selector that quotes the chain's mark in an attribute is refused as well, which is
+    // accepted: the pattern doesn't read a selector's quotes.
+    ["a CSS selector that quotes >> in an attribute", 'a[title=">> next"]'],
+  ])("refuses a ready selector that is %s, as not plain CSS", (_name, selector) => {
+    const walkthrough = withReadySelector(valid(), selector);
+
+    expect(refusal(textOf(walkthrough))).toBe(`${NOT_A_WALKTHROUGH}${NOT_PLAIN_CSS}`);
+    expect(walkthroughProblem(walkthrough)).toBe(NOT_PLAIN_CSS);
+  });
+
+  it.each<[name: string, selector: string]>([
+    ["an id", "#main"],
+    ["a tag and a descendant", "main h1"],
+    ["an attribute with a quoted value", 'a[href="/x"]'],
+    ["a negation", "div:not(.hidden)"],
+    ["an attribute with an unquoted value", "[data-ready=true]"],
+    ["a relational pseudo-class with a child combinator", "button:has(> span)"],
+    ["a class", ".loaded"],
+    ["a child combinator", "main > h1"],
+    ["a sibling combinator", "h1 + p"],
+    ["several selectors", "main, #app, .page"],
+    ["a universal selector", "*"],
+    ["an attribute that holds a regular expression's marks", '[data-q="a+$"]'],
+    ["a name that ends like an engine's", "[data-text]"],
+    ["a pseudo-class that only starts like Playwright's", "li:first-child:not(:last-child)"],
+    ["a pseudo-class whose name only starts like Playwright's", "p:textual"],
+    ["a pseudo-element", "p::first-line"],
+    ["a path through an attribute value", '[href="//main"]'],
+    ["a leading space, then CSS", "  #main"],
+  ])("takes a ready selector that is %s", (_name, selector) => {
+    const walkthrough = withReadySelector(valid(), selector);
+
+    expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
+    expect(walkthroughProblem(walkthrough)).toBeNull();
+  });
+
+  it("judges a ready selector of the most characters, of any shape, quickly", () => {
+    // The pattern that finds Playwright's own selectors only ever sees a selector up to the limit,
+    // since a longer one is turned away first. At the limit, these are shapes that could take it the
+    // longest.
+    const shapes = [
+      "a".repeat(SELECTOR_LIMIT),
+      "a:".repeat(SELECTOR_LIMIT / 2),
+      `a${" ".repeat(SELECTOR_LIMIT - 2)}x`,
+      " ".repeat(SELECTOR_LIMIT - 1) + "a",
+      "a-".repeat(SELECTOR_LIMIT / 2),
+      "a:a".repeat(Math.floor(SELECTOR_LIMIT / 3)),
+      `${"a".repeat(SELECTOR_LIMIT - 1)}:`,
+      ":".repeat(SELECTOR_LIMIT),
+      ">".repeat(SELECTOR_LIMIT - 1) + " ",
+    ];
+    const started = performance.now();
+    for (const selector of shapes) {
+      const walkthrough = withReadySelector(valid(), selector);
+      // Whether it's taken or refused doesn't matter here: it's judged.
+      try {
+        parseWalkthrough(textOf(walkthrough), "w.json");
+      } catch (error) {
+        expect(error).toBeInstanceOf(UsageError);
+      }
+    }
+    expect(performance.now() - started).toBeLessThan(2_000);
   });
 
   // Unlike a page's words, a selector may not hold a format character either: the zero-width ones
@@ -1472,6 +1727,25 @@ describe("parseWalkthrough", () => {
       `${NOT_A_WALKTHROUGH}its settings.readiness.readySelector is longer than 1,024 characters.`,
     );
     expect(elapsed).toBeLessThan(2_000);
+  });
+
+  it("reads a page's words of hundreds of thousands of characters in a time that doesn't grow with the square of them", () => {
+    // The words of a page are bounded only by the file's 8 MB, so what finds a character that can't
+    // be seen in them has to take a time in proportion to their length. These are 400,000 characters.
+    const words = "word ".repeat(80_000);
+    const started = performance.now();
+    for (const field of ["label", "template", "notes"] as const) {
+      const fine = withPageText(valid(), 1, field, words);
+      expect(parseWalkthrough(textOf(fine), "w.json")).toStrictEqual(fine);
+
+      for (const text of [`${words}\u{200b}`, `\u{2028}${words}`, `${words}\u{1b}${words}`]) {
+        const reason = `page 2's ${field} has a control or invisible character in it.`;
+        expect(refusal(textOf(withPageText(valid(), 1, field, text)))).toBe(
+          `${NOT_A_WALKTHROUGH}${reason}`,
+        );
+      }
+    }
+    expect(performance.now() - started).toBeLessThan(5_000);
   });
 
   it("still refuses an empty ready selector, as before", () => {
@@ -2295,11 +2569,30 @@ describe("walkthroughProblem", () => {
     ["a label with an escape sequence in it", (w) => withPageText(w, 0, "label", "Home\u{1b}[2J")],
     ["a template with a bell in it", (w) => withPageText(w, 1, "template", "grants\u{7}")],
     ["notes with a C1 control character", (w) => withPageText(w, 1, "notes", "Check\u{9b}2J")],
+    ["a label with a right-to-left override", (w) => withPageText(w, 0, "label", "Home\u{202e}x")],
+    ["notes with a zero-width space", (w) => withPageText(w, 1, "notes", "Check\u{200b}")],
+    ["a template with a line separator", (w) => withPageText(w, 1, "template", "a\u{2028}b")],
     ["a ready selector with an escape sequence in it", (w) => withReadySelector(w, "#a\u{1b}[2J")],
     ["a ready selector with a zero-width space", (w) => withReadySelector(w, "#a\u{200b}")],
     [
       "a ready selector of 1,025 characters",
       (w) => withReadySelector(w, "a".repeat(SELECTOR_LIMIT + 1)),
+    ],
+    ["a ready selector of Playwright's, a text", (w) => withReadySelector(w, "text=/a+$/")],
+    ["a ready selector of Playwright's, an XPath", (w) => withReadySelector(w, "xpath=//main")],
+    [
+      "a ready selector of Playwright's, a chain",
+      (w) => withReadySelector(w, "main >> text=Ready"),
+    ],
+    ["a site that is two dots", (w) => ({ ...w, site: "http://../" })],
+    ["a site that is two dots, percent-encoded", (w) => ({ ...w, site: "http://%2e%2e/" })],
+    [
+      "a site with a user name and a password",
+      (w) => ({ ...w, site: "https://u:p@example.illinois.gov" }),
+    ],
+    [
+      "a page address with a user name and a password",
+      (w) => withPageUrl(w, 0, "https://u:p@example.illinois.gov/x"),
     ],
   ])("says what parseWalkthrough says of a file with %s, after the file's name", (_name, file) => {
     const broken = file(valid());
@@ -2319,10 +2612,12 @@ describe("walkthroughProblem", () => {
     const walkthrough = walkthroughOf(run);
     expect(walkthrough.pages[0]?.label).toBe("Home\u{1b}]0;pwned\u{7}");
 
-    expect(walkthroughProblem(walkthrough)).toBe("page 1's label has a control character in it.");
+    expect(walkthroughProblem(walkthrough)).toBe(
+      "page 1's label has a control or invisible character in it.",
+    );
     // Its file, which no writer makes, is refused in the same words.
     expect(refusal(walkthroughJson(walkthrough))).toBe(
-      `${NOT_A_WALKTHROUGH}page 1's label has a control character in it.`,
+      `${NOT_A_WALKTHROUGH}page 1's label has a control or invisible character in it.`,
     );
   });
 
@@ -2332,14 +2627,46 @@ describe("walkthroughProblem", () => {
       (run) => {
         run.pages[0]!.template = "home\u{1b}[2J";
       },
-      "page 1's template has a control character in it.",
+      "page 1's template has a control or invisible character in it.",
     ],
     [
       "notes with a C1 control character",
       (run) => {
         run.pages[1]!.notes = "Check\u{9b}2J";
       },
-      "page 2's notes has a control character in it.",
+      "page 2's notes has a control or invisible character in it.",
+    ],
+    [
+      "a label with an emoji sequence, joined with a zero-width joiner",
+      (run) => {
+        run.pages[0]!.label = "Home \u{1f469}\u{200d}\u{1f4bb}";
+      },
+      "page 1's label has a control or invisible character in it.",
+    ],
+    [
+      "notes with a line separator",
+      (run) => {
+        run.pages[1]!.notes = "One.\u{2028}Two.";
+      },
+      "page 2's notes has a control or invisible character in it.",
+    ],
+    [
+      "a page address with a user name and a password in it",
+      (run) => {
+        run.pages[1]!.url = "https://u:p@example.illinois.gov/about";
+      },
+      "page 2's address has a user name or password in it.",
+    ],
+    [
+      "a ready selector that is one of Playwright's",
+      (run) => {
+        run.settings.readiness = {
+          readySelector: "text=/Ready$/",
+          settleMs: 500,
+          networkIdleTimeoutMs: 15_000,
+        };
+      },
+      "its settings.readiness.readySelector isn't plain CSS: a walkthrough file can't use Playwright's own selectors (text=, xpath=, >>).",
     ],
     [
       "a ready selector with an escape sequence",
@@ -2373,7 +2700,7 @@ describe("walkthroughProblem", () => {
   it("gives null for a run whose words and ready selector the reader takes", () => {
     const run = shareRun({
       id: "2026-09-26_1405",
-      pages: [{ path: "/", label: "Home \u{1f469}\u{200d}\u{1f4bb}" }, { path: "/about" }],
+      pages: [{ path: "/", label: "Home \u{1f469} caf\u{e9}" }, { path: "/about" }],
     });
     run.pages[1]!.notes = "Line one.\r\nLine two.\n\tIndented.";
     run.settings.readiness = {

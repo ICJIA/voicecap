@@ -5,6 +5,7 @@ import {
   canonicalRootFrom,
   chooseCanonicalRoot,
   isLocalHost,
+  isNearbyHost,
   isWebRoot,
   normalizeCanonical,
   readLocation,
@@ -551,6 +552,75 @@ describe("isLocalHost", () => {
 
   it("is false for nothing at all", () => {
     expect(isLocalHost("")).toBe(false);
+  });
+});
+
+// A walkthrough file from someone else is repeated against a site on this computer or its network
+// only when the person names it, so this says which hosts those are: the ones isLocalHost knows,
+// and a name with no dot in it, which Windows looks for on its own network (an intranet's `intranet`).
+describe("isNearbyHost", () => {
+  it("is true for this computer and for IP addresses, as isLocalHost has them", () => {
+    for (const host of [
+      "127.0.0.1",
+      "localhost",
+      "[::1]",
+      "app.localhost",
+      "10.0.0.5",
+      "192.168.1.10",
+      "203.0.113.7",
+      "[2001:db8::1]",
+      "127.1",
+    ]) {
+      expect(isLocalHost(host), host).toBe(true);
+      expect(isNearbyHost(host), host).toBe(true);
+    }
+  });
+
+  it("is true for a name with no dot in it", () => {
+    for (const host of [
+      "intranet",
+      "Intranet",
+      "INTRANET",
+      "nas",
+      "printer-2",
+      "desktop-example",
+    ]) {
+      expect(isLocalHost(host), host).toBe(false);
+      expect(isNearbyHost(host), host).toBe(true);
+    }
+  });
+
+  it("allows for a port and a trailing dot, as isLocalHost does", () => {
+    for (const host of [
+      "intranet:8080",
+      "127.0.0.1:4747",
+      "[::1]:3000",
+      "intranet.",
+      "localhost.",
+    ]) {
+      expect(isNearbyHost(host), host).toBe(true);
+    }
+  });
+
+  it("is false for the names people visit, whatever their ending", () => {
+    for (const host of [
+      "dvfr.illinois.gov",
+      "voicecap.icjia.app",
+      "localhost.example.org",
+      "dvfr.illinois.gov:8443",
+      "10.0.0.5.example.org",
+      "256.0.0.1",
+      // Names with a dot can be on a network's own domain, and are named by that domain.
+      "printer.local",
+      "files.corp.example",
+    ]) {
+      expect(isNearbyHost(host), host).toBe(false);
+    }
+  });
+
+  it("is false for nothing at all", () => {
+    expect(isNearbyHost("")).toBe(false);
+    expect(isNearbyHost(".")).toBe(false);
   });
 });
 

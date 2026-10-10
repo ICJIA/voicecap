@@ -1,5 +1,5 @@
 import { UsageError } from "../util/errors.js";
-import { withScheme } from "./url.js";
+import { hasEmptyLabel, withScheme } from "./url.js";
 
 /** `value` as a URL, or null when it isn't one. */
 function parseUrl(value: string): URL | null {
@@ -49,16 +49,6 @@ export function isWebRoot(value: unknown): value is string {
     url.pathname.endsWith("/") &&
     value === `${url.origin}${url.pathname}`
   );
-}
-
-/**
- * Whether a host name has an empty label: it starts or ends with a dot, or has two together
- * (`.example.com`, `a..b.org`, `example.com.`). `URL` lets each through, but none is a name to call
- * a site by: copies named `.example.com_<day>.html` would be hidden on a Mac, and left off the
- * website.
- */
-function hasEmptyLabel(hostname: string): boolean {
-  return hostname.split(".").includes("");
 }
 
 /**
@@ -211,6 +201,21 @@ export function isLocalHost(host: string): boolean {
   return (
     name === "localhost" || name.endsWith(".localhost") || name.startsWith("[") || isIpv4(name)
   );
+}
+
+/**
+ * Whether `host` can be a computer on the network this one is on, which a walkthrough file from
+ * someone else may not send the browser to without the person's say: this computer or an IP address
+ * (see `isLocalHost`), or a name with no dot in it (`intranet`), which Windows counts as the local
+ * network's and signs a browser in to by itself. A name people visit, such as `dvfr.illinois.gov`,
+ * isn't one. `host` can have a port, capital letters, and a trailing dot, as `isLocalHost` allows.
+ */
+export function isNearbyHost(host: string): boolean {
+  if (isLocalHost(host)) return true;
+  const url = parseUrl(`http://${host}/`);
+  if (url === null) return false;
+  const name = url.hostname.endsWith(".") ? url.hostname.slice(0, -1) : url.hostname;
+  return name !== "" && !name.includes(".");
 }
 
 /**

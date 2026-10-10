@@ -12,13 +12,18 @@ import { readPageList } from "./page-list.js";
 import { fetchSitemap } from "./sitemap.js";
 import { pageSlug } from "./slug.js";
 import {
+  addressWithCredentials,
   canonicalKey,
+  CREDENTIALS_REASON,
+  hasCredentials,
   hasScheme,
   nonHtmlExtension,
+  PAGE_CREDENTIALS_REFUSAL,
   resolvePageUrl,
   resolveSitemapUrl,
   sameOrigin,
   startsWithHost,
+  withoutCredentials,
 } from "./url.js";
 
 /** A walkthrough file as a repeat reads it: read once, as bytes, then parsed. */
@@ -227,6 +232,18 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
   const duplicateLines: (number | null)[] = [];
   for (const entry of entries) {
     const url = resolvePageUrl(entry.value, site);
+    // An address with a user name or password in it is never read, and never kept: it would be in
+    // the run's records, and so on the website. The entry is recorded without them. (An address
+    // that isn't a page, such as one of another scheme, may have them too.)
+    const named = url ?? addressWithCredentials(entry.value, site);
+    if (named !== null && hasCredentials(named)) {
+      invalid.push({
+        line: entry.line,
+        value: withoutCredentials(named),
+        reason: CREDENTIALS_REASON,
+      });
+      continue;
+    }
     if (!url) {
       invalid.push({
         line: entry.line,
@@ -355,12 +372,16 @@ function requireOneSource(options: {
 
 /**
  * Resolve --page's values against the site into absolute URLs, fragment dropped, in the order
- * given. Rejects a value Git Bash rewrote into a Windows path, or one that isn't a page URL or a
+ * given. Rejects a value Git Bash rewrote into a Windows path, one with a user name or password in
+ * its address (the address would be kept in the run's records), or one that isn't a page URL or a
  * root-relative path.
  */
 function resolvePageUrlOption(values: readonly string[], site: URL): string[] {
   return values.map((value) => {
     assertNotRewritten("--page", value);
+    if (addressWithCredentials(value, site) !== null) {
+      throw new UsageError(PAGE_CREDENTIALS_REFUSAL);
+    }
     const url = resolvePageUrl(value, site);
     if (!url) throw new UsageError(`--page "${value}" isn't a page URL or a path like /faq/.`);
     return url.href;
@@ -370,12 +391,18 @@ function resolvePageUrlOption(values: readonly string[], site: URL): string[] {
 /**
  * --sitemap's full URL: the value itself, or a name or path on `site`, from its root (see
  * resolveSitemapUrl). Rejects, before anything is fetched: a value Git Bash rewrote into a Windows
- * path; an address written without https:// (`dvfr.illinois.gov/sitemap.xml`), which would
- * otherwise be read as a path on the site; a name or path with no site to read it on; and anything
- * else that isn't a sitemap's address.
+ * path; an address with a user name or password in it (it would be kept in the run's records); an
+ * address written without https:// (`dvfr.illinois.gov/sitemap.xml`), which would otherwise be read
+ * as a path on the site; a name or path with no site to read it on; and anything else that isn't a
+ * sitemap's address.
  */
 function parseSitemapUrl(input: string, site: URL | undefined): string {
   assertNotRewritten("--sitemap", input);
+  if (addressWithCredentials(input, site) !== null) {
+    throw new UsageError(
+      `--sitemap ${CREDENTIALS_REASON}: give the sitemap's address without them.`,
+    );
+  }
   const value = input.trim();
   if (startsWithHost(value)) {
     throw new UsageError(

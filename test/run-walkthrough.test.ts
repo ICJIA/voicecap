@@ -778,6 +778,140 @@ describe("a run repeated from its walkthrough file", () => {
   });
 });
 
+// A walkthrough file can come from anyone, and Windows signs a browser in to computers on its own
+// network by itself, so a file whose site is this computer, an IP address, or a name of one word
+// (`http://intranet`) is repeated live only when the person names that site with --site. A replay
+// opens no browser, so it goes ahead, as CI's smoke test runs one.
+describe("a repeat of a file whose site is on this computer or its network", () => {
+  /** The pages of sitePages(), at `origin`. */
+  const pagesAt = (origin: string) =>
+    sitePages().map((page) => ({ ...page, url: page.url.replace(SITE, origin) }));
+
+  /**
+   * A completed scripted run of the site at `origin` (three pages), and its walkthrough, written to
+   * NAME in the folder it ran from.
+   */
+  async function originalAt(origin: string): Promise<Original> {
+    const dir = await newFolder();
+    const run = await runAudit(
+      runOptions(dir, new ScriptedDriver(pagesAt(origin)), { site: origin }),
+    );
+    expect(run.outcome).toBe("completed");
+    const file = path.join(dir, NAME);
+    await writeWalkthrough({
+      file,
+      run: run.runId,
+      out: path.join(dir, "transcripts"),
+      site: origin,
+      cwd: dir,
+      env: {},
+      logger: createMemoryLogger(),
+    });
+    expect((await walkthroughIn(file)).site).toBe(origin);
+    vi.mocked(createDriver).mockClear();
+    vi.mocked(processPage).mockClear();
+    return { dir, file, run };
+  }
+
+  const NEARBY = [
+    "http://127.0.0.1:4747",
+    "http://intranet",
+    "http://localhost:3000",
+    "http://[::1]:4747",
+    "http://10.0.0.5:8080",
+  ];
+
+  it.each(NEARBY)(
+    "is refused without --site for %s, which says which flag to add",
+    async (origin) => {
+      const { file } = await originalAt(origin);
+      const dir = await copyToNewFolder(file);
+
+      // Refused before anything starts: refusedWith checks that no driver was made, no check run, and
+      // no folder made.
+      const message = await refusedWith(NAME, {}, dir);
+
+      expect(message).toBe(
+        `This walkthrough file reads ${origin}, an IP address, a local address, or a one-word name, which can be a computer on this network. To read it, name it yourself: add --site ${origin}.`,
+      );
+    },
+  );
+
+  it("names the site as the file has it: its origin, whatever case or path the file wrote", async () => {
+    const { file } = await originalAt("http://127.0.0.1:4747");
+    await edit(file, (walkthrough) => {
+      walkthrough.site = "HTTP://127.0.0.1:4747/some/path?x=1";
+    });
+    const dir = await copyToNewFolder(file);
+
+    const message = await refusedWith(NAME, {}, dir);
+
+    expect(message).toContain("add --site http://127.0.0.1:4747.");
+    expect(message).not.toContain("some/path");
+  });
+
+  it.each(NEARBY)("runs for %s when the site is named with --site", async (origin) => {
+    const { file } = await originalAt(origin);
+    const dir = await copyToNewFolder(file);
+    const driver = new ScriptedDriver(pagesAt(origin));
+
+    const repeat = await runAudit(repeating(dir, driver, NAME, { site: origin }));
+
+    expect(repeat.outcome).toBe("completed");
+    expect(repeat.run.site).toBe(origin);
+    expect(repeat.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
+    expect([...new Set(driver.opened)]).toHaveLength(3);
+  });
+
+  it("runs when --site names the file's own site another way: another case, or with a path", async () => {
+    const { file } = await originalAt("http://127.0.0.1:4747");
+    const dir = await copyToNewFolder(file);
+
+    const repeat = await runAudit(
+      repeating(dir, new ScriptedDriver(pagesAt("http://127.0.0.1:4747")), NAME, {
+        site: "HTTP://127.0.0.1:4747/blog/",
+      }),
+    );
+
+    expect(repeat.outcome).toBe("completed");
+  });
+
+  it("still refuses a --site that isn't the file's own, as it does for any file", async () => {
+    const { file } = await originalAt("http://127.0.0.1:4747");
+    const dir = await copyToNewFolder(file);
+
+    const message = await refusedWith(NAME, { site: "http://127.0.0.1:4848" }, dir);
+
+    expect(message).toBe(
+      "--walkthrough repeats the pages and passes its file lists, so it can't be used with --site.",
+    );
+  });
+
+  it.each(NEARBY)("runs for %s with --replay-from, which opens no browser", async (origin) => {
+    const { file, run } = await originalAt(origin);
+    const dir = await copyToNewFolder(file);
+
+    // The replay driver, as CI's smoke test repeats a file whose site is http://127.0.0.1:4747.
+    const repeat = await runAudit(repeating(dir, undefined, NAME, { replayFrom: run.runDir }));
+
+    expect(repeat.outcome).toBe("completed");
+    expect(repeat.run.replayed).toBe(true);
+    expect(repeat.run.site).toBe(origin);
+    expect(repeat.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
+  });
+
+  it("isn't asked of a file whose site has a dot in its name, which is a name people visit", async () => {
+    // The sample site is https://example.illinois.gov, as in every other repeat in this file.
+    const { dir } = await original();
+    const driver = new ScriptedDriver(sitePages());
+
+    const repeat = await runAudit(repeating(dir, driver, NAME));
+
+    expect(repeat.outcome).toBe("completed");
+    expect(driver.starts).toBe(1);
+  });
+});
+
 /**
  * What a run said after it said it was complete, as a person reads it: every message (a warning
  * isn't one) after the one that names run `id`'s report.

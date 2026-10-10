@@ -4,14 +4,17 @@
  * file and no clock.
  *
  * A walkthrough file may come from anyone, so `parseWalkthrough` takes nothing on trust. A text over
- * 8 MB, a key the type doesn't have, a page address that isn't on the file's own site (or is too
- * long, or is written with a space or a control character), a page's label, template, or notes with
- * a control character in it (other than a tab or a line break), a ready selector over 1,024
- * characters or with a control or format character in it, a run id made of anything but a run id's
- * characters, NVDA settings nested too deep, a step limit over 100,000, or a readiness time over
- * ten minutes (600,000 milliseconds) refuses the whole file, saying what's wrong and where, before
- * anything runs. `walkthroughProblem` gives that same reason for a walkthrough in hand, so a writer
- * can say why a file of it couldn't be read back before it writes one.
+ * 8 MB, a key the type doesn't have, a site whose host has an empty part (`http://../`) or that has
+ * a user name or password in its address, a page address that isn't on the file's own site (or is
+ * too long, or is written with a space or a control character, or has a user name or password in
+ * it), a page's label, template, or notes with a control character, an invisible formatting
+ * character, or a line separator in it (a tab or a line break is fine), a ready selector over 1,024
+ * characters, with a control or format character in it, or that isn't plain CSS (Playwright's own
+ * selectors, such as `text=` or `xpath=`), a run id made of anything but a run id's characters,
+ * NVDA settings nested too deep, a step limit over 100,000, or a readiness time over ten minutes
+ * (600,000 milliseconds) refuses the whole file, saying what's wrong and where, before anything
+ * runs. `walkthroughProblem` gives that same reason for a walkthrough in hand, so a writer can say
+ * why a file of it couldn't be read back before it writes one.
  *
  * The file goes to auditors, and into the shareable page, so it holds no folders: the file of a
  * page list, or of a walkthrough, is kept by its name alone, since a path can carry the person's
@@ -34,7 +37,7 @@ import {
   type RunSettings,
   type SourceDetails,
 } from "../model.js";
-import { canonicalKey } from "../pages/url.js";
+import { canonicalKey, CREDENTIALS_REASON, hasCredentials, hasEmptyLabel } from "../pages/url.js";
 import { UsageError } from "../util/errors.js";
 import { fileNameOf } from "../util/file-name.js";
 import { canonicalJson } from "../util/hash.js";
@@ -653,9 +656,7 @@ function wholeNumber(min: number, max: number): z.ZodNumber {
 
 const siteSchema = z.string().superRefine((site, ctx) => {
   // How it's written first, so a very long address is never parsed.
-  const problem =
-    writtenProblem("its site", site) ??
-    (siteOrigin(site) === null ? "its site isn't a web address" : null);
+  const problem = writtenProblem("its site", site) ?? siteProblem(site);
   if (problem !== null) ctx.addIssue({ code: "custom", message: problem });
 });
 
@@ -820,10 +821,25 @@ type SchemaReadsEveryWalkthrough =
   Walkthrough extends z.output<typeof walkthroughSchema> ? true : never;
 const _schemaReadsEveryWalkthrough: SchemaReadsEveryWalkthrough = true;
 
-/** The origin of a site that's an http or https address, and null for anything else. */
+/**
+ * The origin of a site that's an http or https address with a host that is a name or an address
+ * (no empty part: `http://../` is not one) and no user name or password; null for anything else.
+ */
 function siteOrigin(site: string): string | null {
   const url = parseAddress(site);
-  return url !== null && isWeb(url) ? url.origin : null;
+  return url !== null && isWeb(url) && !hasEmptyLabel(url.hostname) && !hasCredentials(url)
+    ? url.origin
+    : null;
+}
+
+/**
+ * What's wrong with the site, as a reason that names it; null when nothing is. An address with a
+ * user name or password in it says so, and isn't repeated.
+ */
+function siteProblem(site: string): string | null {
+  const url = parseAddress(site);
+  if (url !== null && isWeb(url) && hasCredentials(url)) return `its site ${CREDENTIALS_REASON}`;
+  return siteOrigin(site) === null ? "its site isn't a web address" : null;
 }
 
 /**
@@ -837,12 +853,16 @@ const UNSAFE_IN_AN_ADDRESS = /[\p{Cc}\p{Cf}\p{Z}]/u;
 
 /**
  * What a page's label, template, and notes may not hold: a control character other than a tab, a
- * carriage return, or a line feed. They're the file's own words, and a repeat copies them, as they
- * are, into the header of every transcript it writes, where an escape sequence could clear or
- * rewrite the screen of whoever reads the transcript with `type` or `cat`. A carriage return or a
- * line feed is a legitimate part of a note from a CSV, and the header folds both into a space.
+ * carriage return, or a line feed, a format character (a zero-width space, a right-to-left
+ * override, a byte-order mark, a soft hyphen), or a line or paragraph separator (U+2028, U+2029).
+ * They're the file's own words, and a repeat copies them, as they are, into the header of every
+ * transcript it writes, where an escape sequence could clear or rewrite the screen of whoever reads
+ * the transcript with `type` or `cat`, and a character that can't be seen could turn the words
+ * around or start a line of its own. A carriage return or a line feed is a legitimate part of a
+ * note from a CSV, and the header folds both into a space. One character is looked for at a time,
+ * so the time is in proportion to the words.
  */
-const UNSAFE_IN_PAGE_TEXT = /(?![\t\n\r])\p{Cc}/u;
+const UNSAFE_IN_PAGE_TEXT = /(?![\t\n\r])[\p{Cc}\p{Cf}\u2028\u2029]/u;
 
 /**
  * What the ready selector may not hold: a control character (an escape, a bell, a tab, a line
@@ -850,6 +870,21 @@ const UNSAFE_IN_PAGE_TEXT = /(?![\t\n\r])\p{Cc}/u;
  * selector, as it is, in the message of each attempt that doesn't find it.
  */
 const UNSAFE_IN_A_SELECTOR = /[\p{Cc}\p{Cf}]/u;
+
+/**
+ * What marks a ready selector as one of Playwright's own, which aren't CSS and which a file may not
+ * use: an engine, named (`text=Ready`, `xpath=//main`, `internal:text="x"`, `data-testid=save`,
+ * `role=button`), an XPath written as one (`//main`, `../main`), a group (`(//main)[1]`), a quoted
+ * text (`"Ready"`), a chain of selectors (`main >> text=Ready`), or one of its pseudo-classes
+ * (`:has-text()`, `:text()`, `:text-is()`, `:text-matches()`, `:nth-match()`, `:visible`,
+ * `:left-of()`, `:right-of()`, `:above()`, `:below()`, `:near()`). Real CSS has none of these at its
+ * start, but a CSS selector that quotes `>>` or `:text(` in an attribute's value is refused too,
+ * which is accepted. It's tried on a selector of at most MAX_SELECTOR_LENGTH characters, and each
+ * part of it that can match many ways is ended by a character the next part can't start with, so
+ * the time it takes is in proportion to the selector's length.
+ */
+const PLAYWRIGHT_ONLY =
+  /^\s*(?:[a-z][a-z0-9_-]*(?::[a-z][a-z0-9_-]*)*\s*=|\/|\.\.|\(|["'])|>>|:(?:has-text|text|text-is|text-matches|nth-match|visible|left-of|right-of|above|below|near)\b/i;
 
 /**
  * What's wrong with how an address is written, before it's parsed, as a reason that names it
@@ -874,7 +909,10 @@ function selectorProblem(selector: string): string | null {
   if (selector.length > MAX_SELECTOR_LENGTH) {
     return `${subject} is longer than ${MAX_SELECTOR_LENGTH.toLocaleString("en-US")} characters`;
   }
-  return UNSAFE_IN_A_SELECTOR.test(selector) ? `${subject} has a control character in it` : null;
+  if (UNSAFE_IN_A_SELECTOR.test(selector)) return `${subject} has a control character in it`;
+  return PLAYWRIGHT_ONLY.test(selector)
+    ? `${subject} isn't plain CSS: a walkthrough file can't use Playwright's own selectors (text=, xpath=, >>)`
+    : null;
 }
 
 /** The fields of a page that hold the file's own words, which are checked for what's in them. */
@@ -894,7 +932,10 @@ function pageProblem(
   for (const field of PAGE_TEXT_FIELDS) {
     const text = page[field];
     if (text !== undefined && UNSAFE_IN_PAGE_TEXT.test(text)) {
-      return { field, reason: `page ${place}'s ${field} has a control character in it` };
+      return {
+        field,
+        reason: `page ${place}'s ${field} has a control or invisible character in it`,
+      };
     }
   }
   return null;
@@ -910,13 +951,21 @@ function pageAddressProblem(place: number, address: string, origin: string): str
   if (written !== null) return written;
   const problem = addressProblem(address, origin);
   if (problem === null) return null;
+  // An address with a user name or password in it is said by its place, as one written with a space
+  // is: it's never repeated, and no address shown without them stands in for it.
+  if (problem === CREDENTIALS_REASON) return `${subject} ${problem}`;
   return `${subject}, ${address === "" ? '""' : shown(address)}, ${problem}`;
 }
 
-/** What's wrong with a page's address for a site, or null when it's a web address on the site. */
+/**
+ * What's wrong with a page's address for a site, or null when it's a web address on the site with
+ * no user name or password. A user name or password comes first, whatever else the address is, so
+ * that no message repeats it.
+ */
 function addressProblem(address: string, origin: string): string | null {
   const url = parseAddress(address);
   if (url === null) return "isn't a full web address";
+  if (hasCredentials(url)) return CREDENTIALS_REASON;
   return isWeb(url) && url.origin === origin ? null : "isn't on its site";
 }
 

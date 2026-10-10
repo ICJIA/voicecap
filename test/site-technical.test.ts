@@ -792,6 +792,12 @@ describe("renderTechnical", () => {
       "A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone, and the home folder in the words of an error that a run keeps is written as %USERPROFILE% and the temp folder as %TEMP%, in the spellings Windows gives them, the short one too when the temp folder is in the home folder. The shareable page names such a file by its name alone, for runs recorded before too.",
     );
     expect(part("privacy-and-security")).not.toContain("in every spelling");
+    // A walkthrough file may come from anyone, so one whose site is on the computer running the test
+    // or on its network (an IP address, a local address, a one-word name) is repeated live only when
+    // the person names that site with --site. The page doesn't say "this computer" (Ruling P8).
+    expect(part("privacy-and-security")).toContain(
+      "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser; one whose site is on the computer running the test, or on its network, is read only when the person names it.",
+    );
     // What a website, a sitemap, a server, or a record says is printed as text, so it can't act on
     // the terminal, and the warning about the browser not coming forward names a program, never a
     // window's title.

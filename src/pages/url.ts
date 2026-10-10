@@ -18,7 +18,66 @@ export const NON_HTML_EXTENSIONS: ReadonlySet<string> = new Set([
   "woff", "woff2", "ttf", "otf", "eot",
 ]);
 
-/** Parse --site: an absolute http(s) URL. Returns the site's origin as a URL ("https://host/"). */
+/**
+ * Whether a host name has an empty label: it starts or ends with a dot, or has two together
+ * (`.example.com`, `a..b.org`, `example.com.`, and `..`, which is a host of dots). `URL` lets each
+ * through, but none is a name to call a site by: copies named `.example.com_<day>.html` would be
+ * hidden on a Mac, and left off the website, and a folder named for a host of dots is the
+ * transcripts home or the folder that holds it.
+ */
+export function hasEmptyLabel(hostname: string): boolean {
+  return hostname.split(".").includes("");
+}
+
+/**
+ * Why an address with a user name or password in it (`https://name:password@host/`) is refused,
+ * and the reason a run records for a page list row or a sitemap entry that has one: the address is
+ * kept in the run's records, and its report goes to the website.
+ */
+export const CREDENTIALS_REASON = "has a user name or password in it";
+
+/** What `--page` says of an address with a user name or password in it. */
+export const PAGE_CREDENTIALS_REFUSAL =
+  "--page has a user name or password in its address: voicecap doesn't read pages that way, and the address would be kept in its records.";
+
+/** Whether `url` has a user name or a password in it. */
+export function hasCredentials(url: URL): boolean {
+  return url.username !== "" || url.password !== "";
+}
+
+/** The address of `url` with its user name and password cleared, for a message or a record. */
+export function withoutCredentials(url: URL): string {
+  const copy = new URL(url.href);
+  copy.username = "";
+  copy.password = "";
+  return copy.href;
+}
+
+/**
+ * The address `input` names, as a person gives a page or a sitemap (a full URL of any scheme, or a
+ * path against `site`), when it has a user name or password in it; null for one that has none, and
+ * for text that is no address. It's asked before an address is repeated in a message or kept in a
+ * record, so that neither holds them. A path that names another host (`//name:password@host/`) is
+ * an address with them too.
+ */
+export function addressWithCredentials(input: string, site?: URL): URL | null {
+  const value = input.trim();
+  try {
+    // Only the address's own user name and password count, so any base does for a path.
+    const url = hasScheme(value)
+      ? new URL(value)
+      : new URL(value, site === undefined ? "https://base.invalid/" : `${site.origin}/`);
+    return hasCredentials(url) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Parse --site: an absolute http(s) URL, with a host that is a name or an address (no empty part:
+ * see hasEmptyLabel) and no user name or password. Returns the site's origin as a URL
+ * ("https://host/"). The user name and password are checked first, so no message repeats them.
+ */
 export function parseSiteUrl(input: string): URL {
   let url: URL;
   try {
@@ -28,8 +87,16 @@ export function parseSiteUrl(input: string): URL {
       `--site must be a full URL such as https://dvfr.illinois.gov (got "${input}").`,
     );
   }
+  if (hasCredentials(url)) {
+    throw new UsageError(`--site ${CREDENTIALS_REASON}: give the site's address without them.`);
+  }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new UsageError(`--site must be an http or https URL (got "${input}").`);
+  }
+  if (hasEmptyLabel(url.hostname)) {
+    throw new UsageError(
+      `--site must be a web address such as https://dvfr.illinois.gov: a host can't start or end with a dot or have two dots in a row (got "${input}").`,
+    );
   }
   return new URL(`${url.origin}/`);
 }
@@ -89,8 +156,9 @@ export function resolvePageUrl(input: string, site: URL): URL | null {
  * --page paths are: "sitemap.xml" and "/sitemap.xml" are both https://dvfr.illinois.gov/sitemap.xml
  * for any `site` on https://dvfr.illinois.gov, whatever its path, and a sitemap further down is
  * given as its path ("/blog/sitemap.xml"). A full URL is taken as it is, whatever `site` is.
- * Returns null for anything that isn't an http(s) URL, and for a name or path that's empty, has a
- * space in it, or has no `site` to be read on.
+ * Returns null for anything that isn't an http(s) URL, for an address with a user name or password
+ * in it (see addressWithCredentials), and for a name or path that's empty, has a space in it, or
+ * has no `site` to be read on.
  */
 export function resolveSitemapUrl(input: string, site?: URL): URL | null {
   const value = input.trim();
@@ -107,7 +175,9 @@ export function resolveSitemapUrl(input: string, site?: URL): URL | null {
   } catch {
     return null;
   }
-  return url.protocol === "http:" || url.protocol === "https:" ? url : null;
+  return (url.protocol === "http:" || url.protocol === "https:") && !hasCredentials(url)
+    ? url
+    : null;
 }
 
 /** Drop the fragment; everything else (including the query string) is kept. */

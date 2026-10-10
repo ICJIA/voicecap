@@ -46,6 +46,12 @@ voicecap now records what NVDA said aloud on each page, sealed with the run, wit
 
 - **A run no longer records your account's name in a path.** A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone. A failure's message, a page's errors, and the reasons for a screenshot, an axe check, or a recording are recorded with the home folder written as `%USERPROFILE%` and the temp folder as `%TEMP%`, in the spellings Windows gives them, the short one (`C:\Users\JANEDO~1`) too when the temp folder is in the home folder. The shareable page names a page list or walkthrough file by its name alone, for runs recorded before too. A run begun before 0.18.0 from a page list or walkthrough file outside that folder starts afresh.
 - **Text from a website can't act on the terminal.** Everything voicecap prints, and each line `voicecap review --replay` shows, writes a control character, an invisible formatting character, or a line separator as an escape such as `\u{1b}`. That covers text from a website, a sitemap, a server's reply, or a record. When the browser can't come to the front, the warning names the program in front, never its window's title. On a Mac, the replay's voice reads `[[` in a transcript as text.
+- **Walkthrough files and page addresses are checked more strictly.**
+  - A site whose host is only dots (`http://../`) or has an empty part is refused everywhere, and no site's folder can be outside the transcripts home.
+  - A site, page address, or sitemap with a user name or password in it is refused, and a refused line is recorded without them, so a password never reaches a record or the website.
+  - A live repeat of a walkthrough file whose site is an IP address, a local address, or a one-word name needs `--site` naming it.
+  - A file's labels, templates, and notes may not hold invisible formatting characters or line separators.
+  - A file's ready selector must be plain CSS: Playwright's own selectors (`text=`, `xpath=`, `>>`) aren't read from a file.
 
 ## [0.17.0] - 2026-10-10
 
