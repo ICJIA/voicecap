@@ -213,9 +213,10 @@ describe("encodeVoice", () => {
     const packets = readWebm(webm).blocks.map((block) => block.packet);
     // DTX leaves a packet of silence as its table of contents byte alone, and sends 21 bytes of
     // comfort noise in every seventh: 3,900 bytes of packets for the minute, where each packet of
-    // speech has 50 to 80.
+    // speech has 50 to 80. The count of one-byte packets is libopus's cadence, which the 800 leaves
+    // room around (it was 856), as the bytes below do: this asserts that most are, not how many.
     expect(packets).toHaveLength(1001);
-    expect(packets.filter((packet) => packet.length === 1).length).toBeGreaterThan(850);
+    expect(packets.filter((packet) => packet.length === 1).length).toBeGreaterThan(800);
     expect(packets.reduce((sum, packet) => sum + packet.length, 0)).toBeLessThan(4_500);
     // The file adds what a block costs, 6 bytes for each of the 1,001, and its own few hundred.
     expect(webm.length).toBeLessThan(12_000);

@@ -9,7 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { encodeVoice } from "../src/voice/encode.js";
 import { launchBrowser } from "./helpers/axe.js";
-import { busySound, speechAndPauses } from "./helpers/voice-signal.js";
+import { busySound, silence, speechAndPauses } from "./helpers/voice-signal.js";
 
 let browser: Browser;
 const contexts: BrowserContext[] = [];
@@ -146,7 +146,9 @@ describe("a recording in Chromium", () => {
   it("seeks to the middle, which fires seeked with the time there", async () => {
     const page = await open();
     await load(page, recording.webm);
-    // The middle is 6.17 s, in the second cluster, which a Cue leads a browser to.
+    // The middle is 6.17 s, in the second cluster. This can't see the file's Cues: a browser that
+    // never read them would seek here all the same, only by scanning. The muxer's tests check the
+    // Cues' bytes, and this checks that a seek into a later cluster lands where it was asked.
     const middle = recording.seconds / 2;
     const { seeked, at } = await seek(page, middle);
     expect(seeked).toBe(true);
@@ -161,10 +163,23 @@ describe("a recording in Chromium", () => {
     expect(answer).not.toBe("");
   });
 
+  /**
+   * Sounds of a known length, for the tests that measure what the browser makes of one: busy sound of
+   * these lengths in samples, and five seconds of silence, which DTX turns into packets of one byte
+   * and a few of comfort noise, the packets a quiet page makes.
+   */
+  const sounds = (...lengths: number[]): { name: string; pcm: Int16Array }[] => [
+    ...lengths.map((samples) => ({
+      name: `${samples} samples of sound`,
+      pcm: busySound(samples / 16_000),
+    })),
+    { name: "5 s of silence", pcm: silence(5) },
+  ];
+
   // 8,000 samples are half a second, which is not a whole number of packets; 47,896 fill 50 packets
   // with nothing to spare, so the last block has no padding to discard.
-  it.each([8_000, 47_896])("has the duration of a recording of %i samples", async (samples) => {
-    const { webm, seconds } = await encodeVoice(busySound(samples / 16_000));
+  it.each(sounds(8_000, 47_896))("has the duration of a recording of $name", async ({ pcm }) => {
+    const { webm, seconds } = await encodeVoice(pcm);
     const page = await open();
     const duration = await load(page, webm);
     expect(Math.abs(duration - seconds)).toBeLessThan(0.01);
@@ -181,12 +196,12 @@ describe("a recording in Chromium", () => {
 
   // The browser drops the pre-skip from the start of what it decodes, and the padding from the
   // end, so it gives three samples at 48 kHz for each one of the 16 kHz sound, and no more.
-  it.each([1, 855, 856, 8_000, 47_896, 197_520])(
-    "decodes %i samples of sound to exactly its length",
-    async (samples) => {
-      const { webm } = await encodeVoice(busySound(samples / 16_000));
+  it.each(sounds(1, 855, 856, 8_000, 47_896, 197_520))(
+    "decodes $name to exactly its length",
+    async ({ pcm }) => {
+      const { webm } = await encodeVoice(pcm);
       const page = await open();
-      expect((await decoded(page, webm)).length).toBe(samples * 3);
+      expect((await decoded(page, webm)).length).toBe(pcm.length * 3);
     },
   );
 

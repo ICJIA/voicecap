@@ -134,6 +134,31 @@ describe("the WebM muxer", () => {
     });
   });
 
+  // A sound whose packets fill the last one exactly, so the count is the one asked for.
+  it.each([
+    { packets: 83, clusters: 1 },
+    { packets: 84, clusters: 2 },
+    { packets: 166, clusters: 2 },
+    { packets: 167, clusters: 3 },
+  ])(
+    "writes $clusters Cluster(s) and as many Cues for $packets packets, none of them empty",
+    ({ packets, clusters }) => {
+      // 960 samples of 16 kHz sound are one 60 ms packet; the encoder's delay is in the first.
+      const samples = packets * 960 - PRE_SKIP / 3;
+      expect(packetsFor(samples)).toBe(packets);
+      const file = readWebm(mux(samples));
+      expect(file.blocks).toHaveLength(packets);
+      expect(file.clusters).toHaveLength(clusters);
+      expect(childrenOf(must(file.cues, "Cues"), "CuePoint")).toHaveLength(clusters);
+      // A cluster holds its Timecode, then at least one block: a stray empty one at an exact
+      // multiple of 83 packets is what a loop that ran one cluster too far would write.
+      const sizes = file.clusters.map((cluster) => cluster.children.length - 1);
+      expect(sizes.every((size) => size >= 1 && size <= 83)).toBe(true);
+      expect(sizes.reduce((sum, size) => sum + size, 0)).toBe(packets);
+      expect(sizes.slice(0, -1).every((size) => size === 83)).toBe(true);
+    },
+  );
+
   it("keeps every packet, in a block at its own time", () => {
     const samples = 164_321;
     const packets = packetsOf(packetsFor(samples));
@@ -168,6 +193,26 @@ describe("the WebM muxer", () => {
       expect(last?.grouped).toBe(true);
       expect(last?.discardPadding).toBe((padding / 3) * SAMPLE_NS);
     }
+  });
+
+  // Duration is an 8-byte float: a 4-byte one holds only about 17.5 minutes of milliseconds to the
+  // sixteenth of one, so an hour and one sample is where it would round, and where only this sees it
+  // (the byte hashes above are of 164,321 samples, which a 4-byte float holds).
+  it("says an hour and one sample to the sample", () => {
+    const samples = 60 * 60 * 16_000 + 1;
+    const count = packetsFor(samples);
+    // 60,001 packets, each one byte: the table-of-contents byte alone, which is all a block needs.
+    expect(count).toBe(60_001);
+    const packets = Array.from({ length: count }, () => Uint8Array.of(0x58));
+    const file = readWebm(muxOpusWebm(packets, { preSkip: PRE_SKIP, samples }));
+
+    const duration = valueOf<number>(file.info, "Duration");
+    expect(duration).toBe(samples / 16);
+    expect(duration).toBe(3_600_000.0625);
+    // A 4-byte float would have said 3,600,000: the sample would be lost.
+    expect(Math.fround(duration)).not.toBe(duration);
+    expect(file.blocks).toHaveLength(count);
+    expect(file.clusters).toHaveLength(Math.ceil(count / 83));
   });
 
   it("writes the pre-skip the encoder gave, both as the OpusHead and as the codec's delay", () => {

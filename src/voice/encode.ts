@@ -5,7 +5,9 @@
  * always give the same bytes: the file is fingerprinted and sealed with the run, and a golden hash
  * in test/voice-encode.test.ts tells if a newer version changes them.
  *
- * It's a pure module. It reads no file, starts no program, and keeps nothing between calls.
+ * It reads no file, starts no program, and keeps no state of its own between calls: each call makes
+ * an encoder and frees it. What outlives a call is libopus-wasm's one WebAssembly instance, which the
+ * library loads at the first call and shares with every call after it.
  */
 import { Application, Bandwidth, createEncoder, Signal } from "libopus-wasm";
 
