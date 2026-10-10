@@ -17,6 +17,10 @@ import { EVENT_LOG } from "./events.js";
  *   share/<site>_<date>.docx             send, named for the site (its canonical name, else the
  *                                        address voicecap read, as this folder is) and the day,
  *                                        with -2, -3 for more the same day: never rewritten)
+ *   share/<site>_<date>.voice.html      (their voice page, when a page has a recording of NVDA's
+ *                                        voice, made with the pair: never rewritten)
+ *   share/<site>_<date>.md              (the report for AI tools, as Markdown and as JSON, made
+ *   share/<site>_<date>.json             with the pair and named as it is: never rewritten)
  *   share/<site>_<date>_<run>_walkthrough.json
  *                                       (each run's walkthrough file, made with them and named for
  *                                        them and the run: never rewritten)

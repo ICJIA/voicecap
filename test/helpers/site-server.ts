@@ -4,8 +4,9 @@
  * headers to the response for its path. A rule is for its exact path, since voicecap writes no
  * wildcard. A page is served at its address without ".html" too, as Netlify serves it
  * (/<folder>/<name> is /<folder>/<name>.html), and the rules it gets are those of the address that
- * was asked for. A .docx and a .json have no content type of their own here: serveStatic sends each
- * as application/octet-stream.
+ * was asked for. A .docx, a .md, and a .json have no content type of their own here: serveStatic
+ * sends each as application/octet-stream, unless the file's rule gives one, which is the one sent,
+ * as on Netlify.
  *
  * A rule of the site's _redirects answers a path that no file is served at with its status and
  * where it leads, in a Location header, as Netlify does: a file at the path shadows the rule. A
@@ -14,7 +15,12 @@
  * The server is on 127.0.0.1, at a free port, and is stopped by `close`.
  */
 import { readFile } from "node:fs/promises";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type OutgoingHttpHeaders,
+  type ServerResponse,
+} from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 
@@ -111,7 +117,19 @@ async function handle(
     return;
   }
   // Set before the file is sent, which writes the rest of the response's headers around them.
-  for (const [name, value] of rules.get(where.decoded) ?? []) response.setHeader(name, value);
+  const given = rules.get(where.decoded) ?? [];
+  for (const [name, value] of given) response.setHeader(name, value);
+  // A rule's Content-Type is the file's, as on Netlify, where _headers is read after the type the
+  // file's name gives: serveStatic's own would be written over it.
+  const type = given.findLast(([name]) => name.toLowerCase() === "content-type")?.[1];
+  if (type !== undefined) {
+    const writeHead = response.writeHead.bind(response) as (
+      status: number,
+      headers: OutgoingHttpHeaders,
+    ) => ServerResponse;
+    response.writeHead = ((status: number, headers: OutgoingHttpHeaders) =>
+      writeHead(status, { ...headers, "Content-Type": type })) as typeof response.writeHead;
+  }
   if (await serveStatic(dir, where, request, response)) return;
   // Nothing at the address: Netlify serves /about from /about.html, if that is there.
   if (!where.decoded.endsWith("/")) {

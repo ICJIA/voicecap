@@ -48,18 +48,19 @@
  * that comes with voicecap, copied byte for byte, but for its 404 page, with a sitemap of its
  * pages at their canonical address: see DEMO_CANONICAL), the site's page (index.html), the trust
  * page (trust.html: see ./trust.ts), What's New (whats-new.html: see ./whats-new.ts), Technical
- * details (technical-details.html: see ./technical.ts), robots.txt, _redirects, and _headers, which
- * gives each page its Content Security Policy, made from the hashes of that page's own bytes (the
- * site's page at "/" and "/index.html", the trust page at "/trust.html" and "/trust", What's New
- * at "/whats-new.html" and "/whats-new", and Technical details at "/technical-details.html" and
- * "/technical-details", whose policies allow no font, since they embed none, where a report's
- * allows the fonts it embeds, and a share's voice page's also allows the media it plays: its
- * recordings, which it holds as data: addresses, so it has `media-src data:` and no other page
- * has), the demo's pages theirs at each address they answer at (see demoSiteRules), and each
- * download its Content-Disposition. In the home it writes .gitattributes
- * and .gitignore when they aren't there, as a run does, so a home's first build keeps _site/ out of
- * Git with the rest of what voicecap keeps out, then netlify.toml and .nvmrc the first time. None
- * of them is ever written again.
+ * details (technical-details.html: see ./technical.ts), llms.txt (see renderLlmsTxt in
+ * ./render.ts), robots.txt, _redirects, and _headers, which gives each page its Content Security
+ * Policy, made from the hashes of that page's own bytes (the site's page at "/" and "/index.html",
+ * the trust page at "/trust.html" and "/trust", What's New at "/whats-new.html" and "/whats-new",
+ * and Technical details at "/technical-details.html" and "/technical-details", whose policies
+ * allow no font, since they embed none, where a report's allows the fonts it embeds, and a share's
+ * voice page's also allows the media it plays: its recordings, which it holds as data: addresses,
+ * so it has `media-src data:` and no other page has), the demo's pages theirs at each address they
+ * answer at (see demoSiteRules), each download its Content-Disposition, and each report for AI
+ * tools its type and a policy of its own: a share's Markdown and JSON are read in the browser, not
+ * saved. In the home it writes .gitattributes and .gitignore when they aren't there, as a run does,
+ * so a home's first build keeps _site/ out of Git with the rest of what voicecap keeps out, then
+ * netlify.toml and .nvmrc the first time. None of them is ever written again.
  */
 import type { Dirent } from "node:fs";
 import {
@@ -91,14 +92,18 @@ import { OS_LITTER } from "../util/os-litter.js";
 import { voicecapVersion } from "../util/version.js";
 import { readVoicecapFacts, recordFactsOf, type VoicecapFacts } from "./facts.js";
 import {
+  AI_FILE_POLICY,
   contentSecurityPolicy,
   demoSiteRules,
   headersFile,
   HEADERS_FIRST_LINE,
   inlineHashes,
+  JSON_TYPE,
+  MARKDOWN_TYPE,
   POLICY_HEADER,
   redirectsFile,
   ROBOTS_TXT,
+  TYPE_HEADER,
   type HeaderRule,
   type RedirectRule,
 } from "./headers.js";
@@ -106,6 +111,7 @@ import { ensureNetlifyFiles } from "./netlify.js";
 import { DEMO_SITE, leaveOut, printable, readSiteRecords, type SiteEntry } from "./records.js";
 import {
   fileKind,
+  renderLlmsTxt,
   renderSiteIndex,
   type PublishedFile,
   type PublishedReport,
@@ -179,12 +185,15 @@ const WHATS_NEW_SHORT = WHATS_NEW_FILE.slice(0, -".html".length);
 /** Technical details' file, beside the others (see ./technical.ts), and its other address. */
 const TECHNICAL_FILE = "technical-details.html";
 const TECHNICAL_SHORT = TECHNICAL_FILE.slice(0, -".html".length);
+/** The file for AI tools, at the site's top (see renderLlmsTxt in ./render.ts). */
+const LLMS_FILE = "llms.txt";
 /**
  * The site's own files and folders at its top, which a site folder of the same name would take the
  * place of. The demo's pages are one: a site folder named so would be published among them, and a
  * file of one name would take another's place. The trust page is two names: a folder named for its
  * file would take its place, and one named for its short address would be served where the page
- * itself is. So are What's New and Technical details.
+ * itself is. So are What's New and Technical details. llms.txt is one, as robots.txt is: a folder
+ * named for it would be served where the file is.
  */
 const OWN_FILES: ReadonlySet<string> = new Set([
   "index.html",
@@ -194,6 +203,7 @@ const OWN_FILES: ReadonlySet<string> = new Set([
   WHATS_NEW_SHORT,
   TECHNICAL_FILE,
   TECHNICAL_SHORT,
+  LLMS_FILE,
   "robots.txt",
   HEADERS_FILE,
   REDIRECTS_FILE,
@@ -235,11 +245,11 @@ function unreadable(error: unknown): Unpublished {
 /**
  * Build the site of the transcripts home: refuse a folder it mustn't empty, empty it, publish each
  * file of each site's newest shares that still matches its record, and write the site's page, the
- * trust page, What's New, Technical details, robots.txt, _redirects, and _headers beside them, then
- * .gitattributes, .gitignore, netlify.toml, and .nvmrc in the home when they aren't there. Each
- * thing left out is warned of, each site's older shares are counted, and the last line says what
- * was built. Refuses with a UsageError when the home isn't a folder, and when the folder to build in
- * is one that must not be emptied (see the top of this file).
+ * trust page, What's New, Technical details, llms.txt, robots.txt, _redirects, and _headers beside
+ * them, then .gitattributes, .gitignore, netlify.toml, and .nvmrc in the home when they aren't
+ * there. Each thing left out is warned of, each site's older shares are counted, and the last line
+ * says what was built. Refuses with a UsageError when the home isn't a folder, and when the folder
+ * to build in is one that must not be emptied (see the top of this file).
  */
 export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSiteResult> {
   const cwd = options.cwd ?? process.cwd();
@@ -375,6 +385,8 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   await writeFile(path.join(out, TRUST_FILE), trust);
   await writeFile(path.join(out, WHATS_NEW_FILE), whatsNew);
   await writeFile(path.join(out, TECHNICAL_FILE), technical);
+  // For AI tools: each site's current report's Markdown and JSON, from what was just published.
+  await writeFile(path.join(out, LLMS_FILE), renderLlmsTxt(content));
   await writeFile(path.join(out, "robots.txt"), ROBOTS_TXT);
   await writeFile(path.join(out, REDIRECTS_FILE), redirectsFile(redirectRules(kept, sites)));
   // The demo's own pages' rules are made from the files just published, so that none is left out.
@@ -978,23 +990,56 @@ async function readCopy(
  * its own bytes at its address and at the same without ".html", which is how Netlify serves it too;
  * a share's voice page is given that too, with one more directive, `media-src data:`, so that it can
  * play the recordings it holds as data: addresses, and no other page's policy has it; a Word copy and
- * a walkthrough file are downloads; any other file has none.
+ * a walkthrough file are downloads; the report for AI tools is text to read in the browser, given
+ * its type and a policy that runs nothing in it (the Markdown's and the JSON's, see ./headers.ts)
+ * and no attachment; any other file has none.
+ *
+ * Every kind is met here, with `never` after them, so a kind that is added to `PublishedFile` and
+ * left without its rules is a type error, not a file served with no policy and no type.
  */
 function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
   const address = `/${file.href}`;
-  if (file.kind === "page" || file.kind === "voice") {
-    const policy = contentSecurityPolicy(inlineHashes(bytes.toString("utf8")), {
-      media: file.kind === "voice",
-    });
-    return [
-      { path: address, headers: [[POLICY_HEADER, policy]] },
-      { path: address.slice(0, -".html".length), headers: [[POLICY_HEADER, policy]] },
-    ];
+  switch (file.kind) {
+    case "page":
+    case "voice": {
+      const policy = contentSecurityPolicy(inlineHashes(bytes.toString("utf8")), {
+        media: file.kind === "voice",
+      });
+      return [
+        { path: address, headers: [[POLICY_HEADER, policy]] },
+        { path: address.slice(0, -".html".length), headers: [[POLICY_HEADER, policy]] },
+      ];
+    }
+    case "word":
+    case "walkthrough":
+      return [{ path: address, headers: [["Content-Disposition", "attachment"]] }];
+    case "markdown":
+      return [
+        {
+          path: address,
+          headers: [
+            [TYPE_HEADER, MARKDOWN_TYPE],
+            [POLICY_HEADER, AI_FILE_POLICY],
+          ],
+        },
+      ];
+    case "data":
+      return [
+        {
+          path: address,
+          headers: [
+            [TYPE_HEADER, JSON_TYPE],
+            [POLICY_HEADER, AI_FILE_POLICY],
+          ],
+        },
+      ];
+    case "other":
+      return [];
+    default: {
+      const _exhaustive: never = file.kind;
+      return _exhaustive;
+    }
   }
-  if (file.kind === "word" || file.kind === "walkthrough") {
-    return [{ path: address, headers: [["Content-Disposition", "attachment"]] }];
-  }
-  return [];
 }
 
 /**

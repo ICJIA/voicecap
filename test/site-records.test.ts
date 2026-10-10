@@ -734,12 +734,13 @@ describe("readSiteRecords", () => {
     );
   });
 
-  it("keeps only the kinds of file voicecap names, .html, .docx, and .json in lower case", async () => {
+  it("keeps only the kinds of file voicecap names, .html, .docx, .md, and .json in lower case", async () => {
     // A site is served from one address, so a name it publishes must be one that voicecap gives its
-    // copies: a page, a Word copy, or a walkthrough file. An .svg or an .htm that holds a script
-    // would be served from the site's own address, with no policy to say what it may do.
+    // copies: a page, a Word copy, the report for AI tools as Markdown or as JSON, or a walkthrough
+    // file. An .svg or an .htm that holds a script would be served from the site's own address,
+    // with no policy to say what it may do.
     const dir = await siteFolder("example.illinois.gov");
-    const named = ["x.html", "x.docx", "x.json", "x.walkthrough.json", "x.docx.html"];
+    const named = ["x.html", "x.docx", "x.md", "x.json", "x.walkthrough.json", "x.docx.html"];
     const refused = [
       "x.svg",
       "x.HTML",
@@ -748,10 +749,15 @@ describe("readSiteRecords", () => {
       "x.xhtml",
       "x.Docx",
       "x.JSON",
+      "x.MD",
+      "x.markdown",
+      "x.md.txt",
+      "x.md.exe",
       "x.html.txt",
       "x.json.exe",
       "x",
       "html",
+      "md",
     ];
     const asFiles = (names: string[]) =>
       names.map((name) => ({ name, bytes: 5, sha256: "c".repeat(64) }));

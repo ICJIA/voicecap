@@ -48,6 +48,13 @@ const INDEX_HREF = "index.html";
  */
 export const WHATS_NEW_HREF = "whats-new.html";
 
+/**
+ * The trust page and Technical details, beside the other pages, as llms.txt (see renderLlmsTxt in
+ * ./render.ts) links to them too.
+ */
+export const TRUST_HREF = "trust.html";
+export const TECHNICAL_HREF = "technical-details.html";
+
 /** One of the website's three other pages: its address beside this page, its words, and its icon. */
 interface OtherPage {
   page: SitePage;
@@ -58,7 +65,7 @@ interface OtherPage {
 
 const TRUST: OtherPage = {
   page: "trust",
-  href: "trust.html",
+  href: TRUST_HREF,
   words: SITE_TEXT.trust,
   icon: FRAME_ICONS.trust,
 };
@@ -70,7 +77,7 @@ const WHATS_NEW: OtherPage = {
 };
 const TECHNICAL: OtherPage = {
   page: "technical",
-  href: "technical-details.html",
+  href: TECHNICAL_HREF,
   words: SITE_TEXT.technical,
   icon: FRAME_ICONS.technical,
 };

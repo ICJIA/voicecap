@@ -109,6 +109,28 @@ export interface HeaderRule {
 /** The header that carries a Content Security Policy. */
 export const POLICY_HEADER = "Content-Security-Policy";
 
+/** The header that says what a file is. */
+export const TYPE_HEADER = "Content-Type";
+
+/**
+ * What a share's report for AI tools is served as: the Markdown as text/markdown and the JSON as
+ * application/json, each in UTF-8. Both are read in the browser, so neither is sent as an
+ * attachment (that's a Word copy's and a walkthrough file's, see rulesFor in ./build.ts); the link to
+ * each carries `download`, which saves it instead.
+ */
+export const MARKDOWN_TYPE = "text/markdown; charset=utf-8";
+export const JSON_TYPE = "application/json; charset=utf-8";
+
+/**
+ * The Content Security Policy of a share's Markdown and JSON, beside their types. Each is text a
+ * browser shows, with no code of its own, so it is told to load nothing (`default-src 'none'`) and,
+ * by `sandbox`, to run nothing in it: no script, no form, no plug-in, and no origin to speak of,
+ * whatever the file holds. It is defense in depth: each is already sent with an explicit type that
+ * no browser takes for HTML, and the home's netlify.toml sends `X-Content-Type-Options: nosniff`
+ * with every file.
+ */
+export const AI_FILE_POLICY = "default-src 'none'; sandbox";
+
 /**
  * The Content Security Policy of the demo's own pages, which the build publishes in demo-site/ (see
  * demoSiteRules). Unlike a report's it holds no hash: the pages have a style sheet beside them and a

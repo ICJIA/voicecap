@@ -16,6 +16,7 @@ import { SHARE_CSS, VOICE_CSS } from "../src/share/html/style.js";
 import { buildShareModel } from "../src/share/model.js";
 import { renderVoicePage, VOICE_SCRIPT } from "../src/share/voice-page.js";
 import {
+  AI_FILE_POLICY,
   contentSecurityPolicy,
   DEMO_SITE_POLICY,
   demoSiteRules,
@@ -23,10 +24,14 @@ import {
   HEADERS_FIRST_LINE,
   headersFile,
   inlineHashes,
+  JSON_TYPE,
+  MARKDOWN_TYPE,
+  POLICY_HEADER,
   REDIRECTS_FIRST_LINE,
   redirectsFile,
   type RedirectRule,
   ROBOTS_TXT,
+  TYPE_HEADER,
 } from "../src/site/headers.js";
 import { shareRun } from "./helpers/share-data.js";
 import {
@@ -690,6 +695,63 @@ describe("redirectsFile", () => {
 describe("ROBOTS_TXT", () => {
   it("turns every crawler away from everything", () => {
     expect(ROBOTS_TXT).toBe("User-agent: *\nDisallow: /\n");
+  });
+});
+
+describe("the types and the policy of a share's report for AI tools", () => {
+  it("serves the Markdown as text/markdown and the JSON as application/json, each in UTF-8", () => {
+    expect(TYPE_HEADER).toBe("Content-Type");
+    expect(MARKDOWN_TYPE).toBe("text/markdown; charset=utf-8");
+    expect(JSON_TYPE).toBe("application/json; charset=utf-8");
+  });
+
+  it("allows each no resource and no script, form, or popup: nothing is loaded, and nothing runs", () => {
+    expect(POLICY_HEADER).toBe("Content-Security-Policy");
+    expect(AI_FILE_POLICY).toBe("default-src 'none'; sandbox");
+    // It holds no hash and allows no source: a text file has no code of its own, so a script it
+    // could be made to hold has nothing to run under. And `sandbox` has no allow- value.
+    expect(AI_FILE_POLICY).not.toMatch(/sha256|'self'|'unsafe|data:|allow-/);
+  });
+
+  it("writes each as a rule Netlify reads, with its type and its policy and no attachment", () => {
+    const markdown = "/dvfr.illinois.gov/dvfr.illinois.gov_2027-01-15.md";
+    const json = "/dvfr.illinois.gov/dvfr.illinois.gov_2027-01-15.json";
+
+    const text = headersFile([
+      {
+        path: markdown,
+        headers: [
+          [TYPE_HEADER, MARKDOWN_TYPE],
+          [POLICY_HEADER, AI_FILE_POLICY],
+        ],
+      },
+      {
+        path: json,
+        headers: [
+          [TYPE_HEADER, JSON_TYPE],
+          [POLICY_HEADER, AI_FILE_POLICY],
+        ],
+      },
+    ]);
+
+    expect(text).toBe(
+      [
+        HEADERS_FIRST_LINE,
+        "",
+        markdown,
+        "  Content-Type: text/markdown; charset=utf-8",
+        "  Content-Security-Policy: default-src 'none'; sandbox",
+        "",
+        json,
+        "  Content-Type: application/json; charset=utf-8",
+        "  Content-Security-Policy: default-src 'none'; sandbox",
+        "",
+      ].join("\n"),
+    );
+    // They're read in the browser: a Content-Disposition of attachment would save them instead,
+    // as a Word copy and a walkthrough file are.
+    expect(text).not.toContain("Content-Disposition");
+    expect(text).not.toContain("attachment");
   });
 });
 

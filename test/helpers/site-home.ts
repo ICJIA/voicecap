@@ -121,7 +121,8 @@ function namingTheDemo(): LoadedConfig {
  *
  * - The fixture site's folder, shared twice on the same day, named by the demo's canonical address
  *   (`voicecap.icjia.app_2027-01-15` and `voicecap.icjia.app_2027-01-15-2`), each share a page,
- *   its Word copy, and the walkthrough file of each of the two runs that count.
+ *   its Word copy, the report for AI tools as Markdown and as JSON, and the walkthrough file of
+ *   each of the two runs that count.
  * - `example.illinois.gov/`, with a date folder, and a record sealed by hand of one report made on
  *   13 January: a small page and a Word copy, which are in its share/ folder.
  * - `voicecap-demo/127.0.0.1_4848/`, a copy of the fixture's site folder, shared once on 16 January
@@ -188,9 +189,10 @@ export const VOICE_PAGE = `${VOICE_STEM}.voice.html`;
  * A new home with one share that has a voice page: a completed, sealed, live run of the scripted
  * site's three pages, each with a recording of NVDA's voice (the scripted driver gives each its
  * sound, which the run encodes and keeps as voice.webm; the sounds are numbers, and nothing plays),
- * shared by `voicecap share` on a fixed day, so it has the page, its Word copy, the voice page, and
- * the run's walkthrough file. The home is `transcripts` in a folder of its own that this makes in
- * the machine's temporary folder: the caller takes `path.dirname(home)` away.
+ * shared by `voicecap share` on a fixed day, so it has the page, its Word copy, the voice page, the
+ * report for AI tools as Markdown and as JSON, and the run's walkthrough file. The home is
+ * `transcripts` in a folder of its own that this makes in the machine's temporary folder: the caller
+ * takes `path.dirname(home)` away.
  */
 export async function homeWithVoiceShare(): Promise<string> {
   const dir = await setup();

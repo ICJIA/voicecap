@@ -277,13 +277,13 @@ tbody tr:last-child > * { border-bottom: 0; }
 .site-head > .title > .icon { flex: none; box-sizing: content-box; width: 1.25rem; height: 1.25rem; padding: 0.5rem; border-radius: 50%; background: var(--act-tint); color: var(--act); }
 .visit { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
 .visit > .icon { flex: none; width: 1rem; height: 1rem; color: var(--muted); }
-/* a site's current report, as a card: its line, under what it is; its verdict and how many pages NVDA read; who prepared it; and the two links a reader came for */
+/* a site's current report, as a card: its line, under what it is; its verdict and how many pages NVDA read; who prepared it; the two links a reader came for; and, under them, the line for AI tools */
 .report { display: grid; gap: 12px; align-content: start; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; }
 .report > * { min-width: 0; }
 .report > h3, .report > h4 { font-size: 1.25rem; font-weight: 800; }
 /* what a report's heading says it is: small, bold, and quieter, in ordinary case, as the rest of its heading is */
 .label { display: block; margin-bottom: 2px; color: var(--muted); font-size: 0.875rem; font-weight: 700; }
-.report > .by { color: var(--muted); }
+.report > .by, .report > .ai { color: var(--muted); }
 /* the verdict, a pill in its color (above), in ordinary case, after a sign that only repeats its words, which a screen reader doesn't read */
 .verdict::before { flex: none; }
 .verdict.ok::before { content: "✓"; content: "✓" / ""; }

@@ -354,6 +354,11 @@ describe("renderTechnical", () => {
     expect(review).toContain("voicecap review");
     expect(review).toContain("voicecap review --replay");
     expect(review).not.toContain("heard NVDA");
+    // Sharing makes what a share holds: the page and its Word copy, the report for AI tools as
+    // Markdown and as JSON, and each run's walkthrough file (src/share/share.ts).
+    expect(textOf(steps[8] ?? "")).toContain(
+      "voicecap share makes a dated copy of the shareable page and its Word copy, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, recorded in a sealed, chained shares.json",
+    );
     // A switch to another window inside a frame is noticed only if it lasts to the step's end.
     expect(textOf(steps[4] ?? "")).toContain(
       "While focus is inside a frame, a switch to another window is noticed only if it lasts until the step ends.",
@@ -390,10 +395,10 @@ describe("renderTechnical", () => {
   it("says what this website shows now, from the records", () => {
     const now = textOf(partOf(html, "this-website"));
 
-    // RECORDS: 3 reports of 2 sites, 11 files published, and 2 left out.
+    // RECORDS: 3 reports of 2 sites, 15 files published, and 2 left out.
     expect(now).toContain("It shows 3 reports of 2 sites.");
     expect(now).toContain(
-      "this website publishes only those that still match the fingerprints recorded when they were shared: 11 today, and 2 left out.",
+      "this website publishes only those that still match the fingerprints recorded when they were shared: 15 today, and 2 left out.",
     );
   });
 
@@ -674,6 +679,12 @@ describe("renderTechnical", () => {
     for (const file of ["session.txt", "session.json", "raw/"]) {
       expect(record, file).toContain(file);
     }
+    // What a site's share/ folder holds: the shareable page and its Word copy, the dated copies of
+    // them, the voice pages, the report for AI tools as Markdown and as JSON, the walkthrough files,
+    // and the record of what was shared (src/run/paths.ts).
+    expect(record).toContain(
+      "share/The shareable page, its Word copy, the dated copies, the voice pages, the report as Markdown and as JSON for AI tools, the walkthrough files, and shares.json",
+    );
     const evidence = part("fingerprints-and-seals");
     expect(evidence).toContain(
       "A run's record holds the SHA-256 of each page's transcripts, screenshot, axe results, and recording of NVDA's voice, recorded as each is written, and of the event log and each copy of NVDA's own log, recorded at the end of each session.",
@@ -732,10 +743,24 @@ describe("renderTechnical", () => {
       "The demo site's pages have their style sheet beside them, and a policy of their own, which allows it and no script.",
     );
     expect(website).toContain("the transcripts repository, which the README says to keep private");
+    // llms.txt, at the website's top, lists each site's current report as Markdown and as JSON,
+    // which the build writes (src/site/render.ts) beside the website's pages.
+    expect(website).toContain(
+      "llms.txt at the website's top, which lists, for AI tools, each site's current report as Markdown and as JSON, when it has them.",
+    );
 
     // The commands say what their code does.
     const jobs = Object.fromEntries(TECHNICAL_TEXT.commands.map(({ name, job }) => [name, job]));
     expect(Object.keys(jobs)).toContain("voicecap --site <url> …");
+    // What a share makes: the page and its Word copy, a voice page when a page has a recording, the
+    // report for AI tools, and the walkthrough files, which `voicecap report` doesn't make (it writes
+    // the page and its Word copy again).
+    expect(jobs["voicecap share"]).toBe(
+      "Makes a dated copy of the shareable page and its Word copy to send, a voice page when a page has a recording, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, and records them.",
+    );
+    expect(jobs["voicecap report"]).toBe(
+      "Writes a site's report, its shareable page, and its Word copy again.",
+    );
     // "Aloud" goes with "Reads", not with what the pages are named.
     expect(jobs["voicecap review --replay"]).toMatch(
       /^Reads aloud the saved words of the pages "What needs attention" names \(/,
@@ -861,10 +886,10 @@ describe("renderTechnical", () => {
 
     // The share's folder, and the command that makes the share.
     expect(part("what-a-run-records")).toContain(
-      "The shareable page, its Word copy, the dated copies, the voice pages, the walkthrough files, and shares.json",
+      "The shareable page, its Word copy, the dated copies, the voice pages, the report as Markdown and as JSON for AI tools, the walkthrough files, and shares.json",
     );
     expect(jobs["voicecap share"]).toBe(
-      "Makes a dated copy of the shareable page, its Word copy, a voice page when a page has a recording, and each run's walkthrough file, to send, and records them.",
+      "Makes a dated copy of the shareable page and its Word copy to send, a voice page when a page has a recording, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, and records them.",
     );
     // The website publishes it with its report's other files, and lists it as the report's files
     // list it (SITE_TEXT.files.voice, which the front page's fold uses: see test/site-render.test.ts).

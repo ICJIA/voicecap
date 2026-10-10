@@ -550,7 +550,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
   program
     .command("share")
     .description(
-      "make a dated copy of the shareable page, its Word copy, a voice page when a page has a recording, and each run's walkthrough file to send, and record them",
+      "make a dated copy of the shareable page and its Word copy to send, a voice page when a page has a recording, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, and record them",
     )
     .option(
       "--site <url>",
@@ -602,7 +602,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
   program
     .command("site")
     .description(
-      "build the website of each site's newest shared reports, for Netlify: index.html, trust.html, technical-details.html, whats-new.html, each report's files, robots.txt, _headers, and _redirects",
+      "build the website of each site's newest shared reports, for Netlify: index.html, trust.html, technical-details.html, whats-new.html, each report's files, llms.txt, robots.txt, _headers, and _redirects",
     )
     .option(
       "--home <dir>",

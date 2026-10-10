@@ -1182,7 +1182,8 @@ interface LooseShares {
 
 describe("verifyHome, and what was shared", () => {
   // The scripted site's folder, and the names of the two pairs of copies, shared on the same day.
-  // Beside each pair is the walkthrough file of the one run (named for it, so known once it's run).
+  // Beside each pair are the report for AI tools (its Markdown and its JSON) and the walkthrough
+  // file of the one run (named for it, so known once it's run).
   const EXAMPLE = "example.illinois.gov";
   const SHARE = `${EXAMPLE}/share`;
   const SHARES_JSON = `${SHARE}/shares.json`;
@@ -1190,8 +1191,12 @@ describe("verifyHome, and what was shared", () => {
   const SECOND = `${FIRST}-2`;
   const PAGE_1 = `${FIRST}.html`;
   const WORD_1 = `${FIRST}.docx`;
+  const MD_1 = `${FIRST}.md`;
+  const JSON_1 = `${FIRST}.json`;
   const PAGE_2 = `${SECOND}.html`;
   const WORD_2 = `${SECOND}.docx`;
+  const MD_2 = `${SECOND}.md`;
+  const JSON_2 = `${SECOND}.json`;
   /** When an entry made by hand says it was made. */
   const LATER = "2027-01-16T09:00:00-06:00";
 
@@ -1238,9 +1243,13 @@ describe("verifyHome, and what was shared", () => {
     expect([...first.files, ...second.files].map(({ name }) => name)).toEqual([
       PAGE_1,
       WORD_1,
+      MD_1,
+      JSON_1,
       walkthrough1,
       PAGE_2,
       WORD_2,
+      MD_2,
+      JSON_2,
       walkthrough2,
     ]);
   });
@@ -1314,6 +1323,8 @@ describe("verifyHome, and what was shared", () => {
       `${SHARES_JSON}: entry 1 is missing`,
       `${SHARE}/${WORD_1}: not recorded in shares.json`,
       `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+      `${SHARE}/${JSON_1}: not recorded in shares.json`,
+      `${SHARE}/${MD_1}: not recorded in shares.json`,
       `${SHARE}/${walkthrough1}: not recorded in shares.json`,
     ]);
   });
@@ -1405,13 +1416,17 @@ describe("verifyHome, and what was shared", () => {
           `${SHARES_JSON}: not a readable record of what was shared`,
           `${SHARE}/${WORD_2}: not recorded in shares.json`,
           `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+          `${SHARE}/${JSON_2}: not recorded in shares.json`,
+          `${SHARE}/${MD_2}: not recorded in shares.json`,
           `${SHARE}/${walkthrough2}: not recorded in shares.json`,
           `${SHARE}/${WORD_1}: not recorded in shares.json`,
           `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+          `${SHARE}/${JSON_1}: not recorded in shares.json`,
+          `${SHARE}/${MD_1}: not recorded in shares.json`,
           `${SHARE}/${walkthrough1}: not recorded in shares.json`,
         ]);
         expect(logger.entries.at(-1)?.message).toBe(
-          "example.illinois.gov: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 7 problems.",
+          "example.illinois.gov: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 11 problems.",
         );
       },
     );
@@ -1424,9 +1439,13 @@ describe("verifyHome, and what was shared", () => {
       expect(sites[0]!.problems).toEqual([
         `${SHARE}/${WORD_2}: not recorded in shares.json`,
         `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+        `${SHARE}/${JSON_2}: not recorded in shares.json`,
+        `${SHARE}/${MD_2}: not recorded in shares.json`,
         `${SHARE}/${walkthrough2}: not recorded in shares.json`,
         `${SHARE}/${WORD_1}: not recorded in shares.json`,
         `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+        `${SHARE}/${JSON_1}: not recorded in shares.json`,
+        `${SHARE}/${MD_1}: not recorded in shares.json`,
         `${SHARE}/${walkthrough1}: not recorded in shares.json`,
       ]);
     });
@@ -1469,6 +1488,8 @@ describe("verifyHome, and what was shared", () => {
         `${SHARES_JSON}: entry 1 follows an entry that isn't there`,
         `${SHARE}/${WORD_1}: not recorded in shares.json`,
         `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+        `${SHARE}/${JSON_1}: not recorded in shares.json`,
+        `${SHARE}/${MD_1}: not recorded in shares.json`,
         `${SHARE}/${walkthrough1}: not recorded in shares.json`,
       ]);
     });
@@ -1592,6 +1613,8 @@ describe("verifyHome, and what was shared", () => {
           // It names none of the copies it was made with, so nothing records them.
           `${SHARE}/${WORD_2}: not recorded in shares.json`,
           `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+          `${SHARE}/${JSON_2}: not recorded in shares.json`,
+          `${SHARE}/${MD_2}: not recorded in shares.json`,
           `${SHARE}/${walkthrough2}: not recorded in shares.json`,
         ]);
       },
@@ -1609,6 +1632,8 @@ describe("verifyHome, and what was shared", () => {
       expect(await problemsIn(home)).toEqual([
         `${SHARES_JSON}: share 2 (${second.entry.at}) lists its files in a form voicecap can't read`,
         `${SHARE}/${WORD_2}: not recorded in shares.json`,
+        `${SHARE}/${JSON_2}: not recorded in shares.json`,
+        `${SHARE}/${MD_2}: not recorded in shares.json`,
         `${SHARE}/${walkthrough2}: not recorded in shares.json`,
       ]);
     });
@@ -1670,7 +1695,10 @@ describe("verifyHome, and what was shared", () => {
         `${SHARE}/${PAGE_2}: changed since it was recorded (SHA-256 differs)`,
         `${SHARES_JSON}: share 2 (${second.entry.at}) names "../x.html", which isn't a file in share/`,
         `${SHARE}/${WORD_2}: missing`,
-        // The entry no longer lists its walkthrough file, so nothing records it.
+        // The entry no longer lists its JSON, its Markdown, or its walkthrough file, so nothing
+        // records them.
+        `${SHARE}/${JSON_2}: not recorded in shares.json`,
+        `${SHARE}/${MD_2}: not recorded in shares.json`,
         `${SHARE}/${walkthrough2}: not recorded in shares.json`,
       ]);
 
@@ -1685,6 +1713,8 @@ describe("verifyHome, and what was shared", () => {
         `${SHARES_JSON}: share 2 (${second.entry.at}) lists its files in a form voicecap can't read`,
         `${SHARE}/${WORD_2}: not recorded in shares.json`,
         `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+        `${SHARE}/${JSON_2}: not recorded in shares.json`,
+        `${SHARE}/${MD_2}: not recorded in shares.json`,
         `${SHARE}/${walkthrough2}: not recorded in shares.json`,
       ]);
     });
@@ -1988,6 +2018,8 @@ describe("verifyHome, and what was shared", () => {
       `${SHARE}/b-folder: an unexpected folder`,
       `${SHARE}/${WORD_1}: not recorded in shares.json`,
       `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+      `${SHARE}/${JSON_1}: not recorded in shares.json`,
+      `${SHARE}/${MD_1}: not recorded in shares.json`,
       `${SHARE}/${walkthrough1}: not recorded in shares.json`,
     ]);
   });

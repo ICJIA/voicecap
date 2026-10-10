@@ -348,6 +348,8 @@ describe("the site, served as Netlify serves it", () => {
     expect(report?.files.map(({ kind }) => kind)).toEqual([
       "page",
       "word",
+      "markdown",
+      "data",
       "walkthrough",
       "walkthrough",
     ]);
@@ -378,6 +380,55 @@ describe("the site, served as Netlify serves it", () => {
         bytes: file.bytes,
         sha256: file.sha256,
       });
+    }
+  });
+
+  it("serves a share's Markdown and JSON to be read in the browser: with their types, no attachment, a policy that runs nothing in them, and the text as it was shared", async () => {
+    const page = await newPage();
+    const site = built.content.sites.find(({ folders }) => folders.includes(FIXTURE_FOLDER));
+    const report = site?.reports[0];
+    const types = {
+      markdown: "text/markdown; charset=utf-8",
+      data: "application/json; charset=utf-8",
+    } as const;
+
+    for (const kind of ["markdown", "data"] as const) {
+      const file = report?.files.find((each) => each.kind === kind);
+      if (file === undefined) throw new Error(`The report has no ${kind} file.`);
+      const address = new URL(file.href, server.url).href;
+
+      // The browser opens it, as it does a page: a download would never finish a navigation.
+      const response = await page.goto(address);
+      expect(response?.status(), file.name).toBe(200);
+      expect(response?.headers()["content-type"], file.name).toBe(types[kind]);
+      expect(response?.headers()["content-disposition"], file.name).toBeUndefined();
+      // Under a policy that loads nothing and runs nothing in it: the text is shown all the same.
+      expect(response?.headers()["content-security-policy"], file.name).toBe(
+        "default-src 'none'; sandbox",
+      );
+      // What it shows is the file's text, whole, as shared.
+      const shared = await readFile(path.join(built.out, file.href), "utf8");
+      expect(await page.locator("pre").textContent(), file.name).toBe(shared);
+      expect(sha256(Buffer.from(shared)), file.name).toBe(file.sha256);
+    }
+  });
+
+  it("serves llms.txt as text, at the site's top, with each link answering", async () => {
+    const page = await newPage();
+
+    const response = await page.request.get(new URL("llms.txt", server.url).href);
+
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toBe("text/plain; charset=utf-8");
+    const text = await response.text();
+    expect(text).toBe(await readFile(path.join(built.out, "llms.txt"), "utf8"));
+    expect(text.startsWith("# ICJIA Screen Reader Tests\n")).toBe(true);
+    // Each link is to a file the site serves, relative to llms.txt: the reports' files, and the
+    // two pages.
+    const links = [...text.matchAll(/\]\(([^)]+)\)/g)].map(([, href = ""]) => href);
+    expect(links).toHaveLength(4);
+    for (const href of links) {
+      expect((await page.request.get(new URL(href, server.url).href)).status(), href).toBe(200);
     }
   });
 

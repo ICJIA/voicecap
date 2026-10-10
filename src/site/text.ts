@@ -17,6 +17,9 @@ import { MAC_HASH, POWERSHELL_HASH, TOP_TEXT, VOICE_TEXT } from "../share/text.j
 /** The website's title, which its own page is headed by, and which every page's title ends with. */
 const SITE_TITLE = "Screen reader test results";
 
+/** What heads a site's newest report, ahead of its line, and what llms.txt calls it too. */
+const CURRENT_REPORT = "The current report";
+
 /**
  * A day the facts give as YYYY-MM-DD, as the website says it: "9 October 2026". The trust page says
  * each release's day so, and so does What's New.
@@ -119,7 +122,7 @@ export const SITE_TEXT = {
   /** A report's line: "3 October 2026, 14:05". */
   reportLine: (at: string): string => dateAndTime(at),
   /** What heads a site's newest report, ahead of its line. */
-  current: "The current report",
+  current: CURRENT_REPORT,
   /**
    * How many pages NVDA read, on a site's current report's card, beside its bar: the line after the
    * verdict's headline (verdictOf in ../share/verdict.ts), which says the problems that need
@@ -146,6 +149,19 @@ export const SITE_TEXT = {
   /** The current report's two links: its page, which opens in the browser, and its Word copy. */
   open: "Open the report",
   download: "Download the Word copy",
+  /**
+   * The line under them, when the report's share has its report for AI tools, as Markdown and as
+   * JSON: what they are, and then a link to each, "For AI tools such as Claude or ChatGPT: the
+   * report as Markdown, or as JSON". The line is `lead`, the first link's words, `or`, and the
+   * second's; with only one of the two published, `lead` and that link's words. The two products
+   * are the ones a reader may give the files to, and are named as such.
+   */
+  forAi: {
+    lead: "For AI tools such as Claude or ChatGPT: the report as ",
+    markdown: "Markdown",
+    json: "JSON",
+    or: ", or as ",
+  },
   /** The heading of a site's reports before its current one, which are a line each. */
   earlier: "Earlier reports",
   /** An earlier report's link to its Word copy, after the one to its page ({@link open}). */
@@ -166,14 +182,16 @@ export const SITE_TEXT = {
    */
   listedBy: (by: string): string => `prepared by ${by}`,
   /**
-   * What each kind of file is called. A walkthrough file is of a run, when the record says which.
-   * A share's voice page, the page that plays what NVDA said aloud on each page, is called what it
-   * plays, as the voice page calls itself.
+   * What each kind of file is called. A share's voice page, the page that plays what NVDA said aloud
+   * on each page, is called what it plays, as the voice page calls itself. The report for AI tools is
+   * two files, its Markdown and its JSON. A walkthrough file is of a run, when the record says which.
    */
   files: {
     page: "The report, to open",
     voice: VOICE_TEXT.eyebrow,
     word: "The Word copy",
+    markdown: "For AI tools (Markdown)",
+    data: "For AI tools (JSON)",
     walkthrough: (run: string | null): string =>
       run === null ? "A walkthrough file" : `The walkthrough file of run ${run}`,
     other: "A file",
@@ -207,6 +225,26 @@ export const SITE_TEXT = {
     { code: "npx @icjia/voicecap --walkthrough <file>" },
     ".",
   ] satisfies Sentence,
+  /**
+   * llms.txt, at the website's top, for AI tools, after the llms.txt convention (llmstxt.org): a
+   * title, which is the website's name; a line that sums the website up (`summary`); a section for
+   * each site whose current report has the report for AI tools, headed by the site's name, with a
+   * link to its Markdown and to its JSON; and a section of what a tool can skip, which the
+   * convention calls Optional, with the website's other two pages. `none` is said in place of the
+   * sites' sections when no site's current report has it. `report` follows each link: which report
+   * it is, and the verdict the report's card says (see verdictOf in ../share/verdict.ts), when the
+   * report records one: "The current report, 3 October 2026, 14:05. Nothing needs attention."
+   */
+  llms: {
+    summary:
+      "Each site's current report from a person's review of the site with a real screen reader, sped up by voicecap, as Markdown and as JSON, for AI tools such as Claude or ChatGPT.",
+    none: "No report for AI tools has been shared yet.",
+    report: (at: string, verdict: string | null): string =>
+      `${CURRENT_REPORT}, ${dateAndTime(at)}.${verdict === null ? "" : ` ${verdict}.`}`,
+    optional: "Optional",
+    trust: "Who built voicecap, how what it records can be checked, and how it tests itself.",
+    technical: "How a review runs, what it records, and how this website is built and protected.",
+  },
   /** voicecap on GitHub: the bottom bar links to it, and the pages to its code there. */
   github: TOP_TEXT.github,
   /**

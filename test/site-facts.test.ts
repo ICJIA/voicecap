@@ -520,8 +520,8 @@ describe("recordFactsOf", () => {
     // 9 + 32 pages read of 9 + 32, and 0 + 1 problems, from the two current reports only: the
     // older report's 5 pages, 4 read, and 3 problems are not in it.
     expect(facts.reading).toEqual({ read: 41, pages: 41, problems: 1, sitesCounted: 2 });
-    // The demo's 3 files, the first site's 3 and 1, and the second's 4.
-    expect(facts.files.published).toBe(11);
+    // The demo's 5 files, the first site's 5 and 1, and the second's 4.
+    expect(facts.files.published).toBe(15);
     expect(facts.files.published).toBe(new Set(filesOf(CONTENT).map(({ href }) => href)).size);
     // The first site's older Word copy changed, and the second site's is missing.
     expect(facts.files.leftOut).toBe(2);
@@ -533,8 +533,8 @@ describe("recordFactsOf", () => {
       ...DVFR_OLDEST,
       files: [...DVFR_OLDEST.files, published("page", DVFR, `${DVFR}_2026-10-03.html`, 324)],
     };
-    // The newest report's 3 files, and the older one's own, with the page that both name.
-    expect(recordFactsOf(siteOf(DVFR_NEWEST, sharedAgain)).files.published).toBe(4);
+    // The newest report's 5 files, and the older one's own, with the page that both name.
+    expect(recordFactsOf(siteOf(DVFR_NEWEST, sharedAgain)).files.published).toBe(6);
   });
 
   it("counts a file by where it's published, so two folders' files of one name are two", () => {
@@ -560,12 +560,12 @@ describe("recordFactsOf", () => {
       notPublished: [{ name: "127.0.0.1_4848_2026-09-29_summary.pdf", reason: "missing" }],
     };
     const facts = recordFactsOf({ ...CONTENT, demo });
-    expect(facts.files.published).toBe(11);
+    expect(facts.files.published).toBe(15);
     expect(facts.files.leftOut).toBe(3);
     expect(facts.newest).toBe("2026-10-05T08:00:00-05:00");
     expect(facts.reports).toBe(3);
     const without = recordFactsOf({ ...CONTENT, demo: null });
-    expect(without.files.published).toBe(8);
+    expect(without.files.published).toBe(10);
     expect(without.files.leftOut).toBe(2);
     expect(without.newest).toBe(DVFR_NEWEST.at);
   });
