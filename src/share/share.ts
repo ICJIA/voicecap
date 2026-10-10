@@ -96,8 +96,9 @@ export interface ShareReportResult {
 }
 
 /**
- * The size above which a copy is warned of: 20 MB, which is too big for most email. A copy of
- * exactly this size isn't.
+ * The size above which a copy of the pair that is emailed (the page, its Word copy) is warned of:
+ * 20 MB, which is too big for most email. A copy of exactly this size isn't. The report for AI tools
+ * and the walkthrough files aren't emailed, so no size warns of them.
  */
 export const EMAIL_LIMIT_BYTES = 20 * 1024 * 1024;
 
@@ -262,7 +263,9 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
     }
     logger.info("To paste into the email that sends the page and its Word copy:");
     logger.info(`  ${pasteLine}`);
-    for (const file of files) {
+    // Only the pair is emailed, so only a file of the pair can be too big for email: the Markdown and
+    // the JSON of an axe-heavy site pass 20 MB, and aren't sent.
+    for (const file of files.filter(({ name }) => pair.includes(name))) {
       const warning = sizeWarning(file.name, file.bytes);
       if (warning !== null) logger.warn(warning);
     }

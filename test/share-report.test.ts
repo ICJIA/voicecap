@@ -39,6 +39,8 @@ import type * as AiMarkdownModule from "../src/share/ai/markdown.js";
 import { renderWordCopy } from "../src/share/docx.js";
 import type * as DocxModule from "../src/share/docx.js";
 import { sizeLine } from "../src/share/format.js";
+import { renderSharePage } from "../src/share/html/document.js";
+import type * as DocumentModule from "../src/share/html/document.js";
 import { lineText } from "../src/share/line.js";
 import { loadShareInput } from "../src/share/load.js";
 import type * as LoadModule from "../src/share/load.js";
@@ -87,6 +89,10 @@ vi.mock("../src/share/docx.js", async (importOriginal) => {
   const actual = await importOriginal<typeof DocxModule>();
   return { ...actual, renderWordCopy: vi.fn(actual.renderWordCopy) };
 });
+vi.mock("../src/share/html/document.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof DocumentModule>();
+  return { ...actual, renderSharePage: vi.fn(actual.renderSharePage) };
+});
 vi.mock("../src/share/ai/markdown.js", async (importOriginal) => {
   const actual = await importOriginal<typeof AiMarkdownModule>();
   return { ...actual, renderAiMarkdown: vi.fn(actual.renderAiMarkdown) };
@@ -116,6 +122,7 @@ afterEach(async () => {
   for (const made of [
     loadShareInput,
     buildShareModel,
+    renderSharePage,
     renderWordCopy,
     renderAiMarkdown,
     renderAiJson,
@@ -1691,6 +1698,52 @@ describe("shareReport", () => {
       await shareReport(options);
 
       expect(logger.text("warn")).toBe("");
+    });
+
+    it("is warned of for the page and for its Word copy, the pair that is emailed, each in turn", async () => {
+      const { logger, options } = await homeWithRun();
+      const big = 21 * 1024 * 1024;
+      vi.mocked(renderSharePage).mockReturnValueOnce("p".repeat(big));
+      vi.mocked(renderWordCopy).mockResolvedValueOnce(new Uint8Array(big));
+
+      await shareReport(options);
+
+      expect(
+        logger.entries.filter(({ level }) => level === "warn").map(({ message }) => message),
+      ).toEqual([
+        `${FIRST}.html is 21.0 MB, over 20 MB: too big for most email.`,
+        `${FIRST}.docx is 21.0 MB, over 20 MB: too big for most email.`,
+      ]);
+    });
+
+    it("isn't warned of for the Markdown or the JSON, which aren't emailed, however big they are", async () => {
+      const { logger, options } = await homeWithRun();
+      const big = 21 * 1024 * 1024;
+      vi.mocked(renderAiMarkdown).mockReturnValueOnce("m".repeat(big));
+      vi.mocked(renderAiJson).mockReturnValueOnce("j".repeat(big));
+
+      const { files } = await shareReport(options);
+
+      // Both were written, each over the limit, and are listed with their sizes all the same.
+      expect(
+        files.filter(({ bytes }) => bytes > EMAIL_LIMIT_BYTES).map(({ name }) => name),
+      ).toEqual([`${FIRST}.md`, `${FIRST}.json`]);
+      expect(logger.text("info")).toContain("21.0 MB (22,020,096 bytes), SHA-256 ");
+      expect(logger.text("warn")).toBe("");
+    });
+
+    it("says only the pair's file, when the pair and the files for AI tools are all over", async () => {
+      const { logger, options } = await homeWithRun();
+      const big = 21 * 1024 * 1024;
+      vi.mocked(renderAiMarkdown).mockReturnValueOnce("m".repeat(big));
+      vi.mocked(renderWordCopy).mockResolvedValueOnce(new Uint8Array(big));
+      vi.mocked(renderAiJson).mockReturnValueOnce("j".repeat(big));
+
+      await shareReport(options);
+
+      expect(
+        logger.entries.filter(({ level }) => level === "warn").map(({ message }) => message),
+      ).toEqual([`${FIRST}.docx is 21.0 MB, over 20 MB: too big for most email.`]);
     });
   });
 });
