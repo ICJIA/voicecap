@@ -17,10 +17,12 @@ import { checkRunAgainstLog } from "../src/share/run-log-check.js";
 import { failedAttempt } from "./helpers/share-data.js";
 import {
   copyOf,
+  keyAt,
   keptLogsRun,
   type KeptLogs,
   pageEntries,
   PAGE_PASSES,
+  saidAt,
   timeOfDay,
 } from "./helpers/nvda-log.js";
 
@@ -102,6 +104,32 @@ function secondNeverStopped(kept: KeptLogs): RunEvent[] {
       (event.type === "screen-reader-stopped" && event.pid === 54568) ||
       (event.type === "screen-reader-log" && event.file === "nvda-log/1-2.txt"),
   );
+}
+
+/** When the kept attempt at a page began, by the end of its address, as a time of day. */
+function keptStart(kept: KeptLogs, page: string, attempt: number): number {
+  const began = kept.log.events.find(
+    (event) =>
+      event.type === "page-started" && event.page.endsWith(page) && event.attempt === attempt,
+  );
+  if (began === undefined) throw new Error(`No attempt ${attempt} at ${page}.`);
+  return timeOfDay(began.at);
+}
+
+/**
+ * A page's copy as pageEntries writes it from `from`, with a key of each of the passes `strayed`
+ * picks (by its place) 1.9 s after its last step's key, before the next pass opens the page, and
+ * what NVDA said after it: no step pressed it, so the copy can't be paired with that pass for
+ * certain.
+ */
+function withStrayKeys(from: number, strayed: number[]): string {
+  const strays = strayed.flatMap((index) => {
+    const pass = PAGE_PASSES[index]!;
+    // pageEntries: a pass opens 15 s after the one before, its steps begin 2.3 s after, 1.2 s each.
+    const last = from + 2000 + index * 15_000 + 2300 + (pass.spoken.length - 1) * 1200 + 270;
+    return [keyAt(last + 1900, gestureOf(pass.command)!), saidAt(last + 1940, "Inbox - Mail")];
+  });
+  return copyOf(...pageEntries(from), ...strays);
 }
 
 /** The run with a change made to every page's record. */
@@ -363,6 +391,31 @@ describe("checkRunAgainstLog", () => {
       { page: "Apply", pass: "read", step: 2, text: "heading, level 1, Grants" },
       { page: "Apply", pass: "headings", step: 1, text: "heading, level 1, Grants" },
     ]);
+  });
+
+  it("counts the steps of a pass its copy can't be paired with for certain as not checked, with why, and checks the rest", () => {
+    const kept = keptLogsRun();
+    const copies = new Map(kept.copies);
+    // Apply's headings pass (its 2 steps), in the second session's copy.
+    copies.set("nvda-log/1-2.txt", withStrayKeys(keptStart(kept, "/apply/", 2), [1]));
+
+    expect(checkOf(kept, { copies })).toEqual({
+      // The pass's 2 lines of speech, and what NVDA said after the key, are outside the steps.
+      check: { ...EVERY_STEP, transcriptLines: 22, logLines: 22, agree: 22, outside: 24 },
+      notChecked: [{ steps: 2, from: STARTED[1], why: "unaligned", detail: null }],
+    });
+  });
+
+  it("checks none of a session whose copy can't be paired with any of its passes for certain, as one with no copy", () => {
+    const kept = keptLogsRun();
+    const copies = new Map(kept.copies);
+    // Each of Contact's three passes, in the third session's copy.
+    copies.set("nvda-log/2-1.txt", withStrayKeys(keptStart(kept, "/contact/", 1), [0, 1, 2]));
+
+    expect(checkOf(kept, { copies })).toEqual({
+      check: { ...EVERY_STEP, transcriptLines: 16, logLines: 16, agree: 16, outside: 15 },
+      notChecked: [{ steps: 8, from: STARTED[2], why: "unaligned", detail: null }],
+    });
   });
 
   it("gives a failed attempt's window to the NVDA session it began in, and no other", () => {

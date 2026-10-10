@@ -1,0 +1,1136 @@
+# NVDA's own log of one NVDA session in this run, as voicecap keeps it: NVDA's speech, the keys voicecap pressed, and NVDA's warnings and errors. voicecap left out every other key, every typed word, and what NVDA said after a key voicecap didn't press, and wrote %USERPROFILE% for the home folder.
+# Trimmed for voicecap's tests: only the entries of the attempt at https://r3.illinois.gov/eligibility/ (09:41:45.702 to 09:48:38.101), without what NVDA said of another window and without NVDA's one error entry in it.
+IO - speech.speech.speak (09:42:04.601) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pilbpw - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:42:04.605) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pilbpw', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:42:04.608) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Skip navigation', 'navigation landmark', 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (09:42:05.451) - winInputHook (18884):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (09:42:05.455) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pilbpw - Google Chrome']
+IO - inputCore.InputManager.executeGesture (09:42:06.473) - winInputHook (18884):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (09:42:06.737) - winInputHook (18884):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (09:42:06.741) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (09:42:08.625) - winInputHook (18884):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (09:42:08.629) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Site footer', 'content info landmark', 'link', 'Contact']
+IO - inputCore.InputManager.executeGesture (09:42:09.907) - winInputHook (18884):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (09:42:09.911) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Skip navigation', 'navigation landmark', 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (09:42:11.192) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:11.196) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to navigation']
+IO - inputCore.InputManager.executeGesture (09:42:12.481) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:12.486) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'R3 RESTORE. REINVEST. RENEW. — Go to home page']
+IO - inputCore.InputManager.executeGesture (09:42:13.769) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:13.773) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Primary navigation', 'navigation landmark', 'list', 'with 4 items', 'link', 'HOME']
+IO - inputCore.InputManager.executeGesture (09:42:15.049) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:15.053) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'collapsed', 'ABOUT']
+IO - inputCore.InputManager.executeGesture (09:42:16.337) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:16.341) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'current page', 'ELIGIBILITY']
+IO - inputCore.InputManager.executeGesture (09:42:17.612) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:17.616) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'CONTACT']
+IO - inputCore.InputManager.executeGesture (09:42:18.890) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:18.894) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'link', 'Search']
+IO - inputCore.InputManager.executeGesture (09:42:20.173) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:20.177) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'clickable', 'heading', 'level 1', 'Eligibility']
+IO - inputCore.InputManager.executeGesture (09:42:21.452) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:21.456) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Eligible Applicants']
+IO - inputCore.InputManager.executeGesture (09:42:22.730) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:22.734) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'In order to be eligible, organizations must have a DUNS number, a ', 'link', 'SAM.gov', ' account, a ', 'link', 'Grants.gov', ' ']
+IO - inputCore.InputManager.executeGesture (09:42:24.020) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:24.024) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'account, be in good standing with the Illinois Secretary of State, and not be on the state no-pay ']
+IO - inputCore.InputManager.executeGesture (09:42:25.299) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:25.303) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'list (See ', 'link', 'Prequalification Steps', ' for details). Common types of eligible applicants are nonprofit ']
+IO - inputCore.InputManager.executeGesture (09:42:26.575) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:26.579) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'organizations, local units of government, and tax-exempt faith-based organizations. Other ']
+IO - inputCore.InputManager.executeGesture (09:42:27.847) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:27.850) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'organizations may also be eligible to join the proposed program as members of a collaborative. ']
+IO - inputCore.InputManager.executeGesture (09:42:29.131) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:29.135) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Click here to ', 'link', 'learn more about collaboratives', ' in the R3 program.']
+IO - inputCore.InputManager.executeGesture (09:42:30.419) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:30.423) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Eligible Service Areas']
+IO - inputCore.InputManager.executeGesture (09:42:31.706) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:31.710) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'In order to be eligible for R3 grant funding, the activities proposed in a submitted grant ']
+IO - inputCore.InputManager.executeGesture (09:42:32.984) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:32.987) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'application must be focused on a designated R3 area (the shaded areas in the map below). This means ']
+IO - inputCore.InputManager.executeGesture (09:42:34.269) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:34.273) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'that an organization’s service area under the R3 NOFO must include one or more R3 areas.']
+IO - inputCore.InputManager.executeGesture (09:42:35.549) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:35.552) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Organizations applying for funding do not need to be located within these R3 areas, but ']
+IO - inputCore.InputManager.executeGesture (09:42:36.829) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:36.833) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'applications will be given priority if they are submitted by organizations within these R3 areas, ']
+IO - inputCore.InputManager.executeGesture (09:42:38.115) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:38.118) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'if they are on behalf of collaboratives that contain such organizations, or if the majority of ']
+IO - inputCore.InputManager.executeGesture (09:42:39.403) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:39.406) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'their employees live within R3 areas.']
+IO - inputCore.InputManager.executeGesture (09:42:40.686) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:40.690) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Using the R3 Map to Determine Eligibility and Funding Level']
+IO - inputCore.InputManager.executeGesture (09:42:41.969) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:41.972) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'To find out if an address is located in an R3 area, or to get information on an R3 area for ']
+IO - inputCore.InputManager.executeGesture (09:42:43.253) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:43.256) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'application purposes, enter the address into the search bar (top right) or zoom in (+) on the ']
+IO - inputCore.InputManager.executeGesture (09:42:44.534) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:44.537) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'address on the map. Any address appearing in a color-coded, shaded area is within an R3 area. Click ']
+IO - inputCore.InputManager.executeGesture (09:42:45.815) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:45.818) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), "the shaded area to see its R3 Area ID and funding information needed for the grant application's "]
+IO - inputCore.InputManager.executeGesture (09:42:47.093) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:47.096) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Program Narrative.']
+IO - inputCore.InputManager.executeGesture (09:42:48.370) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:48.374) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'blank']
+IO - speech.speech.speak (09:42:49.273) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'R3 Eligibility and Service Area Selector ']
+IO - inputCore.InputManager.executeGesture (09:42:51.787) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:51.790) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Scale 1 to 4622324 ']
+IO - speech.speech.speak (09:42:51.793) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'blank']
+IO - inputCore.InputManager.executeGesture (09:42:52.515) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:52.520) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'R3 Eligibility and Service Area Map', 'frame', 'clickable', 'banner landmark', 'link', 'graphic', 'State of Illinois seal']
+IO - inputCore.InputManager.executeGesture (09:42:53.800) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:53.804) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'R3 Service Area Selection: Return to top']
+IO - inputCore.InputManager.executeGesture (09:42:55.082) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:55.086) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Share']
+IO - inputCore.InputManager.executeGesture (09:42:56.367) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:56.372) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Heading links', 'navigation landmark', 'list', 'with 4 items', 'link', 'Video Tutorial']
+IO - inputCore.InputManager.executeGesture (09:42:57.647) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:57.652) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', '1. Locate Areas']
+IO - inputCore.InputManager.executeGesture (09:42:58.931) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:42:58.935) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', '2. Select Areas']
+IO - inputCore.InputManager.executeGesture (09:43:00.218) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:00.223) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', '3. Export + Upload']
+IO - inputCore.InputManager.executeGesture (09:43:01.502) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:01.508) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'heading', 'level 4', 'Use the tool below to select the geographic area in which your organization proposes to provide ']
+IO - inputCore.InputManager.executeGesture (09:43:02.783) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:02.788) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 4', 'services for the R3 Cohort 4 grant program. Please note your service area must be located entirely ']
+IO - inputCore.InputManager.executeGesture (09:43:04.073) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:04.078) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 4', 'within the R3 funding region that corresponds with the region in your application. Your service ']
+IO - inputCore.InputManager.executeGesture (09:43:05.361) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:05.365) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 4', 'area must contain at least one R3 Area to be eligible for funding. See detailed instructions below ']
+IO - inputCore.InputManager.executeGesture (09:43:06.647) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:06.651) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 4', 'the tool.']
+IO - inputCore.InputManager.executeGesture (09:43:07.924) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:07.928) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'figure', 'button', 'Enable interaction']
+IO - inputCore.InputManager.executeGesture (09:43:09.205) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:09.210) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'application']
+IO - inputCore.InputManager.executeGesture (09:43:10.484) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:10.488) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'caption', 'NOTE', ': The tool may reset when scrolling down the page. We recommend opening the tool in a separate ']
+IO - inputCore.InputManager.executeGesture (09:43:11.763) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:11.768) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'window using the following link -- ', 'link', '\xa0R3 Eligibility and Service Area Selection \xa0']
+IO - inputCore.InputManager.executeGesture (09:43:13.046) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:13.050) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of caption', 'out of figure', 'heading', 'level 2', 'Video Tutorial']
+IO - inputCore.InputManager.executeGesture (09:43:14.325) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:14.330) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Watch the guided walkthrough or follow the steps below for help finding, selecting, and exporting ']
+IO - inputCore.InputManager.executeGesture (09:43:15.599) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:15.603) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'R3 Service Area information.']
+IO - inputCore.InputManager.executeGesture (09:43:16.882) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:16.887) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'figure', 'application', 'This is a video demonstration on how to use the R3 Service Area Selector tool.']
+IO - inputCore.InputManager.executeGesture (09:43:18.156) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:18.160) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'caption', 'Finding your R3 Service Areas - Guided Walkthrough']
+IO - inputCore.InputManager.executeGesture (09:43:19.432) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:19.436) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of caption', 'out of figure', 'heading', 'level 2', '1. Locate Areas']
+IO - inputCore.InputManager.executeGesture (09:43:20.711) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:20.715) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'R3 funds are awarded regionally and based on population size to ensure grant equity across ']
+IO - inputCore.InputManager.executeGesture (09:43:21.990) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:21.994) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Illinois. There are 12 total R3 funding regions, which are composed of Illinois counties. ']
+IO - inputCore.InputManager.executeGesture (09:43:23.275) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:23.279) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Applicants may provide services across multiple regions but must submit applications for each ']
+IO - inputCore.InputManager.executeGesture (09:43:24.557) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:24.561) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'specific region they intend to serve. The eligibility map above depicts the boundaries of each ']
+IO - inputCore.InputManager.executeGesture (09:43:25.834) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:25.839) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'service region and you may select your region in step 1. If you are unsure what funding region your ']
+IO - inputCore.InputManager.executeGesture (09:43:27.119) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:27.124) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'services fall under, skip to step 2 and search your address using the search tool and zoom out to ']
+IO - inputCore.InputManager.executeGesture (09:43:28.408) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:28.412) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'determine your region.\xa0']
+IO - inputCore.InputManager.executeGesture (09:43:29.691) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:29.695) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'figure', 'application']
+IO - inputCore.InputManager.executeGesture (09:43:30.971) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:30.975) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'caption', 'Using bookmarks to zoom and filter funding regions.']
+IO - inputCore.InputManager.executeGesture (09:43:32.255) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:32.260) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of caption', 'out of figure', 'list', 'with 1 item', '• The ‘Zoom to funding region’ panel includes bookmarks with the 12 R3 funding regions within ']
+IO - inputCore.InputManager.executeGesture (09:43:33.533) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:33.537) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Illinois. Click a region name from the list to zoom to that location on the map.']
+IO - inputCore.InputManager.executeGesture (09:43:34.812) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:34.816) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'list', 'with 1 item', '• Use the search feature at the top right of the map to find a street address, city, county, or zip ']
+IO - inputCore.InputManager.executeGesture (09:43:36.092) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:36.096) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'code.']
+IO - inputCore.InputManager.executeGesture (09:43:37.372) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:37.377) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 1 item', '◦ A marker will appear at the centroid of your searched geography. To remove this marker, click the ']
+IO - inputCore.InputManager.executeGesture (09:43:38.655) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:38.661) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '"X" in the search box.']
+IO - inputCore.InputManager.executeGesture (09:43:39.935) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:39.940) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'out of list', 'list', 'with 1 item', '• To zoom to your current location, click the compass button (‘Find my location’) in the top left ']
+IO - inputCore.InputManager.executeGesture (09:43:41.208) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:41.212) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'of the map.']
+IO - inputCore.InputManager.executeGesture (09:43:42.492) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:42.496) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 1 item', '◦ You may need to zoom out to view your entire proposed service area.']
+IO - inputCore.InputManager.executeGesture (09:43:43.776) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:43.780) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'out of list', 'heading', 'level 2', '2. Select Areas']
+IO - inputCore.InputManager.executeGesture (09:43:45.055) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:45.060) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 1 item', '• R3 Areas are displayed in blue and non-R3 Areas are grey. R3 Areas are labeled with their ']
+IO - inputCore.InputManager.executeGesture (09:43:46.333) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:46.337) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'four-digit R3 Area ID number. Please select ', 'ALL areas (both R3 Areas ', 'and ', 'non-R3 Areas) ', 'that ']
+IO - inputCore.InputManager.executeGesture (09:43:47.612) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:47.616) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'correspond with your proposed service area.']
+IO - inputCore.InputManager.executeGesture (09:43:48.892) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:48.897) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 1 item', '◦ Note: Per R3 funding eligibility rules, all applicants must include at least one R3 Area in their ']
+IO - inputCore.InputManager.executeGesture (09:43:50.179) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:50.183) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'proposed service area.']
+IO - inputCore.InputManager.executeGesture (09:43:51.452) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:51.456) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'out of list', 'list', 'with 1 item', '• If any portion of a tract is contained in the boundary of the selection drawn,', ' the entire tract ']
+IO - inputCore.InputManager.executeGesture (09:43:52.732) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:52.736) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'will be included in the selection.', ' If your service area geography covers part (but not all of a ']
+IO - inputCore.InputManager.executeGesture (09:43:54.005) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:54.010) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'tract), please ', 'include ', 'the tract as part of your proposed service area table in response to the ']
+IO - inputCore.InputManager.executeGesture (09:43:55.290) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:55.294) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'application question.']
+IO - inputCore.InputManager.executeGesture (09:43:56.569) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:56.574) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'list', 'with 2 items', '• Click to activate the ‘Select tool’ at the bottom left of the map. ']
+IO - inputCore.InputManager.executeGesture (09:43:57.847) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:57.851) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 3 items', '◦ The select tool is active when it is filled in blue.']
+IO - inputCore.InputManager.executeGesture (09:43:59.128) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:43:59.132) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '◦ When the select tool is inactive, your standard cursor allows you pan around the map and display ']
+IO - inputCore.InputManager.executeGesture (09:44:00.403) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:00.407) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'popups for individual tracts or regions.']
+IO - inputCore.InputManager.executeGesture (09:44:01.685) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:01.689) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '◦ Hovering over the select tool displays a tooltip with instructions for use.']
+IO - inputCore.InputManager.executeGesture (09:44:02.970) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:02.975) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', '• Ensure the checkbox next to "Illinois Tracts and R3 Areas" is checked in order for the layer to ']
+IO - inputCore.InputManager.executeGesture (09:44:04.252) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:04.256) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'be selectable.']
+IO - inputCore.InputManager.executeGesture (09:44:05.531) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:05.535) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'A dropdown arrow at right of the select tool allows you to select service areas using three ']
+IO - inputCore.InputManager.executeGesture (09:44:06.811) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:06.815) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'different methods:']
+IO - inputCore.InputManager.executeGesture (09:44:08.092) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:08.096) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'separator']
+IO - inputCore.InputManager.executeGesture (09:44:09.373) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:09.377) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'figure', 'application']
+IO - inputCore.InputManager.executeGesture (09:44:10.652) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:10.655) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'caption', "Using the 'Select by lasso' tool to select service areas."]
+IO - inputCore.InputManager.executeGesture (09:44:11.938) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:11.942) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of caption', 'out of figure', 'heading', 'level 3', '2a. Select by lasso']
+IO - inputCore.InputManager.executeGesture (09:44:13.220) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:13.224) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '(Default)— Click on the map multiple times to create the vertices of a polygon or draw with the ']
+IO - inputCore.InputManager.executeGesture (09:44:14.510) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:14.514) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'pointer to create a freehand shape around your service areas. Double-click anywhere, or click the ']
+IO - inputCore.InputManager.executeGesture (09:44:15.793) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:15.797) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'first vertex again, to select all areas within the shape.']
+IO - inputCore.InputManager.executeGesture (09:44:17.073) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:17.078) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'separator']
+IO - inputCore.InputManager.executeGesture (09:44:18.353) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:18.357) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'figure', 'application']
+IO - inputCore.InputManager.executeGesture (09:44:19.629) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:19.633) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'caption', "Using the 'Select by circle' tool to select service areas."]
+IO - inputCore.InputManager.executeGesture (09:44:20.908) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:20.912) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of caption', 'out of figure', 'heading', 'level 3', '2b. Select by circle']
+IO - inputCore.InputManager.executeGesture (09:44:22.192) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:22.196) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Click roughly in the center of the area that you would like to include. Drag the pointer outwards ']
+IO - inputCore.InputManager.executeGesture (09:44:23.475) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:23.479) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'in any direction until you have highlighted all relevant areas, then click again to complete the ']
+IO - inputCore.InputManager.executeGesture (09:44:24.750) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:24.753) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'selection.']
+IO - inputCore.InputManager.executeGesture (09:44:26.033) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:26.038) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'separator']
+IO - inputCore.InputManager.executeGesture (09:44:27.312) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:27.316) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'figure', 'application']
+IO - inputCore.InputManager.executeGesture (09:44:28.594) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:28.599) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'caption', "Using the 'Select by point' tool to add, remove, and select service areas."]
+IO - inputCore.InputManager.executeGesture (09:44:29.875) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:29.880) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of caption', 'out of figure', 'heading', 'level 3', '2c. Select by point']
+IO - inputCore.InputManager.executeGesture (09:44:31.150) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:31.154) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Click any area to select it.']
+IO - inputCore.InputManager.executeGesture (09:44:32.430) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:32.434) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 1 item', '• ', 'NOTE:', ' ', 'For all 3 tools, you MUST hold down the Shift key while clicking in order to add to your ']
+IO - inputCore.InputManager.executeGesture (09:44:33.711) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:33.715) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'current selection.', ' If you do not hold down the Shift key, each additional selection will reset ']
+IO - inputCore.InputManager.executeGesture (09:44:34.993) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:34.998) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'previous selections.']
+IO - inputCore.InputManager.executeGesture (09:44:36.272) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:36.276) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 1 item', '◦ ', 'To deselect an area, hold down the Ctrl key while clicking.']
+IO - inputCore.InputManager.executeGesture (09:44:37.550) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:37.554) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'out of list', 'separator']
+IO - inputCore.InputManager.executeGesture (09:44:38.834) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:38.838) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', '3. Export + Upload']
+IO - inputCore.InputManager.executeGesture (09:44:40.107) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:40.111) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'figure', 'application']
+IO - inputCore.InputManager.executeGesture (09:44:41.389) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:41.393) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'caption', 'Exporting data using the Actions button in the Select tool box.']
+IO - inputCore.InputManager.executeGesture (09:44:42.669) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:42.674) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of caption', 'out of figure', 'list', 'with 1 item', '• Review the table of selected areas in the bottom left panel to ensure all tracts that correspond ']
+IO - inputCore.InputManager.executeGesture (09:44:43.952) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:43.956) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'with your service area are included (both R3 Areas and non-R3 Areas).']
+IO - inputCore.InputManager.executeGesture (09:44:45.235) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:45.240) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 1 item', '◦ The total number of selected areas will be displayed at the bottom on the table panel.']
+IO - inputCore.InputManager.executeGesture (09:44:46.515) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:46.520) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'out of list', 'list', 'with 1 item', '• Click the Actions button (four circles) in the top right corner of the table panel ', 'or ', 'in the ']
+IO - inputCore.InputManager.executeGesture (09:44:47.793) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:47.797) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Select tool box. Select Export to CSV.']
+IO - inputCore.InputManager.executeGesture (09:44:49.072) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:49.077) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'list', 'with 1 item', '• Return to the online Amplifund application and upload the exported CSV as your response to the ']
+IO - inputCore.InputManager.executeGesture (09:44:50.353) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:50.357) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'required service areas question.']
+IO - inputCore.InputManager.executeGesture (09:44:51.625) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:51.628) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'clickable']
+IO - inputCore.InputManager.executeGesture (09:44:52.907) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:52.911) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'clickable']
+IO - inputCore.InputManager.executeGesture (09:44:54.180) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:54.184) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'clickable']
+IO - inputCore.InputManager.executeGesture (09:44:55.459) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:55.462) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'clickable']
+IO - inputCore.InputManager.executeGesture (09:44:56.738) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:56.741) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of frame', 'blank']
+IO - inputCore.InputManager.executeGesture (09:44:58.023) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:58.026) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'blank']
+IO - inputCore.InputManager.executeGesture (09:44:59.303) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:44:59.307) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'blank']
+IO - inputCore.InputManager.executeGesture (09:45:00.580) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:00.584) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Analysis']
+IO - inputCore.InputManager.executeGesture (09:45:01.859) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:01.863) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'R3 areas were identified via an analysis of community-level data on gun injury, child poverty, ']
+IO - inputCore.InputManager.executeGesture (09:45:03.142) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:03.145) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'unemployment, and state prison commitments and returns, combined with Disproportionately Impacted ']
+IO - inputCore.InputManager.executeGesture (09:45:04.418) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:04.421) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Areas identified by the Illinois Department of Commerce and Economic Opportunity (DCEO). This ']
+IO - inputCore.InputManager.executeGesture (09:45:05.698) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:05.701) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'document outlines the criteria and data sources used to define R3 areas, analyzed by census tract ']
+IO - inputCore.InputManager.executeGesture (09:45:06.977) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:06.981) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'in Illinois. Identified R3 areas were required to meet all criteria listed in Part I or Part 2.']
+IO - inputCore.InputManager.executeGesture (09:45:08.255) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:08.258) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 3', 'Part I Criteria']
+IO - inputCore.InputManager.executeGesture (09:45:09.536) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:09.539) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 4', '1. Highest rates of gun injury']
+IO - inputCore.InputManager.executeGesture (09:45:10.813) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:10.817) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Cutoff', ': Gun injury hospitalization rate of > 2.7 per 10,000 residents or gun injury death rate of > ']
+IO - inputCore.InputManager.executeGesture (09:45:12.097) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:12.100) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '0.49 per 10,000 residents']
+IO - inputCore.InputManager.executeGesture (09:45:13.373) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:13.378) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Data', ': Hospital discharge records and vital records death records; records limited to ']
+IO - inputCore.InputManager.executeGesture (09:45:14.652) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:14.655) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'assault-related gun injury and assault-related gun death records']
+IO - inputCore.InputManager.executeGesture (09:45:15.931) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:15.935) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Source', ': Illinois Department of Public Health']
+IO - inputCore.InputManager.executeGesture (09:45:17.210) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:17.213) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Time Period', ': 2018-2022']
+IO - inputCore.InputManager.executeGesture (09:45:18.485) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:18.488) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 4', '2. Highest rates of unemployment']
+IO - inputCore.InputManager.executeGesture (09:45:19.765) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:19.769) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Cutoff', ': Greater than 7.1% unemployment rate or less than 77.2% labor force participation rate']
+IO - inputCore.InputManager.executeGesture (09:45:21.044) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:21.048) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Source', ': 5-year American Community Survey']
+IO - inputCore.InputManager.executeGesture (09:45:22.322) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:22.325) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Time Period', ': 2017-2021']
+IO - inputCore.InputManager.executeGesture (09:45:23.604) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:23.607) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 4', '3. Highest child poverty rates']
+IO - inputCore.InputManager.executeGesture (09:45:24.884) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:24.887) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Cutoff', ': Greater than 48.9% of children under six years-old living at or below 200% of the federal ']
+IO - inputCore.InputManager.executeGesture (09:45:26.165) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:26.168) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'poverty line']
+IO - inputCore.InputManager.executeGesture (09:45:27.448) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:27.453) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Source', ': 5-year American Community Survey']
+IO - inputCore.InputManager.executeGesture (09:45:28.736) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:28.740) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Time Period', ': 2017-2021']
+IO - inputCore.InputManager.executeGesture (09:45:30.019) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:30.023) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 4', '4. Highest rates of commitments to and returns from the Illinois Department of Corrections']
+IO - inputCore.InputManager.executeGesture (09:45:31.299) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:31.305) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Cutoff', ': Greater than 57.9 prison commitments per 10,000 residents or greater than 53.8 prison ']
+IO - inputCore.InputManager.executeGesture (09:45:32.580) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:32.584) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'returns per 10,000 residents']
+IO - inputCore.InputManager.executeGesture (09:45:33.864) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:33.869) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Data', ': Criminal History Record Information (CHRI); Prison and Mandatory Supervised Release (MSR) ']
+IO - inputCore.InputManager.executeGesture (09:45:35.144) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:35.147) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'stock files']
+IO - inputCore.InputManager.executeGesture (09:45:36.423) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:36.427) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Sources', ': Illinois State Police; Illinois Department of Corrections']
+IO - inputCore.InputManager.executeGesture (09:45:37.701) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:37.704) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Time Periods', ': 2018-2022']
+IO - inputCore.InputManager.executeGesture (09:45:38.983) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:38.986) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 3', 'Part II Criterion']
+IO - inputCore.InputManager.executeGesture (09:45:40.264) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:40.267) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 4', '1. High need, underserved, disproportionately impacted by historical economic disinvestment']
+IO - inputCore.InputManager.executeGesture (09:45:41.549) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:41.552) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Cutoff', ': Defined as a Disproportionately Impacted Area']
+IO - inputCore.InputManager.executeGesture (09:45:42.831) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:42.834) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Source', ': Illinois Department of Commerce and Economic Opportunity (DCEO) analysis']
+IO - inputCore.InputManager.executeGesture (09:45:44.109) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:44.113) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Site footer', 'content info landmark', 'Footer navigation', 'navigation landmark', 'list', 'with 10 items', 'link', 'HOME']
+IO - inputCore.InputManager.executeGesture (09:45:45.388) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:45.391) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'FAQS']
+IO - inputCore.InputManager.executeGesture (09:45:46.669) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:46.674) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'NEWS']
+IO - inputCore.InputManager.executeGesture (09:45:47.948) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:47.951) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'CONTACT']
+IO - inputCore.InputManager.executeGesture (09:45:49.227) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:49.231) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'MEETINGS']
+IO - inputCore.InputManager.executeGesture (09:45:50.505) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:50.509) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'ELIGIBILITY']
+IO - inputCore.InputManager.executeGesture (09:45:51.782) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:51.785) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'COLLABORATIVES']
+IO - inputCore.InputManager.executeGesture (09:45:53.056) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:53.060) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'RESEARCH']
+IO - inputCore.InputManager.executeGesture (09:45:54.336) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:54.339) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'RESOURCES']
+IO - inputCore.InputManager.executeGesture (09:45:55.618) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:55.621) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'SEARCH']
+IO - inputCore.InputManager.executeGesture (09:45:56.900) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:56.904) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'out of list', '©\xa02026\xa0', 'link', 'State of Illinois']
+IO - inputCore.InputManager.executeGesture (09:45:58.180) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:58.184) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Governor JB Pritzker']
+IO - inputCore.InputManager.executeGesture (09:45:59.457) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:45:59.461) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Privacy']
+IO - inputCore.InputManager.executeGesture (09:46:00.736) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:46:00.740) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Contact']
+IO - inputCore.InputManager.executeGesture (09:46:02.021) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:46:02.024) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Scroll to top']
+IO - inputCore.InputManager.executeGesture (09:46:03.301) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:46:03.304) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Scroll to top']
+IO - inputCore.InputManager.executeGesture (09:46:04.579) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:46:04.582) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Scroll to top']
+IO - inputCore.InputManager.executeGesture (09:46:05.856) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:46:05.859) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Scroll to top']
+IO - inputCore.InputManager.executeGesture (09:46:07.130) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:46:07.134) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Scroll to top']
+IO - inputCore.InputManager.executeGesture (09:46:08.409) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:46:08.412) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Scroll to top']
+IO - inputCore.InputManager.executeGesture (09:46:09.689) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:46:09.692) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Scroll to top']
+IO - inputCore.InputManager.executeGesture (09:46:10.969) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:46:10.972) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Scroll to top']
+IO - inputCore.InputManager.executeGesture (09:46:12.244) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:46:12.247) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Scroll to top']
+IO - inputCore.InputManager.executeGesture (09:46:13.524) - winInputHook (18884):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (09:46:13.527) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Scroll to top']
+IO - inputCore.InputManager.executeGesture (09:46:14.803) - winInputHook (18884):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (09:46:14.806) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Scroll to top']
+IO - speech.speech.speak (09:46:33.607) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yjdvbb - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:46:33.611) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yjdvbb', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:46:33.614) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Skip navigation', 'navigation landmark', 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (09:46:34.474) - winInputHook (18884):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (09:46:34.477) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yjdvbb - Google Chrome']
+IO - inputCore.InputManager.executeGesture (09:46:35.492) - winInputHook (18884):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (09:46:35.755) - winInputHook (18884):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (09:46:35.759) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (09:46:37.041) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:37.045) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'clickable', 'Eligibility', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (09:46:38.316) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:38.319) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Eligible Applicants', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (09:46:39.592) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:39.596) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Eligible Service Areas', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (09:46:40.875) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:40.880) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Using the R3 Map to Determine Eligibility and Funding Level', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (09:46:42.154) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:42.160) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'R3 Eligibility and Service Area Map', 'frame', 'clickable', 'main landmark', 'Use the tool below to select the geographic area in which your organization proposes to provide services for the R3 Cohort 4 grant program. Please note your service area must be located entirely within the R3 funding region that corresponds with the region in your application. Your service area must contain at least one R3 Area to be eligible for funding. See detailed instructions below the tool.', 'heading', 'level 4']
+IO - speech.speech.speak (09:46:43.082) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'R3 Eligibility and Service Area Selector ']
+IO - speech.speech.speak (09:46:44.900) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Home']
+IO - speech.speech.speak (09:46:44.908) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Scale 1 to 4622324 ']
+IO - speech.speech.speak (09:46:44.910) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Find my location']
+IO - inputCore.InputManager.executeGesture (09:46:46.426) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:46.430) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Video Tutorial', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (09:46:47.703) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:47.707) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '1. Locate Areas', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (09:46:48.981) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:48.985) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '2. Select Areas', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (09:46:50.269) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:50.273) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '2a. Select by lasso', 'heading', 'level 3']
+IO - inputCore.InputManager.executeGesture (09:46:51.559) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:51.563) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '2b. Select by circle', 'heading', 'level 3']
+IO - inputCore.InputManager.executeGesture (09:46:52.838) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:52.843) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '2c. Select by point', 'heading', 'level 3']
+IO - inputCore.InputManager.executeGesture (09:46:54.126) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:54.130) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '3. Export + Upload', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (09:46:55.416) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:55.419) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Analysis', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (09:46:56.705) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:56.709) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Part I Criteria', 'heading', 'level 3']
+IO - inputCore.InputManager.executeGesture (09:46:57.991) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:57.994) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '1. Highest rates of gun injury', 'heading', 'level 4']
+IO - inputCore.InputManager.executeGesture (09:46:59.267) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:46:59.271) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '2. Highest rates of unemployment', 'heading', 'level 4']
+IO - inputCore.InputManager.executeGesture (09:47:00.554) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:47:00.558) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '3. Highest child poverty rates', 'heading', 'level 4']
+IO - inputCore.InputManager.executeGesture (09:47:01.828) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:47:01.832) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '4. Highest rates of commitments to and returns from the Illinois Department of Corrections', 'heading', 'level 4']
+IO - inputCore.InputManager.executeGesture (09:47:03.108) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:47:03.111) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Part II Criterion', 'heading', 'level 3']
+IO - inputCore.InputManager.executeGesture (09:47:04.394) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:47:04.398) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '1. High need, underserved, disproportionately impacted by historical economic disinvestment', 'heading', 'level 4']
+IO - inputCore.InputManager.executeGesture (09:47:05.670) - winInputHook (18884):
+Input: kb(desktop):h
+IO - speech.speech.speak (09:47:05.673) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (09:47:23.844) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yzmaln - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:47:23.848) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yzmaln', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:47:23.851) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Skip navigation', 'navigation landmark', 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (09:47:24.719) - winInputHook (18884):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (09:47:24.722) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yzmaln - Google Chrome']
+IO - inputCore.InputManager.executeGesture (09:47:25.738) - winInputHook (18884):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (09:47:26.004) - winInputHook (18884):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (09:47:26.008) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - speech.speech.speak (09:47:27.336) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Skip to main content', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:28.620) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:28.651) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Skip to navigation', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:29.936) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:29.969) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'R3 RESTORE. REINVEST. RENEW. — Go to home page', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:31.248) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:31.291) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Primary navigation', 'navigation landmark', 'list', 'with 4 items', 'HOME', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:32.560) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:32.611) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'ABOUT', 'button', 'collapsed']
+IO - inputCore.InputManager.executeGesture (09:47:33.884) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:33.949) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'ELIGIBILITY', 'same page', 'link', 'current page']
+IO - inputCore.InputManager.executeGesture (09:47:35.232) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:35.284) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'CONTACT', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:36.562) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:36.598) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Search', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:37.871) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:37.926) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'clickable', 'SAM.gov', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:39.196) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:39.235) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Grants.gov', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:40.507) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:40.549) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Prequalification Steps', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:41.819) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:41.856) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'learn more about collaboratives', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:43.136) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:43.276) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'R3 Eligibility and Service Area Map', 'frame', 'clickable', 'banner landmark', 'State of Illinois seal', 'graphic', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:44.555) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:44.624) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'R3 Service Area Selection: Return to top', 'button']
+IO - inputCore.InputManager.executeGesture (09:47:45.900) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:45.981) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Share', 'button']
+IO - inputCore.InputManager.executeGesture (09:47:47.258) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:47.393) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Heading links', 'navigation landmark', 'list', 'with 4 items', 'Video Tutorial', 'link']
+IO - speech.speech.speak (09:47:48.134) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'R3 Eligibility and Service Area Selector ']
+IO - speech.speech.speak (09:47:49.766) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Scale 1 to 4622324 ']
+IO - inputCore.InputManager.executeGesture (09:47:51.300) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:51.416) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '1. Locate Areas', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:52.690) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:52.796) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '2. Select Areas', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:54.078) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:54.183) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), '3. Export + Upload', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:55.451) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:55.567) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'figure', 'Enable interaction', 'button']
+IO - inputCore.InputManager.executeGesture (09:47:56.843) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:56.963) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'caption', '\xa0R3 Eligibility and Service Area Selection \xa0', 'link']
+IO - inputCore.InputManager.executeGesture (09:47:58.232) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:58.411) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'This is a video demonstration on how to use the R3 Service Area Selector tool.', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:47:58.416) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:47:58.420) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'YouTube embed', 'frame', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:47:58.423) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:47:58.426) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Finding your R3 Service Areas - Guided Walkthrough', 'frame', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:47:58.447) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:47:58.450) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'YouTube embed', 'frame', 'Finding your R3 Service Areas - Guided Walkthrough', 'frame', 'clickable', 'YouTube Video Player']
+IO - speech.speech.speak (09:47:58.540) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'clickable', 'Play video', 'button']
+IO - inputCore.InputManager.executeGesture (09:47:59.822) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:47:59.931) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Hide player controls', 'button']
+IO - speech.speech.speak (09:48:02.023) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Scale 1 to 4622324 ']
+IO - inputCore.InputManager.executeGesture (09:48:03.473) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:03.607) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'clickable', 'Finding your R3 Service Areas - Guided Walkthrough', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:04.885) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:04.958) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Illinois Criminal Justice Information Authority', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:06.239) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:06.350) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'thumbnail-image', 'graphic', 'button']
+IO - inputCore.InputManager.executeGesture (09:48:07.632) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:07.751) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'clickable', 'Share', 'button']
+IO - inputCore.InputManager.executeGesture (09:48:09.024) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:09.101) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Watch on YouTube', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:10.373) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:10.451) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'window using the following link -- ', 'link', '\xa0R3 Eligibility and Service Area Selection \xa0']
+IO - speech.speech.speak (09:48:10.580) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'application', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:48:10.587) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Play', 'button', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (09:48:11.860) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:11.891) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Media scrubber', 'slider', 'Elapsed time: 00:00, Total time: 00:11', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (09:48:13.166) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:13.194) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Mute', 'button', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (09:48:14.468) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:14.510) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Full screen mode', 'toggle button', 'not pressed', 'Enter full screen mode', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (09:48:15.777) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:15.824) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'window using the following link -- ', 'link', '\xa0R3 Eligibility and Service Area Selection \xa0']
+IO - speech.speech.speak (09:48:15.888) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Site footer', 'content info landmark', 'Footer navigation', 'navigation landmark', 'list', 'with 10 items', 'HOME', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:17.168) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:17.216) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'FAQS', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:18.498) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:18.543) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'NEWS', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:19.812) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:19.860) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'CONTACT', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:21.143) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:21.189) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'MEETINGS', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:22.457) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:22.496) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'ELIGIBILITY', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:23.772) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:23.823) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'COLLABORATIVES', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:25.098) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:25.144) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'RESEARCH', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:26.424) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:26.476) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'RESOURCES', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:27.749) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:27.797) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'SEARCH', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:29.081) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:29.107) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'State of Illinois', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:30.380) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:30.413) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Governor JB Pritzker', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:31.691) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:31.716) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Privacy', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:32.985) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:33.020) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Contact', 'link']
+IO - inputCore.InputManager.executeGesture (09:48:34.296) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:34.319) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Scroll to top', 'button']
+IO - inputCore.InputManager.executeGesture (09:48:35.596) - winInputHook (18884):
+Input: kb(desktop):tab
+IO - speech.speech.speak (09:48:35.628) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Eligibility | Restore, Reinvest, Renew (R3) - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (09:48:35.643) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (09:48:37.072) - winInputHook (18884):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (09:48:37.075) - MainThread (53308):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check auixgs - Google Chrome']

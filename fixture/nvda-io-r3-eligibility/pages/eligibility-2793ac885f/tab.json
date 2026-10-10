@@ -1,0 +1,344 @@
+{
+  "pass": "tab",
+  "page": {
+    "url": "https://r3.illinois.gov/eligibility/"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextFocusable",
+      "spoken": "Skip to main content, same page, link",
+      "durationMs": 1338,
+      "offsetMs": 1338
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "Skip to navigation, same page, link",
+      "durationMs": 1317,
+      "offsetMs": 2656
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "banner landmark, R 3 RESTORE. REINVEST. RENEW. — Go to home page, link",
+      "durationMs": 1311,
+      "offsetMs": 3966
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "Primary navigation, navigation landmark, list, with 4 items, HOME, link",
+      "durationMs": 1312,
+      "offsetMs": 5278
+    },
+    {
+      "n": 5,
+      "command": "nextFocusable",
+      "spoken": "ABOUT, button, collapsed",
+      "durationMs": 1323,
+      "offsetMs": 6602
+    },
+    {
+      "n": 6,
+      "command": "nextFocusable",
+      "spoken": "ELIGIBILITY, same page, link, current page",
+      "durationMs": 1349,
+      "offsetMs": 7951
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "CONTACT, link",
+      "durationMs": 1329,
+      "offsetMs": 9279
+    },
+    {
+      "n": 8,
+      "command": "nextFocusable",
+      "spoken": "Search, link",
+      "durationMs": 1311,
+      "offsetMs": 10590
+    },
+    {
+      "n": 9,
+      "command": "nextFocusable",
+      "spoken": "main landmark, clickable, SAM dot gov, link",
+      "durationMs": 1326,
+      "offsetMs": 11916
+    },
+    {
+      "n": 10,
+      "command": "nextFocusable",
+      "spoken": "Grants dot gov, link",
+      "durationMs": 1312,
+      "offsetMs": 13228
+    },
+    {
+      "n": 11,
+      "command": "nextFocusable",
+      "spoken": "Prequalification Steps, link",
+      "durationMs": 1309,
+      "offsetMs": 14537
+    },
+    {
+      "n": 12,
+      "command": "nextFocusable",
+      "spoken": "learn more about collaboratives, link",
+      "durationMs": 1315,
+      "offsetMs": 15852
+    },
+    {
+      "n": 13,
+      "command": "nextFocusable",
+      "spoken": "R 3 Eligibility and Service Area Map, frame, clickable, banner landmark, State of Illinois seal, graphic, link",
+      "durationMs": 1423,
+      "offsetMs": 17275
+    },
+    {
+      "n": 14,
+      "command": "nextFocusable",
+      "spoken": "R 3 Service Area Selection: Return to top, button",
+      "durationMs": 1345,
+      "offsetMs": 18620
+    },
+    {
+      "n": 15,
+      "command": "nextFocusable",
+      "spoken": "Share, button",
+      "durationMs": 1356,
+      "offsetMs": 19977
+    },
+    {
+      "n": 16,
+      "command": "nextFocusable",
+      "spoken": "main landmark, Heading links, navigation landmark, list, with 4 items, Video Tutorial, link. R 3 Eligibility and Service Area Selector",
+      "durationMs": 2207,
+      "offsetMs": 22183
+    },
+    {
+      "n": 17,
+      "command": "nextFocusable",
+      "spoken": "1. Locate Areas, link",
+      "durationMs": 3225,
+      "offsetMs": 25409
+    },
+    {
+      "n": 18,
+      "command": "nextFocusable",
+      "spoken": "2. Select Areas, link",
+      "durationMs": 1387,
+      "offsetMs": 26796
+    },
+    {
+      "n": 19,
+      "command": "nextFocusable",
+      "spoken": "3. Export plus Upload, link",
+      "durationMs": 1376,
+      "offsetMs": 28172
+    },
+    {
+      "n": 20,
+      "command": "nextFocusable",
+      "spoken": "figure, Enable interaction, button",
+      "durationMs": 1390,
+      "offsetMs": 29563
+    },
+    {
+      "n": 21,
+      "command": "nextFocusable",
+      "spoken": "caption, R 3 Eligibility and Service Area Selection, link",
+      "durationMs": 1388,
+      "offsetMs": 30951
+    },
+    {
+      "n": 22,
+      "command": "nextFocusable",
+      "spoken": "This is a video demonstration on how to use the R 3 Service Area Selector tool.. document. You Tube embed, frame. document. Finding your R 3 Service Areas - Guided Walkthrough, frame. document. You Tube embed, frame, Finding your R 3 Service Areas - Guided Walkthrough, frame, clickable, You Tube Video Player. clickable, Play video, button",
+      "durationMs": 1591,
+      "offsetMs": 32542
+    },
+    {
+      "n": 23,
+      "command": "nextFocusable",
+      "spoken": "Hide player controls, button",
+      "durationMs": 1379,
+      "offsetMs": 33921
+    },
+    {
+      "n": 24,
+      "command": "nextFocusable",
+      "spoken": "clickable, Finding your R 3 Service Areas - Guided Walkthrough, link",
+      "durationMs": 3683,
+      "offsetMs": 37604
+    },
+    {
+      "n": 25,
+      "command": "nextFocusable",
+      "spoken": "Illinois Criminal Justice Information Authority, link",
+      "durationMs": 1352,
+      "offsetMs": 38956
+    },
+    {
+      "n": 26,
+      "command": "nextFocusable",
+      "spoken": "thumbnail-image, graphic, button",
+      "durationMs": 1393,
+      "offsetMs": 40349
+    },
+    {
+      "n": 27,
+      "command": "nextFocusable",
+      "spoken": "clickable, Share, button",
+      "durationMs": 1393,
+      "offsetMs": 41742
+    },
+    {
+      "n": 28,
+      "command": "nextFocusable",
+      "spoken": "Watch on You Tube, link",
+      "durationMs": 1349,
+      "offsetMs": 43091
+    },
+    {
+      "n": 29,
+      "command": "nextFocusable",
+      "spoken": "window using the following link --, link, R 3 Eligibility and Service Area Selection. application. Play, button",
+      "durationMs": 1490,
+      "offsetMs": 44581
+    },
+    {
+      "n": 30,
+      "command": "nextFocusable",
+      "spoken": "Media scrubber, slider, Elapsed time: 00:00, Total time: 00:11",
+      "durationMs": 1303,
+      "offsetMs": 45885
+    },
+    {
+      "n": 31,
+      "command": "nextFocusable",
+      "spoken": "Mute, button",
+      "durationMs": 1302,
+      "offsetMs": 47187
+    },
+    {
+      "n": 32,
+      "command": "nextFocusable",
+      "spoken": "Full screen mode, toggle button, not pressed, Enter full screen mode",
+      "durationMs": 1311,
+      "offsetMs": 48498
+    },
+    {
+      "n": 33,
+      "command": "nextFocusable",
+      "spoken": "window using the following link --, link, R 3 Eligibility and Service Area Selection. Site footer, content info landmark, Footer navigation, navigation landmark, list, with 10 items, HOME, link",
+      "durationMs": 1387,
+      "offsetMs": 49885
+    },
+    {
+      "n": 34,
+      "command": "nextFocusable",
+      "spoken": "FAQS, link",
+      "durationMs": 1331,
+      "offsetMs": 51216
+    },
+    {
+      "n": 35,
+      "command": "nextFocusable",
+      "spoken": "NEWS, link",
+      "durationMs": 1316,
+      "offsetMs": 52532
+    },
+    {
+      "n": 36,
+      "command": "nextFocusable",
+      "spoken": "CONTACT, link",
+      "durationMs": 1326,
+      "offsetMs": 53858
+    },
+    {
+      "n": 37,
+      "command": "nextFocusable",
+      "spoken": "MEETINGS, link",
+      "durationMs": 1320,
+      "offsetMs": 55178
+    },
+    {
+      "n": 38,
+      "command": "nextFocusable",
+      "spoken": "ELIGIBILITY, same page, link",
+      "durationMs": 1311,
+      "offsetMs": 56489
+    },
+    {
+      "n": 39,
+      "command": "nextFocusable",
+      "spoken": "COLLABORATIVES, link",
+      "durationMs": 1328,
+      "offsetMs": 57817
+    },
+    {
+      "n": 40,
+      "command": "nextFocusable",
+      "spoken": "RESEARCH, link",
+      "durationMs": 1328,
+      "offsetMs": 59144
+    },
+    {
+      "n": 41,
+      "command": "nextFocusable",
+      "spoken": "RESOURCES, link",
+      "durationMs": 1326,
+      "offsetMs": 60470
+    },
+    {
+      "n": 42,
+      "command": "nextFocusable",
+      "spoken": "SEARCH, link",
+      "durationMs": 1328,
+      "offsetMs": 61798
+    },
+    {
+      "n": 43,
+      "command": "nextFocusable",
+      "spoken": "State of Illinois, link",
+      "durationMs": 1299,
+      "offsetMs": 63097
+    },
+    {
+      "n": 44,
+      "command": "nextFocusable",
+      "spoken": "Governor JB Pritzker, link",
+      "durationMs": 1313,
+      "offsetMs": 64411
+    },
+    {
+      "n": 45,
+      "command": "nextFocusable",
+      "spoken": "Privacy, link",
+      "durationMs": 1293,
+      "offsetMs": 65703
+    },
+    {
+      "n": 46,
+      "command": "nextFocusable",
+      "spoken": "Contact, link",
+      "durationMs": 1311,
+      "offsetMs": 67015
+    },
+    {
+      "n": 47,
+      "command": "nextFocusable",
+      "spoken": "Scroll to top, button",
+      "durationMs": 1299,
+      "offsetMs": 68313
+    },
+    {
+      "n": 48,
+      "command": "nextFocusable",
+      "spoken": "Eligibility Restore, Reinvest, Renew (R 3) - Google Chrome, region. Tab search, button, collapsed",
+      "durationMs": 2756,
+      "offsetMs": 71069
+    }
+  ]
+}

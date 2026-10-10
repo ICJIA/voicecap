@@ -1,6 +1,7 @@
 /**
  * NVDA's own log, checked against the transcripts step by step (checkAgainstLog): the real run of
- * 6 October 2026 in fixture/nvda-io-run, and made-up logs for each case.
+ * 6 October 2026 in fixture/nvda-io-run, the real attempt at r3.illinois.gov's /eligibility/ of
+ * 10 October 2026 in fixture/nvda-io-r3-eligibility, and made-up logs for each case.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -8,7 +9,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
+import { VOICECAP_GESTURES, gestureOf } from "../src/drivers/guidepup/nvda-log.js";
+import { splitLogEntries } from "../src/manual/nvda-log.js";
 import type {
   DriverCommand,
   PassName,
@@ -23,6 +25,7 @@ import {
   checkAgainstLog,
   spokenAsLogged,
 } from "../src/share/log-check.js";
+import { timeOfDay } from "./helpers/nvda-log.js";
 
 const DAY = 86_400_000;
 const T0 = 8 * 3_600_000; // 08:00:00.000
@@ -90,6 +93,11 @@ interface Line {
   later?: number;
   /** When each of its Speaking entries came after the key, if not 40 ms, then 9 ms apart. */
   at?: number[];
+  /**
+   * What NVDA said as the step began, 0.6 s in and 9 ms apart, before its key: the items of each
+   * Speaking entry. It's why voicecap's capture waited (`later`), and it's no step's.
+   */
+  waited?: string[][];
 }
 
 interface Pass {
@@ -119,6 +127,7 @@ function passAt(start: number, page: string, pass: PassName, lines: Line[]): Pas
   const steps = lines.map((line, index): StepRecord => {
     const durationMs = line.ms ?? STEP_MS;
     const pressed = begin + elapsed + KEY_MS + (line.later ?? 0);
+    line.waited?.forEach((items, k) => entries.push(said(begin + elapsed + 600 + 9 * k, ...items)));
     if (line.key !== false) entries.push(key(pressed, gestureOf(line.command)!));
     const logged = line.logged ?? [line.spoken.split(", ")];
     logged.forEach((items, k) => {
@@ -229,6 +238,107 @@ describe("checkAgainstLog on the real run of 6 October 2026 (fixture/nvda-io-run
     const tabSteps = run.pages.reduce((sum, each) => sum + each.passes.tab!.steps, 0);
     expect(tabSteps).toBe(41);
     expect(log.match(/^Input: kb\(desktop\):tab$/gm)).toHaveLength(34);
+  });
+});
+
+describe("checkAgainstLog on /eligibility/ of r3.illinois.gov, read on 10 October 2026 (fixture/nvda-io-r3-eligibility)", () => {
+  const FIXTURE = fileURLToPath(new URL("../fixture/nvda-io-r3-eligibility/", import.meta.url));
+  const read = (...parts: string[]) => readFileSync(path.join(FIXTURE, ...parts), "utf8");
+  const PAGE = "https://r3.illinois.gov/eligibility/";
+  // The page's one attempt, as the run's event log has it: its page-started and its page-finished.
+  const [started, finished] = read("events.jsonl")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as RunEvent);
+  const within = { from: started!.at, to: finished!.at };
+  const stepsOf = (pass: PassName) =>
+    (JSON.parse(read("pages", "eligibility-2793ac885f", `${pass}.json`)) as { steps: StepRecord[] })
+      .steps;
+  const steps = (["read", "headings", "tab"] as const).map((pass) => ({
+    page: PAGE,
+    pass,
+    steps: stepsOf(pass),
+    within,
+  }));
+  const log = read("nvda-log", "1-1.txt");
+  /** When a key was pressed, in milliseconds since midnight, from its entry's time. */
+  const keyTimes = (gesture: string) =>
+    [...log.matchAll(/^IO - \S+ \((\d\d):(\d\d):(\d\d)\.(\d{3})\).*\nInput: kb\(desktop\):(.+)$/gm)]
+      .filter((match) => match[5] === gesture)
+      .map(
+        ([, h, m, s, ms]) => ((Number(h) * 60 + Number(m)) * 60 + Number(s)) * 1000 + Number(ms),
+      );
+
+  it("pairs every step with its own key, where a map in a frame kept NVDA talking and some keys came seconds into their steps", () => {
+    // Before, the headings and Tab passes were paired one step off, and all 136 of their lines were
+    // listed. Now one line differs, and it's a real gap: see the next test.
+    expect(checkAgainstLog({ logs: [log], steps, thrownOut: [], gestureOf })).toEqual({
+      transcriptLines: 261,
+      logLines: 261,
+      agree: 260,
+      onlyInLog: [{ page: PAGE, pass: "read", step: 33, text: "Scale 1 to 4622324. blank" }],
+      onlyInTranscripts: [],
+      // Of the copy's 297 Speaking entries, 21 are outside the steps: as each of the three passes
+      // opened the page, the window, its document, the page's first focus, the title check (NVDA+T),
+      // and the line at Ctrl+Home (15); the title check after the last Tab (1); and what the map said
+      // while a step waited for NVDA to be quiet before its key ("Home", "Scale 1 to 4622324" and
+      // "Find my location" in the headings pass, "Scale 1 to 4622324" twice in the Tab pass) (5).
+      outside: 21,
+    });
+  });
+
+  it("lists the read pass's step 33, whose line is empty where NVDA's log has what NVDA said after its key", () => {
+    const step = stepsOf("read")[32]!;
+    expect(step).toMatchObject({ n: 33, command: "nextLine", spoken: "" });
+    // In a step of 2 s, the step's own Down Arrow came 1.2 s later than the pass's other keys came
+    // in their steps, and NVDA spoke right after it: the transcript's line has none of it.
+    expect(log).toContain(
+      [
+        "Input: kb(desktop):downArrow",
+        "IO - speech.speech.speak (09:42:51.790) - MainThread (53308):",
+        "Speaking [LangChangeCommand ('en_US'), 'Scale 1 to 4622324 ']",
+      ].join("\n"),
+    );
+  });
+
+  it("holds only speech and voicecap's keys from inside the attempt, and nothing of another window or of the computer", () => {
+    const entries = splitLogEntries(log);
+    expect(entries).toHaveLength(567);
+    const [from, to] = [timeOfDay(within.from), timeOfDay(within.to)];
+    for (const entry of entries) {
+      expect(entry.timeMs, entry.time).toBeGreaterThanOrEqual(from);
+      expect(entry.timeMs, entry.time).toBeLessThanOrEqual(to);
+      expect(entry.level, entry.time).toBe("IO");
+      const gesture = /^Input: kb\(desktop\):(.+)$/.exec(entry.message)?.[1];
+      if (gesture === undefined) expect(entry.message, entry.time).toMatch(/^Speaking \[/);
+      else expect(VOICECAP_GESTURES, entry.time).toContain(gesture);
+    }
+    // The run's copy has what NVDA said of the code editor in front before the read pass and
+    // between passes, and an error NVDA logged: the fixture has neither.
+    expect(log).not.toMatch(/Visual Studio Code|Terminal \d|[A-Za-z]:\\/);
+    // The transcripts keep each pass's page, its name, and its steps, and not the computer's details.
+    for (const pass of ["read", "headings", "tab"]) {
+      const json: unknown = JSON.parse(read("pages", "eligibility-2793ac885f", `${pass}.json`));
+      expect(Object.keys(json as object)).toEqual(["pass", "page", "steps"]);
+    }
+  });
+
+  it("holds what put the pairing one step off: keys that came seconds into their steps", () => {
+    // The headings pass's 21 keys: each came about 1.28 s after the one before, as each step took,
+    // but the 6th came 4.27 s after the 5th. The 5th step took 2.2 s (NVDA said the frame's long
+    // name), and the 6th 3.35 s, of which NVDA's talk about the map took the first 2 s or so, before
+    // its key.
+    const h = keyTimes("h");
+    expect(h).toHaveLength(21);
+    const gaps = h.slice(1).map((at, k) => at - h[k]!);
+    expect(gaps[4]).toBe(4272);
+    expect(gaps.filter((gap) => gap > 1300)).toEqual([4272]);
+    const [, , , , fifth, sixth] = stepsOf("headings");
+    expect([fifth!.durationMs, sixth!.durationMs]).toEqual([2196, 3354]);
+    // The Tab pass's first Tab has no key, and its 17th and 24th steps waited the same way.
+    expect(keyTimes("tab")).toHaveLength(47);
+    const tab = stepsOf("tab");
+    expect([tab[16]!.durationMs, tab[23]!.durationMs]).toEqual([3225, 3683]);
   });
 });
 
@@ -747,6 +857,73 @@ describe("checkAgainstLog on made-up logs", () => {
     }
   });
 
+  it("pairs a step whose key came seconds into it, as NVDA kept talking, with that key, not the next step's", () => {
+    // As on r3.illinois.gov's /eligibility/ (fixture/nvda-io-r3-eligibility): a map in a frame went
+    // on talking as two steps began, so voicecap's capture waited for quiet, and their keys came 2 s
+    // into their 3.3 s. Nearer the next steps' starts than their own, those keys went to the next
+    // steps, and a clock one step early paired more keys: every line was one step off.
+    const map = [["Scale 1 to 4622324"]];
+    const pass = passAt(T0, HOME, "tab", [
+      { command: "nextFocusable", spoken: "Skip to content, link", key: false },
+      { command: "nextFocusable", spoken: "Home, link" },
+      { command: "nextFocusable", spoken: "Service area map, frame" },
+      { command: "nextFocusable", spoken: "Zoom in, button", waited: map, later: 2000, ms: 3300 },
+      { command: "nextFocusable", spoken: "Zoom out, button" },
+      { command: "nextFocusable", spoken: "Layers, button", waited: map, later: 2000, ms: 3300 },
+      { command: "nextFocusable", spoken: "About, link" },
+      { command: "nextFocusable", spoken: "Contact, link" },
+    ]);
+    expect(check([copyOf(...pass.entries)], [pass])).toEqual({
+      transcriptLines: 8,
+      logLines: 8,
+      agree: 8,
+      ...AGREED,
+      // The two lines as the page opened, and the map's two while steps waited.
+      outside: 4,
+    });
+  });
+
+  it("doesn't check a pass that a clock a step early pairs as many keys with, and lists none of its lines", () => {
+    // A person's H, after the page opened and a step before the pass's first key: one clock pairs
+    // the steps with their own keys, and one, a step early, pairs them with that H and the keys
+    // before their own, leaving the pass's last key out. The two pair as many, so which key was
+    // whose can't be told without the words: the pass's steps aren't checked, rather than listed
+    // one step off, and their speech is outside them.
+    const pass = passAt(T0, HOME, "headings", [
+      { command: "nextHeading", spoken: "Welcome, heading, level 1" },
+      { command: "nextHeading", spoken: "About us, heading, level 2" },
+      { command: "nextHeading", spoken: "no next heading" },
+    ]);
+    const first = T0 + 2300 + KEY_MS;
+    const stray = [key(first - STEP_MS, "h"), said(first - STEP_MS + 40, "Inbox - Mail, 3 unread")];
+    const result = check([copyOf(...pass.entries, ...stray)], [pass]);
+    expect(result).toEqual({ transcriptLines: 0, logLines: 0, agree: 0, ...AGREED, outside: 6 });
+  });
+
+  it("doesn't check a pass whose last key isn't its last step's, and lists none of its lines", () => {
+    // A key of the pass's after its last step, in its attempt, before the next page opens: the
+    // clock that gives the last step that key pairs fewer keys than the one that doesn't. Which key
+    // was whose can't be told without the words, which the pairing never looks at, so the pass's
+    // steps aren't checked (the run's check says so, with why), and their speech is outside them.
+    const pass = passAt(T0, HOME, "headings", [
+      { command: "nextHeading", spoken: "Welcome, heading, level 1" },
+      { command: "nextHeading", spoken: "About us, heading, level 2" },
+      { command: "nextHeading", spoken: "no next heading" },
+    ]);
+    const last = T0 + 2300 + 2 * STEP_MS + KEY_MS;
+    const stray = [key(last + 1900, "h"), said(last + 1940, "Inbox - Mail, 3 unread")];
+    const result = check([copyOf(...pass.entries, ...stray)], attempt([pass], last + 3000));
+    expect(result).toEqual({ transcriptLines: 0, logLines: 0, agree: 0, ...AGREED, outside: 6 });
+    // The same pass, without that key, is checked.
+    expect(check([copyOf(...pass.entries)], attempt([pass], last + 3000))).toEqual({
+      transcriptLines: 3,
+      logLines: 3,
+      agree: 3,
+      ...AGREED,
+      outside: 2,
+    });
+  });
+
   it("doesn't give a read pass a person's Down Arrow, pressed as the page loaded", () => {
     const read = passAt(T0, HOME, "read", READ);
     // Inside the attempt, before the page opened: one key of the pass's, at a step's moment.
@@ -1020,6 +1197,25 @@ describe("spokenAsLogged: what NVDA logged (its entries' items), against the tra
       expect(spokenAsLogged(...names(400))).toBe(false);
       const [logged] = names(400);
       expect(spokenAsLogged(logged, logged[0]![0]!)).toBe(true);
+    });
+
+    it("agrees when its words are the same but for their spaces, as NVDA says R3 as R 3", () => {
+      // A table that NVDA reads whole as focus lands in it, as on r3.illinois.gov's /board/, where
+      // the transcript's line of it is 7,458 characters.
+      const rows = Array.from({ length: 60 }, (_, k) => [
+        `row ${k + 2}`,
+        "Title",
+        "Person living or working in an R3 Area",
+      ]);
+      const logged = [["R3 Board Members table, scrollable", "region", "table", ...rows.flat()]];
+      const spoken = logged[0]!.join(", ").replaceAll("R3", "R 3");
+      expect(spoken.length).toBeGreaterThan(3000);
+      expect(spokenAsLogged(logged, spoken)).toBe(true);
+      // A word that differs still differs. So does a symbol said by name, in a step this long: only
+      // the search finds the words that stand for a symbol.
+      expect(spokenAsLogged(logged, spoken.replace("Title", "Titles"))).toBe(false);
+      const linked = [[...logged[0]!, "SAM.gov", "link"]];
+      expect(spokenAsLogged(linked, `${spoken}, SAM dot gov, link`)).toBe(false);
     });
 
     it("lists a very long step that differs as a difference, without a search as long as its square", () => {

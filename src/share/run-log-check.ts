@@ -15,7 +15,8 @@
  * its `page-finished`, and each kept attempt belongs to the session it started in. A failed
  * attempt's record gives its window, and it belongs to the session its start falls in; its speech is
  * set aside. A session is checked only with the copy its event names, and only when the copy has
- * speech in it; what isn't checked is counted, with why, and never listed as a difference.
+ * speech in it, and a pass is checked only when the copy can be paired with it for certain; what
+ * isn't checked is counted, with why, and never listed as a difference.
  */
 import { splitLogEntries } from "../manual/nvda-log.js";
 import {
@@ -47,10 +48,22 @@ export type GestureOf = (command: DriverCommand) => string | null;
  *   compared with all that NVDA said;
  * - `times`: the times of the pages couldn't be read;
  * - `unread`: the steps' transcripts couldn't be read;
- * - `placed`: the event log doesn't show when the page was read.
+ * - `placed`: the event log doesn't show when the page was read;
+ * - `unaligned`: the copy's keys couldn't be paired with the steps of their pass for certain, as
+ *   when a key the pass didn't press comes just before its first step or after its last (see lineUp
+ *   in ./log-check.ts).
  */
 export type WhyNotChecked =
-  "none" | "reason" | "altered" | "unlisted" | "silent" | "initial" | "times" | "unread" | "placed";
+  | "none"
+  | "reason"
+  | "altered"
+  | "unlisted"
+  | "silent"
+  | "initial"
+  | "times"
+  | "unread"
+  | "placed"
+  | "unaligned";
 
 /**
  * Whether a run's record lists a file: its `files` has an entry of that path. A copy the event log
@@ -282,7 +295,8 @@ function added(checks: LogCheck[], redact: (text: string) => string): LogCheck |
  * the reading of, is not checked and counted as such (`unread` and `placed`). Each NVDA session with
  * steps is checked once, with its own copy and its own failed attempts, when it has a copy with
  * speech in it and the run kept all that NVDA said for each step; otherwise its steps are counted,
- * with why (WhyNotChecked), and never listed.
+ * with why (WhyNotChecked), and never listed. So are the steps of a pass its copy can't be paired
+ * with for certain (`unaligned`).
  */
 export function checkRunAgainstLog(input: RunLogInput): RunLogCheck {
   const { run } = input;
@@ -324,8 +338,8 @@ export function checkRunAgainstLog(input: RunLogInput): RunLogCheck {
     const steps = read.get(place) ?? [];
     const count = steps.reduce((sum, pass) => sum + pass.steps.length, 0);
     if (count === 0) continue;
-    const skip = (why: WhyNotChecked, detail: string | null = null) => {
-      notChecked.push({ steps: count, from: session.from, why, detail });
+    const skip = (why: WhyNotChecked, detail: string | null = null, skipped = count) => {
+      notChecked.push({ steps: skipped, from: session.from, why, detail });
     };
     const { log } = session;
     if (log === undefined) {
@@ -351,14 +365,18 @@ export function checkRunAgainstLog(input: RunLogInput): RunLogCheck {
       continue;
     }
     try {
-      checks.push(
-        checkAgainstLog({
-          logs: [copy],
-          steps,
-          thrownOut: thrownOut.get(place) ?? [],
-          gestureOf: input.gestureOf,
-        }),
-      );
+      const checked = checkAgainstLog({
+        logs: [copy],
+        steps,
+        thrownOut: thrownOut.get(place) ?? [],
+        gestureOf: input.gestureOf,
+      });
+      // The steps of the passes the copy couldn't be paired with for certain, which the comparison
+      // leaves out: a session with none checked is counted as not checked, as one with no copy is.
+      if (checked.transcriptLines > 0) checks.push(checked);
+      if (checked.transcriptLines < count) {
+        skip("unaligned", null, count - checked.transcriptLines);
+      }
     } catch (error) {
       // A window whose times can't be read: the only thing the comparison refuses, told by its kind.
       if (!(error instanceof CantCheckError)) throw error;
