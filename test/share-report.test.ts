@@ -1419,6 +1419,28 @@ describe("shareReport", () => {
   });
 });
 
+// A recording is read whole and hashed, which only a copy with a voice page beside it needs. The
+// copy a run writes at its end (share/current.html) has none, so its loader is asked for none; a
+// share, which writes one, reads them.
+describe("which copies read the recordings of NVDA's voice", () => {
+  it("asks for none when a run writes the live copy, and for them when a share writes the voice page", async () => {
+    vi.mocked(loadShareInput).mockClear();
+    const { options } = await homeWithRun();
+
+    // The run wrote the live copy as it completed: every load it made asked for no recording.
+    const ofRun = vi.mocked(loadShareInput).mock.calls.map(([asked]) => asked.recordings);
+    expect(ofRun.length).toBeGreaterThan(0);
+    expect(ofRun.every((recordings) => recordings === false)).toBe(true);
+
+    // A share, whose copies may link to a voice page, leaves the loader to read them.
+    vi.mocked(loadShareInput).mockClear();
+    await shareReport(options);
+    const ofShare = vi.mocked(loadShareInput).mock.calls.map(([asked]) => asked.recordings);
+    expect(ofShare).toHaveLength(1);
+    expect(ofShare[0]).not.toBe(false);
+  });
+});
+
 describe("shareReport, with a recording of NVDA's voice on each page", () => {
   /** What the scripted driver gives for a page: speech and pauses, or other sounds. */
   const SPEECH: ScriptedVoice = { samples: speechAndPauses() };
@@ -1540,6 +1562,33 @@ describe("shareReport, with a recording of NVDA's voice on each page", () => {
     // The copies carry no sound: no player, and no recording's address.
     expect(page).not.toContain("<audio");
     expect(page).not.toMatch(/data:audio\/webm;base64,[A-Za-z0-9+/]/);
+  });
+
+  it("has the voice page link to the transcripts of the shareable page the share wrote beside it, at the folds that page has", async () => {
+    const { run, options } = await homeWithVoice();
+
+    const { files } = await shareReport(options);
+    const sharePage = await readFile(files[0]!.path, "utf8");
+    const voicePage = await readFile(files[2]!.path, "utf8");
+
+    // The folds of the written page, by id: where an address to a page's transcripts leads.
+    const folds = [...sharePage.matchAll(/<details class="fold tx-page" id="([^"]*)"/g)].map(
+      ([, id = ""]) => id,
+    );
+    expect(folds).toEqual(run.run.pages.map(({ slug }) => `tx-${slug}`));
+    // Each section's link, and the footer's, are to that file by name, in the same folder.
+    const away = [...voicePage.matchAll(/<a href="([^"#]*)(#[^"]*)?"/g)]
+      .map(([, file = "", fragment = ""]) => ({ file, fragment }))
+      .filter(({ file }) => !file.startsWith("https://"));
+    expect(away).toHaveLength(run.run.pages.length + 1);
+    for (const { file } of away) expect(file).toBe(files[0]!.name);
+    expect(away.map(({ fragment }) => fragment).filter((fragment) => fragment !== "")).toEqual(
+      folds.map((id) => `#${id}`),
+    );
+    // Beside it: the same folder, so the relative name is where the file is.
+    expect(path.dirname(files[0]!.path)).toBe(path.dirname(files[2]!.path));
+    // And each fold is where the page's script finds it: an element with that id, once.
+    for (const id of folds) expect(sharePage.split(`id="${id}"`)).toHaveLength(2);
   });
 
   it("leaves a home that verify finds whole: the voice page is recorded, as it was written, and each recording is as its run sealed it", async () => {

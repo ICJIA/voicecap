@@ -874,6 +874,9 @@ describe("renderSharePage", () => {
     // rows taken out, the merged code gives the values pinned before it, exactly. A change to either,
     // for such a run, fails here: plan 11 adds to a report only where a run recorded. A change meant
     // for every report, such as a release's row of the timeline, re-pins them, and says so here.
+    // To re-pin one, log what the loop below computes ([page.length, sha(page)] and [word.length,
+    // sha(word)] of each model, the page without its fonts) and paste the new values in: a pin
+    // that changes for a reason that isn't such a change is the failure this test is for.
     const before = {
       i2i: {
         page: [217_565, "efb20f2a24405c4d9df5c10585a02f616d8bf5c902c780975b81f50e37cbe33a"],

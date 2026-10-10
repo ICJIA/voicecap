@@ -23,8 +23,10 @@
  * stem and `.voice.html`) when a page of the report has a recording of NVDA's voice to play (see
  * renderVoicePage): the page's cards link to it, and so do its details and its Word copy's, by that
  * file name, so it's made from the same model, with the same stem, in the same share. A report
- * with no recording to play has none, and says so in its details. The live copy (current.html) has
- * none beside it, and links to none.
+ * with no recording to play has none, and, when a run of voicecap 0.18.0 or later is among those
+ * it draws on, says so in its details, with the reason that run's pages gave (a report of earlier
+ * runs says nothing of NVDA's voice). The live copy (current.html) has none beside it, and links
+ * to none.
  *
  * share/shares.json (./shares.ts) records every file: when, who by, the root of the site the copies
  * name, the runs the copies drew on, what the copies say of the site (its pages, those NVDA read,
@@ -119,6 +121,12 @@ interface Copy {
   bytes: Uint8Array;
   /** The run a walkthrough file is of. Only a walkthrough file has it. */
   run?: string;
+  /**
+   * Whether the email that sends the copies carries this one, and so whether the line to paste into
+   * it names it: true for the page and its Word copy, false for the voice page, a companion that can
+   * be sent on its own, and for a walkthrough file. Left out, it is true of a copy with no run.
+   */
+  emailed?: boolean;
 }
 
 /** The walkthrough file of a run the copies draw on: exactly the bytes the page's download carries. */
@@ -219,7 +227,9 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
     const copies: Copy[] = [
       { name: names.page, bytes: Buffer.from(renderSharePage(model, { fontCss }), "utf8") },
       { name: names.word, bytes: await renderWordCopy(model) },
-      ...(voice === null ? [] : [{ name: names.voice, bytes: Buffer.from(voice, "utf8") }]),
+      ...(voice === null
+        ? []
+        : [{ name: names.voice, bytes: Buffer.from(voice, "utf8"), emailed: false }]),
       ...walkthroughCopies,
     ];
     await mkdir(dir, { recursive: true });
@@ -250,11 +260,14 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
     }
 
     const files = entry.files.map((file) => ({ ...file, path: path.join(dir, file.name) }));
-    // What's emailed is the page and its Word copy: the files with no run, but for the voice page,
-    // which is a companion that can be sent on its own.
-    const pasteLine = pasteLineOf(
-      entry.files.filter(({ name, run }) => run === undefined && name !== names.voice),
+    // What's emailed is the page and its Word copy: the copies that say so (the voice page, a
+    // companion that can be sent on its own, doesn't), and the record of each is the entry's.
+    const emailed = new Set(
+      copies
+        .filter((copy) => copy.run === undefined && copy.emailed !== false)
+        .map(({ name }) => name),
     );
+    const pasteLine = pasteLineOf(entry.files.filter(({ name }) => emailed.has(name)));
     logger.info(
       `Shared ${folder}, as of ${model.header.asOf}: entry ${entry.seq} in ${sharesPath(siteDir)}.`,
     );

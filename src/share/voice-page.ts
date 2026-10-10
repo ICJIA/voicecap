@@ -32,13 +32,20 @@
  * which are exactly the runs its cards draw on. The recordings come in by run and slug, as the
  * loader holds them (`<run>/<slug>`), only when a file is as its record has it.
  *
+ * The recording is audio alone, so its text alternative is one step away (WCAG 1.2.1): each section
+ * with a page whose transcripts the shareable page has links to them, at the id of their fold there
+ * (`transcriptAnchor`), and the footer links to the shareable page by name. Both links are relative,
+ * to the file beside this one, so they work in the folder, in the two files of an email opened side
+ * by side, and on the website, where a share's files are published in one folder.
+ *
  * What the model or a record supplies goes through `esc`, a reason included: the recorder's own
  * words in a reason are text, with the home folder already replaced when the run recorded it. No
- * `style` attribute is set, and the only links are to the page's own parts and to voicecap's page.
- * Nothing is loaded from outside it, and nothing plays by itself.
+ * `style` attribute is set, and the only links are to the page's own parts, to the shareable page
+ * beside it, and to voicecap's page. Nothing is loaded from outside it, and nothing plays by itself.
  */
 import { VOICE_FILE, type PageRecord, type RunJson, type VoiceRecord } from "../model.js";
 import { esc, idFragment } from "../report/html.js";
+import { transcriptAnchor, voiceAnchor } from "./anchors.js";
 import { CHECK_SCRIPT, checkDataJson, type CheckData } from "./check.js";
 import { longDate } from "./format.js";
 import { SHARE_SCRIPT } from "./html/client.js";
@@ -49,12 +56,19 @@ import {
   EXACT_COPIES,
   NO_SCRIPT,
 } from "./html/evidence.js";
+import { heading } from "./html/pages.js";
 import { lineHtml, notRecorded } from "./html/parts.js";
 import { SHARE_CSS, VOICE_CSS } from "./html/style.js";
 import { firstSentenceBold } from "./line.js";
 import type { PageCard, ShareModel } from "./model.js";
 import { voiceRecordOf } from "./records.js";
-import { keepsVoice, notRecordedBy, sessionVersion, versionOf } from "./run-evidence.js";
+import {
+  driverRecordsVoice,
+  keepsVoice,
+  notRecordedBy,
+  sessionVersion,
+  versionOf,
+} from "./run-evidence.js";
 import { standingOf } from "./standing.js";
 import { ABOUT, EVIDENCE_TEXT, FOOTER_TEXT, PAGES_TEXT, TOP_TEXT, VOICE_TEXT } from "./text.js";
 import { generatedLine, testedLine } from "./words.js";
@@ -82,11 +96,6 @@ interface Section {
   voice: Voice;
 }
 
-/** The id of a page's section, which the shareable page's card links to: `voice-` and its slug. */
-export function voiceAnchor(slug: string): string {
-  return `voice-${idFragment(slug)}`;
-}
-
 /** A number a record can give a length or a size: finite, as JSON has it. */
 const isNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
@@ -112,24 +121,35 @@ function reasonOf(error: unknown): string {
  * `voiceRecordOf`), or the recorder couldn't record it (with the reason the run recorded).
  *
  * A record with no recording says it as every part a run didn't record is said, when its run is from
- * before voicecap recorded NVDA's voice (KEEPS_VOICE_FROM). From then on, either its run's driver
- * recorded none of its pages (a driver that can't), or this page wasn't read (it was skipped, or it
- * failed before it loaded). `recordedAny` remembers, by run, whether any page of it
- * has a record of a recording.
+ * before voicecap recorded NVDA's voice (KEEPS_VOICE_FROM). From then on, it goes by the run's driver,
+ * as its settings name it (`driverRecordsVoice`): one that records gave every page it read a record,
+ * so this page wasn't read (it was skipped, it answered with an HTTP error, or it wouldn't open),
+ * though no page of the run has a record, as when none was read; one that can't (the replay driver,
+ * the AT Driver stub) is said not to record. A driver this version doesn't know is judged by the
+ * run's pages: it recorded this one's neighbors, or none. `recordedAny` remembers, by run, whether
+ * any page of it has a record of a recording.
+ *
+ * A page no record speaks for (`source` is null: no run read it, which only a run that left the page
+ * pending has) says the same of `latestVersion`, the latest run's: from a voicecap that records, that
+ * the page wasn't read, and from one that didn't, that the run used it.
  */
 function voiceOf(
   source: Source | null,
-  latest: string | null,
+  latestVersion: string | null,
   recordings: ReadonlyMap<string, Uint8Array>,
   recordedAny: Map<RunJson, boolean>,
 ): Voice {
-  if (source === null) return { why: notRecordedBy(latest) };
+  if (source === null) {
+    return { why: keepsVoice(latestVersion) ? VOICE_TEXT.notRead : notRecordedBy(latestVersion) };
+  }
   const { run, page } = source;
   const version = sessionVersion(run, page.session);
   const record = voiceRecordOf(page);
   if (record === "unreadable") return { why: VOICE_TEXT.unreadable };
   if (record === undefined) {
     if (!keepsVoice(version)) return { why: notRecordedBy(version) };
+    const records = driverRecordsVoice(run.settings.driver);
+    if (records !== null) return { why: records ? VOICE_TEXT.notRead : VOICE_TEXT.noDriver };
     let recorded = recordedAny.get(run);
     if (recorded === undefined) {
       recorded = run.pages.some((each) => each.voice !== undefined);
@@ -160,17 +180,6 @@ function sourcesOf(model: ShareModel): { sources: Map<string, Source>; latest: R
     if (run !== undefined && page !== undefined) sources.set(card.key, { run, page });
   }
   return { sources, latest: standingOf(model.check.runs).latest };
-}
-
-/**
- * A page's number and its name, as its card has them: its label with its address on the site beside
- * it, else its address on the site alone.
- */
-function heading(card: PageCard, number: number): string {
-  const named = card.labeled
-    ? `${esc(card.name)} <span class="sub">${esc(card.path)}</span>`
-    : esc(card.path);
-  return `<h3><span class="num">${number}</span> ${named}</h3>`;
 }
 
 /** Where the recording is from, when it isn't the latest run's, as the page's card says it. */
@@ -225,16 +234,43 @@ function facts(record: KeptVoice): string {
     items.push(`<li>${esc(VOICE_TEXT.lost(record.lostMs))}</li>`);
   }
   items.push(`<li>${lineHtml(VOICE_TEXT.file(record.bytes, record.sha256))}</li>`);
-  return `<ul class="voice-facts">${items.join("")}</ul>`;
+  // role="list": with its markers taken away, some screen readers (VoiceOver) drop its list role.
+  return `<ul class="voice-facts" role="list">${items.join("")}</ul>`;
 }
 
-/** A page's section: its card, as the shareable page's cards are, with a player or the reason. */
-function sectionOf({ card, number, source, voice }: Section, latest: RunJson | null): string {
+/**
+ * A section's link to its page's full transcript on the shareable page beside this one, in a
+ * paragraph of its own as the shareable page's line on a recording is: the text of what the
+ * recording says. It's relative, by the shareable page's name (`page`), at the id of the fold that
+ * holds the transcript, which the page's script opens. A page with no fold there (no run read it in
+ * full) has no transcript and no link.
+ */
+function transcriptLink(card: PageCard, page: string, folds: ReadonlySet<string>): string {
+  if (!folds.has(card.slug)) return "";
+  const { transcript } = VOICE_TEXT;
+  const words = `${esc(transcript.lead)}<span class="sr">${esc(transcript.of(card.path))}</span>${esc(transcript.after)}`;
+  return `<p class="sub"><a href="${esc(page)}#${esc(transcriptAnchor(card.slug))}">${words}</a></p>`;
+}
+
+/**
+ * A page's section: its card, as the shareable page's cards are, with a player or the reason, and,
+ * last, its link to the page's transcripts.
+ */
+function sectionOf(
+  { card, number, source, voice }: Section,
+  latest: RunJson | null,
+  link: { page: string; folds: ReadonlySet<string> },
+): string {
   const body =
     "why" in voice
       ? [notRecorded(voice.why)]
       : [player(card, voice.source.page, voice.bytes), speeds(card), facts(voice.record)];
-  const parts = [heading(card, number), originLine(source, latest), ...body];
+  const parts = [
+    heading(card, number),
+    originLine(source, latest),
+    ...body,
+    transcriptLink(card, link.page, link.folds),
+  ];
   return `<article class="card" id="${voiceAnchor(card.slug)}">\n  <div class="card-body">\n    ${parts.filter((part) => part !== "").join("\n    ")}\n  </div>\n</article>`;
 }
 
@@ -390,6 +426,9 @@ export function renderVoicePage(
 ): string | null {
   const { sources, latest } = sourcesOf(model);
   const latestVersion = latest === null ? null : versionOf(latest);
+  // The pages whose transcripts the shareable page folds into their cards: every page with a run
+  // that read it in full, as that page's own list of transcripts says (the model's `appendix`).
+  const folds: ReadonlySet<string> = new Set(model.appendix.map((entry) => entry.slug));
   const recordedAny = new Map<RunJson, boolean>();
   const sections = model.pages.map((card, index): Section => {
     const source = sources.get(card.key) ?? null;
@@ -405,7 +444,12 @@ export function renderVoicePage(
 
   // What the check checks: the recordings the page plays, and the sealed record of each run they
   // and the reasons are from, exactly as recorded, once, oldest first (the model's order).
-  const used = new Set(sections.flatMap(({ source }) => (source === null ? [] : [source.run.id])));
+  // The latest run too, though every section may be from an older one: the page says what it says
+  // of when the report was tested, and which run each recording is from, by that run's record.
+  const used = new Set([
+    ...sections.flatMap(({ source }) => (source === null ? [] : [source.run.id])),
+    ...(latest === null ? [] : [latest.id]),
+  ]);
   const data: CheckData = {
     runs: model.check.runs.filter((run) => used.has(run.id)),
     files: [],
@@ -425,7 +469,9 @@ export function renderVoicePage(
     `  <h2 id="pages-h">${esc(PAGES_TEXT.title)}</h2>`,
     `  <p class="gist">${esc(VOICE_TEXT.note)}</p>`,
     `  <div class="cards">`,
-    sections.map((section) => sectionOf(section, latest)).join("\n"),
+    sections
+      .map((section) => sectionOf(section, latest, { page: model.footer.fileName, folds }))
+      .join("\n"),
     `  </div>`,
     `</section>`,
   ].join("\n");

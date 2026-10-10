@@ -97,7 +97,8 @@ export async function writeShareFiles(options: WriteShareFilesOptions): Promise<
   let model: ShareModel;
   try {
     if ((await listRuns(siteDir)).length === 0) return null;
-    input = await loadShareInput({ siteDir, config, now });
+    // No recording of NVDA's voice: this copy has no voice page beside it, so it would never use them.
+    input = await loadShareInput({ siteDir, config, now, recordings: false });
     model = buildShareModel(input);
   } catch (error) {
     // Neither file was tried, so no file of Word's was refused: the reason is all there is to say.

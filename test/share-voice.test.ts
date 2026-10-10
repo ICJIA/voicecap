@@ -7,6 +7,8 @@
  * memory, with real WebM Opus files (the encoder's own, of sounds from test/helpers/voice-signal.ts).
  * Nothing here plays a sound.
  */
+import os from "node:os";
+
 import { beforeAll, describe, expect, it } from "vitest";
 
 import type { RunJson, VoiceRecord } from "../src/model.js";
@@ -14,7 +16,8 @@ import { lineText } from "../src/share/line.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { KEEPS_VOICE_FROM } from "../src/share/run-evidence.js";
 import { VOICE_TEXT } from "../src/share/text.js";
-import { renderVoicePage, voiceAnchor } from "../src/share/voice-page.js";
+import { voiceAnchor } from "../src/share/anchors.js";
+import { renderVoicePage } from "../src/share/voice-page.js";
 import { voiceDetails } from "../src/share/words.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, textOf } from "./helpers/share-html.js";
@@ -333,17 +336,19 @@ describe("what the details say of the voice page", () => {
   });
 
   it("says there is none when a run that records has no recording to play: every page's own reason is on its record", () => {
-    for (const pages of [
-      [read("/")],
-      [read("/", reason("the recording is silent")), read("/about/", reason("no program"))],
-    ]) {
-      const { model } = modelOf([runOf(pages)]);
+    // With a reason to give, it gives the most common (below); with none, only that there is none.
+    const { model } = modelOf([runOf([read("/")])]);
 
-      expect(model.voicePage).toEqual({ why: VOICE_TEXT.details.noRecording });
-      expect(lineText(voiceDetails(model) ?? [])).toBe(
-        `${VOICE_TEXT.details.lead} ${VOICE_TEXT.details.noRecording}`,
-      );
-    }
+    expect(model.voicePage).toEqual({ why: VOICE_TEXT.details.noRecording });
+    expect(lineText(voiceDetails(model) ?? [])).toBe(
+      `${VOICE_TEXT.details.lead} ${VOICE_TEXT.details.noRecording}`,
+    );
+    const silent = modelOf([
+      runOf([read("/", reason("the recording is silent")), read("/about/", reason("no program"))]),
+    ]).model;
+    expect(silent.voicePage).toEqual({
+      why: VOICE_TEXT.details.noRecordingBecause("the recording is silent"),
+    });
   });
 
   it("says the live copy has none beside it, for a run that records, and nothing for a run that doesn't", () => {
@@ -379,5 +384,124 @@ describe("what the details say of the voice page", () => {
 
     expect(model.pages[0]?.voice).not.toBeNull();
     expect(model.voicePage).toEqual({ name: VOICE_PAGE });
+  });
+});
+
+// A run that records but has no recording to play says why the pages have none, from what its own
+// pages' records say: the person who is sent the report is told the reason, not only that there's
+// none. Each page's reason is also on its section of the voice page, but a report with no
+// recording at all has no voice page to say it.
+describe("what the details say when no page has a recording, and a run gave reasons", () => {
+  const SILENT = "the recording is silent";
+  const ENDED = "NVDA's process ended during the recording";
+  const GONE =
+    "the recorder didn't start: PowerShell couldn't compile its C#: Add-Type isn't allowed";
+
+  /** The sentence the details say for `why`: the words of the plan, with the reason in them. */
+  const saying = (why: string): string =>
+    `There is no voice page: no page has a recording. The latest run gave this reason: ${why}.`;
+
+  /** What the details of a model say, as one paragraph's text. */
+  const detailsSaid = (model: ShareModel): string => lineText(voiceDetails(model) ?? []);
+
+  it("is the reason the pages gave, in the details' own words", () => {
+    const { model } = modelOf([
+      runOf([
+        read("/", reason(GONE)),
+        read("/about/", reason(GONE)),
+        read("/apply/", reason(GONE)),
+      ]),
+    ]);
+
+    expect(VOICE_TEXT.details.noRecordingBecause(GONE)).toBe(saying(GONE));
+    expect(model.voicePage).toEqual({ why: saying(GONE) });
+    expect(detailsSaid(model)).toBe(`${VOICE_TEXT.details.lead} ${saying(GONE)}`);
+    // The link is gone with the page: there's no voice page to open.
+    expect(voiceDetails(model)).not.toContainEqual(
+      expect.objectContaining({ href: expect.anything() as unknown }),
+    );
+  });
+
+  it("names the most common reason when the pages gave different ones, and the first page's on a tie", () => {
+    const common = modelOf([
+      runOf([
+        read("/", reason(SILENT)),
+        read("/about/", reason(ENDED)),
+        read("/apply/", reason(ENDED)),
+      ]),
+    ]).model;
+    expect(common.voicePage).toEqual({ why: saying(ENDED) });
+
+    const tied = modelOf([
+      runOf([read("/", reason(ENDED)), read("/about/", reason(SILENT))]),
+    ]).model;
+    expect(tied.voicePage).toEqual({ why: saying(ENDED) });
+  });
+
+  it("counts a reason once however it was written: on one line, with no full stop at its end", () => {
+    const { model } = modelOf([
+      runOf([
+        read("/", reason(`${SILENT}.`)),
+        read("/about/", reason(`  ${SILENT}  `)),
+        read("/apply/", reason(ENDED)),
+      ]),
+    ]);
+    expect(model.voicePage).toEqual({ why: saying(SILENT) });
+    // It ends in one full stop, after the reason, and none before it.
+    expect(detailsSaid(model)).toMatch(/this reason: the recording is silent\.$/);
+  });
+
+  it("has the home folder replaced in the reason, as it does in every other reason it says", () => {
+    const home = os.homedir();
+    const { model } = modelOf([
+      runOf([read("/", reason(`process 4242 runs ${home}\nvda.exe, not another`))]),
+    ]);
+    expect(model.voicePage).not.toBeNull();
+    expect(JSON.stringify(model.voicePage)).not.toContain(home.replaceAll("\\", "\\\\"));
+    expect(detailsSaid(model)).not.toContain(home);
+  });
+
+  it("is today's words when the latest run's pages gave no reason: a driver that records none, a page not read", () => {
+    for (const pages of [
+      [read("/"), read("/about/")],
+      [{ path: "/", status: "skipped" as const }, read("/about/")],
+    ]) {
+      const { model } = modelOf([runOf(pages)]);
+      expect(model.voicePage, JSON.stringify(pages)).toEqual({
+        why: VOICE_TEXT.details.noRecording,
+      });
+    }
+    expect(VOICE_TEXT.details.noRecording).toBe(
+      "There is no voice page, since no page has a recording to play.",
+    );
+  });
+
+  it("is today's words for a run from before 0.18.0, whatever an older or newer run said", () => {
+    // The latest run (the list) is from 0.17.0 and records nothing; a spot check after it, which is
+    // from 0.18.0, has a reason for its one page. The latest run is the one the sentence is of.
+    const list = runOf([read("/"), read("/about/")], "0.17.0", "2026-09-28_0900");
+    const spot = runOf([read("/about/", reason(GONE))], KEEPS_VOICE_FROM, "2026-09-29_1402");
+    const spotRun = shareRun({
+      id: "2026-09-29_1402",
+      createdAt: "2026-09-29T14:02:51-05:00",
+      voicecapVersion: KEEPS_VOICE_FROM,
+      source: { kind: "urls", urls: ["https://example.illinois.gov/about/"] },
+      pages: [read("/about/", reason(GONE))],
+    });
+    expect(spot.id).toBe(spotRun.id);
+
+    const { model } = modelOf([list, spotRun]);
+    expect(model.voicePage).toEqual({ why: VOICE_TEXT.details.noRecording });
+    // And a report that draws on no run that records says nothing, as before, reasons or not.
+    const old = runOf([read("/", reason(GONE))], "0.17.0");
+    expect(modelOf([old]).model.voicePage).toBeNull();
+  });
+
+  it("gives no reason when a page has a recording to play, nor for the live copy", () => {
+    const { model } = modelOf([runOf([read("/", speech.record), read("/about/", reason(GONE))])]);
+    expect(model.voicePage).toEqual({ name: VOICE_PAGE });
+
+    const live = modelOf([runOf([read("/", reason(GONE))])], { voiceName: null }).model;
+    expect(live.voicePage).toEqual({ why: VOICE_TEXT.details.liveCopy });
   });
 });

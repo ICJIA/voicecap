@@ -34,6 +34,7 @@ import {
   inputOf,
   TRANSCRIPTS,
   VOICE_PAGE,
+  VOICE_RECORDED_AT,
   voiceRecord,
 } from "./helpers/share-model.js";
 import { hrefsOf, outlineOf, partsAt } from "./helpers/word.js";
@@ -328,6 +329,26 @@ describe("NVDA's voice, in the Word copy's details", () => {
       expect(html).toBeDefined();
       expect(saidOf(model)).toBe(textOf(html ?? "", ""));
     }
+  });
+
+  it("names the reason the run's pages gave, in the same words as the page, when no page has a recording", () => {
+    const why =
+      "the recorder didn't start: PowerShell couldn't compile its C#: Add-Type isn't allowed";
+    const model = modelOf([
+      { path: "/", files: TRANSCRIPTS, voice: { error: why, recordedAt: VOICE_RECORDED_AT } },
+      { path: "/about/", files: TRANSCRIPTS, voice: { error: why, recordedAt: VOICE_RECORDED_AT } },
+    ]);
+
+    expect(saidOf(model)).toBe(
+      `${VOICE_TEXT.details.lead} ${VOICE_TEXT.details.noRecordingBecause(why)}`,
+    );
+    expect(saidOf(model)).toBe(
+      "NVDA's voice: what NVDA said aloud on each page is recorded and sealed with the run, and the voice page plays it at slower speeds. There is no voice page: no page has a recording. The latest run gave this reason: the recorder didn't start: PowerShell couldn't compile its C#: Add-Type isn't allowed.",
+    );
+    expect(hrefsOf(wordDetails(model))).not.toContain(VOICE_PAGE);
+    // The page says it the same: the Word copy's words are the page's, made from the same text.
+    const html = /<p class="gist">(NVDA&#39;s voice:.*?)<\/p>/s.exec(renderDetails(model))?.[1];
+    expect(textOf(html ?? "", "")).toBe(saidOf(model));
   });
 
   it("says why there is no voice page, in place of the link, when no page has a recording or the copy is the live one", () => {

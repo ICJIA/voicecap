@@ -22,6 +22,7 @@ import {
 import { normalizeSpeech } from "../passes/steps.js";
 import { MAIN_COMMAND, stepLine } from "../transcripts/format.js";
 import { jpegSize } from "../util/jpeg.js";
+import { voiceAnchor } from "./anchors.js";
 import { axeViewOf, type AxeView } from "./axe-view.js";
 import type { CheckData } from "./check.js";
 import { longDate, pagePath, type Shown } from "./format.js";
@@ -40,7 +41,6 @@ import {
 import { cardRecord, type PageStanding, type Standing } from "./standing.js";
 import { SKIP_REASONS } from "./summary.js";
 import { AXE_TEXT, SCREENSHOT_TEXT, VOICE_TEXT } from "./text.js";
-import { voiceAnchor } from "./voice-page.js";
 
 export interface PageCard {
   key: string;
@@ -437,18 +437,53 @@ function voiceOf(
  * - the voice page's file name, when a card has a line (the voice page is written beside the page
  *   exactly then);
  * - that the live copy has none beside it, for a copy with no voice page (`voiceName` null);
- * - that no page has a recording to play, for a share of runs that recorded none that can be shown.
+ * - that no page has a recording to play, for a share of runs that recorded none that can be shown,
+ *   with the reason the latest run's pages gave, when they gave one (see `latestReasonOf`): the
+ *   report has no voice page then, which is where each page's own reason would be said.
  */
 export function voiceNoteOf(
   standing: Standing,
   cards: PageCard[],
   voiceName: string | null,
+  redact: (text: string) => string,
 ): { name: string } | { why: string } | null {
   const recorded = cards.some((card) => card.voice !== null);
   const records = standing.drawnOn.some((run) => keepsVoice(versionOf(run)));
   if (!recorded && !records) return null;
   if (voiceName === null) return { why: VOICE_TEXT.details.liveCopy };
-  return recorded ? { name: voiceName } : { why: VOICE_TEXT.details.noRecording };
+  if (recorded) return { name: voiceName };
+  const reason = latestReasonOf(standing, redact);
+  return {
+    why:
+      reason === null
+        ? VOICE_TEXT.details.noRecording
+        : VOICE_TEXT.details.noRecordingBecause(reason),
+  };
+}
+
+/**
+ * The reason the pages of the latest run (the run that decides the pages in scope) most often gave
+ * for having no recording, as its pages' records keep them: the home folder replaced, on one line,
+ * with no full stop at its end, which the sentence puts after it. The first page's of those given as
+ * often as each other. Null when none of its pages gave one: a run whose driver records nothing, or
+ * from before voicecap recorded NVDA's voice (the report then says only that there is none), or one
+ * that read no page. A page's record that isn't one voicecap writes gives none, read through
+ * `voiceRecordOf`, as a record that lists a file does.
+ */
+function latestReasonOf(standing: Standing, redact: (text: string) => string): string | null {
+  const counts = new Map<string, number>();
+  for (const page of standing.latest?.pages ?? []) {
+    const record = voiceRecordOf(page);
+    if (record === undefined || record === "unreadable" || !("error" in record)) continue;
+    const reason = reasonOf(record.error, redact);
+    if (reason !== "") counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  for (const [reason, count] of counts) {
+    // Map keeps the order reasons were first seen in, so a tie stays with the earlier page's.
+    if (best === null || count > (counts.get(best) ?? 0)) best = reason;
+  }
+  return best;
 }
 
 /**

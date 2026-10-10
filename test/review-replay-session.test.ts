@@ -30,6 +30,8 @@ import type { Voice } from "../src/review-replay/voice.js";
 import { addReview } from "../src/reviews/review.js";
 import { readReviews } from "../src/reviews/store.js";
 import { runAudit } from "../src/run/audit.js";
+import { loadShareInput } from "../src/share/load.js";
+import type * as LoadModule from "../src/share/load.js";
 import type { LiveReportOptions } from "../src/run/live-report.js";
 import { pageDir, runDir, runJsonPath } from "../src/run/paths.js";
 import { listRuns } from "../src/run/store.js";
@@ -50,6 +52,13 @@ import {
   setup,
   SITE,
 } from "./helpers/run-site.js";
+
+// The loader goes through as it does, and each call is kept: the replay reads pages aloud, and the
+// test of what it asks the loader for reads the calls.
+vi.mock("../src/share/load.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof LoadModule>();
+  return { ...actual, loadShareInput: vi.fn(actual.loadShareInput) };
+});
 
 /** The scripted site's pages, by their keys. */
 const HOME_PAGE = "https://example.illinois.gov/";
@@ -227,6 +236,18 @@ function soon<T>(promise: Promise<T>): Promise<T | "still waiting"> {
 }
 
 describe("replayReview", () => {
+  it("asks the loader for no recording of NVDA's voice: it reads transcripts aloud, and makes no voice page", async () => {
+    const at = await countedHome();
+    vi.mocked(loadShareInput).mockClear();
+    const { session } = replay(at, [["1"], ["1"], ["1"]], { options: { all: true } });
+    await session;
+
+    // Once, for its pages, and for none of the megabytes a site's recordings can come to.
+    expect(vi.mocked(loadShareInput).mock.calls.map(([asked]) => asked.recordings)).toEqual([
+      false,
+    ]);
+  });
+
   it("records each decision through addReview, against the run it played, and writes the report once", async () => {
     const at = await countedHome();
     const report = await readFile(path.join(at.siteDir, "report.html"), "utf8");

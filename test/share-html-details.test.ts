@@ -35,6 +35,7 @@ import {
   storeOf,
   TRANSCRIPTS,
   VOICE_PAGE,
+  VOICE_RECORDED_AT,
   voiceRecord,
 } from "./helpers/share-model.js";
 
@@ -571,6 +572,26 @@ describe("NVDA's voice, in the details", () => {
     expect(order).toEqual([...order].sort((a, b) => a - b));
     // Its one link is to the voice page, by its file name.
     expect(attributes(paragraphIn(html) ?? "", "href")).toEqual([VOICE_PAGE]);
+  });
+
+  it("names the reason the run's pages gave, in place of the link, when no page has a recording", () => {
+    const why =
+      "the recorder didn't start: PowerShell couldn't compile its C#: Add-Type isn't allowed";
+    const { html, model } = detailsOf([
+      { path: "/", files: TRANSCRIPTS, voice: { error: why, recordedAt: VOICE_RECORDED_AT } },
+      { path: "/about/", files: TRANSCRIPTS, voice: { error: why, recordedAt: VOICE_RECORDED_AT } },
+    ]);
+
+    expect(paragraphIn(html)).toBe(
+      `<p class="gist">NVDA&#39;s voice: what NVDA said aloud on each page is recorded and sealed with the run, and the voice page plays it at slower speeds. ${esc(VOICE_TEXT.details.noRecordingBecause(why))}</p>`,
+    );
+    expect(textOf(paragraphIn(html) ?? "")).toContain(
+      "There is no voice page: no page has a recording. The latest run gave this reason: the recorder didn't start: PowerShell couldn't compile its C#: Add-Type isn't allowed.",
+    );
+    // No link: there's no voice page to open, and the model says why in the same words.
+    expect(attributes(paragraphIn(html) ?? "", "href")).toEqual([]);
+    expect(html).not.toContain(".voice.html");
+    expect(model.voicePage).toEqual({ why: VOICE_TEXT.details.noRecordingBecause(why) });
   });
 
   it("says why there is no voice page, in place of the link, when no page has a recording or the copy is the live one", () => {

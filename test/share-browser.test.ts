@@ -3150,16 +3150,31 @@ describe("the voice page", () => {
       await page.locator("#fp-demo").click();
       await expect.poll(() => result(page), { timeout: 10_000 }).toMatch(/^Demonstration/);
       expect(await axeFindings(page, width), "light, a change caught").toEqual([]);
-      // And its list of every file checked, open. The list is a table, which a narrow window
-      // scrolls (as the shareable page's does), and axe can't tell the background of a cell scrolled
-      // out of view: so it's checked where the whole table shows.
-      if (width === 1280) {
-        await page.locator("#fp-list > summary").click();
-        expect(await axeFindings(page, width), "light, the list open").toEqual([]);
-        await page.locator("#theme-toggle").click();
-        expect(await axeFindings(page, width), "dark, the list open").toEqual([]);
-        expect(await overflowOf(page), "dark, the list open").toEqual(fits);
-      }
+      // And its list of every file checked, open, at every width. Its file cells wrap (the voice
+      // page's own rule, as a recording's name holds a page's long address), so no cell is scrolled
+      // out of view at 390 or 320 and axe can tell the background of each.
+      await page.locator("#fp-list > summary").click();
+      // Its file cells wrap, so a page's long address never holds the table wide: it was about 460
+      // px beyond its box at 390, and 530 at 320, before they did. It fits from 390 up; at 320 the
+      // fingerprint column, which doesn't wrap, can need a little of the box's scroll, which is
+      // labelled and reachable by keyboard, as every wide table's is.
+      const scrolled = await page
+        .locator("#fp-list .scroll")
+        .evaluate((box) => box.scrollWidth - box.clientWidth);
+      expect(scrolled, "the list open, how far its table scrolls").toBeLessThanOrEqual(
+        width >= 390 ? 1 : 64,
+      );
+      expect(
+        await page
+          .locator("#fp-list tbody td:first-child")
+          .evaluateAll((cells) => cells.map((cell) => getComputedStyle(cell).overflowWrap)),
+        "the list open, its file cells",
+      ).toEqual(Array.from({ length: 4 }, () => "anywhere"));
+      expect(await axeFindings(page, width), "light, the list open").toEqual([]);
+      expect(await overflowOf(page), "light, the list open").toEqual(fits);
+      await page.locator("#theme-toggle").click();
+      expect(await axeFindings(page, width), "dark, the list open").toEqual([]);
+      expect(await overflowOf(page), "dark, the list open").toEqual(fits);
     },
     AXE_TIMEOUT,
   );

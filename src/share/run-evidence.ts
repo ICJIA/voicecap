@@ -175,6 +175,19 @@ export function keepsVoice(version: string | null): boolean {
   return true;
 }
 
+/**
+ * Whether a run's driver records what NVDA says, by the name its settings give it: the Guidepup
+ * driver does, and the replay driver (which opens nothing) and the AT Driver stub (a stub) don't.
+ * Null for a name this version doesn't know (a later voicecap's driver, or a record that was edited),
+ * of which nothing is said: a page with no record of a recording goes by whether the run's other
+ * pages have one. A page of a run whose driver records, that has none, wasn't read.
+ */
+export function driverRecordsVoice(driver: unknown): boolean | null {
+  if (driver === "guidepup") return true;
+  if (driver === "replay" || driver === "at-driver") return false;
+  return null;
+}
+
 /** The voicecap version a session recorded, or null when it recorded no environment. */
 function versionOfSession(session: SessionRecord | undefined): string | null {
   return session?.environment?.voicecap.version ?? null;

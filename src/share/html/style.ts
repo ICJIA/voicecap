@@ -420,7 +420,10 @@ table.tracks td.none { background: transparent; border: 1px dashed var(--line); 
  *   words beside it. It starts hidden, as everything that needs the script does, and the script
  *   shows it;
  * - what is said of a recording (`.voice-facts`) is small and muted, as a card's fingerprints are,
- *   and its SHA-256 breaks where it must rather than widen the page (`code` already does).
+ *   and its SHA-256 breaks where it must rather than widen the page (`code` already does);
+ * - the check's list of every file checked wraps its file cells (`#fp-list`), since a recording's
+ *   name holds its page's address, which can be long enough to hold the table 500 pixels wide at
+ *   320. The shareable page's own list isn't changed.
  */
 export const VOICE_CSS = `/* the voice page: a page's player, its speed choice, and what is said of its file */
 .card audio { display: block; width: 100%; min-width: 0; }
@@ -432,4 +435,6 @@ export const VOICE_CSS = `/* the voice page: a page's player, its speed choice, 
 .speeds input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); cursor: pointer; }
 .voice-facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 0.82rem; color: var(--muted); }
 .voice-facts code { color: var(--fg); }
+/* the check's list of every file checked: a recording's name holds its page's address, which can be long, so its file cells wrap (the shareable page's list is its own) */
+#fp-list table.plain td:first-child { overflow-wrap: anywhere; }
 `;

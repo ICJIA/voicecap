@@ -5,10 +5,11 @@
  * them: real scripted runs, each page of which was recorded by the scripted driver, with the real
  * encoder making the WebM Opus files. Nothing here plays a sound.
  */
+import type * as Fsp from "node:fs/promises";
 import { appendFile, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { RunJson } from "../src/model.js";
@@ -16,17 +17,26 @@ import { runAudit } from "../src/run/audit.js";
 import { pageDir, runJsonPath } from "../src/run/paths.js";
 import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel } from "../src/share/model.js";
+import { renderVoicePage } from "../src/share/voice-page.js";
 import { fileHash } from "../src/transcripts/write.js";
 import { sealOf } from "../src/util/hash.js";
 import {
   config as runConfig,
   options as runOptions,
   setup as setupSite,
+  SITE,
   sitePages,
 } from "./helpers/run-site.js";
 import { ScriptedDriver, type ScriptedVoice } from "./helpers/scripted-driver.js";
 import { DEMO_SITE, VOICE_PAGE } from "./helpers/share-model.js";
 import { busySound, speechAndPauses } from "./helpers/voice-signal.js";
+
+// Each file read is watched, not stopped: every call goes through, and the test of what the loader
+// leaves unread counts the recordings it opened.
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof Fsp>();
+  return { ...actual, readFile: vi.fn(actual.readFile) };
+});
 
 /** The folders these tests made, which are taken away after each. */
 const folders: string[] = [];
@@ -239,6 +249,115 @@ describe("loadShareInput: each page's recording", () => {
     const input = await loadShareInput({ siteDir: result.siteDir, config: DEFAULT_CONFIG });
 
     expect([...input.recordings.keys()]).toEqual([keyOf(result.run, 0)]);
+  });
+
+  it("reads no recording when it's told the copy has none to play: the live copy and the replay need none", async () => {
+    const { siteDir } = await voiceSite();
+    /** How many recordings the loader has opened since the count was cleared. */
+    const opened = (): number =>
+      vi
+        .mocked(readFile)
+        .mock.calls.filter(([file]) => typeof file === "string" && file.endsWith("voice.webm"))
+        .length;
+
+    vi.mocked(readFile).mockClear();
+    const none = await loadShareInput({ siteDir, config: DEFAULT_CONFIG, recordings: false });
+    expect(opened()).toBe(0);
+    expect(none.recordings.size).toBe(0);
+
+    // The default is to read them, so that a share which asks for nothing in particular keeps its
+    // voice page: each page's file, once.
+    vi.mocked(readFile).mockClear();
+    const all = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+    expect(opened()).toBe(2);
+    expect(all.recordings.size).toBe(2);
+    vi.mocked(readFile).mockClear();
+    await loadShareInput({ siteDir, config: DEFAULT_CONFIG, recordings: true });
+    expect(opened()).toBe(2);
+
+    // Nothing else of what it reads depends on them: the records, and the screenshots and axe
+    // files, are as they were.
+    expect(none.records).toEqual(all.records);
+    expect(none.runs).toEqual(all.runs);
+    expect([...none.screenshots.keys()]).toEqual([...all.screenshots.keys()]);
+    expect([...none.axeFiles.keys()]).toEqual([...all.axeFiles.keys()]);
+    // And a model built from either has the same pages: only a card's line on its recording, which
+    // goes with the voice page, needs the files.
+    const named = { voiceName: VOICE_PAGE } as const;
+    expect(buildShareModel({ ...none, ...named }).pages.map((card) => card.voice)).toEqual([
+      null,
+      null,
+    ]);
+    expect(buildShareModel({ ...all, ...named }).pages.every((card) => card.voice !== null)).toBe(
+      true,
+    );
+  });
+
+  it("makes a voice page of a site and a spot check after it: loaded, modelled, and rendered, each page from the run its card speaks for", async () => {
+    const dir = await newFolder();
+    const first = await runAudit(
+      runOptions(
+        dir,
+        new ScriptedDriver(sitePages({ home: { voice: SPEECH }, about: { voice: BUSY } })),
+        { now: () => new Date(2026, 8, 26, 14, 5) },
+      ),
+    );
+    // A spot check of /about alone, the next morning: its page's newest record is this one's.
+    const spot = await runAudit(
+      runOptions(dir, new ScriptedDriver(sitePages({ about: { voice: OTHER } })), {
+        pages: null,
+        pageUrls: [`${SITE}/about`],
+        fresh: true,
+        now: () => new Date(2026, 8, 27, 9, 30),
+      }),
+    );
+    expect(spot.outcome).toBe("completed");
+    expect(spot.run.settings.source.kind).toBe("urls");
+
+    // The three steps a share takes, one after the other, as it names its pair.
+    const input = await loadShareInput({ siteDir: first.siteDir, config: DEFAULT_CONFIG });
+    const model = buildShareModel({
+      ...input,
+      fileName: VOICE_PAGE.replace(".voice.html", ".html"),
+      wordName: VOICE_PAGE.replace(".voice.html", ".docx"),
+      voiceName: VOICE_PAGE,
+    });
+    const html = renderVoicePage(model, input.recordings, { fontCss: "" });
+    expect(html).not.toBeNull();
+
+    // Home is the first run's, whose page list decides the pages; /about is the spot check's.
+    expect(model.pages.map((card) => card.speaksFor)).toEqual([
+      { run: first.run.id, slug: first.run.pages[0]?.slug },
+      { run: spot.run.id, slug: spot.run.pages[0]?.slug },
+    ]);
+    // Each section plays the file its record lists, byte for byte: the one on disk in that run.
+    const played = [...(html ?? "").matchAll(/data-slug="([^"]*)" data-file="voice.webm"/g)];
+    expect(played).toHaveLength(2);
+    const sounds = [...(html ?? "").matchAll(/src="data:audio\/webm;base64,([^"]*)"/g)].map(
+      ([, base64 = ""]) => Buffer.from(base64, "base64"),
+    );
+    const onDisk = [
+      await readFile(voiceFile(first.siteDir, first.run, 0)),
+      await readFile(voiceFile(spot.siteDir, spot.run, 0)),
+    ];
+    expect(sounds).toHaveLength(2);
+    for (const [index, bytes] of sounds.entries()) {
+      expect(Buffer.compare(bytes, onDisk[index] ?? Buffer.alloc(0)), `section ${index + 1}`).toBe(
+        0,
+      );
+    }
+    // The spot check's section says which run its recording is from; the first run's, the latest
+    // run that decides the pages, doesn't.
+    const about = model.pages[1]?.slug ?? "";
+    expect(html).toContain(`From run ${spot.run.id}, on 27 September 2026`);
+    expect(html).not.toContain(`From run ${first.run.id}`);
+    // Both runs are carried for the check, oldest first, as recorded.
+    const carried = /id="fp-data">([\s\S]*?)<\/script>/.exec(html ?? "")?.[1] ?? "";
+    expect((JSON.parse(carried) as { runs: RunJson[] }).runs.map((run) => run.id)).toEqual([
+      first.run.id,
+      spot.run.id,
+    ]);
+    expect(about).not.toBe("");
   });
 
   it("takes the voice page's name from its option, and none by default", async () => {

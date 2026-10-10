@@ -646,6 +646,29 @@ export const POWERSHELL_HASH = "Get-FileHash <file>";
 export const MAC_HASH = "shasum -a 256 <file>";
 
 /**
+ * How "What the check proves" ends, on the shareable page and on the voice page, in one place: that
+ * the check can't prove the page itself wasn't changed, since whoever changed it could change the
+ * fingerprints too, and the two stronger checks, the file's own fingerprint against the one its
+ * sender recorded and `verify` on the originals. It begins with a space, as it follows the page's
+ * own sentences. `printed` is what `voicecap share` does with the sender's fingerprint, which differs
+ * by file: the page's goes into the line for the email that sends it, and the voice page's is printed
+ * with the other files the share writes, since that line names only the page and its Word copy.
+ */
+function unchangedTail(verify: string, printed: string): Line {
+  return [
+    " It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one its sender recorded: ",
+    { text: SHARE_COMMAND, mono: true },
+    ` ${printed}, and `,
+    { text: POWERSHELL_HASH, mono: true },
+    " in PowerShell, or ",
+    { text: MAC_HASH, mono: true },
+    " on a Mac, shows it for the file you received. Or run ",
+    { text: verify, mono: true },
+    " on the transcripts folder.",
+  ];
+}
+
+/**
  * What both copies begin a run's walkthrough file with: what a repeat keeps the same. The page goes
  * on to say to download the file (`EVIDENCE_TEXT.walkthrough.lead`), and the Word copy, which can't
  * carry it, to get it from the web page or with a command (`WORD_TEXT.evidence.walkthrough.lead`).
@@ -683,15 +706,8 @@ export const EVIDENCE_TEXT = {
    */
   proves: (verify: string): Line => [
     { text: "What the check proves:", bold: true },
-    " this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list, and where a card shows axe's results, its chip and its fold of what axe found show its axe file's counts, and each rule's heading, impact, elements, words on how to fix them, and number of elements not listed. The rest of that fold isn't compared: its version line, each rule's criteria, its links, and the line with the file's size and SHA-256. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one its sender recorded: ",
-    { text: SHARE_COMMAND, mono: true },
-    " prints it, ready for the email that sends the file, and ",
-    { text: POWERSHELL_HASH, mono: true },
-    " in PowerShell, or ",
-    { text: MAC_HASH, mono: true },
-    " on a Mac, shows it for the file you received. Or run ",
-    { text: verify, mono: true },
-    " on the transcripts folder.",
+    " this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list, and where a card shows axe's results, its chip and its fold of what axe found show its axe file's counts, and each rule's heading, impact, elements, words on how to fix them, and number of elements not listed. The rest of that fold isn't compared: its version line, each rule's criteria, its links, and the line with the file's size and SHA-256.",
+    ...unchangedTail(verify, "prints it, ready for the email that sends the file"),
   ],
   /** What a run's line says it is: that it completed, and that it was sealed. */
   completed: "completed",
@@ -836,8 +852,12 @@ export const VOICE_TEXT = {
    * What the details of the shareable page and of its Word copy say of this page: what the
    * recordings are, then a link to this page (`open`, whose address is its file's name, which both
    * copies say beside it, for a reader of paper), or why there is none: the copy is the live one,
-   * which a share doesn't write a voice page beside, or no page has a recording to play. A report
-   * from before voicecap recorded NVDA's voice says none of it.
+   * which a share doesn't write a voice page beside, or no page has a recording to play. When no
+   * page does, it says why from the latest run's pages: the reason most of them gave
+   * (`noRecordingBecause`, with the reason as the record keeps it, on one line, with no full stop at
+   * its end), or, when the run's pages gave none (its driver records nothing, or no page was read),
+   * only that there is none (`noRecording`). A report from before voicecap recorded NVDA's voice
+   * says none of it.
    */
   details: {
     lead: "NVDA's voice: what NVDA said aloud on each page is recorded and sealed with the run, and the voice page plays it at slower speeds.",
@@ -845,6 +865,8 @@ export const VOICE_TEXT = {
     liveCopy:
       "This copy has no voice page: voicecap share makes one beside each dated copy, when a page has a recording.",
     noRecording: "There is no voice page, since no page has a recording to play.",
+    noRecordingBecause: (reason: string): string =>
+      `There is no voice page: no page has a recording. The latest run gave this reason: ${reason}.`,
   },
   /**
    * What a page says in place of a player: the recorder couldn't record it, with the reason the run
@@ -860,30 +882,42 @@ export const VOICE_TEXT = {
   changed: `Not shown: ${VOICE_FILE} isn't as the run recorded it; voicecap verify names it.`,
   unreadable: "Not shown: the run's record of this page's recording couldn't be read.",
   /**
+   * A section's link to its page's full transcript on the shareable page beside this one, which is
+   * the text of what the recording says (WCAG 1.2.1): "The full transcript, on the shareable page",
+   * and for a screen reader alone which page it is of (`of`, set apart, between the two), so that no
+   * two links read alike and go to different places. A page no run read in full has no transcript,
+   * and no link.
+   */
+  transcript: {
+    lead: "The full transcript",
+    of: (path: string): string => ` of ${path}`,
+    after: ", on the shareable page",
+  },
+  /**
    * The page's own check: the heading of its section, and what the check proves, which is what it
    * can show of a page that carries recordings and no transcript: each recording is the one its
-   * run's sealed record lists. It names the same two stronger checks the shareable page's does, so
-   * the line that says how to check without scripts (the shareable page's, shared) is true of both.
+   * run's sealed record lists. It ends as the shareable page's does (`unchangedTail`), naming the
+   * same two stronger checks, so the line that says how to check without scripts (the shareable
+   * page's, shared) is true of both; but it says `voicecap share` prints the file's fingerprint
+   * with the other files it writes, since the line for the email names only the page and its Word
+   * copy.
    */
   check: {
     title: "The evidence behind these recordings",
     proves: (verify: string): Line => [
       { text: "What the check proves:", bold: true },
-      " this page is consistent with itself, so every recording on it is exactly the one its run's sealed record lists. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one its sender recorded: ",
-      { text: SHARE_COMMAND, mono: true },
-      " prints it, ready for the email that sends the file, and ",
-      { text: POWERSHELL_HASH, mono: true },
-      " in PowerShell, or ",
-      { text: MAC_HASH, mono: true },
-      " on a Mac, shows it for the file you received. Or run ",
-      { text: verify, mono: true },
-      " on the transcripts folder.",
+      " this page is consistent with itself, so every recording on it is exactly the one its run's sealed record lists.",
+      ...unchangedTail(verify, "prints it with the other files it writes"),
     ],
   },
-  /** The footer's line on the shareable page and its Word copy, which this page belongs to. */
+  /**
+   * The footer's line on the shareable page and its Word copy, which this page belongs to. The
+   * shareable page's name is a link to it, by name, beside this file, as the sections' links to its
+   * transcripts are; the Word copy's is plain words, since this page can't open it.
+   */
   footer: (fileName: string, wordName: string): Line => [
     "The shareable page: ",
-    { text: fileName, mono: true },
+    { text: fileName, mono: true, href: fileName },
     ". Its Word copy: ",
     { text: wordName, mono: true },
     ".",

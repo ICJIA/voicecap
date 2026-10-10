@@ -26,6 +26,7 @@
  */
 import { AXE_FILE, PASS_NAMES, SCREENSHOT_FILE, type PassName } from "../../model.js";
 import { esc, idFragment } from "../../report/html.js";
+import { cardAnchor, transcriptAnchor } from "../anchors.js";
 import {
   axeCriteria,
   axeFix,
@@ -99,8 +100,11 @@ function fromLine(card: PageCard): string {
 
 // Every page.
 
-/** The page's path, or the label its page list gave it with its path beside it. */
-function heading(card: PageCard, number: number): string {
+/**
+ * A page's number and its name: its label with its path beside it, or its path alone. The voice page
+ * (../voice-page.ts) heads each section with it too, so a card and its section read alike.
+ */
+export function heading(card: PageCard, number: number): string {
   const named = card.labeled
     ? `${esc(card.name)} <span class="sub">${esc(card.path)}</span>`
     : esc(card.path);
@@ -242,7 +246,7 @@ function cardOf(
     transcripts === undefined ? "" : transcriptFold(card, transcripts, latest),
   ].filter((part) => part !== "");
   const parts = [picture, `<div class="card-body">\n    ${body.join("\n    ")}\n  </div>`];
-  return `<article class="card" id="pg-${idFragment(card.slug)}">\n  ${parts.filter((part) => part !== "").join("\n  ")}\n</article>`;
+  return `<article class="card" id="${cardAnchor(card.slug)}">\n  ${parts.filter((part) => part !== "").join("\n  ")}\n</article>`;
 }
 
 /** The cards, as the mockup lays them out. */
@@ -507,5 +511,5 @@ function transcriptFold(
   });
   const none = passes.length === 0 ? `<p>${esc(APPENDIX_TEXT.noFiles)}</p>` : "";
   const body = `${originLine(card, latest)}${sections.join("")}${none}`;
-  return fold(summary, body, { id: `tx-${idFragment(entry.slug)}`, className: "tx-page" });
+  return fold(summary, body, { id: transcriptAnchor(entry.slug), className: "tx-page" });
 }

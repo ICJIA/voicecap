@@ -154,6 +154,11 @@ export interface ShareRunSpec {
   /** Default: a page list file, as report-data.ts's runs have. */
   source?: PageSource;
   /**
+   * The driver the run's settings record (`settings.driver`). Default: "replay" for a replayed run,
+   * "guidepup" for any other, the driver that reads with NVDA and records its voice.
+   */
+  driver?: string;
+  /**
    * The voicecap version the session's environment records, as `environment.voicecap.version`:
    * "0.5.0" gives a run from before attempt records were kept. Default: report-data.ts's.
    */
@@ -234,7 +239,7 @@ export function shareRun(spec: ShareRunSpec): RunJson {
       include: [],
       exclude: [],
       limit: null,
-      driver: replayed ? "replay" : "guidepup",
+      driver: spec.driver ?? (replayed ? "replay" : "guidepup"),
       replayFrom: replayed ? "fixture/replay-run" : null,
       capture: "complete",
       stepCaps: { read: 400, headings: 200, tab: 300 },
