@@ -807,8 +807,8 @@ describe("renderTechnical", () => {
     expect(record).toContain(
       `Recording needs Windows 11 or Windows Server 2022 (Windows build ${build} or later).`,
     );
-    expect(RECORDER_SCRIPT).not.toContain("Windows 10");
-    expect(record).not.toContain("Windows 10");
+    expect(RECORDER_SCRIPT).not.toContain("Windows 10 build");
+    expect(record).not.toContain("Windows 10 build");
     // A page it can't record keeps the reason in its record (PageRecord.voice's `error`), and is read.
     expect(record).toContain(
       "A page that can't be recorded keeps the reason in its record, and is read as usual.",

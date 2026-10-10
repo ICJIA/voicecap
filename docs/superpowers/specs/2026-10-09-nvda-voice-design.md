@@ -67,7 +67,7 @@ The recording never changes the verdict, the ring, the numbers, or "What needs a
   - A page stopped by Ctrl+C keeps no recording.
   - A page the attempt never read (it was skipped, the site answered with an HTTP error, or it wouldn't open) keeps no recording and no record of one, as it keeps no screenshot or axe results.
 - **Never a failure.** If the helper can't start, NVDA's process isn't found or ended during the recording, Windows is too old, PowerShell's language mode blocks `Add-Type`, the recording is empty or silent, or encoding fails, the page records the reason, and the run goes on as if nothing were recorded.
-  - A silent recording is a page whose transcripts have words but whose recording peaks at 2 (out of 32,767) or less. It's kept as the reason "the recording is silent", not as a file.
+  - A silent recording is a page whose transcripts have words but whose recording peaks at 2 (out of 32,768) or less. It's kept as the reason "the recording is silent", not as a file.
   - An empty recording is kept as the reason "the recording is empty" (**amended 2026-10-09:** the encoder refuses a recording of no sound, which no browser could play).
   - A helper that stops answering within 5 s is ended, and the rest of the run's pages give that reason.
   - A reason is the recorder's own words, on one line, with the account's home folder replaced as a failed attempt's stack has it, and the temp folder the sound is kept in named `%TEMP%`, so the record and every page that shows it never name the account (**amended 2026-10-09**).
@@ -83,7 +83,8 @@ The recording never changes the verdict, the ring, the numbers, or "What needs a
   - **Determinism:** the output is byte for byte the same for the same PCM.
 - **The container.** WebM, written by voicecap's own small muxer, about 230 lines of code (**amended:** "about 150 lines"), with Cues for seeking and DiscardPadding so the length is exact.
   - **The track's rate is 48,000 Hz, on purpose (amended 2026-10-09).** The encoder is given 16,000 Hz sound, and the file says 48,000 as the track's SamplingFrequency: the rate Opus decodes at, and the one FFmpeg's muxer writes, converting CodecDelay and DiscardPadding at it. Chromium's trims are exact with it, and with 16,000 they came out two samples off (2,567 for 2,565). The 16,000 the encoder was given is in the OpusHead. The current Matroska mapping for Opus (CELLAR) says to write the rate the encoder was given, so a strict reader that follows it to the letter reports 48 kHz.
-  - **Why not Ogg:** Ogg is 5 KB a minute smaller, but Safari plays Ogg Opus only from 18.4, and mis-times it (WebKit bug 293310, still open). WebM Opus plays in Safari from 17.4, and in Chrome, Edge, and Firefox. Windows 11's Media Player and VLC open both.
+  - **Why not Ogg:** Ogg is 5 KB a minute smaller, but Safari plays Ogg Opus only from 18.4, and mis-times it (WebKit bug 293310, still open). WebM Opus plays in Chrome and Edge, which share one player, and in Firefox. Windows 11's Media Player and VLC open both.
+  - **Amended 2026-10-09, Safari is unverified.** This said "WebM Opus plays in Safari from 17.4". caniuse lists WebM Opus in `<audio>` from 17.4, but WebKit bug 257365 says Safari doesn't load WebM from a `data:` or `blob:` address in a `<video>`, and the voice page holds each recording as a `data:` address. Safari hasn't been tried. It will be checked on a Mac and an iPhone before the release, and before the share made at the PC check is trusted: if Safari won't play a `data:` WebM, the container or the address scheme is decided again.
 - **The size.** Measured on fast synthetic speech, at 12 kbps WebM:
   - 66-93 KB a minute;
   - about 2 KB a minute less for a page with long silences;
@@ -147,7 +148,7 @@ The recording never changes the verdict, the ring, the numbers, or "What needs a
   - PCM to WebM: the EBML structure, Cues, DiscardPadding, and the duration exact to the sample;
   - the same PCM gives the same bytes, pinned by a golden SHA-256;
   - silence costs little (DTX);
-  - Chromium plays, seeks, and reports the exact duration.
+  - Chromium loads it from a `data:` address, reports the exact duration, seeks, and decodes it to the right samples (**amended 2026-10-09:** this said "plays": no test plays a sound).
 - **The helper's client,** against a fake helper (a Node script speaking the same JSON lines):
   - start, stop, retarget, and quit;
   - a helper that won't start, that stops answering, or that exits;
@@ -195,7 +196,7 @@ The owner then plays one page at 0.5× and decides whether 12 kbps is clear enou
 Made from my recommendations, each easy to change:
 1. **The audio lives on its own voice page,** not in the shareable page. Embedding it would make a 32-page report about 8 MB heavier for everyone who opens it, for something rarely played.
 2. **12 kbps,** to be confirmed by ear at the PC. 10 kbps is 15% smaller, 8 kbps is the floor, and 16 kbps costs 32% more.
-3. **WebM, not Ogg,** for Safari on Macs and iPhones.
+3. **WebM, not Ogg,** for Safari on Macs and iPhones. **Amended 2026-10-09:** that Safari plays it is unverified (see "Why not Ogg", under "How it's encoded"). It will be checked on a Mac and an iPhone before the release.
 4. **No setting to turn it off,** as with axe and the screenshots. Even so, a 32-page run adds about 6 MB to the transcripts repo. A later setting, or keeping the sound only for the newest runs, is easy to add. **Amended 2026-10-09:** it adds more than that, since each dated share's voice page holds every recording again as base64, about 8 MB for 32 pages, and Git keeps every dated share: sharing the same run twice writes the audio twice. At about two and a half minutes a page, a voice page passes 20 MB, the size `voicecap share` warns of as too big for most email, at about 80 recorded pages, and GitHub's limit of 100 MB for one file at about 400. The later options are a setting for the voice page, or a voice page for the newest share only.
 5. **The speeds offered:** 1×, 0.75×, 0.5×, 0.25×, starting at 1×.
 6. **One recording a page,** from the attempt's start to its end, with the "voicecap check" title read at each pass. It isn't one recording a pass.
