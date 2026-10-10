@@ -83,6 +83,56 @@ describe.runIf(process.platform === "win32" && process.env.VOICECAP_SOUND_TEST =
       expect(performance.now() - closing).toBeLessThan(5_000);
     }, 60_000);
 
+    // Every other test here ends the helper with a quit. A voicecap that is killed sends none: its
+    // input just ends, and the helper must stop recording and exit by itself, or it would outlive it.
+    it("stops and exits by itself when its input ends in the middle of a recording", async (ctx) => {
+      const target = sleeper(ctx, 8);
+      const pcm = path.join(await folder(ctx), "input-ends.pcm");
+      const helpers: ChildProcess[] = [];
+      const recorder = await startRecorder({
+        spawnRecorder: (file, args, options) => {
+          const child = spawn(file, [...args], options);
+          helpers.push(child);
+          return child;
+        },
+      });
+      ctx.onTestFinished(async () => {
+        await recorder.close();
+        for (const child of helpers) child.kill();
+      });
+      const running = helpers[0];
+      if (running === undefined) throw new Error("The recorder started no helper.");
+      await recorder.target(target.pid, POWERSHELL);
+
+      await recorder.start(pcm);
+      const started = performance.now();
+      await delay(800);
+      // No quit: the input ends, as it does when the process that owns it does.
+      const ended = once(running, "exit");
+      const inputEnded = performance.now();
+      running.stdin?.end();
+      const outcome = await Promise.race([
+        ended.then(([code]) => ({ code: code as number | null })),
+        delay(10_000).then(() => "never" as const),
+      ]);
+      const exited = performance.now();
+      expect(outcome).toEqual({ code: 0 });
+      // It ended itself: it wasn't killed, and the program it was recording wasn't touched.
+      expect(running.killed).toBe(false);
+      expect(target.exitCode).toBeNull();
+
+      // The recording was stopped where the input ended, not abandoned: whole samples, of the time
+      // between the start and the end of the input, give or take the frames either side of it.
+      const bytes = (await stat(pcm)).size;
+      const recorded = bytes / 32_000;
+      await ctx.annotate(
+        `${bytes} bytes (${(recorded * 1_000).toFixed(0)} ms) for ${(inputEnded - started).toFixed(0)} ms to the end of the input, and ${(exited - started).toFixed(0)} ms to the exit`,
+      );
+      expect(bytes % 2).toBe(0);
+      expect(recorded).toBeGreaterThanOrEqual((inputEnded - started) / 1_000 - 0.1);
+      expect(recorded).toBeLessThanOrEqual((exited - started) / 1_000 + 0.1);
+    }, 60_000);
+
     it("says when the program it records has exited", async (ctx) => {
       const target = sleeper(ctx, 1);
       const recorder = await startRecorder();

@@ -243,15 +243,18 @@ export const VOICE_FILE = "voice.webm";
 /**
  * A page's recording of NVDA's voice, as the page's record keeps it, beside its screenshot's and
  * axe's. A recording that was kept has the file's SHA-256 and size, its length in seconds (to the
- * sample, so a fraction), and the sound the recorder lost by falling behind, in milliseconds, which
- * is normally 0. One that couldn't be kept has the first line of the reason, at most 300 characters,
+ * sample, so a fraction), the sound the recorder lost by falling behind, in milliseconds, which is
+ * normally 0, and when its first sample was (`startedAt`, a local ISO time to the millisecond, as
+ * `recordedAt` is, which the recorder's own UTC time is turned into). `startedAt` is optional: a
+ * record without it is whole, and never fails verify, and a driver's time that isn't a time is left
+ * out. One that couldn't be kept has the first line of the reason, at most 300 characters,
  * with the account's home folder in it replaced, and no file: the recorder couldn't run, NVDA's
  * process wasn't found or ended during the recording, the recording is empty or silent, or it
  * couldn't be encoded. Both have when the run recorded it (a local ISO time to the millisecond), a
  * moment after the driver stopped the recording.
  */
 export type VoiceRecord =
-  | (FileHash & { seconds: number; lostMs: number; recordedAt: string })
+  | (FileHash & { seconds: number; lostMs: number; startedAt?: string; recordedAt: string })
   | { error: string; recordedAt: string };
 
 export interface PassSummary {

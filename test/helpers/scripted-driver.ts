@@ -20,11 +20,12 @@ import { peakOf } from "../../src/voice/encode.js";
 /**
  * What a recording of a page gives at stop(), as the Guidepup driver's recorder gives it: `samples`,
  * the sound as 16 kHz samples (the driver writes them to a PCM file), with the time the recorder
- * lost to falling behind; `bytes`, a file that isn't whole samples (an odd count, or none); `missing`,
+ * lost to falling behind and, as a UTC ISO time, when its first sample was (`startedAt`, default
+ * "2026-10-09T14:03:07.215Z"); `bytes`, a file that isn't whole samples (an odd count, or none); `missing`,
  * a file that isn't there when the run reads it; or the reason there's no sound.
  */
 export type ScriptedVoice =
-  | { samples: Int16Array; lostMs?: number }
+  | { samples: Int16Array; lostMs?: number; startedAt?: string }
   | { bytes: Uint8Array; peak?: number }
   | { missing: true }
   | { error: string };
@@ -333,7 +334,8 @@ export class ScriptedDriver implements ScreenReaderDriver {
       rmSync(pcm, { force: true });
       return { error: voice.error };
     }
-    const startedAt = "2026-10-09T14:03:07.215Z";
+    const startedAt =
+      ("startedAt" in voice ? voice.startedAt : undefined) ?? "2026-10-09T14:03:07.215Z";
     if ("missing" in voice) {
       rmSync(pcm, { force: true });
       return { pcm, frames: 16_000, lostMs: 0, peak: 1_000, startedAt };

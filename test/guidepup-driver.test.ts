@@ -1,4 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import type * as Fsp from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -15,7 +17,7 @@ import { ForegroundError, type EventRecorder } from "../src/drivers/types.js";
 import type { NewRunEvent } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
 import { openEventLog, readEventLog } from "../src/run/events.js";
-import { EnvironmentError } from "../src/util/errors.js";
+import { EnvironmentError, errorCode } from "../src/util/errors.js";
 import { createMemoryLogger, type Logger } from "../src/util/log.js";
 import { isoLocalMs } from "../src/util/time.js";
 import { verifyHome } from "../src/verify.js";
@@ -34,6 +36,13 @@ import {
   setup as setupRun,
 } from "./helpers/run-site.js";
 import { busySound } from "./helpers/voice-signal.js";
+
+// The files the driver takes away are watched, not stopped: each call goes through, and the tests of
+// the recording's cleanup read what it was given.
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof Fsp>();
+  return { ...actual, rm: vi.fn(actual.rm) };
+});
 
 const temps: string[] = [];
 const drivers: GuidepupNvdaDriver[] = [];
@@ -2400,6 +2409,55 @@ describe("recording NVDA's voice", () => {
     });
   });
 
+  describe("when the recording's folder can't be made", () => {
+    /** A path the sound's folder can't be made at: under a file. */
+    function blockedFolder(): { blocker: string; voiceDir: string } {
+      const blocker = path.join(
+        mkdtempSync(path.join(os.tmpdir(), "voicecap-driver-blocked-")),
+        "a-file",
+      );
+      temps.push(path.dirname(blocker));
+      writeFileSync(blocker, "not a folder");
+      return { blocker, voiceDir: path.join(blocker, "voicecap-voice-4242") };
+    }
+
+    it("gives that as the recording's reason, with the error's code and no path, and records nothing", async () => {
+      const { driver, deps, voiceRecorder } = setup();
+      const { voiceDir } = blockedFolder();
+      deps.voiceDir = voiceDir;
+      // What the operating system calls it, whichever it is here.
+      const code = await mkdir(voiceDir, { recursive: true }).then(
+        () => "none",
+        (error: unknown) => errorCode(error),
+      );
+      expect(code).not.toBe("none");
+
+      await driver.start();
+      const recording = await driver.recordVoice();
+      const reason = `the recording's folder couldn't be made (${code})`;
+      expect(await recording.stop()).toEqual({ error: reason });
+      expect(reason).not.toContain(path.dirname(voiceDir));
+      // The helper was pointed at NVDA, and told nothing more: no recording began.
+      expect(voiceRecorder.calls).toEqual([`target 5150 ${deps.install.nvdaExe}`]);
+      expect(voiceRecorder.closed).toBe(false);
+    });
+
+    it("records the next page once the folder can be made, with the same helper", async () => {
+      const { driver, deps, voiceRecorder, voiceDir, recorderStarts } = setup();
+      const blocked = blockedFolder();
+      deps.voiceDir = blocked.voiceDir;
+      await driver.start();
+      expect(await (await driver.recordVoice()).stop()).toHaveProperty("error");
+
+      // The folder is there to make again (whatever was in the way is gone).
+      deps.voiceDir = voiceDir;
+      const capture = await (await driver.recordVoice()).stop();
+      expect(capture).toMatchObject({ pcm: path.join(voiceDir, "2.pcm"), frames: 16_000 });
+      expect(recorderStarts.count).toBe(1);
+      expect(voiceRecorder.calls.filter((call) => call.startsWith("target"))).toHaveLength(1);
+    });
+  });
+
   it("says NVDA's process wasn't found when there's no process id for it, and starts nothing", async () => {
     const { driver, deps, voiceRecorder, recorderStarts } = setup();
     deps.screenReaderPid = () => Promise.resolve(null);
@@ -2620,6 +2678,106 @@ describe("recording NVDA's voice", () => {
       expect(await recording.stop()).toEqual({ error: "the recording was discarded" });
       expect(voiceRecorder.calls).toEqual(["close"]);
     });
+  });
+
+  describe("stopping or leaving while something has gone wrong", () => {
+    it("closes the helper and removes the folder at the final stop, though an earlier part of the stop throws", async () => {
+      const { driver, voiceRecorder, voiceDir } = setup();
+      // The log's record of NVDA stopping throws, after NVDA has stopped: the stop ends with that error.
+      driver.setEventRecorder({
+        record: (event) => {
+          if (event.type === "screen-reader-stopped") throw new Error("the event log broke");
+        },
+      });
+      await driver.start();
+      await driver.recordVoice();
+      expect(existsSync(voiceDir)).toBe(true);
+
+      await expect(driver.stop()).rejects.toThrow("the event log broke");
+      // The helper has nothing left to record, and doesn't wait for a stop that went well.
+      expect(voiceRecorder.closed).toBe(true);
+      expect(existsSync(voiceDir)).toBe(false);
+    });
+
+    it("leaves the helper running at a restart's stop that throws, as at one that doesn't", async () => {
+      const { driver, voiceRecorder } = setup();
+      driver.setEventRecorder({
+        record: (event) => {
+          if (event.type === "screen-reader-stopped") throw new Error("the event log broke");
+        },
+      });
+      await driver.start();
+      await (await driver.recordVoice()).stop();
+      await expect(driver.stop({ restarting: true })).rejects.toThrow("the event log broke");
+      expect(voiceRecorder.closed).toBe(false);
+    });
+
+    it("takes the helper's folder away and doesn't wait for a helper that's still starting, when the process is exiting", async () => {
+      const { driver, deps, voiceRecorder, voiceDir } = setup();
+      const ready = new Gate();
+      deps.startRecorder = async () => {
+        await ready.wait();
+        return voiceRecorder;
+      };
+      await driver.start();
+      const beginning = driver.recordVoice();
+      await until(() => ready.waiting === 1);
+
+      // The exit hook: shut down without waiting, as a process that is ending must.
+      expect(() => driver.abandon()).not.toThrow();
+      expect(voiceRecorder.calls).toEqual([]);
+      expect(existsSync(voiceDir)).toBe(false);
+
+      // Not left waiting for itself: the helper becomes ready, and the recording that waited for it
+      // gives its reason (a process that's exiting has no more of them to give).
+      ready.open();
+      const recording = await beginning;
+      expect(await recording.stop()).toEqual({ error: "the recording was discarded" });
+    });
+
+    it("closes a helper that becomes ready after the process began to exit, and starts no recording on it", async () => {
+      const { driver, deps, voiceRecorder, voiceDir } = setup();
+      const ready = new Gate();
+      deps.startRecorder = async () => {
+        await ready.wait();
+        return voiceRecorder;
+      };
+      await driver.start();
+      const beginning = driver.recordVoice();
+      await until(() => ready.waiting === 1);
+      driver.abandon();
+
+      ready.open();
+      await beginning;
+      // Whatever is still running, which only a test is, never records after the exit began: it is
+      // told to quit, and was never pointed at NVDA or told to start.
+      await until(() => voiceRecorder.closed);
+      expect(voiceRecorder.calls).toEqual(["close"]);
+      expect(existsSync(voiceDir)).toBe(false);
+    });
+  });
+
+  it("takes each sound's file and the folder away with retries, as every other removal does", async () => {
+    const { driver, voiceDir } = setup();
+    await driver.start();
+    await driver.recordVoice();
+    const pcm = path.join(voiceDir, "1.pcm");
+    vi.mocked(rm).mockClear();
+    // The recording is ended without being kept: its file goes, and then the folder with the helper.
+    await driver.stop();
+    const inFolder = vi
+      .mocked(rm)
+      .mock.calls.filter(([target]) => String(target).startsWith(voiceDir));
+    expect(inFolder).toEqual(
+      expect.arrayContaining([
+        [pcm, { force: true, maxRetries: 3 }],
+        [voiceDir, { recursive: true, force: true, maxRetries: 3 }],
+      ]),
+    );
+    // Nothing of it is taken away without them.
+    expect(
+      inFolder.every(([, options]) => (options as { maxRetries?: number })?.maxRetries === 3),
+    ).toBe(true);
   });
 
   it("closes the helper at once, and removes the folder, when the process is exiting", async () => {

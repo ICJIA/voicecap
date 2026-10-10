@@ -573,10 +573,11 @@ const SILENT_PEAK = 2;
 
 /**
  * Keep the recording a driver made of an attempt: its sound is read, encoded, and written to the
- * page's folder (voice.webm), and its record has the file's fingerprint, its length, and the sound
- * lost by the recorder, with when. One that can't be kept is recorded as the reason, with no file,
- * and the page is read as it was: the reason the driver gave, or that the file isn't 16-bit sound,
- * can't be read, is empty, is silent, or couldn't be encoded. Silent means it peaks at 2 or less
+ * page's folder (voice.webm), and its record has the file's fingerprint, its length, the sound
+ * lost by the recorder, and when its first sample was (`startedAt`), with when it was recorded. One
+ * that can't be kept is recorded as the reason, with no file, and the page is read as it was: the
+ * reason the driver gave, or that the file isn't 16-bit sound, can't be read, is empty, is silent,
+ * or couldn't be encoded. Silent means it peaks at 2 or less
  * while the attempt's transcripts have words (see hasWords): NVDA spoke, and the recording doesn't
  * have it. A quiet recording of a page with no words is a recording of a quiet page, and is kept. A
  * reason is its first line, cut at 300 characters, as an axe check's is, once the account's home
@@ -636,11 +637,23 @@ async function keepVoice(
       ...fileHash(encoded.webm),
       seconds: encoded.seconds,
       lostMs: capture.lostMs,
+      ...firstSampleAt(capture.startedAt),
       recordedAt,
     };
   } finally {
-    await rm(capture.pcm, { force: true }).catch(() => {});
+    // A few tries: Windows refuses to remove a file for a moment while a scanner has it open.
+    await rm(capture.pcm, { force: true, maxRetries: 3 }).catch(() => {});
   }
+}
+
+/**
+ * When the recording's first sample was, for the record: the recorder's UTC time as a local ISO time
+ * to the millisecond, as every other time of the record is, under its key, and nothing for a time
+ * that isn't one (the key is optional: a record without it is whole).
+ */
+function firstSampleAt(startedAt: string): { startedAt?: string } {
+  const time = new Date(startedAt);
+  return Number.isNaN(time.getTime()) ? {} : { startedAt: isoLocalMs(time) };
 }
 
 /**

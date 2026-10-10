@@ -5,7 +5,8 @@
  * the reason, and the page is read as usual.
  */
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import type * as Fsp from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -21,6 +22,7 @@ import { voiceRecordOf } from "../src/share/records.js";
 import { fileHash } from "../src/transcripts/write.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { sealOf } from "../src/util/hash.js";
+import { isoLocalMs } from "../src/util/time.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
 import type * as Encode from "../src/voice/encode.js";
@@ -38,6 +40,13 @@ import { busySound, silence, speechAndPauses } from "./helpers/voice-signal.js";
 vi.mock("../src/voice/encode.js", async (importOriginal) => {
   const actual = await importOriginal<typeof Encode>();
   return { ...actual, encodeVoice: vi.fn(actual.encodeVoice) };
+});
+
+// The files the run takes away are watched, not stopped: each call goes through, and the test of the
+// sound's deletion reads what it was given.
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof Fsp>();
+  return { ...actual, rm: vi.fn(actual.rm) };
 });
 
 /** Two seconds of speech and pauses: what a page's recording is, unless a test says otherwise. */
@@ -167,7 +176,7 @@ describe("a page's recording of NVDA's voice, in a run", () => {
     expect(new Set(driver.pcmFiles).size).toBe(3);
   });
 
-  it("writes voice.webm, and records its fingerprint, length, and lost time with the page", async () => {
+  it("writes voice.webm, and records its fingerprint, length, lost time, and the time of its first sample with the page", async () => {
     const { dir, run, page } = await runHome({ samples: SPEECH, lostMs: 40 });
     expect(run.outcome).toBe("completed");
 
@@ -177,8 +186,12 @@ describe("a page's recording of NVDA's voice, in a run", () => {
       ...fileHash(webm),
       seconds: 2,
       lostMs: 40,
+      // When the first sample was, as the recorder says (a UTC time), in the form every other time
+      // of the record has: local, with its offset, to the millisecond.
+      startedAt: isoLocalMs(new Date("2026-10-09T14:03:07.215Z")),
       recordedAt: expect.stringMatching(ISO_MS) as unknown,
     });
+    expect((page.voice as { startedAt: string }).startedAt).toMatch(ISO_MS);
     // Not one of the page's files: a review keeps those to find a page that changed since.
     expect(Object.keys(page.files).sort()).toEqual(TRANSCRIPTS);
     // The record on disk says the same, and the run's seal covers it, so the run verifies.
@@ -276,6 +289,25 @@ describe("a page's recording of NVDA's voice, in a run", () => {
     });
   });
 
+  describe("the sound the driver leaves", () => {
+    it("is deleted with retries, as every other removal is: kept, silent, or unreadable alike", async () => {
+      const sounds: [string, ScriptedVoice][] = [
+        ["kept", { samples: SPEECH }],
+        ["silent", { samples: silence(2) }],
+        ["unreadable", { bytes: new Uint8Array(1001) }],
+      ];
+      for (const [kind, voice] of sounds) {
+        vi.mocked(rm).mockClear();
+        const { driver } = await runHome(voice);
+        const [pcm] = driver.pcmFiles;
+        const removals = vi.mocked(rm).mock.calls.filter(([target]) => target === pcm);
+        // Once, with the options a removal that a scanner can hold up for a moment needs.
+        expect(removals, kind).toEqual([[pcm, { force: true, maxRetries: 3 }]]);
+        expect(pcmLeft(driver), kind).toEqual([]);
+      }
+    });
+  });
+
   describe("a recording that makes no file", () => {
     it("is the reason 'the recording is silent' when NVDA said words, whatever peaks at 2 or less", async () => {
       // Silence, and the loudest sample either way up at 2, which is as loud as silence gets.
@@ -366,6 +398,169 @@ describe("a page's recording of NVDA's voice, in a run", () => {
       expect(existsSync(voiceOf(dir, run))).toBe(false);
       expect(pcmLeft(driver)).toEqual([]);
       expect(await problemsIn(dir)).toBe(0);
+    });
+  });
+
+  // A helper that is gone records nothing for the rest of the run, and every page says so in its
+  // record. The person running it is told once, as it happens, in the console: the pages are read as
+  // usual, and nothing else on the screen would say that no sound is being kept.
+  describe("when the recorder can't record for the rest of the run", () => {
+    /** Every warning of the run that is about NVDA's voice. */
+    const aboutVoice = (logger: ReturnType<typeof createMemoryLogger>): string[] =>
+      logger.entries
+        .filter(({ level, message }) => level === "warn" && message.includes("NVDA's voice"))
+        .map(({ message }) => message);
+
+    /** A run of the three pages with the voice each is given, and its logger. */
+    async function threePages(home: ScriptedVoice, about: ScriptedVoice, resources: ScriptedVoice) {
+      const dir = await setup();
+      const logger = createMemoryLogger();
+      const driver = new ScriptedDriver(
+        sitePages({
+          home: { voice: home },
+          about: { voice: about },
+          resources: { voice: resources },
+        }),
+      );
+      const run = await runAudit(options(dir, driver, { logger }));
+      return { run, logger, dir };
+    }
+
+    /** The same voice for every page. */
+    const everyPage = (voice: ScriptedVoice) => threePages(voice, voice, voice);
+
+    it("says so once, with the page's reason, when the helper didn't start", async () => {
+      const why =
+        "the recorder didn't start: PowerShell couldn't compile its C#: Add-Type isn't allowed";
+      const { run, logger, dir } = await everyPage({ error: why });
+      expect(run.outcome).toBe("completed");
+
+      expect(aboutVoice(logger)).toEqual([
+        `NVDA's voice isn't being recorded: ${why}. The pages are read as usual.`,
+      ]);
+      // Said as the run's other warnings are: a warning, never a failure.
+      expect(logger.text("error")).toBe("");
+      expect(run.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
+      expect(await problemsIn(dir)).toBe(0);
+    });
+
+    it("says the same when the helper stopped answering, and when it ended", async () => {
+      for (const why of [
+        "the recorder stopped answering",
+        "the recorder stopped: PowerShell ended with exit code 1 (The pipe has been ended)",
+      ]) {
+        const { logger } = await everyPage({ error: why });
+        expect(aboutVoice(logger), why).toEqual([
+          `NVDA's voice isn't being recorded: ${why}. The pages are read as usual.`,
+        ]);
+      }
+    });
+
+    it("puts one full stop after the reason, whatever its last letters are, and never doubles one it has", async () => {
+      // A reason ending in an s is whole (a regular expression for the full stop that read it as a
+      // class of letters would cut it), and one that ends in a stop or two has it taken off.
+      for (const [kept, said] of [
+        ["the recorder didn't start: Add-Type needs permissions", "needs permissions"],
+        ["the recorder didn't start: PowerShell ended with exit code 1.", "exit code 1"],
+        ["the recorder didn't start: PowerShell quoted its script ...", "its script"],
+      ] as const) {
+        const { logger } = await everyPage({ error: kept });
+        const [warning] = aboutVoice(logger);
+        expect(warning, kept).toMatch(new RegExp(`${said}\\. The pages are read as usual\\.$`));
+        expect(warning, kept).not.toContain("..");
+      }
+    });
+
+    it("says so when it first happens, which is a later page when the helper worked until then, and once", async () => {
+      const why = "the recorder stopped answering";
+      const { logger } = await threePages({ samples: SPEECH }, { error: why }, { error: why });
+      expect(aboutVoice(logger)).toHaveLength(1);
+      // After the first page, which was recorded, and not before.
+      const lines = logger.entries.map(({ message }) => message);
+      const warned = lines.findIndex((line) => line.includes("NVDA's voice"));
+      expect(warned).toBeGreaterThan(lines.findIndex((line) => line.startsWith("[1/3]")));
+    });
+
+    it("says nothing of a recording that was silent, which is one page's, never the helper's", async () => {
+      const { run, logger } = await everyPage({ samples: silence(2) });
+      expect(run.run.pages.map((page) => page.voice)).toEqual(
+        Array.from({ length: 3 }, () => ({
+          error: "the recording is silent",
+          recordedAt: expect.stringMatching(ISO_MS) as unknown,
+        })),
+      );
+      expect(aboutVoice(logger)).toEqual([]);
+    });
+
+    it("says nothing of any reason that is one page's: NVDA not found, a refusal, a failed recording, an unreadable file", async () => {
+      for (const why of [
+        "NVDA's process wasn't found",
+        "process 5353 runs C:\\Windows\\System32\\notepad.exe, not nvda.exe",
+        "the recording couldn't start: Windows didn't open the recording within 3 seconds",
+        "the recording failed: the sound device changed or went away (0x88890004)",
+        "the recorder has no program to record",
+        "the recording's folder couldn't be made (EPERM)",
+        "NVDA's process ended during the recording",
+        "Starting the recording did not finish within 60 seconds",
+      ]) {
+        const { logger } = await everyPage({ error: why });
+        expect(aboutVoice(logger), why).toEqual([]);
+      }
+      const { logger } = await threePages(
+        { missing: true },
+        { bytes: new Uint8Array(0) },
+        { bytes: new Uint8Array(3) },
+      );
+      expect(aboutVoice(logger)).toEqual([]);
+    });
+
+    it("says nothing when every recording is kept, or when the driver records none", async () => {
+      const kept = await everyPage({ samples: SPEECH });
+      expect(aboutVoice(kept.logger)).toEqual([]);
+
+      const dir = await setup();
+      const logger = createMemoryLogger();
+      await runAudit(options(dir, new ScriptedDriver(sitePages()), { logger }));
+      expect(aboutVoice(logger)).toEqual([]);
+    });
+
+    it("gives the reason as the page's record keeps it: the account's home folder replaced, on one line, cut at 300 characters", async () => {
+      const home = os.homedir();
+      const why = `the recorder didn't start: PowerShell couldn't compile its C#: ${path.join(home, "x.cs")} has an error\nat the second line`;
+      const { run, logger } = await everyPage({ error: why });
+      const [said] = aboutVoice(logger);
+      const kept = (run.run.pages[0]?.voice as { error: string }).error;
+      expect(said).toBe(`NVDA's voice isn't being recorded: ${kept}. The pages are read as usual.`);
+      expect(said).not.toContain(home);
+      expect(said).not.toContain("second line");
+    });
+
+    it("says it again in a run that is resumed, which is a session of its own to the person running it", async () => {
+      const why = "the recorder didn't start: PowerShell ended with exit code 1";
+      const voice = { error: why };
+      const pages = () => sitePages({ home: { voice }, about: { voice }, resources: { voice } });
+      const dir = await setup();
+      const controller = new AbortController();
+      const first = new ScriptedDriver(pages());
+      // Ctrl+C as the second page begins.
+      const open = first.openPage.bind(first);
+      first.openPage = (url) => {
+        if (url.endsWith("/about")) controller.abort();
+        return open(url);
+      };
+      const firstLogger = createMemoryLogger();
+      const interrupted = await runAudit(
+        options(dir, first, { logger: firstLogger, signal: controller.signal }),
+      );
+      expect(interrupted.outcome).toBe("interrupted");
+      expect(aboutVoice(firstLogger)).toHaveLength(1);
+
+      const secondLogger = createMemoryLogger();
+      const resumed = await runAudit(
+        options(dir, new ScriptedDriver(pages()), { logger: secondLogger }),
+      );
+      expect(resumed.outcome).toBe("completed");
+      expect(aboutVoice(secondLogger)).toHaveLength(1);
     });
   });
 
@@ -472,16 +667,22 @@ describe("a page's recording of NVDA's voice, in a run", () => {
       const dir = await setup(["/"]);
       const controller = new AbortController();
       const driver = new ScriptedDriver(sitePages({ home: { voice: { samples: SPEECH } } }), {
-        hang: (command) => command === "recordVoice",
+        // Ctrl+C comes as the recording is asked for, and it never answers: not on a clock of the
+        // test's, which a slow runner could let go off before the run asks for a recording at all.
+        hang: (command) => {
+          if (command !== "recordVoice") return false;
+          setTimeout(() => controller.abort(), 20);
+          return true;
+        },
       });
-      setTimeout(() => controller.abort(), 50);
       // A page has two minutes: only Ctrl+C can end the wait, which a short page time would too.
       const timeouts = { stepMs: 300, pageMs: 120_000, driverStartMs: 2000 };
       const run = await runAudit(
         options(dir, driver, { signal: controller.signal, config: config({ timeouts }) }),
       );
       expect(run.outcome).toBe("interrupted");
-      // The attempt never began.
+      // The recording was asked for, and never answered; the attempt never began.
+      expect(driver.calls).toContain("recordVoice");
       expect(driver.calls).not.toContain("openPage");
       const saved = (await readRunJson(outDir(dir), run.runId)).pages[0]!;
       expect(saved).toMatchObject({ status: "pending", attempts: 0 });
@@ -662,6 +863,73 @@ describe("a page's recording of NVDA's voice, in a run", () => {
     expect(skipped.driver.pcmFiles).toHaveLength(1);
     expect(skipped.driver.calls).toContain("discardVoice");
     expect(pcmLeft(skipped.driver)).toEqual([]);
+  });
+
+  // The time of the first sample is the one fact of when the sound was that the record keeps, and
+  // it is only a fact about the recording: it never decides whether the record is whole.
+  describe("the time of a recording's first sample", () => {
+    it("is kept as the recorder gave it, in the record's own form, whatever the zone", async () => {
+      // The same instant, written in other offsets and without milliseconds, comes out the same.
+      const instant = Date.parse("2026-10-09T14:03:07.215Z");
+      for (const given of [
+        "2026-10-09T14:03:07.215Z",
+        "2026-10-09T09:03:07.215-05:00",
+        "2026-10-09T16:03:07.215+02:00",
+      ]) {
+        const { page } = await runHome({ samples: SPEECH, startedAt: given });
+        const { startedAt } = page.voice as { startedAt: string };
+        expect(Date.parse(startedAt), given).toBe(instant);
+        expect(startedAt, given).toBe(isoLocalMs(new Date(instant)));
+      }
+      const { page } = await runHome({ samples: SPEECH, startedAt: "2026-10-09T14:03:07Z" });
+      expect(Date.parse((page.voice as { startedAt: string }).startedAt)).toBe(
+        Date.parse("2026-10-09T14:03:07Z"),
+      );
+    });
+
+    it("is left out, and the recording kept, when it isn't a time", async () => {
+      for (const given of ["", "not a time", "2026-13-45T99:99:99Z"]) {
+        const { page, dir, run } = await runHome({ samples: SPEECH, startedAt: given });
+        expect(page.voice, given).toHaveProperty("sha256");
+        expect(page.voice, given).not.toHaveProperty("startedAt");
+        expect(existsSync(voiceOf(dir, run))).toBe(true);
+        expect(await problemsIn(dir)).toBe(0);
+      }
+    });
+
+    it("is not in the record of a recording that couldn't be kept: there is no first sample", async () => {
+      const { page } = await runHome({ error: "the recorder stopped answering" });
+      expect(page.voice).not.toHaveProperty("startedAt");
+      const silent = await runHome({ samples: silence(2) });
+      expect(silent.page.voice).not.toHaveProperty("startedAt");
+    });
+
+    it("is sealed with the rest of the voice record: changing it is a change verify names", async () => {
+      const { dir, run } = await runHome({ samples: SPEECH });
+      const stored = await readRunJson(outDir(dir), run.runId);
+      const record = stored.pages[0]!.voice as { startedAt?: string };
+      expect(record.startedAt).toBeDefined();
+      record.startedAt = "2026-10-09T09:03:07.216-05:00";
+      expect(sealOf(stored)).not.toBe(stored.seal);
+      await writeFile(path.join(run.runDir, "run.json"), `${JSON.stringify(stored, null, 2)}\n`);
+      const verified = await verifyHome({
+        home: path.join(dir, "transcripts"),
+        logger: createMemoryLogger(),
+      });
+      expect(verified.sites[0]?.problems).toEqual([
+        expect.stringMatching(/run\.json: changed since it was sealed$/) as unknown,
+      ]);
+    });
+
+    it("is optional: a sealed record without it verifies, as one from a build that didn't keep it does", async () => {
+      const { dir, run } = await runHome({ samples: SPEECH });
+      const stored = await readRunJson(outDir(dir), run.runId);
+      delete (stored.pages[0]!.voice as { startedAt?: string }).startedAt;
+      // Sealed again as it now stands, as that build would have sealed it.
+      stored.seal = sealOf(stored);
+      await writeFile(path.join(run.runDir, "run.json"), `${JSON.stringify(stored, null, 2)}\n`);
+      expect(await problemsIn(dir)).toBe(0);
+    });
   });
 
   it("seals the voice record with the run", async () => {

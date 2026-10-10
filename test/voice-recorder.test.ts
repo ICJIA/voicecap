@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
+import { EventEmitter, once } from "node:events";
 import { createInterface } from "node:readline";
+import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -8,8 +9,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { powershellCommand } from "../src/drivers/guidepup/windows.js";
 import {
   RECORDER_SCRIPT,
+  recorderIsGone,
   RECORDER_SPAWN_OPTIONS,
   startRecorder,
+  type RecorderChild,
   type RecorderStop,
   type SpawnRecorder,
 } from "../src/drivers/guidepup/voice-recorder.js";
@@ -204,18 +207,44 @@ describe("the recorder", () => {
     await exit(helper.children[0]!);
   });
 
+  // As a helper that has ended gives what PowerShell said, a helper that is only slow does too: a
+  // person told that it didn't answer is told what it was saying while they waited.
+  it("gives what PowerShell said while it was slow to be ready, as it does for one that ends", async () => {
+    const helper = fake({ ready: false, stderr: "Add-Type is taking its time.\r\n" });
+    await rejectsWith(
+      startRecorder({ spawnRecorder: helper.spawnRecorder, readyMs: 1_500 }),
+      "the recorder didn't start: PowerShell didn't answer within 1.5 seconds (Add-Type is taking its time)",
+    );
+    expect(helper.children[0]!.killed).toBe(true);
+    await exit(helper.children[0]!);
+  });
+
+  // The one command the fake ignores is the only one that has commandMs to be answered in: the
+  // others are never asked of it, so a slow runner can't make this one fail for the wrong command.
   it("ends a helper that doesn't answer within commandMs, and every later call rejects with 'the recorder stopped answering'", async () => {
-    const helper = fake({ ignore: ["stop"] });
+    const helper = fake({ ignore: ["target"] });
     const recorder = await startRecorder({ spawnRecorder: helper.spawnRecorder, commandMs: 300 });
+    await rejectsWith(recorder.target(4242, NVDA), "the recorder stopped answering");
+    expect(helper.children[0]!.killed).toBe(true);
+    await exit(helper.children[0]!);
+
+    await rejectsWith(recorder.target(4242, NVDA), "the recorder stopped answering");
+    await rejectsWith(recorder.start(HOME), "the recorder stopped answering");
+    await rejectsWith(recorder.stop(), "the recorder stopped answering");
+    await recorder.close();
+  });
+
+  // The same, in the middle of a recording, with a time that gives the helper's other answers room:
+  // it's the stop that the fake never answers.
+  it("ends a helper that stops answering in the middle of a recording", async () => {
+    const helper = fake({ ignore: ["stop"] });
+    const recorder = await startRecorder({ spawnRecorder: helper.spawnRecorder, commandMs: 2_000 });
     await recorder.target(4242, NVDA);
     await recorder.start(HOME);
     await rejectsWith(recorder.stop(), "the recorder stopped answering");
     expect(helper.children[0]!.killed).toBe(true);
     await exit(helper.children[0]!);
-
-    await rejectsWith(recorder.target(4242, NVDA), "the recorder stopped answering");
     await rejectsWith(recorder.start(ABOUT), "the recorder stopped answering");
-    await rejectsWith(recorder.stop(), "the recorder stopped answering");
     await recorder.close();
   });
 
@@ -333,5 +362,228 @@ describe("the recorder", () => {
     expect("powershell.exe -NoProfile -NonInteractive -Command ".length + quoted).toBeLessThan(
       32_767,
     );
+  });
+});
+
+/**
+ * A helper played line by line by the test, in this process: nothing runs, so what the client reads,
+ * and when, is exactly what the test says. `say` writes one line of the helper's output and waits
+ * until the client has read it; `sent` is each command the client wrote.
+ */
+function played() {
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const events = new EventEmitter();
+  const sent: unknown[] = [];
+  createInterface({ input: stdin }).on("line", (line) => sent.push(JSON.parse(line)));
+  const child: RecorderChild = {
+    stdin,
+    stdout,
+    stderr,
+    kill: () => true,
+    once(event: "exit" | "error", listener: (value: never) => void) {
+      return events.once(event, listener as (...args: unknown[]) => void);
+    },
+  };
+  const say = async (value: unknown): Promise<void> => {
+    stdout.write(`${JSON.stringify(value)}\n`);
+    // Streams and readline pass a line on a turn of the event loop at a time.
+    for (let turn = 0; turn < 4; turn++) await new Promise((resolve) => setImmediate(resolve));
+  };
+  return { spawnRecorder: (() => child) as SpawnRecorder, say, sent };
+}
+
+/** A recorder that is ready, with the program 4242 targeted and a recording of it started. */
+async function recordingNvda() {
+  const helper = played();
+  const starting = startRecorder({ spawnRecorder: helper.spawnRecorder });
+  await helper.say({ ready: { build: 26200 } });
+  const recorder = await starting;
+  const targeting = recorder.target(4242, NVDA);
+  await helper.say({ targeted: { pid: 4242 } });
+  await targeting;
+  const recording = recorder.start(HOME);
+  await helper.say({ started: { at: STOPPED.firstSampleAt } });
+  await recording;
+  return { recorder, helper };
+}
+
+/** What a helper says when it refuses the target for 5353. */
+const REFUSED = {
+  error: String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not ${NVDA}`,
+};
+
+// The helper forgets its target as soon as it's sent another, whether or not it takes it, and the
+// client does too: what it kept of the program before, and of that program's exit, is gone. Both are
+// told apart here, by when the exit is said: before the new target is sent, or after it's refused.
+describe("the recorder's memory of the program it records", () => {
+  it("forgets that the program exited when it's sent another, though the helper refuses it", async () => {
+    const { recorder, helper } = await recordingNvda();
+    await helper.say({ "target-exited": { pid: 4242 } });
+
+    const refused = rejectsWith(recorder.target(5353, NVDA), REFUSED.error);
+    await helper.say(REFUSED);
+    await refused;
+
+    // The exit was of the program it had before: a stop doesn't say it exited.
+    const stopping = recorder.stop();
+    await helper.say({ stopped: STOPPED });
+    await expect(stopping).resolves.toEqual(STOPPED);
+  });
+
+  it("forgets the program itself when it's sent another, and hears nothing of its exit after", async () => {
+    const { recorder, helper } = await recordingNvda();
+    const refused = rejectsWith(recorder.target(5353, NVDA), REFUSED.error);
+    await helper.say(REFUSED);
+    await refused;
+    // Said late, of a program that's let go of: it's no one's exit now.
+    await helper.say({ "target-exited": { pid: 4242 } });
+
+    const stopping = recorder.stop();
+    await helper.say({ stopped: STOPPED });
+    await expect(stopping).resolves.toEqual(STOPPED);
+  });
+
+  it("keeps an exit said of the program it records, as before", async () => {
+    // The control: with no new target, the same exit is kept, so the two tests above tell the
+    // forgetting from not hearing the exit at all.
+    const { recorder, helper } = await recordingNvda();
+    await helper.say({ "target-exited": { pid: 4242 } });
+    const stopping = recorder.stop();
+    await helper.say({ stopped: STOPPED });
+    await expect(stopping).resolves.toEqual({ ...STOPPED, targetExited: true });
+  });
+});
+
+// The C# only runs on Windows, and its test (test/voice-recorder-windows.test.ts) only with
+// VOICECAP_SOUND_TEST=1, never in CI. What no test of the fake helper can see is pinned here, line by
+// line, as the script is written: each is a line a review found missing or wrong, and each a place a
+// stray edit could take away unseen, as the tests that do run would pass without it.
+describe("the helper's C#, line by line", () => {
+  const lines = RECORDER_SCRIPT.split("\n");
+  const at = (line: string): number => lines.indexOf(line);
+
+  const STOP = "if (Running) { try { client.Stop(); } catch (Exception) { } }";
+  const CAPTURE = "if (capture != null) Marshal.ReleaseComObject(capture);";
+  const CLIENT = "if (client != null) Marshal.ReleaseComObject(client);";
+  const OPERATION = "if (operation != null) Marshal.FinalReleaseComObject(operation);";
+  const FINISHED = "Started.Set(); Finished.Set();";
+
+  it("stops the stream it started, whatever ended the recording, and never lets that stop the cleanup", () => {
+    expect(at(STOP)).toBeGreaterThan(-1);
+    // A Stop that throws is caught, so every release after it still runs, and Finished is set: the
+    // thread PowerShell waits on is never left waiting.
+    expect(at(STOP)).toBeLessThan(at(CAPTURE));
+    expect(at(FINISHED)).toBeGreaterThan(at(OPERATION));
+  });
+
+  it("releases the operation fully, after the objects it holds: the activation's wrapper counts twice", () => {
+    expect([at(CAPTURE), at(CLIENT), at(OPERATION)].every((place) => place > -1)).toBe(true);
+    expect(at(CAPTURE)).toBeLessThan(at(CLIENT));
+    expect(at(CLIENT)).toBeLessThan(at(OPERATION));
+    // ReleaseComObject would leave it, and the IAudioClient it holds, to a garbage collection.
+    expect(lines).not.toContain("if (operation != null) Marshal.ReleaseComObject(operation);");
+  });
+
+  it("writes silence for a buffer that has no address, as for one flagged silent", () => {
+    // GetBuffer can say success with no buffer; copying from it would crash the helper.
+    expect(lines).toContain(
+      "if ((flags & 2) != 0 || data == IntPtr.Zero) Silence(frames - skip); else Copy(data, skip, frames - skip);",
+    );
+  });
+});
+
+// The run tells the person once, in the console, when the helper is gone for the rest of the run
+// (see audit.ts), and what it goes by is how a page's reason begins. The reasons below are the ones
+// the client really gives, got from it as a helper fails in each way, so that rewording a message
+// can't quietly stop the run saying so.
+describe("which of the recorder's reasons say that it is gone for the rest of the run", () => {
+  /** What the promise rejects with, as its message. */
+  async function messageOf(promise: Promise<unknown>): Promise<string> {
+    return errorMessage(
+      await promise.then(
+        () => null,
+        (reason: unknown) => reason,
+      ),
+    );
+  }
+
+  it("is each reason the client gives for a helper that didn't start, stopped answering, or ended", async () => {
+    const reasons: string[] = [];
+    // It says it can't start, and PowerShell ends, can't be started, or is never ready.
+    reasons.push(
+      await messageOf(
+        startRecorder({ spawnRecorder: fake({ failed: "no Add-Type here" }).spawnRecorder }),
+      ),
+      await messageOf(
+        startRecorder({ spawnRecorder: fake({ ready: false, exit: 1 }).spawnRecorder }),
+      ),
+      await messageOf(
+        startRecorder({
+          spawnRecorder: (_file, args, options) =>
+            spawn("voicecap-no-such-program", [...args], options),
+        }),
+      ),
+      await messageOf(
+        startRecorder({ spawnRecorder: fake({ ready: false }).spawnRecorder, readyMs: 300 }),
+      ),
+    );
+    // It stops answering, and every call after that says so.
+    const silent = await startRecorder({
+      spawnRecorder: fake({ ignore: ["target"] }).spawnRecorder,
+      commandMs: 300,
+    });
+    reasons.push(await messageOf(silent.target(4242, NVDA)), await messageOf(silent.start(HOME)));
+    // It ends in the middle of the run, and every call after that says why.
+    const ending = await startRecorder({ spawnRecorder: fake({ exitOn: "start" }).spawnRecorder });
+    await ending.target(4242, NVDA);
+    reasons.push(await messageOf(ending.start(HOME)), await messageOf(ending.stop()));
+
+    expect(reasons).toHaveLength(8);
+    for (const reason of reasons) {
+      expect(reason.startsWith("the recorder "), reason).toBe(true);
+      expect(recorderIsGone(reason), reason).toBe(true);
+    }
+    // And as a page's record keeps one: its first line, cut at 300 characters, unchanged at its start.
+    expect(recorderIsGone(`${reasons[0]}\nat the second line`)).toBe(true);
+    await Promise.all([silent.close(), ending.close()]);
+  });
+
+  it("is no reason that is one page's: a refusal, a failed recording, a bad answer, a recorder that was closed", async () => {
+    const helper = fake({
+      refuse: [5353],
+      stopErrors: [DEVICE_GONE],
+      stopped: { ...STOPPED, frames: -1 },
+    });
+    const recorder = await startRecorder({ spawnRecorder: helper.spawnRecorder });
+    const reasons = [await messageOf(recorder.target(5353, NVDA))];
+    reasons.push(await messageOf(recorder.start(HOME)));
+    await recorder.target(4242, NVDA);
+    await recorder.start(HOME);
+    reasons.push(await messageOf(recorder.stop()));
+    await recorder.start(ABOUT);
+    reasons.push(await messageOf(recorder.stop()));
+    await recorder.close();
+    reasons.push(await messageOf(recorder.start(HOME)));
+    reasons.push(
+      "the recording couldn't start: the PCM file couldn't be created (Access is denied)",
+      "the recorder can't change programs while it records",
+      "NVDA's process wasn't found",
+      "NVDA's process ended during the recording",
+      "the recording is silent",
+      "the recording's folder couldn't be made (EPERM)",
+      "Starting the recording did not finish within 60 seconds",
+      "",
+    );
+
+    expect(reasons.slice(0, 5)).toEqual([
+      String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not ${NVDA}`,
+      "the recorder has no program to record",
+      DEVICE_GONE,
+      "the recorder's answer to a stop couldn't be read",
+      "the recorder was closed",
+    ]);
+    for (const reason of reasons) expect(recorderIsGone(reason), reason).toBe(false);
   });
 });

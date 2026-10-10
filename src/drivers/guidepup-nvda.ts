@@ -573,38 +573,42 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   private async shutDown(): Promise<void> {
     this.generation++;
     this.session = null;
-    // Browsers still starting are killed. A start still under way (the core stopped waiting for
-    // it) gets a moment to finish, so the NVDA it started is shut down now, not left running.
-    this.callOffLaunches();
-    if (
-      this.pending.size > 0 &&
-      !(await this.settlesWithin(Promise.all(this.pending), STOP_TIMEOUT_MS)) &&
-      this.nvdaState === "starting"
-    ) {
-      this.options.logger.warn("NVDA is still starting; shutting it down directly.");
-      this.nvda?.forceQuit();
+    try {
+      // Browsers still starting are killed. A start still under way (the core stopped waiting for
+      // it) gets a moment to finish, so the NVDA it started is shut down now, not left running.
+      this.callOffLaunches();
+      if (
+        this.pending.size > 0 &&
+        !(await this.settlesWithin(Promise.all(this.pending), STOP_TIMEOUT_MS)) &&
+        this.nvdaState === "starting"
+      ) {
+        this.options.logger.warn("NVDA is still starting; shutting it down directly.");
+        this.nvda?.forceQuit();
+      }
+      // NVDA before the browsers: a command still waiting for NVDA to fall silent sends its key once
+      // the page goes quiet, and with the page's browser closed, the key would go to another window.
+      await this.shutDownNvda();
+      await Promise.all([...this.browsers.keys()].map((session) => this.closeBrowser(session)));
+      // A mid-run restart keeps the person's NVDA noted, and off, until the final stop, which starts
+      // it again before letting go of the NVDA lock, so that no other voicecap's NVDA is starting
+      // meanwhile. That holds only while this driver has the lock: a restart whose start couldn't
+      // take it back has none, and a restore put off until the process exits (see
+      // giveBackOwnNvda) comes after the lock below is released.
+      if (this.finalStop) await this.giveBackOwnNvda();
+      this.letSleep();
+      const release = this.releaseLock;
+      this.releaseLock = null;
+      if (release) {
+        await release();
+        this.events.record({ type: "screen-reader-lock-released" });
+      }
+    } finally {
+      // Last, since what comes before matters more to the person (their NVDA, and the lock another
+      // voicecap waits on), and the helper has nothing left to record. It comes whatever came
+      // before: a stop that throws part of the way leaves no helper running. A restart's stop
+      // leaves it running: it's pointed at the next NVDA once that starts.
+      if (this.finalStop) await this.closeVoice();
     }
-    // NVDA before the browsers: a command still waiting for NVDA to fall silent sends its key once
-    // the page goes quiet, and with the page's browser closed, the key would go to another window.
-    await this.shutDownNvda();
-    await Promise.all([...this.browsers.keys()].map((session) => this.closeBrowser(session)));
-    // A mid-run restart keeps the person's NVDA noted, and off, until the final stop, which starts
-    // it again before letting go of the NVDA lock, so that no other voicecap's NVDA is starting
-    // meanwhile. That holds only while this driver has the lock: a restart whose start couldn't
-    // take it back has none, and a restore put off until the process exits (see
-    // giveBackOwnNvda) comes after the lock below is released.
-    if (this.finalStop) await this.giveBackOwnNvda();
-    this.letSleep();
-    const release = this.releaseLock;
-    this.releaseLock = null;
-    if (release) {
-      await release();
-      this.events.record({ type: "screen-reader-lock-released" });
-    }
-    // Last, since what comes before matters more to the person (their NVDA, and the lock another
-    // voicecap waits on), and the helper has nothing left to record. A restart's stop leaves it
-    // running: it's pointed at the next NVDA once that starts.
-    if (this.finalStop) await this.closeVoice();
   }
 
   /**
@@ -1425,7 +1429,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     if (helper !== null) {
       const closing = helper.then((recorder) => recorder.close()).catch(() => {});
       if (ready) await closing;
-      await rm(this.deps.voiceDir, { recursive: true, force: true }).catch(() => {});
+      await rm(this.deps.voiceDir, { recursive: true, force: true, maxRetries: 3 }).catch(() => {});
     }
     this.syncExitHook();
   }
@@ -1435,16 +1439,26 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * sound away. Closing sends the helper its quit and ends its input as it's called, and the helper
    * ends when its input does, even if the process ends first. A file it still holds keeps its
    * folder, which the next run's cleanup takes away (see cleanupOrphans).
+   *
+   * A helper that's still starting has no quit to be sent yet: it's closed once it's ready, which
+   * only a process that goes on (a test) ever sees, and a recording still beginning has ended, so
+   * that it never begins on it: nothing records once the exit began.
    */
   private abandonVoice(): void {
+    const helper = this.voiceHelper;
     const recorder = this.recorder;
-    const started = this.voiceHelper !== null;
+    const take = this.take;
     this.voiceHelper = null;
     this.recorder = null;
     this.take = null;
     this.voiceTargetOwner = null;
-    void recorder?.close().catch(() => {});
-    if (!started) return;
+    if (take !== null) take.ended ??= Promise.resolve({ reason: DISCARDED });
+    if (recorder !== null) {
+      void recorder.close().catch(() => {});
+    } else if (helper !== null) {
+      void helper.then((ready) => ready.close()).catch(() => {});
+    }
+    if (helper === null) return;
     try {
       rmSync(this.deps.voiceDir, { recursive: true, force: true });
     } catch {
@@ -1506,7 +1520,8 @@ type TakeEnd = { stopped: RecorderStop } | { reason: string };
 /** Delete a file if it's there. One that stays is no failure: its folder goes with the helper. */
 async function removeFile(file: string): Promise<void> {
   try {
-    await rm(file, { force: true });
+    // A few tries: Windows refuses to remove a file for a moment while a scanner has it open.
+    await rm(file, { force: true, maxRetries: 3 });
   } catch {
     // Antivirus or the indexer may hold it for a moment.
   }

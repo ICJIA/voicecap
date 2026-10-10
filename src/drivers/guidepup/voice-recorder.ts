@@ -106,18 +106,19 @@ export type SpawnRecorder = (
  *   kept, makes, uses, and releases every COM object, one recording after another. PowerShell's own
  *   thread only hands it each recording, and waits for it to start or end.
  * - **The release.** However a recording ends, a stream that started is stopped (a second Stop()
- *   does nothing), and every COM object is released. The activation's operation reaches managed
- *   code twice, as ActivateAudioInterfaceAsync's out parameter and as the handler's argument, so its
- *   wrapper counts 2 and is released with FinalReleaseComObject: ReleaseComObject left it, and the
- *   IAudioClient it holds, to a garbage collection, a recording at a time. A handler called after
- *   the 3 seconds gets a new wrapper.
+ *   does nothing, and one that throws is caught, so the rest of the release still runs and the
+ *   thread PowerShell waits on is always let go), and every COM object is released. The
+ *   activation's operation reaches managed code twice, as ActivateAudioInterfaceAsync's out
+ *   parameter and as the handler's argument, so its wrapper counts 2 and is released with
+ *   FinalReleaseComObject: ReleaseComObject left it, and the IAudioClient it holds, to a garbage
+ *   collection, a recording at a time. A handler called after the 3 seconds gets a new wrapper.
  * - **The timeline.** Frame 0 is the moment of IAudioClient.Start(). Each packet is placed at its QPC
  *   timestamp, in 100 ns units, 625 to a frame: the device position is always 0, so QPC is the only
  *   clock. Packets come every 10 ms, silence included, and a gap of 2 ms (32 frames) or more before
  *   one is filled with silence. Across a smaller one, the packet follows on, early by less than 2
  *   ms, and the next gap filled makes it up, as each is measured from frame 0. A part of a packet
- *   that falls before what's written is dropped. A packet flagged SILENT is written as silence, and
- *   one flagged TIMESTAMP_ERROR follows on.
+ *   that falls before what's written is dropped. A packet flagged SILENT is written as silence, so is
+ *   one that comes with no buffer address, and one flagged TIMESTAMP_ERROR follows on.
  * - **What's lost.** Windows keeps about 30 ms, and drops older sound unflagged when the helper falls
  *   behind; the gap in the timestamps shows it. A stream that opens or closes (NVDA starting to speak
  *   after a quiet spell) also leaves a gap, of 2.5 to 16.5 ms in the trial, with no sound lost: its
@@ -238,7 +239,7 @@ file.Flush();
 } catch (Exception e) {
 Error = e is Failure ? e.Message : e is IOException ? "the PCM file couldn't be written (" + e.Message + ")" : e.Message;
 } finally {
-if (Running) client.Stop();
+if (Running) { try { client.Stop(); } catch (Exception) { } }
 if (file != null) { try { file.Dispose(); } catch (Exception) { } if (!Running) try { File.Delete(Pcm); } catch (Exception) { } }
 if (capture != null) Marshal.ReleaseComObject(capture);
 if (client != null) Marshal.ReleaseComObject(client);
@@ -264,7 +265,7 @@ void Place(IntPtr data, int frames, int flags, long qpc, long arrival) {
 long gap = (flags & 4) != 0 ? 0 : FrameAt(qpc) - Frames;
 if (gap >= 32) { if (packets > 0 && arrival - qpc - frames * 625L > 50000) Lost += gap; Silence(gap); gap = 0; }
 int skip = (int)Math.Min(frames, Math.Max(0, -gap));
-if ((flags & 2) != 0) Silence(frames - skip); else Copy(data, skip, frames - skip);
+if ((flags & 2) != 0 || data == IntPtr.Zero) Silence(frames - skip); else Copy(data, skip, frames - skip);
 end = qpc + frames * 625L; packets++;
 }
 void Copy(IntPtr data, int skip, int count) {
@@ -424,6 +425,27 @@ const COMPLAINT_LINES = 3;
 /** Why each call rejects once the helper has been ended for not answering. */
 const STOPPED_ANSWERING = "the recorder stopped answering";
 
+/** What a reason begins with when the helper couldn't start: "the recorder didn't start: …". */
+const DIDNT_START = "the recorder didn't start";
+
+/** What a reason begins with when the helper has ended: "the recorder stopped: PowerShell ended …". */
+const ENDED = "the recorder stopped";
+
+/**
+ * Whether `reason`, as a page's record keeps it, says the helper is gone for the rest of the run:
+ * it didn't start, stopped answering, or ended. Each call after that rejects with the same reason,
+ * so every page after it has it, and the run says so once (see audit.ts). Any other reason is one
+ * page's: NVDA's process not found, a target or a start the helper refused, a recording that
+ * failed. The words are the messages' own, below, built from the same pieces.
+ */
+export function recorderIsGone(reason: string): boolean {
+  return (
+    reason.startsWith(`${DIDNT_START}:`) ||
+    reason.startsWith(STOPPED_ANSWERING) ||
+    reason.startsWith(`${ENDED}:`)
+  );
+}
+
 /** Why each call rejects after close(). */
 const CLOSED = "the recorder was closed";
 
@@ -540,7 +562,7 @@ export async function startRecorder(
       resolve(value);
     };
     const timer = setTimeout(
-      () => answered(`PowerShell didn't answer within ${readyMs / 1000} seconds`),
+      () => answered(`PowerShell didn't answer within ${readyMs / 1000} seconds${reason()}`),
       readyMs,
     );
     starting = (answer) => {
@@ -559,9 +581,9 @@ export async function startRecorder(
   });
   if (why !== null) {
     child.kill();
-    throw new EnvironmentError(`the recorder didn't start: ${why}`);
+    throw new EnvironmentError(`${DIDNT_START}: ${why}`);
   }
-  void ended.then((ending) => fail(`the recorder stopped: ${howItEnded(ending)}`));
+  void ended.then((ending) => fail(`${ENDED}: ${howItEnded(ending)}`));
 
   /**
    * Sends `command`, and settles with its answer as `read` reads it, or with the error `read` gives

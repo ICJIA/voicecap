@@ -95,7 +95,7 @@ The recording never changes the verdict, the ring, the numbers, or "What needs a
 ## How it's recorded in the run
 
 - **The record.** `page.voice`, kept apart from the page's `files` as the screenshot's and axe's are, so a review never copies it, and covered by the run's seal. It holds either:
-  - `{ sha256, bytes, seconds, lostMs, recordedAt }`; or
+  - `{ sha256, bytes, seconds, lostMs, startedAt, recordedAt }`, where `startedAt` is when the recording's first sample was, as a local ISO time to the millisecond like `recordedAt` (**amended 2026-10-09:** it's optional, so a record without it is whole and never fails verify, and a time the recorder gives that isn't a time is left out); or
   - `{ error, recordedAt }`, with the first line of what went wrong, with the account's home folder replaced, cut at 300 characters.
 - **`voicecap verify`** names a `voice.webm` that's missing, changed, or not recorded by the run. A run from before 0.18.0 passes.
 - **The version.** One constant, `KEEPS_VOICE_FROM` (0.18.0, beside `keepsAxe` in `src/share/run-evidence.ts`), gates the reasons: a run from before it says "Not recorded: this run used voicecap 0.17.0." (**amended 2026-10-09:** this said "`keepsVoice`", which is the function that reads the constant.)

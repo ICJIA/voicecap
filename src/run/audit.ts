@@ -5,6 +5,7 @@ import path from "node:path";
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { VoicecapConfig } from "../config/schema.js";
 import { createDriver, selectDriver, type DriverSelection } from "../drivers/index.js";
+import { recorderIsGone } from "../drivers/guidepup/voice-recorder.js";
 import { loadPlatformReadiness } from "../drivers/readiness.js";
 import { BROWSER_WINDOW, type ScreenReaderDriver } from "../drivers/types.js";
 import { evaluateFlags, flagRulesSha256 } from "../flags/evaluate.js";
@@ -613,6 +614,17 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
 }
 
 /**
+ * What the run says, once, when the helper that records NVDA's voice is gone for the rest of it: why,
+ * as the page's record keeps it (the home folder replaced, on one line), and that the pages are
+ * read as usual. Nothing else on the screen would say that no sound is being kept.
+ */
+function voiceNotRecorded(reason: string): string {
+  // The sentence puts its own full stop after the reason, which has none of its own to double.
+  const said = reason.replace(/[.\s]+$/, "");
+  return `NVDA's voice isn't being recorded: ${said}. The pages are read as usual.`;
+}
+
+/**
  * The event log's size and SHA-256, or null when there's no log to read: one that couldn't be
  * written (the run warned of it), so the run records no file for it.
  */
@@ -690,6 +702,8 @@ async function transcribePages(
   const durations: number[] = [];
   let consecutiveFailures = 0;
   let sinceRestart = 0;
+  // Whether the person has been told that NVDA's voice isn't being recorded: once a session.
+  let toldOfVoice = false;
   const passSettings = (pass: PassName): PassSettings => ({
     cap: run.settings.stepCaps[pass],
     repeatLimit: config.repeatLimit,
@@ -749,6 +763,13 @@ async function transcribePages(
         remainingMs: estimateRemaining(durations, todo.length - index - 1),
       }),
     );
+    // The first page whose record says the helper is gone, which every page after it will say too.
+    if (!toldOfVoice && outcome.voice !== undefined && "error" in outcome.voice) {
+      if (recorderIsGone(outcome.voice.error)) {
+        toldOfVoice = true;
+        logger.warn(voiceNotRecorded(outcome.voice.error));
+      }
+    }
 
     // An HTTP error means the site answered: the screen reader and browser are fine, so it neither
     // counts toward stopping the run nor needs a restart. A page that already failed in an earlier
