@@ -27,6 +27,7 @@ import {
   type SkippedRecord,
   type TranscriptJson,
   type VoiceRecord,
+  type VoiceStretch,
 } from "../model.js";
 import {
   failureOf,
@@ -43,7 +44,7 @@ import { errorCode, errorMessage } from "../util/errors.js";
 import { jpegSize } from "../util/jpeg.js";
 import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
-import { encodeVoice, peakOf } from "../voice/encode.js";
+import { encodeVoice, peakOf, VOICE_SAMPLE_RATE } from "../voice/encode.js";
 import { keepEarlierAttempt } from "./attempts.js";
 import type { DriverSession } from "./driver-session.js";
 import { redactAccount } from "./failure.js";
@@ -117,9 +118,9 @@ export interface PageOutcome {
   /**
    * The recording of NVDA's voice the last attempt kept in the page's folder, or why it has none: made
    * from the attempt's start to its end, as the screenshot is taken as the page first loads, and
-   * kept only when the attempt read the page to the end (see endVoice). Left out when the driver
-   * can't record, and for a page the attempt didn't read (it was skipped, the site answered with an
-   * HTTP error, or the page wouldn't open).
+   * kept only when the attempt finished (see endVoice), with only each pass's stretch of it (see
+   * keepVoice). Left out when the driver can't record, and for a page the attempt didn't read (it
+   * was skipped, the site answered with an HTTP error, or the page wouldn't open).
    */
   voice?: VoiceRecord;
   skip?: SkippedRecord;
@@ -205,11 +206,11 @@ type Attempt = Loaded &
  *
  * A driver that can record NVDA's voice is asked to as each attempt begins, before the attempt's
  * start is recorded, and the recording is ended as the attempt ends, before its end is recorded
- * (endVoice). One of an attempt that read the page to the end is stopped: keepVoice encodes it into
- * the page's folder (voice.webm), and the attempt's record of it is the page's, apart from its
- * files. An attempt that read the page and then failed keeps none, and its record says why; one
- * that didn't read the page keeps none and has no record of one, and neither does one that Ctrl+C
- * or an unexpected error stopped. Not being able to record, or to keep a recording, never fails the
+ * (endVoice). One of an attempt that finished is stopped: keepVoice encodes it into the page's
+ * folder (voice.webm), and the attempt's record of it is the page's, apart from its files. An
+ * attempt that read the page and then failed keeps none, and its record says why; one that didn't
+ * read the page keeps none and has no record of one, and neither does one that Ctrl+C or an
+ * unexpected error stopped. Not being able to record, or to keep a recording, never fails the
  * attempt: the reason is the page's record.
  */
 export async function processPage(ctx: PageContext): Promise<PageOutcome> {
@@ -557,12 +558,12 @@ export const UNFINISHED_ATTEMPT =
 
 /**
  * End the attempt's recording, now the attempt has ended, and set the attempt's voice. One of an
- * attempt that read the page to the end is stopped and kept (see keepVoice). One of an attempt that
- * read the page and then failed is discarded, and the attempt's voice says why
- * (UNFINISHED_ATTEMPT): it may hold what NVDA read of another window. One of an attempt that didn't
- * read the page (it was skipped, the site answered with an HTTP error, or the page wouldn't open)
- * is discarded, with no record: its sound says nothing of a page that wasn't read, as its
- * screenshot and axe's results aren't kept either. None of it fails the attempt.
+ * attempt that finished is stopped and kept (see keepVoice). One of an attempt that read the page
+ * and then failed is discarded, and the attempt's voice says why (UNFINISHED_ATTEMPT): it may hold
+ * what NVDA read of another window. One of an attempt that didn't read the page (it was skipped,
+ * the site answered with an HTTP error, or the page wouldn't open) is discarded, with no record:
+ * its sound says nothing of a page that wasn't read, as its screenshot and axe's results aren't
+ * kept either. None of it fails the attempt.
  */
 async function endVoice(
   ctx: PageContext,
@@ -592,18 +593,33 @@ async function endVoice(
 /** A recording that peaks at this many steps or fewer, of 32,768 at most, is silent. */
 const SILENT_PEAK = 2;
 
+/** Samples a millisecond, at the rate the recorder keeps. */
+const SAMPLES_PER_MS = VOICE_SAMPLE_RATE / 1000;
+
 /**
- * Keep the recording a driver made of an attempt: its sound is read, encoded, and written to the
- * page's folder (voice.webm), and its record has the file's fingerprint, its length, the sound
- * lost by the recorder, and when its first sample was (`startedAt`), with when it was recorded. One
- * that can't be kept is recorded as the reason, with no file, and the page is read as it was: the
- * reason the driver gave, or that the file isn't 16-bit sound, can't be read, is empty, is silent,
- * or couldn't be encoded. Silent means it peaks at 2 or less
- * while the attempt's transcripts have words (see hasWords): NVDA spoke, and the recording doesn't
- * have it. A quiet recording of a page with no words is a recording of a quiet page, and is kept. A
- * reason is its first line, cut at 300 characters, as an axe check's is, once the account's home
- * and temp folders in it are replaced (see redactAccount): the record, and the page that shows it,
- * never name the account.
+ * Why a page has no recording when none of it is left to keep: the driver kept no stretch of it (no
+ * pass was confirmed to be read with voicecap's browser in front), or none falls inside the
+ * recording, or what did is shorter than the sound the recorder lost. A clause in lowercase with no
+ * full stop, as every reason a page's record keeps of its recording.
+ */
+export const NOTHING_KEPT =
+  "no pass was confirmed to be read with voicecap's browser in front, so none of the recording is kept";
+
+/**
+ * Keep the recording a driver made of an attempt: its sound is read, silenced outside the stretches
+ * the driver keeps (see keptStretches), encoded, and written to the page's folder (voice.webm), and
+ * its record has the file's fingerprint, its length, the sound lost by the recorder, when its first
+ * sample was (`startedAt`), and the stretches kept, with when it was recorded. Between the passes,
+ * while a browser opens or comes to the front, NVDA may read the window behind it, so nothing of
+ * those moments is kept; the file keeps the recording's length, its silences costing almost
+ * nothing. One that can't be kept is recorded as the reason, with no file, and the page is read as
+ * it was: the reason the driver gave, or that the file isn't 16-bit sound, can't be read, is empty,
+ * keeps nothing (NOTHING_KEPT), is silent, or couldn't be encoded. Silent means what it keeps peaks
+ * at 2 or less while the attempt's transcripts have words (see hasWords): NVDA spoke, and the
+ * recording doesn't have it. A quiet recording of a page with no words is a recording of a quiet
+ * page, and is kept. A reason is its first line, cut at 300 characters, as an axe check's is, once
+ * the account's home and temp folders in it are replaced (see redactAccount): the record, and the
+ * page that shows it, never name the account.
  *
  * The sound is deleted whatever comes of it, as the driver leaves its file to this. Encoding holds
  * the process up for about a hundredth of the recording's length, and it comes now, between attempts,
@@ -643,6 +659,11 @@ async function keepVoice(
       bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length),
     );
     if (samples.length === 0) return without("the recording is empty");
+    // Only the stretches the driver kept are the page's: the rest is silenced, and the file keeps
+    // the recording's length. Silence is judged by what's kept.
+    const stretches = keptStretches(capture.stretches, capture.lostMs, samples.length);
+    if (stretches.length === 0) return without(NOTHING_KEPT);
+    silenceOutside(samples, stretches);
     if (peakOf(samples) <= SILENT_PEAK && hasWords(attempt)) {
       return without("the recording is silent");
     }
@@ -658,12 +679,57 @@ async function keepVoice(
       seconds: encoded.seconds,
       lostMs: capture.lostMs,
       ...firstSampleAt(capture.startedAt),
+      stretches,
       recordedAt,
     };
   } finally {
     // A few tries: Windows refuses to remove a file for a moment while a scanner has it open.
     await rm(capture.pcm, { force: true, maxRetries: 3 }).catch(() => {});
   }
+}
+
+/**
+ * The stretches of a recording of `frames` samples to keep, in whole milliseconds from its first
+ * sample: the driver's, each cut to the recording, then shrunk by the sound the recorder lost
+ * (`lostMs`) at both ends, as lost sound can shift where a moment falls in the file. So the
+ * recording keeps less than the driver kept, never more. In order, with stretches that meet or
+ * overlap joined; one nothing is left of, or whose ends aren't numbers, is dropped.
+ */
+function keptStretches(
+  stretches: readonly VoiceStretch[],
+  lostMs: number,
+  frames: number,
+): VoiceStretch[] {
+  const lengthMs = Math.floor(frames / SAMPLES_PER_MS);
+  const margin = Number.isFinite(lostMs) && lostMs > 0 ? Math.ceil(lostMs) : 0;
+  const shrunk = stretches
+    .filter(({ startMs, endMs }) => Number.isFinite(startMs) && Number.isFinite(endMs))
+    .map(({ startMs, endMs }) => ({
+      startMs: Math.max(0, Math.ceil(startMs)) + margin,
+      endMs: Math.min(lengthMs, Math.floor(endMs)) - margin,
+    }))
+    .filter(({ startMs, endMs }) => endMs > startMs)
+    .sort((a, b) => a.startMs - b.startMs);
+  const joined: VoiceStretch[] = [];
+  for (const stretch of shrunk) {
+    const last = joined.at(-1);
+    if (last !== undefined && stretch.startMs <= last.endMs) {
+      last.endMs = Math.max(last.endMs, stretch.endMs);
+    } else {
+      joined.push(stretch);
+    }
+  }
+  return joined;
+}
+
+/** Every sample outside `kept` (in order, apart, as keptStretches gives them) set to silence. */
+function silenceOutside(samples: Int16Array, kept: readonly VoiceStretch[]): void {
+  let from = 0;
+  for (const { startMs, endMs } of kept) {
+    samples.fill(0, from, startMs * SAMPLES_PER_MS);
+    from = endMs * SAMPLES_PER_MS;
+  }
+  samples.fill(0, from);
 }
 
 /**

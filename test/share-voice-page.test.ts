@@ -224,8 +224,10 @@ describe("renderVoicePage", () => {
     expect(VOICE_TEXT.lead).toBe(
       "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast; choose a slower speed, and the pitch stays the same. The transcripts on the shareable page are the record of what was reviewed.",
     );
+    // Each pass's stretch starts with its title check, and between the passes the recording is
+    // silenced (the NVDA driver's stretches, which the run keeps).
     expect(VOICE_TEXT.note).toBe(
-      `Before each pass, voicecap has NVDA read the window's title, "voicecap check" and a code, to check NVDA is reading the right window.`,
+      `Before each pass, voicecap has NVDA read the window's title, "voicecap check" and a code, to check NVDA is reading the right window. Between the passes, while a browser opens and comes to the front, the recording is silent: NVDA may read the window behind it then.`,
     );
     expect(VOICE_TEXT.speed.legend).toBe("Speed");
     expect(VOICE_TEXT.speed.rates.map((rate) => VOICE_TEXT.speed.label(rate))).toEqual([

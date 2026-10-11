@@ -26,7 +26,7 @@ import { isoLocalMs } from "../src/util/time.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
 import type * as Encode from "../src/voice/encode.js";
-import { encodeVoice } from "../src/voice/encode.js";
+import { encodeVoice, peakOf } from "../src/voice/encode.js";
 import { config, ISO_MS, options, outDir, setup, sitePages } from "./helpers/run-site.js";
 import {
   ScriptedDriver,
@@ -34,7 +34,7 @@ import {
   type ScriptedPage,
   type ScriptedVoice,
 } from "./helpers/scripted-driver.js";
-import { silence, speechAndPauses } from "./helpers/voice-signal.js";
+import { busySound, silence, speechAndPauses } from "./helpers/voice-signal.js";
 
 // The encoder is the real one, except in the one test that makes it fail.
 vi.mock("../src/voice/encode.js", async (importOriginal) => {
@@ -185,11 +185,16 @@ describe("a page's recording of NVDA's voice, in a run", () => {
     expect(new Set(driver.pcmFiles).size).toBe(3);
   });
 
-  it("writes voice.webm, and records its fingerprint, length, lost time, and the time of its first sample with the page", async () => {
+  it("writes voice.webm, and records its fingerprint, length, lost time, the time of its first sample, and what it keeps with the page", async () => {
     const { dir, run, page } = await runHome({ samples: SPEECH, lostMs: 40 });
     expect(run.outcome).toBe("completed");
 
-    const webm = await encoded(SPEECH);
+    // The driver keeps the whole recording, and the 40 ms lost are allowed for at each end: those
+    // are silenced, and the rest is the sound as it was.
+    const kept = SPEECH.slice();
+    kept.fill(0, 0, 40 * 16);
+    kept.fill(0, 1960 * 16);
+    const webm = await encoded(kept);
     expect(await holds(voiceOf(dir, run), webm)).toBe(true);
     expect(page.voice).toEqual({
       ...fileHash(webm),
@@ -198,6 +203,7 @@ describe("a page's recording of NVDA's voice, in a run", () => {
       // When the first sample was, as the recorder says (a UTC time), in the form every other time
       // of the record has: local, with its offset, to the millisecond.
       startedAt: isoLocalMs(new Date("2026-10-09T14:03:07.215Z")),
+      stretches: [{ startMs: 40, endMs: 1960 }],
       recordedAt: expect.stringMatching(ISO_MS) as unknown,
     });
     expect((page.voice as { startedAt: string }).startedAt).toMatch(ISO_MS);
@@ -227,6 +233,118 @@ describe("a page's recording of NVDA's voice, in a run", () => {
     const long = await runHome({ error: "x".repeat(400) });
     expect(long.page.voice).toMatchObject({ error: "x".repeat(300) });
     expect(long.page.status).toBe("done");
+  });
+
+  // A driver gives the stretches of a recording it keeps, in ms from its first sample: for the
+  // Guidepup driver, each pass from its confirmed title check to the end of its last step. Every
+  // sample outside them is silenced before the sound is encoded, so the recording keeps its length,
+  // and the record keeps the stretches.
+  describe("the stretches a driver keeps of a recording", () => {
+    /** Two seconds of sound with no pause in it: any silence in what's encoded was made silent. */
+    const LOUD = busySound(2, 5);
+    /** The samples given to the encoder for the recording encoded last. */
+    const encodedSamples = (): Int16Array =>
+      vi.mocked(encodeVoice).mock.calls.at(-1)?.[0] ?? new Int16Array(0);
+    /** The loudest sample of `samples` between two moments, in ms. */
+    const peakBetween = (samples: Int16Array, fromMs: number, toMs: number): number =>
+      peakOf(samples.subarray(fromMs * 16, toMs * 16));
+    const NOTHING_KEPT =
+      "no pass was confirmed to be read with voicecap's browser in front, so none of the recording is kept";
+
+    it("silences every sample outside them, keeping the recording's length, and keeps them in the record", async () => {
+      vi.mocked(encodeVoice).mockClear();
+      const { dir, run, page } = await runHome({
+        samples: LOUD,
+        stretches: [{ startMs: 500, endMs: 1500 }],
+      });
+      const samples = encodedSamples();
+      expect(samples).toHaveLength(LOUD.length);
+      expect(peakBetween(samples, 0, 500)).toBe(0);
+      expect(samples.subarray(8_000, 24_000)).toEqual(LOUD.subarray(8_000, 24_000));
+      expect(peakBetween(samples, 1500, 2000)).toBe(0);
+      expect(page.voice).toMatchObject({ seconds: 2, stretches: [{ startMs: 500, endMs: 1500 }] });
+      // The file is that sound, encoded, and the stretches are sealed with the rest of the record.
+      expect(await holds(voiceOf(dir, run), (await encodeVoice(samples)).webm)).toBe(true);
+      const stored = await readRunJson(outDir(dir), run.runId);
+      expect(stored.pages[0]?.voice).toEqual(page.voice);
+      expect(stored.seal).toBe(sealOf(stored));
+      expect(await problemsIn(dir)).toBe(0);
+    });
+
+    it("keeps each inside the recording, and shrinks it by the sound lost, at both ends", async () => {
+      vi.mocked(encodeVoice).mockClear();
+      const { page } = await runHome({
+        samples: LOUD,
+        lostMs: 40,
+        stretches: [
+          { startMs: -100, endMs: 300 },
+          { startMs: 1500, endMs: 2500 },
+        ],
+      });
+      // Within 0 to 2,000 ms, then 40 ms less at each end.
+      const kept = [
+        { startMs: 40, endMs: 260 },
+        { startMs: 1540, endMs: 1960 },
+      ];
+      expect(page.voice).toMatchObject({ lostMs: 40, stretches: kept });
+      const samples = encodedSamples();
+      expect(peakBetween(samples, 0, 40)).toBe(0);
+      expect(samples.subarray(40 * 16, 260 * 16)).toEqual(LOUD.subarray(40 * 16, 260 * 16));
+      expect(peakBetween(samples, 260, 1540)).toBe(0);
+      expect(samples.subarray(1540 * 16, 1960 * 16)).toEqual(LOUD.subarray(1540 * 16, 1960 * 16));
+      expect(peakBetween(samples, 1960, 2000)).toBe(0);
+    });
+
+    it("keeps them in order, joining those that meet or overlap", async () => {
+      const { page } = await runHome({
+        samples: LOUD,
+        stretches: [
+          { startMs: 1000, endMs: 1500 },
+          { startMs: 200, endMs: 600 },
+          { startMs: 500, endMs: 800 },
+          { startMs: 1500, endMs: 1700 },
+        ],
+      });
+      expect(page.voice).toMatchObject({
+        stretches: [
+          { startMs: 200, endMs: 800 },
+          { startMs: 1000, endMs: 1700 },
+        ],
+      });
+    });
+
+    it("judges silence by what they keep: silent stretches of a page NVDA said words on are 'the recording is silent'", async () => {
+      // Loud everywhere but in the one stretch kept.
+      const outside = LOUD.slice();
+      outside.fill(0, 500 * 16, 1500 * 16);
+      const { page } = await runHome({
+        samples: outside,
+        stretches: [{ startMs: 500, endMs: 1500 }],
+      });
+      expect(page.status).toBe("done");
+      expect(page.voice).toEqual({
+        error: "the recording is silent",
+        recordedAt: expect.stringMatching(ISO_MS) as unknown,
+      });
+    });
+
+    it("keeps nothing, and says why, when they keep no sound: none, none inside the recording, or none left once the sound lost is allowed for", async () => {
+      for (const voice of [
+        { samples: LOUD, stretches: [] },
+        { samples: LOUD, stretches: [{ startMs: 2500, endMs: 3000 }] },
+        { samples: LOUD, lostMs: 100, stretches: [{ startMs: 500, endMs: 650 }] },
+      ]) {
+        const { dir, driver, run, page } = await runHome(voice);
+        const what = JSON.stringify(voice.stretches);
+        expect(page.status, what).toBe("done");
+        expect(page.voice, what).toEqual({
+          error: NOTHING_KEPT,
+          recordedAt: expect.stringMatching(ISO_MS) as unknown,
+        });
+        expect(existsSync(voiceOf(dir, run)), what).toBe(false);
+        expect(pcmLeft(driver), what).toEqual([]);
+      }
+    });
   });
 
   // The recorder's words are kept as it said them, and some name a path: a program a refused target

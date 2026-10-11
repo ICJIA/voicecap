@@ -914,8 +914,11 @@ export const VOICE_TEXT = {
    * down, and which words are the record of what was reviewed.
    */
   lead: "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast; choose a slower speed, and the pitch stays the same. The transcripts on the shareable page are the record of what was reviewed.",
-  /** Said once, above the pages: why each pass's recording starts with a code. */
-  note: `Before each pass, voicecap has NVDA read the window's title, "voicecap check" and a code, to check NVDA is reading the right window.`,
+  /**
+   * Said once, above the pages: why each pass's recording starts with a code, and why it's silent
+   * between the passes (the run keeps only each pass's stretch: see confirmFront, in the driver).
+   */
+  note: `Before each pass, voicecap has NVDA read the window's title, "voicecap check" and a code, to check NVDA is reading the right window. Between the passes, while a browser opens and comes to the front, the recording is silent: NVDA may read the window behind it then.`,
   /** What names a page's player for a screen reader, and the page it plays: "NVDA's voice on /about/". */
   player: (path: string): string => `NVDA's voice on ${path}`,
   /**

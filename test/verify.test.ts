@@ -386,7 +386,13 @@ describe("verifyHome", () => {
     const sound = Buffer.from(
       "not a WebM file, but bytes the run could have recorded all the same",
     );
-    const recorded = { ...fileHash(sound), seconds: 2, lostMs: 0, recordedAt: RECORDED_AT };
+    const recorded = {
+      ...fileHash(sound),
+      seconds: 2,
+      lostMs: 0,
+      stretches: [{ startMs: 0, endMs: 2000 }],
+      recordedAt: RECORDED_AT,
+    };
 
     /** A copy of the home whose home page has a recording, in its folder and in its record. */
     async function withVoice(): Promise<string> {

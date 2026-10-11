@@ -286,7 +286,8 @@ export async function recordedVoice(
   const { webm, seconds } = await encodeVoice(sound);
   const hash = fileHash(webm);
   voiceFiles.set(hash.sha256, webm);
-  return { webm, record: { ...hash, seconds, lostMs, recordedAt: VOICE_RECORDED_AT } };
+  const stretches = [{ startMs: 0, endMs: Math.round(seconds * 1000) }];
+  return { webm, record: { ...hash, seconds, lostMs, stretches, recordedAt: VOICE_RECORDED_AT } };
 }
 
 /**
@@ -321,6 +322,7 @@ export function voiceRecord(seconds: number, lostMs = 0): Exclude<VoiceRecord, {
     bytes: 4_096,
     seconds,
     lostMs,
+    stretches: [{ startMs: 0, endMs: Math.round(seconds * 1000) }],
     recordedAt: VOICE_RECORDED_AT,
   };
 }

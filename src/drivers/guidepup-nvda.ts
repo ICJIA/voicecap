@@ -5,13 +5,14 @@
  * What the driver guarantees, beyond passing keys to NVDA (checked against real NVDA 2026.2):
  *
  * - Keystrokes go to the browser, a window that takes the front never has its speech in a
- *   transcript, and a recording of NVDA's voice is kept only from an attempt that finished with no
- *   other window in front. Keys sent through NVDA go to whichever window is in front, so every load
- *   confirms the window with NVDA+T (report title) against a unique marker title, and every step
- *   checks that the page has focus before and after its keystroke. A step during which another
- *   window came forward is discarded as a ForegroundError. The check before a step can't close
- *   every gap: Guidepup silences NVDA (at least 250 ms) before sending the key, so a window that
- *   comes forward just then gets that one keystroke, and the step is discarded.
+ *   transcript, and a recording of NVDA's voice keeps only what NVDA said while each pass read the
+ *   page with the browser in front, and only from an attempt that finished with no other window in
+ *   front. Keys sent through NVDA go to whichever window is in front, so every load confirms the
+ *   window with NVDA+T (report title) against a unique marker title, and every step checks that the
+ *   page has focus before and after its keystroke. A step during which another window came forward
+ *   is discarded as a ForegroundError. The check before a step can't close every gap: Guidepup
+ *   silences NVDA (at least 250 ms) before sending the key, so a window that comes forward just
+ *   then gets that one keystroke, and the step is discarded.
  * - Each load gets a fresh browser with a new profile, so no page's transcript depends on which
  *   pages came before (visited links, cookies, storage).
  * - The tab pass starts at the first focusable element: the first Tab after a load goes to the
@@ -87,6 +88,13 @@
  *   counts), Windows Search or the Start menu was closed, a step lost the page's focus, or Windows
  *   was found locked. NVDA+T reading the browser's own window by its old title, before Windows has
  *   given it the marker, marks nothing: no other window was in front.
+ * - A recording that's kept holds only each pass's stretch: from its title check, once Windows
+ *   confirms the browser's own window is in front (confirmFront), to the end of its last step
+ *   (keepUntilNow), in ms from the recording's first sample. The core silences the rest. Between
+ *   the passes, while a browser opens or is raised (which minimizes it for a moment), the window
+ *   behind it is in front, and NVDA reads it aloud: Visual Studio Code's terminal, in the r3 run of
+ *   2026-10-10. A window that comes and goes between two of a pass's steps, which no check sees,
+ *   can still be heard.
  */
 import { randomInt } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
@@ -97,6 +105,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { AXE_LIMIT_MS, axeErrorReason, axeScript, keptAxeResults } from "../axe/results.js";
 import type { VoicecapConfig } from "../config/schema.js";
+import type { VoiceStretch } from "../model.js";
 import { isHtmlContentType } from "../pages/url.js";
 import { redactHome, redactTemp } from "../run/failure.js";
 import { EnvironmentError, errorCode, errorMessage } from "../util/errors.js";
@@ -310,10 +319,11 @@ export interface GuidepupDriverDeps {
   /** Whether Windows is locked (null when it doesn't say). */
   sessionLocked: () => Promise<boolean | null>;
   /**
-   * The window in front, by its process, program, and title; null when Windows doesn't say. The
-   * log keeps the program and the title, and the process tells the page's own browser's window from
-   * another's. Asked once each time another window is found to have the foreground, and a lookup
-   * that fails counts as null. It must answer in good time: the step that lost the foreground waits.
+   * The window in front, by its process, program, and title; null when Windows doesn't say. The log
+   * keeps the program and the title, and the process tells the page's own browser's window from
+   * another's. Asked once each time another window is found to have the foreground, and, while
+   * NVDA's voice is being recorded, once a page to confirm its title check. A lookup that fails
+   * counts as null. It must answer in good time: the step that lost the foreground waits.
    */
   foregroundWindow: () => Promise<ForegroundWindow | null>;
   /** Keep Windows from sleeping or turning the screen off (and locking because of either). */
@@ -324,7 +334,8 @@ export interface GuidepupDriverDeps {
   marker: () => string;
   /**
    * The time now: when NVDA's start began and finished, which the event log stamps the events of
-   * the start with, since they're recorded only after it (see startUp).
+   * the start with, since they're recorded only after it (see startUp), and where each stretch of a
+   * recording begins and ends, lined up with the recorder's first sample (both are system time).
    */
   now: () => Date;
   /**
@@ -829,6 +840,9 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
 
   async openPage(url: string): Promise<PageInfo> {
     const { generation, nvda } = this.started();
+    // The pass before this one is over: its stretch of the recording ends with its last step,
+    // before a browser opens or comes forward (see keepUntilNow).
+    this.stopKeeping();
     const session = await this.freshSession(generation);
     const page: Current = { generation, nvda, session };
     this.firstTab = true;
@@ -883,6 +897,11 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * fails a page. So does one during which another window came to the front (ANOTHER_WINDOW), whose
    * sound is deleted. The commands for the helper take their turns, so a recording ended by the run
    * and one ended by this driver stopping can't meet in the helper.
+   *
+   * What a recording keeps is only what NVDA said while each pass read the page: its stretches,
+   * each from the pass's confirmed title check (confirmFront) to the end of its last step
+   * (keepUntilNow). Between passes, while a browser opens or is raised (which minimizes it for a
+   * moment), the window behind it is in front, and NVDA reads it aloud: the core silences it all.
    */
   async recordVoice(): Promise<VoiceRecording> {
     const take: Take = {
@@ -890,6 +909,8 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       ended: null,
       discarded: false,
       heardElsewhere: false,
+      kept: [],
+      keeping: false,
     };
     const previous = this.take;
     this.take = take;
@@ -932,6 +953,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     this.checkLive(page.generation);
     if (after.focused && !lostFocusBetween(before, after)) {
       this.inDocument = true;
+      this.keepUntilNow(page.generation);
       return speech;
     }
     // Focus left the page and stayed out: normally in the browser's own toolbar, the end of the
@@ -939,6 +961,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     if (!after.focused && (await this.browserInFront(page))) {
       this.checkLive(page.generation);
       this.inDocument = false;
+      this.keepUntilNow(page.generation);
       return speech;
     }
     throw await this.foregroundLost(page);
@@ -958,7 +981,8 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
 
   /**
    * Press a key through NVDA, only while the page has focus, and discard the step if the page lost
-   * focus at any moment during it (its speech may include another window's).
+   * focus at any moment during it (its speech may include another window's). A step that ends with
+   * the page still in focus is the latest end of the pass's stretch of the recording.
    */
   private async press(
     page: Current,
@@ -976,6 +1000,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     if (!after.focused || lostFocusBetween(before, after)) {
       throw await this.foregroundLost(page);
     }
+    this.keepUntilNow(page.generation);
     return speech;
   }
 
@@ -996,7 +1021,10 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * recording under way (heardAnotherWindow), unless the window in front is the page's own browser:
    * Windows can take a moment to give the window the marker title, and NVDA+T then reads the
    * browser's old one, which is no other window's. A window the lookup can't say is the browser's
-   * counts as another's.
+   * counts as another's. The try that reads the marker is the pass's title check: confirmed, it
+   * begins the pass's stretch of the recording, from the moment NVDA+T was pressed (confirmFront).
+   * Everything before it, the raise's moment with the window behind in front and any try that
+   * failed, is outside every stretch.
    *
    * With openPage's Escape and Ctrl+Home, this is navigateToWebContent from @guidepup/playwright
    * 0.19.1, lib/nvdaTest.js (by Craig Morten, MIT License), adapted: the window is raised instead
@@ -1018,8 +1046,13 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
         await session.raise();
         await this.deps.sleep(TITLE_SETTLE_MS);
         this.checkLive(page.generation);
+        // When the check began, for the stretch of the recording it may begin.
+        const asked = this.take === null ? null : this.deps.now().getTime();
         const spoken = await this.heard(page, await this.command(() => nvda.press("reportTitle")));
-        if (titleMatches(spoken, marker)) return;
+        if (titleMatches(spoken, marker)) {
+          if (asked !== null) await this.confirmFront(page, asked);
+          return;
+        }
         // Another window is in front: which? Asked after every try that fails, so Search or the
         // Start menu coming up on a later one is found too.
         front = await this.windowInFront(session);
@@ -1173,6 +1206,44 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    */
   private heardAnotherWindow(generation: number): void {
     if (generation === this.generation && this.take !== null) this.take.heardElsewhere = true;
+  }
+
+  /**
+   * NVDA+T, pressed at `asked`, read the marker: the browser's window is in front as NVDA sees it.
+   * While a recording is under way, Windows is asked too, and when it says the window in front is
+   * the page's own browser's, the check is confirmed: the pass's stretch of the recording begins as
+   * NVDA+T was pressed, so it holds the check, and runs to the end of the pass's last step (see
+   * keepUntilNow). A check Windows doesn't confirm (another window in front, none, or no answer)
+   * keeps nothing of its pass. The lookup is made only while recording: nothing else needs it.
+   */
+  private async confirmFront(page: Current, asked: number): Promise<void> {
+    const take = this.take;
+    if (take === null) return;
+    const front = await this.windowInFront(page.session);
+    this.checkLive(page.generation);
+    if (!front.own || this.take !== take) return;
+    take.kept.push({ from: asked, to: this.deps.now().getTime() });
+    take.keeping = true;
+  }
+
+  /**
+   * A step of a call of `generation` has ended with the page still in focus: the pass's stretch of
+   * the recording under way, if one is open, runs to now. Guidepup gives a step's speech once NVDA
+   * has been quiet for a moment, so the stretch holds all of it.
+   */
+  private keepUntilNow(generation: number): void {
+    const take = this.take;
+    if (generation !== this.generation || take === null || !take.keeping) return;
+    const open = take.kept.at(-1);
+    if (open !== undefined) open.to = this.deps.now().getTime();
+  }
+
+  /**
+   * The pass under way is over (the next page is being opened): its stretch of the recording ends
+   * where its last step did, before any browser opens, closes, or is raised.
+   */
+  private stopKeeping(): void {
+    if (this.take !== null) this.take.keeping = false;
   }
 
   private markerTitle(): string {
@@ -1554,7 +1625,10 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
 
   /**
    * `take` as the core holds it: it ends it with stop(), which keeps its sound, or discard(). A
-   * take during which another window came to the front gives the reason at stop(), and no sound.
+   * take during which another window came to the front gives the reason at stop(), and no sound,
+   * unless it never began: then the recorder's own reason is the one to give, as it may say that
+   * no page after it will have a recording either. The sound it gives comes with its stretches to
+   * keep, in ms from its first sample (stretchesOf).
    */
   private recordingOf(take: Take): VoiceRecording {
     /** The reason the recording has no sound; its file is deleted, as no one will read it. */
@@ -1567,9 +1641,9 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
         const end = await this.inTurn(() => this.endTakeNow(take));
         this.release(take);
         if (take.discarded) return without(DISCARDED);
+        if ("reason" in end) return without(end.reason);
         // NVDA may have read another window aloud, which can't be taken out of the sound.
         if (take.heardElsewhere) return without(ANOTHER_WINDOW);
-        if ("reason" in end) return without(end.reason);
         const { stopped } = end;
         // What follows an exit is silence, which says nothing of the page: the recording is no
         // evidence, and the page says so, with no file.
@@ -1580,6 +1654,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
           lostMs: stopped.lostMs,
           peak: stopped.peak,
           startedAt: stopped.firstSampleAt,
+          stretches: stretchesOf(take, stopped.firstSampleAt),
         };
       },
       discard: () => this.discardTake(take),
@@ -1695,10 +1770,28 @@ interface Take {
    * read it aloud, so its sound isn't kept (see heardAnotherWindow). False when it's made.
    */
   heardElsewhere: boolean;
+  /**
+   * The stretches of it to keep, on the driver's clock (ms since the epoch), in order: each pass's,
+   * from its confirmed title check to the end of its last step (see confirmFront). None at first.
+   */
+  kept: { from: number; to: number }[];
+  /** Whether the last of `kept` is still open: its pass is under way, and each step extends it. */
+  keeping: boolean;
 }
 
 /** How a recording ended: what the helper said, or why it couldn't say. */
 type TakeEnd = { stopped: RecorderStop } | { reason: string };
+
+/**
+ * The stretches of `take` to keep, in ms from its first sample (`firstSampleAt`, the recorder's UTC
+ * time of it), as the core takes them: each pass's, in order. The driver's clock and the recorder's
+ * are both the system's. None when the first sample's time isn't one: nothing can be lined up.
+ */
+function stretchesOf(take: Take, firstSampleAt: string): VoiceStretch[] {
+  const first = Date.parse(firstSampleAt);
+  if (Number.isNaN(first)) return [];
+  return take.kept.map(({ from, to }) => ({ startMs: from - first, endMs: to - first }));
+}
 
 /** Delete a file if it's there. One that stays is no failure: its folder goes with the helper. */
 async function removeFile(file: string): Promise<void> {

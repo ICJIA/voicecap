@@ -4,7 +4,7 @@
  * keystrokes; the core (src/passes/) decides when a pass stops, from what a driver returns.
  */
 import type { AxeSummary } from "../axe/results.js";
-import type { NewRunEvent } from "../model.js";
+import type { NewRunEvent, VoiceStretch } from "../model.js";
 
 /**
  * Everything the screen reader said in response to one action.
@@ -169,9 +169,22 @@ export type AxeCapture =
  * deletes. `frames` is how many samples it holds; its first is at `startedAt`, a UTC ISO time such as
  * "2026-10-09T14:03:07.215Z". `lostMs` is the sound lost because the recorder fell behind, in whole
  * milliseconds, normally 0. `peak` is the loudest sample, from 0 to 32,768.
+ *
+ * `stretches` are the parts of the recording the driver keeps, in ms from its first sample: each
+ * pass of the page, from the check that confirmed its browser in front to the end of its last step.
+ * Between passes, while a browser opens or comes to the front, the screen reader can read whatever
+ * window is behind it. The core silences every sample outside them before it encodes the sound,
+ * and keeps no recording when they hold none of it.
  */
 export type VoiceCapture =
-  | { pcm: string; frames: number; lostMs: number; peak: number; startedAt: string }
+  | {
+      pcm: string;
+      frames: number;
+      lostMs: number;
+      peak: number;
+      startedAt: string;
+      stretches: VoiceStretch[];
+    }
   | { error: string };
 
 /**

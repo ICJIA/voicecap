@@ -22,20 +22,23 @@ import {
   type Recorder,
   type RecorderStop,
 } from "../src/drivers/guidepup/voice-recorder.js";
-import { ForegroundError, type EventRecorder } from "../src/drivers/types.js";
-import type { NewRunEvent } from "../src/model.js";
+import { ForegroundError, type EventRecorder, type VoiceCapture } from "../src/drivers/types.js";
+import type { NewRunEvent, VoiceRecord } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
 import { openEventLog, readEventLog } from "../src/run/events.js";
 import { EnvironmentError, errorCode } from "../src/util/errors.js";
 import { createMemoryLogger, type Logger } from "../src/util/log.js";
 import { isoLocalMs } from "../src/util/time.js";
 import { verifyHome } from "../src/verify.js";
+import type * as Encode from "../src/voice/encode.js";
+import { encodeVoice, peakOf } from "../src/voice/encode.js";
 import {
   AXE_HANGS,
   FakeDesktop,
   FakeNvda,
   FakeSession,
   Gate,
+  QUIET_MS,
   type FakePage,
 } from "./helpers/fake-desktop.js";
 import { rawAxe, rawRule } from "./helpers/raw-axe.js";
@@ -51,6 +54,12 @@ import { busySound } from "./helpers/voice-signal.js";
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof Fsp>();
   return { ...actual, rm: vi.fn(actual.rm) };
+});
+
+// The encoder is the real one, watched: the tests of what a recording keeps read what it's given.
+vi.mock("../src/voice/encode.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof Encode>();
+  return { ...actual, encodeVoice: vi.fn(actual.encodeVoice) };
 });
 
 /** The account's home folder, which a cleaned copy of NVDA's log writes as %USERPROFILE%. */
@@ -99,6 +108,20 @@ class FakeRecorder implements Recorder {
   /** The process it records, until it's sent another target. */
   private pointedAt: number | null = null;
   private busy = false;
+  /** The desktop whose time a recording is on, once listen() is called. */
+  private desktop: FakeDesktop | null = null;
+  /** When the recording under way began, on the desktop's time, and the file it goes to. */
+  private began = 0;
+  private file = "";
+
+  /**
+   * Records on `desktop`'s time: a recording's first sample is when it started, and its length runs
+   * to when it stopped. When no `sound` is set, its samples are NVDA's sounds on the desktop: as
+   * loud as SPOKEN where NVDA was speaking, and silent everywhere else.
+   */
+  listen(desktop: FakeDesktop): void {
+    this.desktop = desktop;
+  }
 
   /** Runs one command as the real client does: one at a time, and answered a moment later. */
   private async command<T>(line: string, run: () => T | Promise<T>): Promise<T> {
@@ -133,11 +156,9 @@ class FakeRecorder implements Recorder {
         this.startRefusal = null;
         throw new EnvironmentError(refusal);
       }
-      const sound = this.sound;
-      writeFileSync(
-        pcmPath,
-        sound === null ? "" : new Uint8Array(sound.buffer, sound.byteOffset, sound.byteLength),
-      );
+      this.began = this.desktop?.clockMs ?? 0;
+      this.file = pcmPath;
+      writeSound(pcmPath, this.sound ?? new Int16Array(0));
     });
   }
 
@@ -149,9 +170,17 @@ class FakeRecorder implements Recorder {
         this.stopFailure = null;
         throw new EnvironmentError(failure);
       }
+      const targetExited = this.pointedAt !== null && this.exited.has(this.pointedAt);
+      if (this.desktop === null) return { ...this.stopped, targetExited };
+      // On the desktop's time: NVDA's sounds since the recording began, unless a sound was set.
+      const samples = this.sound ?? soundsOf(this.desktop, this.began);
+      if (this.sound === null) writeSound(this.file, samples);
       return {
         ...this.stopped,
-        targetExited: this.pointedAt !== null && this.exited.has(this.pointedAt),
+        frames: samples.length,
+        peak: peakOf(samples),
+        firstSampleAt: new Date(this.began).toISOString(),
+        targetExited,
       };
     });
   }
@@ -161,6 +190,28 @@ class FakeRecorder implements Recorder {
     this.closed = true;
     return Promise.resolve();
   }
+}
+
+/** How loud NVDA is in a recording made on the desktop's time (FakeRecorder.listen). */
+const SPOKEN = 1_000;
+
+/** A sound, written as the recorder's helper writes one: 16-bit little-endian samples. */
+function writeSound(file: string, samples: Int16Array): void {
+  writeFileSync(file, new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength));
+}
+
+/**
+ * The samples of a recording on `desktop`'s time, from `began` to now, at 16 kHz: SPOKEN, either
+ * way up, while NVDA was saying something, and 0 elsewhere.
+ */
+function soundsOf(desktop: FakeDesktop, began: number): Int16Array {
+  const samples = new Int16Array((desktop.clockMs - began) * 16);
+  for (const { from, to } of desktop.sounds) {
+    const first = Math.max(0, (from - began) * 16);
+    const last = Math.min(samples.length, (to - began) * 16);
+    for (let at = first; at < last; at += 1) samples[at] = at % 2 === 0 ? SPOKEN : -SPOKEN;
+  }
+  return samples;
 }
 
 interface Setup {
@@ -229,6 +280,8 @@ function setup(options: Setup = {}) {
       const session = new FakeSession(desktop, options.pages ?? {});
       desktop.sessions.push(session);
       desktop.events.push("browser:launch");
+      // A browser opening hands the front over: the window behind it is in front for a moment.
+      desktop.handOver();
       return session;
     },
     runningNvda: () => {
@@ -318,6 +371,17 @@ function keepEvents(): EventRecorder & { events: NewRunEvent[]; types(): string[
     },
     types: () => events.map((event) => event.type),
   };
+}
+
+/**
+ * setup(), on the desktop's time: the driver's clock is the desktop's, and the recorder records on
+ * it (FakeRecorder.listen), so what a recording keeps lines up with what NVDA said, and when.
+ */
+function onDesktopTime(options: Setup = {}) {
+  const made = setup(options);
+  made.deps.now = made.desktop.now;
+  made.voiceRecorder.listen(made.desktop);
+  return made;
 }
 
 /** setup(), with a recorder given to the driver, as a run gives it. */
@@ -3388,6 +3452,8 @@ describe("recording NVDA's voice", () => {
       lostMs: 12,
       peak: 900,
       startedAt: "2026-10-09T14:03:07.215Z",
+      // No page was opened while it ran, so no pass's stretch is kept.
+      stretches: [],
     });
     // The sound is the run's now: it's there to be read, and the run deletes it.
     expect(existsSync(path.join(voiceDir, "1.pcm"))).toBe(true);
@@ -3714,20 +3780,25 @@ describe("keeping a recording only when no other window came to the front", () =
   const firstPcm = (voiceDir: string) => path.join(voiceDir, "1.pcm");
 
   it("keeps the recording of an attempt during which the browser stayed in front", async () => {
-    const { driver, desktop, voiceDir } = setup();
+    const { driver, desktop, voiceDir } = onDesktopTime();
     await driver.start();
+    const began = desktop.clockMs;
     const recording = await driver.recordVoice();
     await driver.openPage(URL_HOME);
     await driver.nextLine();
     await driver.nextHeading();
     await driver.nextFocusable();
+    const ended = desktop.clockMs;
     expect(desktop.titlesRead).toEqual([MARKER_TITLE]);
+    // Its stretch runs from the title check to the end of the last step.
+    const check = desktop.sounds.find(({ text }) => text === MARKER_TITLE);
     expect(await recording.stop()).toEqual({
       pcm: firstPcm(voiceDir),
-      frames: 16_000,
+      frames: (ended - began) * 16,
       lostMs: 0,
-      peak: 1_200,
-      startedAt: "2026-10-09T14:03:07.215Z",
+      peak: SPOKEN,
+      startedAt: new Date(began).toISOString(),
+      stretches: [{ startMs: (check?.from ?? NaN) - began, endMs: ended - began }],
     });
     expect(existsSync(firstPcm(voiceDir))).toBe(true);
   });
@@ -3741,7 +3812,8 @@ describe("keeping a recording only when no other window came to the front", () =
     desktop.raiseFailures = 1;
     await expect(driver.openPage(URL_HOME)).resolves.toMatchObject({ title: "Fake page" });
     expect(desktop.titlesRead).toEqual(["Inbox - Outlook", MARKER_TITLE]);
-    expect(lookups(desktop)).toBe(1);
+    // Once after the try that failed, and once to confirm the check that worked.
+    expect(lookups(desktop)).toBe(2);
 
     expect(await recording.stop()).toEqual(ANOTHER_WINDOW);
     expect(existsSync(firstPcm(voiceDir))).toBe(false);
@@ -3749,18 +3821,25 @@ describe("keeping a recording only when no other window came to the front", () =
 
   // Windows can take a moment to give the window its page's new title, so NVDA+T can read the
   // browser's old one first. That's the browser's own window, not another's, so nothing private was
-  // read, and the recording is kept.
+  // read, and the recording is kept, from the check that was confirmed: the first try is left out.
   it("keeps the recording when NVDA+T read the browser's own window by its old title first", async () => {
-    const { driver, desktop, voiceDir } = setup();
+    const { driver, desktop, voiceDir } = onDesktopTime();
     await driver.start();
+    const began = desktop.clockMs;
     const recording = await driver.recordVoice();
     desktop.oldTitleReads = 1;
     await expect(driver.openPage(URL_HOME)).resolves.toMatchObject({ title: "Fake page" });
+    const ended = desktop.clockMs;
     expect(desktop.titlesRead).toEqual(["Fake page - Google Chrome", MARKER_TITLE]);
-    // Asked which window was in front after the first try: the browser's own, by its process.
-    expect(lookups(desktop)).toBe(1);
+    // Asked which window was in front after the first try (the browser's own, by its process), and
+    // again to confirm the second.
+    expect(lookups(desktop)).toBe(2);
 
-    expect(await recording.stop()).toMatchObject({ pcm: firstPcm(voiceDir), frames: 16_000 });
+    const confirmed = desktop.sounds.find(({ text }) => text === MARKER_TITLE);
+    expect(await recording.stop()).toMatchObject({
+      pcm: firstPcm(voiceDir),
+      stretches: [{ startMs: (confirmed?.from ?? NaN) - began, endMs: ended - began }],
+    });
     expect(existsSync(firstPcm(voiceDir))).toBe(true);
   });
 
@@ -3941,11 +4020,199 @@ describe("keeping a recording only when no other window came to the front", () =
   });
 });
 
+// Each pass opens a fresh browser and raises it, which minimizes it for a moment: meanwhile the
+// window behind it is in front, and NVDA reads it aloud (Visual Studio Code's terminal, in the r3
+// run of 2026-10-10). So a recording keeps only what NVDA said while each pass read the page: a
+// stretch from the pass's confirmed title check (NVDA+T read the marker, and Windows says the
+// browser's own process is in front) to the end of its last step. The core silences the rest.
+describe("keeping only each pass's own stretch of a recording", () => {
+  /** What NVDA+T reads of the browser's window with the check's marker title in it. */
+  const MARKER_TITLE = "voicecap check k3m9x2 - Google Chrome";
+  const BEHIND = { title: "voicecap - Visual Studio Code", text: "Terminal 1, a private line" };
+
+  /** When NVDA began each title check that read the marker, on the desktop's time. */
+  const checksOf = (desktop: FakeDesktop): number[] =>
+    desktop.sounds.filter(({ text }) => text === MARKER_TITLE).map(({ from }) => from);
+
+  /** The stretches a stop gave, or none. */
+  const stretchesOf = (capture: VoiceCapture) => ("stretches" in capture ? capture.stretches : []);
+
+  it("keeps each pass from its confirmed title check to the end of its last step, and nothing between", async () => {
+    const { driver, desktop } = onDesktopTime();
+    await driver.start();
+    desktop.behind = BEHIND;
+    const began = desktop.clockMs;
+    const recording = await driver.recordVoice();
+    // The first pass: the page opens (the browser is raised), and two steps.
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    await driver.nextLine();
+    const firstEnded = desktop.clockMs;
+    // The second pass: a fresh browser opens, and is raised, and one step.
+    await driver.openPage(URL_HOME);
+    await driver.nextHeading();
+    const secondEnded = desktop.clockMs;
+    const capture = await recording.stop();
+
+    const [first, second] = checksOf(desktop);
+    expect(stretchesOf(capture)).toEqual([
+      { startMs: (first ?? NaN) - began, endMs: firstEnded - began },
+      { startMs: (second ?? NaN) - began, endMs: secondEnded - began },
+    ]);
+    // NVDA read the window behind three times: as each browser was raised, and as the second one
+    // opened. None of it is in a stretch.
+    const behind = desktop.sounds.filter(({ by }) => by === "behind");
+    expect(behind).toHaveLength(3);
+    for (const sound of behind) {
+      for (const { startMs, endMs } of stretchesOf(capture)) {
+        const overlaps = sound.from - began < endMs && sound.to - began > startMs;
+        expect(overlaps, `${sound.text} at ${sound.from - began} ms`).toBe(false);
+      }
+    }
+  });
+
+  it("keeps nothing of a pass whose check Windows doesn't confirm: no window, another's, or no answer", async () => {
+    const answers: [string, GuidepupDriverDeps["foregroundWindow"]][] = [
+      ["no window", () => Promise.resolve(null)],
+      [
+        "another program's",
+        () =>
+          Promise.resolve({ pid: 7001, program: "Microsoft Outlook", title: "Inbox - Outlook" }),
+      ],
+      ["no answer", () => Promise.reject(new Error("PowerShell didn't answer"))],
+    ];
+    for (const [answer, lookup] of answers) {
+      const { driver, deps } = onDesktopTime();
+      deps.foregroundWindow = lookup;
+      await driver.start();
+      const recording = await driver.recordVoice();
+      // NVDA+T reads the marker at the first try, so only the check's own lookup is made.
+      await driver.openPage(URL_HOME);
+      await driver.nextLine();
+      const capture = await recording.stop();
+      expect(capture, answer).toHaveProperty("pcm");
+      expect(stretchesOf(capture), answer).toEqual([]);
+    }
+  });
+
+  it("keeps the passes that were confirmed, and not the one that wasn't", async () => {
+    const { driver, desktop, deps } = onDesktopTime();
+    await driver.start();
+    const began = desktop.clockMs;
+    const recording = await driver.recordVoice();
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    const firstEnded = desktop.clockMs;
+    // The second pass's check isn't confirmed: Windows doesn't say which window is in front.
+    const look = deps.foregroundWindow;
+    deps.foregroundWindow = () => Promise.resolve(null);
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    deps.foregroundWindow = look;
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    const thirdEnded = desktop.clockMs;
+    const capture = await recording.stop();
+
+    const [first, , third] = checksOf(desktop);
+    expect(stretchesOf(capture)).toEqual([
+      { startMs: (first ?? NaN) - began, endMs: firstEnded - began },
+      { startMs: (third ?? NaN) - began, endMs: thirdEnded - began },
+    ]);
+  });
+
+  it("asks Windows to confirm a check only while NVDA's voice is being recorded", async () => {
+    const quiet = setup();
+    await quiet.driver.start();
+    await quiet.driver.openPage(URL_HOME);
+    expect(lookups(quiet.desktop)).toBe(0);
+
+    const recorded = setup();
+    await recorded.driver.start();
+    await recorded.driver.recordVoice();
+    await recorded.driver.openPage(URL_HOME);
+    await recorded.driver.openPage(URL_HOME);
+    // Once a page.
+    expect(lookups(recorded.desktop)).toBe(2);
+  });
+
+  it("gives the recorder's reason, not another window's, for a recording that never began", async () => {
+    const reason =
+      "the recorder didn't start: PowerShell couldn't compile its C#: Add-Type isn't allowed";
+    const { driver, desktop, deps } = setup();
+    deps.startRecorder = () => Promise.reject(new EnvironmentError(reason));
+    await driver.start();
+    const recording = await driver.recordVoice();
+    await driver.openPage(URL_HOME);
+    desktop.front = "other";
+    await expect(driver.nextLine()).rejects.toBeInstanceOf(ForegroundError);
+    // The run tells the person, as the page records it, that no page will have a recording.
+    const stopped = await recording.stop();
+    expect(stopped).toEqual({ error: reason });
+    expect("error" in stopped && voiceIsGone(stopped.error)).toBe(true);
+  });
+});
+
 // The run and the driver together, with NVDA, the browser, and the recorder's helper faked: what each
 // page's recording is of, across the restarts a run makes.
 describe("a run through the Guidepup driver, recording each page", () => {
+  it("keeps only each pass's own stretch of a page's recording: what NVDA read of the window behind, as a browser opened or came forward, is silent", async () => {
+    const { driver, desktop } = onDesktopTime();
+    desktop.behind = { title: "voicecap - Visual Studio Code", text: "Terminal 1, a private line" };
+    const dir = await setupRun(["/"]);
+    vi.mocked(encodeVoice).mockClear();
+    const run = await runAudit(runOptions(dir, undefined, { driver, config: runConfig() }));
+    expect(run.outcome).toBe("completed");
+    const voice = run.run.pages[0]?.voice as Exclude<VoiceRecord, { error: string }>;
+    expect(voice).toHaveProperty("sha256");
+
+    // The sound the encoder was given, from the recording's first sample, which is on the desktop's
+    // time: as long as the whole attempt.
+    const samples = vi.mocked(encodeVoice).mock.calls[0]?.[0] ?? new Int16Array(0);
+    const began = Date.parse(voice.startedAt ?? "");
+    const frame = (time: number) => (time - began) * 16;
+    expect(voice.seconds * 16_000).toBe(samples.length);
+    expect(frame(desktop.clockMs)).toBe(samples.length);
+
+    // NVDA read the window behind as each pass's browser came forward, and as the second and third
+    // passes' browsers opened: all of it is silent.
+    const behind = desktop.sounds.filter(({ by, from }) => by === "behind" && from >= began);
+    expect(behind).toHaveLength(5);
+    for (const { from, to, text } of behind) {
+      expect(
+        peakOf(samples.subarray(frame(from), frame(to))),
+        `${text} at ${from - began} ms`,
+      ).toBe(0);
+    }
+
+    // One stretch a pass, from its title check, which NVDA said aloud, to the end of its last step.
+    const checks = desktop.sounds
+      .filter(({ text }) => text === "voicecap check k3m9x2 - Google Chrome")
+      .map(({ from }) => from - began);
+    expect(checks).toHaveLength(3);
+    expect(voice.stretches.map(({ startMs }) => startMs)).toEqual(checks);
+    const lastSteps = checks.map((check, index) => {
+      const next = checks[index + 1] ?? Infinity;
+      const spoken = desktop.sounds.filter(
+        ({ by, from }) => by === "browser" && from - began >= check && from - began < next,
+      );
+      return (spoken.at(-1)?.to ?? NaN) + QUIET_MS - began;
+    });
+    expect(voice.stretches.map(({ endMs }) => endMs)).toEqual(lastSteps);
+    // What NVDA said in each stretch is there, and everything outside them is silent.
+    let from = 0;
+    for (const { startMs, endMs } of voice.stretches) {
+      expect(peakOf(samples.subarray(startMs * 16, endMs * 16))).toBe(SPOKEN);
+      expect(peakOf(samples.subarray(from * 16, startMs * 16))).toBe(0);
+      from = endMs;
+    }
+    expect(peakOf(samples.subarray(from * 16))).toBe(0);
+    const home = path.join(dir, "transcripts");
+    expect((await verifyHome({ home, logger: createMemoryLogger() })).problems).toBe(0);
+  });
+
   it("records each page with the NVDA that read it, after every restart", async () => {
-    const { driver, deps, voiceRecorder, voiceDir } = setup();
+    const { driver, deps, voiceRecorder, voiceDir } = onDesktopTime();
     voiceRecorder.sound = busySound(1);
     // Each NVDA has a process of its own, and the ones before it are gone: a recording of one of
     // them would be silence, which the fake says as the real helper does, as an exit.

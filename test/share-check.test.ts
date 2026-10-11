@@ -284,6 +284,7 @@ const SOUND_RECORD = {
   bytes: SOUND.length,
   seconds: 2.5,
   lostMs: 0,
+  stretches: [{ startMs: 0, endMs: 2500 }],
   recordedAt: "2026-09-29T14:03:12.481-05:00",
 };
 

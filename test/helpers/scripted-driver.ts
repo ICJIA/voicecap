@@ -14,6 +14,7 @@ import type {
   VoiceCapture,
   VoiceRecording,
 } from "../../src/drivers/types.js";
+import type { VoiceStretch } from "../../src/model.js";
 import { canonicalKey } from "../../src/pages/url.js";
 import { peakOf } from "../../src/voice/encode.js";
 
@@ -22,11 +23,13 @@ import { peakOf } from "../../src/voice/encode.js";
  * the sound as 16 kHz samples (the driver writes them to a PCM file), with the time the recorder
  * lost to falling behind and, as a UTC ISO time, when its first sample was (`startedAt`, default
  * "2026-10-09T14:03:07.215Z"); `bytes`, a file that isn't whole samples (an odd count, or none); `missing`,
- * a file that isn't there when the run reads it; or the reason there's no sound.
+ * a file that isn't there when the run reads it; or the reason there's no sound. A recording gives
+ * the stretches of it that the driver keeps, in ms from its first sample (`stretches`): by default
+ * one, the whole recording.
  */
 export type ScriptedVoice =
-  | { samples: Int16Array; lostMs?: number; startedAt?: string }
-  | { bytes: Uint8Array; peak?: number }
+  | { samples: Int16Array; lostMs?: number; startedAt?: string; stretches?: VoiceStretch[] }
+  | { bytes: Uint8Array; peak?: number; stretches?: VoiceStretch[] }
   | { missing: true }
   | { error: string };
 
@@ -336,14 +339,24 @@ export class ScriptedDriver implements ScreenReaderDriver {
     }
     const startedAt =
       ("startedAt" in voice ? voice.startedAt : undefined) ?? "2026-10-09T14:03:07.215Z";
+    /** The stretches kept: the scripted ones, or the whole recording of `frames` samples. */
+    const kept = (frames: number, stretches?: VoiceStretch[]): VoiceStretch[] =>
+      stretches ?? [{ startMs: 0, endMs: frames / 16 }];
     if ("missing" in voice) {
       rmSync(pcm, { force: true });
-      return { pcm, frames: 16_000, lostMs: 0, peak: 1_000, startedAt };
+      return { pcm, frames: 16_000, lostMs: 0, peak: 1_000, startedAt, stretches: kept(16_000) };
     }
     if ("bytes" in voice) {
       writeFileSync(pcm, voice.bytes);
       const frames = Math.floor(voice.bytes.length / 2);
-      return { pcm, frames, lostMs: 0, peak: voice.peak ?? 1_000, startedAt };
+      return {
+        pcm,
+        frames,
+        lostMs: 0,
+        peak: voice.peak ?? 1_000,
+        startedAt,
+        stretches: kept(frames, voice.stretches),
+      };
     }
     const { samples } = voice;
     writeFileSync(pcm, new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength));
@@ -353,6 +366,7 @@ export class ScriptedDriver implements ScreenReaderDriver {
       lostMs: voice.lostMs ?? 0,
       peak: peakOf(samples),
       startedAt,
+      stretches: kept(samples.length, voice.stretches),
     };
   }
 

@@ -923,13 +923,14 @@ describe("renderSharePage", () => {
 
     // The recordings themselves are on the voice page: none is on this one, and the check's data has
     // no recordings in it. It holds the runs' records as they were recorded, each page's `voice`
-    // among them (a fingerprint and a length: about 160 bytes a page), and that is all it gains.
+    // among them (a fingerprint, a length, and the stretches kept: about 210 bytes a page here, with
+    // one stretch, and some 60 more for a real page's three passes), and that is all it gains.
     expect(page).not.toContain("<audio");
     expect(page).not.toMatch(/data:audio\/webm;base64,[A-Za-z0-9+/]/);
     const data = /<script type="application\/json" id="fp-data">([\s\S]*?)<\/script>/;
     const dataOf = (html: string): string => data.exec(html)?.[1] ?? "";
     expect(JSON.parse(dataOf(page))).not.toHaveProperty("recordings");
-    expect(dataOf(page).length - dataOf(bare).length).toBeLessThan(32 * 200);
+    expect(dataOf(page).length - dataOf(bare).length).toBeLessThan(32 * 250);
     // What else it adds is a line on each of the 32 cards, a row for each recording among the run's
     // fingerprints, and the details' paragraph, which says where the voice page is: take those out,
     // and the data, and the page is the page it was.

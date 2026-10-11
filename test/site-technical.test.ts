@@ -665,7 +665,7 @@ describe("renderTechnical", () => {
     // gives them, and the recording is kept only from an attempt that finished with no other window
     // in front (UNFINISHED_ATTEMPT, src/run/page-runner.ts; ANOTHER_WINDOW, the NVDA driver).
     expect(record).toContain(
-      `(the key, the words, and their timing), ${SCREENSHOT_FILE}, ${AXE_FILE}, what axe-core found on the page, and ${VOICE_FILE}, what NVDA said aloud while voicecap read the page, kept only from an attempt that finished with no other window in front`,
+      `(the key, the words, and their timing), ${SCREENSHOT_FILE}, ${AXE_FILE}, what axe-core found on the page, and ${VOICE_FILE}, what NVDA said aloud while each pass read the page with voicecap's browser in front, kept only from an attempt that finished with no other window in front`,
     );
     // The run's copies of NVDA's own log, in the folder a run gives them.
     expect(record).toContain(
@@ -781,17 +781,19 @@ describe("renderTechnical", () => {
     // A window's title is the event log's, never shown, and a run's copies of NVDA's own log can
     // hold more of another window, its text as NVDA read it too (the PC session of 2026-10-10 found
     // a Notepad document's first line in one), which the shareable page counts and never shows. A
-    // voice page plays NVDA's speech between the steps as sound, of the attempts whose recordings
-    // were kept: one during which another window came to the front keeps none.
+    // voice page plays NVDA's speech within each pass as sound, from its title check to its last
+    // step, and the moments between the passes are silenced (the NVDA driver's stretches); an
+    // attempt during which another window came to the front keeps nothing.
     expect(part("privacy-and-security")).toContain(
-      "A window's title, which can hold private text, is kept in the event log, never on the shareable page or in its Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. The shareable page counts what NVDA said outside voicecap's steps, and never shows it. A voice page plays it: everything NVDA said while a page was read, between the steps too, such as its title checks and what it said as each load opened. voicecap keeps no recording of NVDA's voice from an attempt during which another window came to the front, but a window that came and went between two steps can still be heard.",
+      "A window's title, which can hold private text, is kept in the event log, never on the shareable page or in its Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. The shareable page counts what NVDA said outside voicecap's steps, and never shows it. A voice page plays some of it: what NVDA said while each pass read the page with voicecap's browser in front, from the pass's title check to its last step. The moments between the passes, while a browser opens or comes to the front, are silenced, because NVDA may read the window behind it then. voicecap keeps no recording of NVDA's voice from an attempt during which another window came to the front, and a window that came and went between two of a pass's steps, which voicecap can't see, can still be heard, though that's rare.",
     );
     expect(part("privacy-and-security")).not.toContain("only in the event log");
     expect(part("privacy-and-security")).not.toContain("never on a page");
-    // voicecap reads NVDA's own log, which has every key pressed, and deletes it once it has its
-    // copy (the NVDA driver's keepNvdaLog), so the page doesn't say no key is read.
+    expect(part("privacy-and-security")).not.toContain("what it said as each load opened");
+    // voicecap reads NVDA's own log, which has every key pressed, and deletes it once it has read
+    // and cleaned it (the NVDA driver's keepNvdaLog), so the page doesn't say no key is read.
     expect(part("privacy-and-security")).toContain(
-      "voicecap asks for no account, key, or password, and keeps none. It reads NVDA's own log, which has every key pressed while its NVDA ran, keeps only its own keys, and deletes the log once it has its copy.",
+      "voicecap asks for no account, key, or password, and keeps none. It reads NVDA's own log, which has every key pressed while its NVDA ran, keeps only its own keys, and deletes the log once it has read and cleaned it.",
     );
     expect(part("privacy-and-security")).not.toContain("read or stored");
     // A path from outside the folder voicecap runs in can name the account: a file is recorded by
