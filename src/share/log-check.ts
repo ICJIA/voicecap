@@ -45,7 +45,9 @@
  *    checked: the clock its other keys set may be wrong for it.
  *
  * The pairing never looks at what was said: windows, keys and times alone decide which speech is a
- * step's, so a line that differs is never moved to agree.
+ * step's, so no line is paired by its words to agree. Two things wrong at once can still give a step
+ * a neighbor's words, which agree where neighboring lines read the same, or leave a step whose words
+ * came late with none (see lineUp).
  */
 import { entryTimes, normalizeSpeechItem, splitLogEntries, timeOnLog } from "../manual/nvda-log.js";
 import { ReprParseError, parseReprList, scavengeStrings } from "../manual/python-repr.js";
@@ -188,7 +190,12 @@ const ONE_MORE_WAIT_MS = 300;
  * once more, when every step's key waited once. A pass whose first Tab finds nothing there isn't
  * checked (checkAgainstLog). Two more waits stay well clear of what NVDA said as the page opened:
  * on the real runs of 6 and 10 October 2026, the driver's Ctrl+Home came 1.27 s or more before the
- * first Tab's moment, and the first Tabs' speech 35 to 67 ms after it.
+ * first Tab's moment, and the first Tabs' speech 35 to 67 ms after it. They don't stay clear of
+ * what NVDA began to say just before the first Tab: voicecap's capture silences NVDA a quarter of a
+ * second or more before each key, so words NVDA began 0.3 to 0.6 s before the first Tab, and was
+ * cut off from (a map in a frame, talking as the step began), are within reach. They're taken as
+ * the first Tab's, and its line is listed, though it doesn't differ: a rare false listing, on the
+ * safe side.
  */
 const FIRST_TAB_REACH_MS = 2 * ONE_MORE_WAIT_MS;
 
@@ -436,18 +443,22 @@ function edgeOf(steps: readonly StepRecord[], k: number): number {
  * every step one off. The placement is certain when no other moment tried accounts for as many keys
  * some other way, and no key is left over between its first step's key and its last's: a key left
  * there means a step near it may have another step's key. Otherwise which key was whose can't be
- * told without the words, which the pairing doesn't look at, so the pass isn't checked: as when a
- * key the pass didn't press comes just before its first step, after its last, or among its steps,
- * NVDA logged a key twice, NVDA didn't log the key of the pass's first or last step, or two keys in
- * a row came after their steps' time, where order can't say whose they are.
+ * told without the words, which the pairing doesn't look at, so the pass isn't checked: as when,
+ * with nothing else wrong, a key the pass didn't press comes just before its first step, after its
+ * last, or among its steps, NVDA logged a key twice, NVDA didn't log the key of the pass's first or
+ * last step, or two keys in a row came after their steps' time, where order can't say whose they
+ * are.
  *
- * Two coincidences at once can still mislead it, as no real run has shown: a step whose key NVDA
- * didn't log, and a key no step pressed, or one NVDA logged twice, elsewhere in the pass. Each step
- * between them can then take a neighbor's key, one step off, which pairs every key the pass has: a
- * key no step pressed in the next step's time looks like the step's key taken late, with the next
- * step's after it, and one just before the pass's first step like a clock a step early. The steps
- * between are listed with words not theirs, the real gap among them. In that step's own time, such
- * a key is taken for its own, and the step is listed with its words.
+ * Two things wrong at once can still mislead it, as no real run has shown: a step whose key NVDA
+ * didn't log, or two keys in a row taken late, and a key no step pressed, or one NVDA logged twice,
+ * elsewhere in the pass. Each step between them can then take a neighbor's key, one step off, a
+ * pairing that leaves no key over among its own: a key no step pressed in the next step's time looks
+ * like the step's key taken late, with the next step's after it, and one just before the pass's
+ * first step like a clock a step early. In that step's own time, such a key is taken for its own.
+ * Those steps are compared with words not theirs, and listed where those differ from their lines.
+ * But a real gap among them can go unshown: a step agrees with a neighbor's words where neighboring
+ * lines read the same (headings that all say "News"), and a step left without a key, whose words
+ * came in a later step's time, is counted as having none on either side.
  */
 function lineUp(
   steps: readonly StepRecord[],
@@ -526,8 +537,8 @@ function lineUp(
  * Keys before the first step's key, or after the last one's, are left as they are: there, a key no
  * step pressed can't be told from a step's. Returns `near`, how many keys left over could be those
  * of the steps still without keys (left over between the key before such steps and the end of the
- * next step's time, of keys they press, as many as the steps), and `over`, whether any key is left
- * over between the first step's key and the last's.
+ * next step's time, of keys they press, as many as the steps, each key counted once), and `over`,
+ * whether any key is left over between the first step's key and the last's.
  */
 function inOrder(
   placed: (Key | null)[],
@@ -579,8 +590,9 @@ function inOrder(
   const over = keys.some((key) => key.at > from && key.at < to && !used.has(key));
   // Each run of steps still without keys between two with keys, and the keys left over near it:
   // from the key before the run to the end of the next step's time, where keys taken late land. As
-  // many as both, of each key the run's steps press.
-  let near = 0;
+  // many as both, of each key the run's steps press, and each key once: the soonest not yet counted
+  // for a run before.
+  const counted = new Set<Key>();
   for (let p = 1; p < steps.length; p += 1) {
     const [i, j] = [steps[p - 1]!, steps[p]!];
     const run = gestures.slice(i + 1, j).filter((gesture) => gesture !== null);
@@ -590,12 +602,16 @@ function inOrder(
       const without = run.filter((each) => each === gesture).length;
       const nearby = keys.filter(
         (key) =>
-          key.gesture === gesture && key.at > placed[i]!.at && key.at < until && !used.has(key),
-      ).length;
-      near += Math.min(without, nearby);
+          key.gesture === gesture &&
+          key.at > placed[i]!.at &&
+          key.at < until &&
+          !used.has(key) &&
+          !counted.has(key),
+      );
+      for (const key of nearby.slice(0, without)) counted.add(key);
     }
   }
-  return { near, over };
+  return { near: counted.size, over };
 }
 
 /** The step whose window holds a moment of the pass (edges from lineUp), or null if none does. */

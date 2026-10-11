@@ -1467,10 +1467,12 @@ describe("checkAgainstLog on made-up passes, with NVDA's timing and what goes wr
     return tally;
   };
 
-  // Where one thing goes wrong (or several keys are taken together), each pass is right or not
-  // checked: never one step off, never a line that differs left out, never a line listed that
-  // doesn't differ. Nearly all are checked, but for a third of those with two keys in a row taken
-  // late, and nearly all with a key left over: one no step pressed, or one NVDA logged twice.
+  // Where one thing goes wrong (or several keys are taken together), each of these passes is right
+  // or not checked: none one step off, no line that differs left out, no line listed that doesn't
+  // differ. That's so for these seeds: on others, words NVDA began just before a first Tab can be
+  // taken as its own, and its line listed (see FIRST_TAB_REACH_MS). Nearly all are checked, but for
+  // a third of those with two keys in a row taken late, and nearly all with a key left over: one no
+  // step pressed, or one NVDA logged twice.
   it.each<[Anomaly[], number]>([
     [[], 400],
     [["busyStart"], 400],
@@ -1504,10 +1506,12 @@ describe("checkAgainstLog on made-up passes, with NVDA's timing and what goes wr
     },
   );
 
-  // Two things gone wrong at once: still never a line that differs left out. A step whose key NVDA
-  // didn't log, with a key no step pressed (or one logged twice) elsewhere in the pass, can put the
-  // steps between them one step off, which pairs every key (see lineUp): listed, in the safe
-  // direction, the real gap among them, never hidden.
+  // Two things gone wrong at once: a step whose key NVDA didn't log, with a key no step pressed (or
+  // one logged twice) elsewhere in the pass, can put the steps between them one step off (see
+  // lineUp). Each line of these passes reads differently, so those steps are listed, the real gap
+  // among them, and no line that differs is left out. Where neighboring lines read the same, a step
+  // one step off can agree; and with two keys in a row taken late and a key no step pressed after
+  // them, a step can be left without words: there, a real gap can go unshown.
   it.each<[Anomaly[], string[]]>([
     [
       ["missing", "stray"],
@@ -1544,6 +1548,13 @@ describe("checkAgainstLog on made-up passes, with NVDA's timing and what goes wr
     // NVDA took the second to fifth Tabs together, late, and the sixth waited once more for quiet
     // (0.39 s): the key that came soonest in its step is that much late for the first Tab.
     expect(checked(2000232, ["pile4"]).verdict).toBe("right");
+  });
+
+  it("counts a key left over near two runs of steps without keys once, so a wrong clock doesn't tie", () => {
+    // NVDA didn't log the eighth H. A clock 2.7 s early pairs six keys, each with a step after its
+    // own, and counted the fourth key, left over, for both runs of steps without keys whose time it
+    // falls in: ten, as many as the right clock pairs, so the pass wasn't checked.
+    expect(checked(2000030, ["missing"]).verdict).toBe("right");
   });
 
   it("doesn't check a Tab pass whose first Tab a key no step pressed came just before NVDA's words for", () => {
