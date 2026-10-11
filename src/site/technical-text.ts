@@ -365,7 +365,7 @@ export const TECHNICAL_TEXT = {
         heading: "How NVDA's words are caught",
         points: [
           [
-            "voicecap's NVDA driver connects to NVDA's Remote Access service, only on the computer running the test, sends each key, and receives what NVDA speaks.",
+            "voicecap's NVDA driver connects to NVDA's Remote Access service on the computer running the test, sends each key, and receives what NVDA speaks. The service is open on the computer's networks too, so voicecap's checks warn when Windows Firewall lets other computers reach it.",
           ],
           [
             "It silences NVDA before each key, and waits until a second passes with no more speech.",
@@ -658,7 +658,9 @@ export const TECHNICAL_TEXT = {
           [
             "Everything a run makes stays there: transcripts, records, screenshots, and reports. voicecap never commits or pushes them: the person does.",
           ],
-          ["voicecap talks to NVDA and to Chrome only on the computer running the test."],
+          [
+            "voicecap talks to NVDA and to Chrome only on the computer running the test. NVDA's Remote Access service is open on the computer's networks too, so voicecap's checks warn when Windows Firewall lets other computers reach it.",
+          ],
         ] satisfies Sentence[],
       },
       goes: {

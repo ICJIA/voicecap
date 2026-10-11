@@ -29,12 +29,15 @@ import {
   type GuidepupPackage,
 } from "./paths.js";
 import {
+  NVDA_CONTROL_PORT,
+  nvdaFirewallRules,
   nvdaProcesses,
   personsNvda,
   sessionLocked,
   windowsBrowserVersion,
   windowsComputerModel,
   windowsSystemInfo,
+  type FirewallAction,
   type NvdaProcess,
 } from "./windows.js";
 
@@ -45,6 +48,12 @@ export interface WindowsReadinessDeps {
   guidepup: GuidepupPackage;
   install: GuidepupInstall;
   exists: (file: string) => boolean;
+  /**
+   * What Windows Firewall does with NVDA's control port: an Allow for each enabled inbound rule
+   * that lets Guidepup's NVDA in, and a Block for each enabled inbound block rule on the port.
+   * Rejects when Windows can't say.
+   */
+  nvdaFirewallRules: () => Promise<FirewallAction[]>;
   /** Every running nvda.exe, Guidepup's or the person's. */
   nvdaProcesses: () => Promise<NvdaProcess[]>;
   /** Another voicecap holding the NVDA lock, if one is running. */
@@ -160,6 +169,7 @@ function quickChecks(deps: WindowsReadinessDeps, again: string): CheckRunner[] {
     { id: "node", run: () => Promise.resolve(nodeCheck(deps.nodeVersion, again)) },
     { id: "guidepupFolder", run: () => Promise.resolve(guidepupFolderCheck(deps.install)) },
     { id: "nvda", run: () => Promise.resolve(nvdaCheck(deps)) },
+    { id: "nvdaFirewall", run: () => nvdaFirewallCheck(deps) },
     {
       id: "otherVoicecap",
       run: async () =>
@@ -207,6 +217,39 @@ function nvdaCheck(deps: WindowsReadinessDeps): Check {
       fix: ["Run npx @icjia/voicecap setup."],
       setupHelps: true,
     },
+  };
+}
+
+/**
+ * WARN when Windows Firewall lets other computers reach NVDA's control port: an Allow rule for
+ * Guidepup's NVDA and no Block rule on the port. NVDA's Remote Access opens that port on every
+ * network the computer is on, behind a key Guidepup publishes. Never a FAIL: closing it needs an
+ * administrator, and a FAIL would stop every run of a person who isn't one. Also a WARN when
+ * Windows can't say.
+ */
+async function nvdaFirewallCheck(deps: WindowsReadinessDeps): Promise<Check> {
+  let rules: FirewallAction[];
+  try {
+    rules = await deps.nvdaFirewallRules();
+  } catch (error) {
+    const reason = errorMessage(error).split(/\r?\n/, 1)[0] ?? "";
+    return {
+      id: "nvdaFirewall",
+      status: "WARN",
+      summary: `Couldn't read Windows Firewall's rules for NVDA's control port (${reason})`,
+    };
+  }
+  if (rules.includes("Allow") && !rules.includes("Block")) {
+    return {
+      id: "nvdaFirewall",
+      status: "WARN",
+      summary: `Windows Firewall lets other computers reach NVDA's control port (${NVDA_CONTROL_PORT}) while voicecap runs: an administrator can close it (README: "NVDA's control port")`,
+    };
+  }
+  return {
+    id: "nvdaFirewall",
+    status: "OK",
+    summary: "Windows Firewall keeps NVDA's control port closed to other computers",
   };
 }
 
@@ -367,14 +410,16 @@ function realWindowsDeps(options: ReadinessOptions): WindowsReadinessDeps {
   const guidepup = readGuidepupPackage();
   const home = os.homedir();
   const lockFile = nvdaLockFile(options.env, home);
+  const install = guidepupInstall(guidepup.nvdaBuild, options.env, home);
   // Asked once: it runs reg and PowerShell.
   let system: { os: string; uiLocale: string | null } | null = null;
   return {
     nodeVersion: process.versions.node,
     voicecapVersion: voicecapVersion(),
     guidepup,
-    install: guidepupInstall(guidepup.nvdaBuild, options.env, home),
+    install,
     exists: existsSync,
+    nvdaFirewallRules: () => nvdaFirewallRules(install.nvdaExe),
     nvdaProcesses,
     otherVoicecap: () => activeLockHolder(lockFile),
     nvdaLockFile: lockFile,

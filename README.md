@@ -180,6 +180,7 @@ The "Unlabeled graphic" in two of those lines is the one problem the report find
 - [Try it first: npx @icjia/voicecap demo](#try-it-first-npx-icjiavoicecap-demo)
 - [Windows setup (for someone new to Windows)](#windows-setup-for-someone-new-to-windows)
   - [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled)
+  - [NVDA's control port](#nvdas-control-port)
 - [Mac setup](#mac-setup)
 - [Commands and options](#commands-and-options)
 - [Page sources](#page-sources)
@@ -276,6 +277,7 @@ Checks
   OK    Node.js 22.19.0
   OK    Guidepup's folder: C:\Users\cschw\AppData\Local\guidepup
   OK    NVDA 2026.2 (Guidepup's build 0.2.1-2026.2) is installed
+  OK    Windows Firewall keeps NVDA's control port closed to other computers
   OK    No other voicecap is using NVDA
   OK    Your NVDA isn't running
   OK    Windows is unlocked
@@ -371,7 +373,7 @@ Then open `transcripts/127.0.0.1_4747/report.html`.
 <details>
 <summary>What the checks look at, what <code>preflight</code> prints and its exit codes, and the 20-second live test</summary>
 
-**`preflight`, `init`, `doctor`, and `setup` check this computer:** `preflight`, `init`, and `doctor` first, `setup` after installing. A real run on Windows does too, before NVDA starts (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)). In about three seconds, the checks show this computer's details and whether NVDA (on Windows) or VoiceOver (on a Mac) is ready. They only read, with two exceptions on a Mac: the Full Disk Access check creates and removes a small file in the folder where VoiceOver keeps its settings, and the System Events check makes macOS ask, the first time, whether your terminal app may control System Events. So on a Mac they start with `Checking this Mac. If macOS asks for access to control "System Events", click Allow.`
+**`preflight`, `init`, `doctor`, and `setup` check this computer:** `preflight`, `init`, and `doctor` first, `setup` after installing. A real run on Windows does too, before NVDA starts (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)). In a few seconds, the checks show this computer's details and whether NVDA (on Windows) or VoiceOver (on a Mac) is ready. They only read, with two exceptions on a Mac: the Full Disk Access check creates and removes a small file in the folder where VoiceOver keeps its settings, and the System Events check makes macOS ask, the first time, whether your terminal app may control System Events. So on a Mac they start with `Checking this Mac. If macOS asks for access to control "System Events", click Allow.`
 
 **`npx @icjia/voicecap preflight` is the checks on their own,** for finding out whether a computer is ready with nothing else happening. It shows this computer's details, each check passed or failed, and for each failure the numbered steps that fix it. It never starts NVDA or VoiceOver, never opens the browser, and never runs the live test, and it needs no site. `doctor` adds the live test to the same checks.
 
@@ -456,10 +458,10 @@ These steps assume Windows 11, a normal (non-administrator) account, and PowerSh
 4. **Install NVDA for voicecap:** `npx @icjia/voicecap setup`. This downloads (about 100 MB, from GitHub) the portable NVDA build that voicecap's pinned Guidepup expects into `%LOCALAPPDATA%\guidepup`. It's separate from any NVDA you already have installed, and needs no administrator rights. If Google Chrome isn't installed, setup also installs Playwright's Chromium for voicecap to use instead. Behind a proxy, set `HTTPS_PROXY` first (in PowerShell, `$env:HTTPS_PROXY = "http://your-proxy:port"` sets it for the current window).
 
    - **If your Windows user folder's path has a space or one of `& ( , ; = ^`** (`C:\Users\Jane Doe`, `C:\Users\R&D`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a plain folder such as `C:\guidepup` (`mkdir "C:\guidepup"`, then `setx GUIDEPUP_SCREEN_READERS_PATH "C:\guidepup"`, the same in PowerShell and Git Bash), open a new terminal, and run setup again.
-   - **The first time NVDA starts**, Windows may ask whether NVDA can communicate on networks. voicecap talks to NVDA only on this computer (127.0.0.1); it doesn't need network access.
+   - **The first time NVDA starts**, Windows may ask whether NVDA can communicate on networks. Click **Cancel**, and leave every box unticked. voicecap reaches NVDA through this computer's own address (127.0.0.1), which Windows Firewall never blocks. NVDA's control port, though, is open on every network the computer is on, behind a password Guidepup publishes, and Allow would let another computer on the network press keys on this one. If you clicked Allow, see [NVDA's control port](#nvdas-control-port).
    - **Then setup checks this computer.** If it's ready, setup offers the live test (see [The checks, and the live test](#the-checks-and-the-live-test)); if it isn't, setup says what's wrong and exits with code 2.
 
-5. **Check everything:** `npx @icjia/voicecap doctor`. It checks the NVDA build, whether your own NVDA or another voicecap is running, Windows' lock state, and the browser, then runs the live test, which also checks that the browser comes to the front and that NVDA speaks English. It prints one report, with a plain-language fix for anything wrong, to paste into a bug report (see [Other commands](#other-commands)).
+5. **Check everything:** `npx @icjia/voicecap doctor`. It checks the NVDA build, whether Windows Firewall keeps NVDA's control port closed, whether your own NVDA or another voicecap is running, Windows' lock state, and the browser, then runs the live test, which also checks that the browser comes to the front and that NVDA speaks English. It prints one report, with a plain-language fix for anything wrong, to paste into a bug report (see [Other commands](#other-commands)).
 
 6. **Before a run:**
    - **voicecap checks this computer first,** and stops with exit code 2, before touching anything, if it isn't ready (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)).
@@ -494,6 +496,41 @@ PowerShell doesn't rewrite arguments, so this note is only for people who use Gi
 - turn the rewriting off for one command: `MSYS_NO_PATHCONV=1 npx @icjia/voicecap review --page /about ...`.
 
 With the rewriting off, Git Bash also stops translating its own way of writing a Windows path, `/c/Users/me` (what `~` expands to), so voicecap reads that form itself on Windows: `--out` (`site`'s too), `site`'s `--home`, `VOICECAP_TRANSCRIPTS`, `--pages`, `--walkthrough`, `--replay-from`, and the files `manual add`, `list-urls`, and `walkthrough` take all accept it.
+
+### NVDA's control port
+
+The NVDA build Guidepup installs turns on NVDA's Remote Access, and Remote Access listens on a control port, 6837, on every network the computer is on, not only on this computer. A key protects it, but Guidepup publishes that key. voicecap connects to the port through this computer's own address (127.0.0.1), which Windows Firewall never blocks. A Windows Firewall rule that lets the port in, though, makes it reachable from other computers on the network, and a computer that reached it could press keys on this one. Windows makes such a rule when you click **Allow** at the question it asks the first time NVDA starts (see [Windows setup](#windows-setup-for-someone-new-to-windows), step 4); **Cancel** makes none.
+
+`preflight`, `init`, `setup`, `doctor`, and each run read Windows Firewall's rules (they change nothing, and need no administrator) and warn when a rule lets other computers in:
+
+```
+  WARN  Windows Firewall lets other computers reach NVDA's control port (6837) while voicecap runs: an administrator can close it (README: "NVDA's control port")
+```
+
+The warning never stops a run, since closing the port takes an administrator and a person who isn't one would be stopped for good. If Windows can't say (the check then warns that it couldn't read the rules), the port may be open, and the same steps apply. To close the port, an administrator does this:
+
+1. Right-click the **Start** button, and choose **Terminal (Admin)**. Answer **Yes** when Windows asks whether to allow it.
+2. Paste this line, and press **Enter**. It removes each inbound rule that lets Guidepup's NVDA in. It leaves alone the rules of an NVDA you installed yourself: its path (usually `C:\Program Files (x86)\NVDA\nvda.exe`) has no "guidepup" in it.
+
+   ```powershell
+   Get-NetFirewallApplicationFilter | Where-Object { $_.Program -like '*guidepup*nvda.exe' } | Get-NetFirewallRule | Where-Object { $_.Direction -eq 'Inbound' -and $_.Action -eq 'Allow' } | Remove-NetFirewallRule
+   ```
+
+3. Paste this line, and press **Enter**. It adds a rule that blocks inbound connections to port 6837 from other computers, whichever program they name. Windows Firewall lets a block rule win over an allow rule, so this holds even if another rule lets NVDA in later.
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "voicecap: NVDA's control port stays on this computer" -Direction Inbound -Protocol TCP -LocalPort 6837 -Action Block -Profile Any
+   ```
+
+4. Check the rule is there. Paste this line, and press **Enter**. It lists the rule, with `Enabled` `True` and `Action` `Block`:
+
+   ```powershell
+   Get-NetFirewallRule -DisplayName 'voicecap:*' | Format-Table DisplayName, Enabled, Action, Profile
+   ```
+
+5. Close the window. In a normal PowerShell, run `npx @icjia/voicecap preflight`. It now says `OK    Windows Firewall keeps NVDA's control port closed to other computers`.
+
+voicecap never runs these commands itself, and never changes a firewall rule. On a computer your organization manages, its own Windows Firewall policy applies as well: voicecap reads the rules in force, and asking IT to close the port is the same request.
 
 ## Mac setup
 
@@ -741,6 +778,7 @@ Checks
   OK    Node.js 22.19.0
   OK    Guidepup's folder: C:\Users\cschw\AppData\Local\guidepup
   OK    NVDA 2026.2 (Guidepup's build 0.2.1-2026.2) is installed
+  OK    Windows Firewall keeps NVDA's control port closed to other computers
   OK    No other voicecap is using NVDA
   OK    Your NVDA isn't running
   OK    Windows is unlocked
@@ -2467,7 +2505,7 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 - **The computer is voicecap's during a run** (see [Windows setup](#windows-setup-for-someone-new-to-windows), step 6). voicecap checks that its browser is in front before and after every step, but a window that comes forward in the moment before a keystroke (Guidepup silences NVDA first, which takes at least a quarter of a second) can still receive that one keystroke. Pop-up dialogs (Windows Update, chat apps) count as other windows too. The exception is Windows Search and the Start menu: when voicecap finds one of them in front as it brings the browser forward, it presses Escape once and tries again. It presses Escape only after finding one of those two in front. The key goes out a moment after the lookup, so a window that took their place in between can get it. A step during which any window comes forward, those two included, is still thrown away.
 - **Frames.** voicecap notices another window coming forward from the page's focus events. While focus is inside a frame (an embedded video, map, or form), a switch to another window is noticed only if it lasts until the end of the step.
 - **axe checks one frame, once.** From voicecap 0.16.0, axe checks the page's main frame as the page first loads, once it's ready, with nothing clicked or scrolled: so not what appears only after a click or a scroll, and not the inside of an iframe, which shows under "needs review". It finds what code can find, so its results are evidence beside the person's review, never its verdict (see [axe](#axe)).
-- **One user at a time.** The lock that lets only one voicecap drive NVDA is per Windows user, but NVDA's connection (port 6837 on 127.0.0.1) is shared by the whole computer: don't run voicecap as two Windows users at once.
+- **One user at a time.** The lock that lets only one voicecap drive NVDA is per Windows user, but NVDA's control port (6837) is shared by the whole computer, and open on its networks: voicecap connects to it on 127.0.0.1, and Windows Firewall must keep it closed to other computers (see [NVDA's control port](#nvdas-control-port)). So don't run voicecap as two Windows users at once.
 - **Shared computers.** While a page is open, its browser listens for remote debugging on 127.0.0.1 (with a throwaway profile), where other users of the same computer could connect. On a single-user desktop that doesn't matter.
 - **Pages that talk nonstop.** Guidepup waits for NVDA to fall silent before each keystroke. On a page with content that announces itself continuously (a fast-updating live region, an auto-advancing carousel), a step can time out; voicecap then restarts NVDA and the browser and tries the page again, up to 5 times in all, and records it as failed if every try times out.
 - **Folders with spaces or special characters.** Guidepup 0.34.0 starts NVDA through the Windows command shell without quoting its path, so it can't start NVDA from a path with a space or one of `& ( , ; = ^`; see [Windows setup](#windows-setup-for-someone-new-to-windows).

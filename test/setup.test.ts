@@ -96,6 +96,8 @@ function setupWith(
     playwrightCli: "C:\\voicecap\\node_modules\\playwright\\cli.js",
     install,
     exists: (file) => files.has(file),
+    cacheFromEnv: false,
+    folderEntries: () => null,
     runNode: (script, args, cwd) => {
       runs.push({ script, args, cwd });
       if (args[0] === "install" && args[1] === "nvda") files.add(install.nvdaExe);
@@ -135,17 +137,24 @@ describe("voicecap setup", () => {
     const text = logger.text();
     expect(text).toContain(install.nvdaExe);
     // The preflight takes the place of today's "Next, check everything with: … doctor".
-    expect(text).toContain(
-      [
-        "voicecap talks to NVDA only on this computer (127.0.0.1); it doesn't need network access.",
-        "",
-        "voicecap preflight, ",
-      ].join("\n"),
-    );
+    expect(text).toContain(["Guidepup publishes.", "", "voicecap preflight, "].join("\n"));
     expect(text).toContain("Ready: this computer can run NVDA for voicecap.");
     expect(text).not.toContain("Next, check everything");
     // That's the Mac's line, for its System Events prompt: Windows checks raise no prompt.
     expect(text).not.toContain("Checking this Mac");
+  });
+
+  it("tells the person to click Cancel when Windows asks whether NVDA may use the networks", async () => {
+    const { run, logger } = setupWith();
+    await run();
+    expect(logger.text()).toContain(
+      [
+        "",
+        "When voicecap first starts NVDA, Windows may ask whether NVDA can communicate on networks. Click Cancel, and leave every box unticked. voicecap reaches NVDA on this computer alone (127.0.0.1), which Windows Firewall never blocks, while NVDA's control port is open on every network the computer is on, behind a password Guidepup publishes.",
+        "",
+      ].join("\n"),
+    );
+    expect(logger.text()).not.toContain("it doesn't need network access");
   });
 
   it("returns 2 with the problems when the preflight isn't ready", async () => {
@@ -235,6 +244,66 @@ describe("voicecap setup", () => {
     });
     await expect(run()).rejects.toThrow(/"&".+GUIDEPUP_SCREEN_READERS_PATH/s);
     expect(runs).toEqual([]);
+  });
+
+  describe("a folder GUIDEPUP_SCREEN_READERS_PATH names", () => {
+    const FOLDER = "C:\\guidepup-shared";
+    // setupWith's installer puts install.nvdaExe where it is: only the folder differs here.
+    const shared = { ...install, cacheDir: FOLDER };
+
+    it("is refused before the installer runs when it already holds other files", async () => {
+      const entries: string[][] = [["notes.txt"], ["notes.txt", "nvda"], ["Notes.TXT", ".link"]];
+      for (const names of entries) {
+        const { run, runs, logger } = setupWith({
+          install: shared,
+          cacheFromEnv: true,
+          folderEntries: (dir) => (dir === FOLDER ? names : null),
+        });
+        const failure = run();
+        await expect(failure, names.join(", ")).rejects.toThrow(EnvironmentError);
+        await expect(failure).rejects.toThrow(
+          `GUIDEPUP_SCREEN_READERS_PATH names ${FOLDER}, which already holds other files, and Guidepup's installer deletes what isn't its own, three folders down. Choose a new, empty folder for it, or empty this one, then run voicecap setup again.`,
+        );
+        expect(runs, names.join(", ")).toEqual([]);
+        expect(logger.text()).not.toContain("Installing NVDA");
+      }
+    });
+
+    it("goes on when it holds Guidepup's own .links, is empty, or isn't there yet", async () => {
+      const entries: (string[] | null)[] = [
+        [".links"],
+        [".LINKS"],
+        ["nvda", ".links", "notes.txt"],
+        [],
+        null,
+      ];
+      for (const names of entries) {
+        const { run, runs } = setupWith({
+          install: shared,
+          cacheFromEnv: true,
+          folderEntries: () => names,
+        });
+        expect(await run(), String(names)).toBe(0);
+        expect(
+          runs.map((r) => r.args.join(" ")),
+          String(names),
+        ).toEqual(["install nvda"]);
+      }
+    });
+
+    it("isn't looked at when Guidepup's default folder is in use", async () => {
+      let looked = false;
+      const { run, runs } = setupWith({
+        cacheFromEnv: false,
+        folderEntries: () => {
+          looked = true;
+          return ["notes.txt"];
+        },
+      });
+      expect(await run()).toBe(0);
+      expect(looked).toBe(false);
+      expect(runs.map((r) => r.args.join(" "))).toEqual(["install nvda"]);
+    });
   });
 
   it("fails when the installer fails, pointing at proxies", async () => {

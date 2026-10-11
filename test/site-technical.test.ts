@@ -644,6 +644,11 @@ describe("renderTechnical", () => {
     // the test (Ruling P8).
     expect(text).not.toMatch(/\bthis computer\b/i);
     expect(text).toContain("only on the computer running the test");
+    // NVDA's control port is open on the computer's networks too, and the checks say so: in both
+    // places that name the service.
+    expect(
+      text.match(/voicecap's checks warn when Windows Firewall lets other computers reach it/g),
+    ).toHaveLength(2);
     // Every code span came out as code: no backtick is left in the words.
     expect(text).not.toContain("`");
   });

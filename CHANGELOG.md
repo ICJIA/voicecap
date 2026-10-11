@@ -52,6 +52,10 @@ voicecap now records what NVDA said aloud on each page, sealed with the run, wit
   - it deletes NVDA's raw log (`%TEMP%\nvda.log`) once it has read and cleaned it.
 
   Comparing a run with one from before 0.18.0 says, among the screen reader settings that differ, `presentation unset → {"reportHelpBalloons":false}`.
+- **voicecap warns when other computers can reach NVDA's control port.** The NVDA build Guidepup installs opens its Remote Access control port (6837) on every network, behind a key Guidepup publishes. A Windows Firewall rule that lets it in makes it reachable from other computers, which could then press keys on this one.
+  - `preflight`, `doctor`, `init`, `setup`, and each run now warn when such a rule is there, and the README gives the two commands that close the port. A block rule on the port keeps the check quiet, and a firewall that can't be read is a warning too, never a stop.
+  - `setup` says to click Cancel when Windows asks whether NVDA may communicate on networks.
+  - `setup` refuses a `GUIDEPUP_SCREEN_READERS_PATH` folder that already holds other files, which Guidepup's installer would delete.
 
 ## [0.17.0] - 2026-10-10
 

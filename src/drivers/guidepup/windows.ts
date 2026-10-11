@@ -59,6 +59,60 @@ export async function listProcesses(image: string): Promise<number[]> {
   return parseTasklist(stdout);
 }
 
+/**
+ * The port of NVDA's Remote Access control server, where Guidepup connects. Guidepup's nvda.ini
+ * sets it: `[remote]`, `[[controlServer]]`, `port`. The server listens on every network the
+ * computer is on, behind a key Guidepup publishes, so a Windows Firewall rule that lets it in
+ * makes it reachable from other computers.
+ */
+export const NVDA_CONTROL_PORT = 6837;
+
+/** What a Windows Firewall rule does with a connection it matches. */
+export type FirewallAction = "Allow" | "Block";
+
+/**
+ * The PowerShell that lists what Windows Firewall does with NVDA's control port, one action per
+ * line: the action of each enabled inbound rule of the active store that names `nvdaExe` (a rule
+ * may write the path with environment variables), then a `Block` for each enabled inbound block
+ * rule on local port 6837, whatever program it names. It only reads, and needs no administrator.
+ */
+export function nvdaFirewallScript(nvdaExe: string): string {
+  const enabledInbound = "$_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound'";
+  return [
+    `$exe = ${powershellString(nvdaExe)};`,
+    "Get-NetFirewallApplicationFilter -PolicyStore ActiveStore",
+    "| Where-Object { [Environment]::ExpandEnvironmentVariables($_.Program) -eq $exe }",
+    `| Get-NetFirewallRule | Where-Object { ${enabledInbound} }`,
+    "| ForEach-Object { [string]$_.Action };",
+    "Get-NetFirewallPortFilter -PolicyStore ActiveStore",
+    `| Where-Object { $_.LocalPort -contains '${NVDA_CONTROL_PORT}' }`,
+    `| Get-NetFirewallRule | Where-Object { ${enabledInbound} -and [string]$_.Action -eq 'Block' }`,
+    "| ForEach-Object { 'Block' }",
+  ].join(" ");
+}
+
+/** nvdaFirewallScript's lines, each trimmed and kept when it is `Allow` or `Block`. */
+export function parseFirewallActions(stdout: string): FirewallAction[] {
+  const actions: FirewallAction[] = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    const action = line.trim();
+    if (action === "Allow" || action === "Block") actions.push(action);
+  }
+  return actions;
+}
+
+/**
+ * What Windows Firewall does with NVDA's control port: an `Allow` for each enabled inbound rule
+ * that lets `nvdaExe` in, and a `Block` for each enabled inbound block rule on port 6837. Throws
+ * "PowerShell didn't answer" when it can't tell.
+ */
+export async function nvdaFirewallRules(nvdaExe: string): Promise<FirewallAction[]> {
+  const found = await powershell(nvdaFirewallScript(nvdaExe)).catch((error: unknown) => {
+    throw new Error("PowerShell didn't answer", { cause: error });
+  });
+  return parseFirewallActions(found);
+}
+
 /** A running nvda.exe. */
 export interface NvdaProcess {
   pid: number;

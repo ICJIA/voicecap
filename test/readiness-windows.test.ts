@@ -10,7 +10,8 @@ import { ForegroundError, type EnvironmentInfo } from "../src/drivers/types.js";
 import { InterruptedError } from "../src/passes/steps.js";
 import type { LiveCheck } from "../src/readiness/live-check.js";
 import type { Check } from "../src/readiness/model.js";
-import { renderFixes, renderProblems } from "../src/readiness/render.js";
+import { runPreflight } from "../src/readiness/preflight.js";
+import { renderFixes, renderProblems, renderRunSummary } from "../src/readiness/render.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { silentLogger } from "../src/util/log.js";
 
@@ -60,6 +61,7 @@ function fakeDeps(overrides: Partial<WindowsReadinessDeps> = {}): WindowsReadine
     },
     install,
     exists: (file) => file === install.nvdaExe,
+    nvdaFirewallRules: () => Promise.resolve([]),
     nvdaProcesses: () => Promise.resolve([]),
     otherVoicecap: () => Promise.resolve(null),
     nvdaLockFile: LOCK,
@@ -119,7 +121,16 @@ describe("Windows readiness", () => {
       windows()
         .quickChecks()
         .map((runner) => runner.id),
-    ).toEqual(["node", "guidepupFolder", "nvda", "otherVoicecap", "ownNvda", "session", "browser"]);
+    ).toEqual([
+      "node",
+      "guidepupFolder",
+      "nvda",
+      "nvdaFirewall",
+      "otherVoicecap",
+      "ownNvda",
+      "session",
+      "browser",
+    ]);
   });
 
   it("is what voicecap loads on Windows", async () => {
@@ -129,6 +140,7 @@ describe("Windows readiness", () => {
       "node",
       "guidepupFolder",
       "nvda",
+      "nvdaFirewall",
       "otherVoicecap",
       "ownNvda",
       "session",
@@ -292,6 +304,67 @@ describe("Windows quick checks", () => {
         setupHelps: true,
       },
     });
+  });
+
+  const FIREWALL_OPEN =
+    "Windows Firewall lets other computers reach NVDA's control port (6837) while voicecap runs: an administrator can close it (README: \"NVDA's control port\")";
+  const FIREWALL_CLOSED = "Windows Firewall keeps NVDA's control port closed to other computers";
+
+  it("warn when Windows Firewall has a rule that lets other computers reach NVDA's control port", async () => {
+    expect(
+      await quickCheck("nvdaFirewall", { nvdaFirewallRules: () => Promise.resolve(["Allow"]) }),
+    ).toEqual({ id: "nvdaFirewall", status: "WARN", summary: FIREWALL_OPEN });
+    // Two Allow rules (a private-network one and a public-network one) are still one warning.
+    expect(
+      (
+        await quickCheck("nvdaFirewall", {
+          nvdaFirewallRules: () => Promise.resolve(["Allow", "Allow"]),
+        })
+      ).status,
+    ).toBe("WARN");
+  });
+
+  it("pass when no rule lets NVDA's control port in, or a block rule keeps it closed", async () => {
+    const closed = { id: "nvdaFirewall", status: "OK", summary: FIREWALL_CLOSED };
+    const answers: ("Allow" | "Block")[][] = [
+      [],
+      ["Block"],
+      ["Allow", "Block"],
+      ["Block", "Allow"],
+    ];
+    for (const rules of answers) {
+      expect(
+        await quickCheck("nvdaFirewall", { nvdaFirewallRules: () => Promise.resolve(rules) }),
+        rules.join(", "),
+      ).toEqual(closed);
+    }
+  });
+
+  it("warn, without failing, when they can't read Windows Firewall's rules, giving the reason's first line", async () => {
+    const check = await quickCheck("nvdaFirewall", {
+      nvdaFirewallRules: () => Promise.reject(new Error("PowerShell didn't answer\nmore words")),
+    });
+    expect(check).toEqual({
+      id: "nvdaFirewall",
+      status: "WARN",
+      summary:
+        "Couldn't read Windows Firewall's rules for NVDA's control port (PowerShell didn't answer)",
+    });
+  });
+
+  it("stay ready when the firewall warns, and put its warning in a run's one-line summary", async () => {
+    const warns: WindowsReadinessDeps["nvdaFirewallRules"][] = [
+      () => Promise.resolve(["Allow"]),
+      () => Promise.reject(new Error("PowerShell didn't answer")),
+    ];
+    for (const nvdaFirewallRules of warns) {
+      const result = await runPreflight(windows({ nvdaFirewallRules }));
+      expect(result.ready).toBe(true);
+      expect(result.checks.find((check) => check.id === "nvdaFirewall")?.status).toBe("WARN");
+      const summary = renderRunSummary(result);
+      expect(summary).toContain("  WARN  ");
+      expect(summary).toContain("NVDA's control port");
+    }
   });
 
   it("pass when no other voicecap holds NVDA's lock", async () => {

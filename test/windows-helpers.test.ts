@@ -25,9 +25,12 @@ import {
   foregroundWindow,
   keepAwake,
   listProcesses,
+  NVDA_CONTROL_PORT,
+  nvdaFirewallScript,
   nvdaProcesses,
   ownNvdaPaths,
   parseComputerModel,
+  parseFirewallActions,
   parseForegroundWindow,
   parseNvdaProcesses,
   parseWindowsMachine,
@@ -410,6 +413,42 @@ describe("Windows helpers (what PowerShell says)", () => {
     expect(parseNvdaProcesses("WARNING: something else\r\n\r\n42|C:\\nvda\\nvda.exe\r\n")).toEqual([
       { pid: 42, path: "C:\\nvda\\nvda.exe" },
     ]);
+  });
+
+  it("read the firewall rules' actions, keeping only Allow and Block", () => {
+    expect(parseFirewallActions("Allow\r\nBlock\r\n\r\nNotConfigured\r\n")).toEqual([
+      "Allow",
+      "Block",
+    ]);
+    // Each line is trimmed. A warning, a longer word, and another letter case are not an action.
+    expect(
+      parseFirewallActions("  Allow \r\n\tBlock\r\nWARNING: slow\r\nAllowed\r\nallow\r\n"),
+    ).toEqual(["Allow", "Block"]);
+    expect(parseFirewallActions("")).toEqual([]);
+    expect(parseFirewallActions("NotConfigured\r\n")).toEqual([]);
+  });
+
+  it("read the firewall with one read-only script that names the NVDA program and port 6837", () => {
+    expect(NVDA_CONTROL_PORT).toBe(6837);
+    const exe =
+      "C:\\Users\\jane\\AppData\\Local\\guidepup\\nvda\\all\\0.2.1-2026.2\\extracted\\nvda.exe";
+    const script = nvdaFirewallScript(exe);
+    expect(script).toBe(
+      [
+        `$exe = '${exe}';`,
+        "Get-NetFirewallApplicationFilter -PolicyStore ActiveStore | Where-Object { [Environment]::ExpandEnvironmentVariables($_.Program) -eq $exe } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' } | ForEach-Object { [string]$_.Action };",
+        "Get-NetFirewallPortFilter -PolicyStore ActiveStore | Where-Object { $_.LocalPort -contains '6837' } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and [string]$_.Action -eq 'Block' } | ForEach-Object { 'Block' }",
+      ].join(" "),
+    );
+    // It only reads: no cmdlet that adds, changes, removes, or turns anything on or off.
+    expect(script).not.toMatch(/\b(?:Add|Disable|Enable|New|Remove|Rename|Set|Start|Stop)-/);
+  });
+
+  it("quote the NVDA program's path in the firewall script, so a quote in it stays text", () => {
+    const script = nvdaFirewallScript("C:\\jane's folder\\nvda.exe'; Remove-NetFirewallRule *; '");
+    expect(script.split(" Get-NetFirewallApplicationFilter ")[0]).toBe(
+      "$exe = 'C:\\jane''s folder\\nvda.exe''; Remove-NetFirewallRule *; ''';",
+    );
   });
 
   const install = {
