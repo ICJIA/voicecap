@@ -1521,14 +1521,17 @@ describe("checkAgainstLog on made-up passes, with NVDA's timing and what goes wr
     [["late", "stray"], []],
     [["late", "missing"], []],
     [["late", "doubled"], []],
-  ])("never leaves out a line that differs, with %j gone wrong", (anomalies, allowed) => {
-    const tally = verdicts(anomalies, 2_000_000 + 1000 * anomalies.join().length);
-    const others = Object.keys(tally).filter(
-      (verdict) => verdict !== "right" && verdict !== "not checked" && !allowed.includes(verdict),
-    );
-    expect(others).toEqual([]);
-    expect(tally.hidden ?? 0).toBe(0);
-  });
+  ])(
+    "leaves out no line that differs in these 400 passes, with %j gone wrong",
+    (anomalies, allowed) => {
+      const tally = verdicts(anomalies, 2_000_000 + 1000 * anomalies.join().length);
+      const others = Object.keys(tally).filter(
+        (verdict) => verdict !== "right" && verdict !== "not checked" && !allowed.includes(verdict),
+      );
+      expect(others).toEqual([]);
+      expect(tally.hidden ?? 0).toBe(0);
+    },
+  );
 
   it("finds the first Tab's speech when the pass's clock was set a step early and order put its keys right", () => {
     // NVDA took the eighth Tab late, and a clock a step early, set by that key, paired the keys

@@ -443,22 +443,23 @@ function edgeOf(steps: readonly StepRecord[], k: number): number {
  * every step one off. The placement is certain when no other moment tried accounts for as many keys
  * some other way, and no key is left over between its first step's key and its last's: a key left
  * there means a step near it may have another step's key. Otherwise which key was whose can't be
- * told without the words, which the pairing doesn't look at, so the pass isn't checked: as when,
- * with nothing else wrong, a key the pass didn't press comes just before its first step, after its
- * last, or among its steps, NVDA logged a key twice, NVDA didn't log the key of the pass's first or
- * last step, or two keys in a row came after their steps' time, where order can't say whose they
- * are.
+ * told without the words, which the pairing doesn't look at, so the pass isn't checked: as when a
+ * key the pass didn't press comes just before its first step, after its last, or among its steps,
+ * NVDA logged a key twice, NVDA didn't log the key of the pass's first or last step, or two keys in
+ * a row came after their steps' time, where order can't say whose they are.
  *
- * Two things wrong at once can still mislead it, as no real run has shown: a step whose key NVDA
- * didn't log, or two keys in a row taken late, and a key no step pressed, or one NVDA logged twice,
- * elsewhere in the pass. Each step between them can then take a neighbor's key, one step off, a
- * pairing that leaves no key over among its own: a key no step pressed in the next step's time looks
- * like the step's key taken late, with the next step's after it, and one just before the pass's
- * first step like a clock a step early. In that step's own time, such a key is taken for its own.
- * Those steps are compared with words not theirs, and listed where those differ from their lines.
- * But a real gap among them can go unshown: a step agrees with a neighbor's words where neighboring
- * lines read the same (headings that all say "News"), and a step left without a key, whose words
- * came in a later step's time, is counted as having none on either side.
+ * Two things wrong at once can still mislead it, as no real run has shown. The cases found include
+ * a step whose key NVDA didn't log, or two keys in a row taken late, and a key no step pressed, or
+ * one NVDA logged twice, elsewhere in the pass; two keys in a row taken late, twice in a pass; and
+ * keys taken late with a step whose key NVDA didn't log. Each step between them can then take a
+ * neighbor's key, one step off, a pairing that leaves no key over among its own: a key no step
+ * pressed in the next step's time looks like the step's key taken late, with the next step's after
+ * it, and one just before the pass's first step like a clock a step early. In that step's own time,
+ * such a key is taken for its own. Those steps are compared with words not theirs, and listed where
+ * those differ from their lines. But a real gap among them can go unshown: a step agrees with a
+ * neighbor's words where neighboring lines read the same (headings that all say "News"), and a step
+ * left without a key, whose words came in a later step's time, is counted as having none on either
+ * side.
  */
 function lineUp(
   steps: readonly StepRecord[],
