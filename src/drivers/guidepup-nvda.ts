@@ -4,13 +4,14 @@
  *
  * What the driver guarantees, beyond passing keys to NVDA (checked against real NVDA 2026.2):
  *
- * - Keystrokes go to the browser, and another window's speech never ends up in a transcript. Keys
- *   sent through NVDA go to whichever window is in front, so every load confirms the window with
- *   NVDA+T (report title) against a unique marker title, and every step checks that the page has
- *   focus before and after its keystroke. A step during which another window came forward is
- *   discarded as a ForegroundError. The check before a step can't close every gap: Guidepup
- *   silences NVDA (at least 250 ms) before sending the key, so a window that comes forward just
- *   then gets that one keystroke, and the step is discarded.
+ * - Keystrokes go to the browser, a window that takes the front never has its speech in a
+ *   transcript, and a recording of NVDA's voice is kept only from an attempt that finished with no
+ *   other window in front. Keys sent through NVDA go to whichever window is in front, so every load
+ *   confirms the window with NVDA+T (report title) against a unique marker title, and every step
+ *   checks that the page has focus before and after its keystroke. A step during which another
+ *   window came forward is discarded as a ForegroundError. The check before a step can't close
+ *   every gap: Guidepup silences NVDA (at least 250 ms) before sending the key, so a window that
+ *   comes forward just then gets that one keystroke, and the step is discarded.
  * - Each load gets a fresh browser with a new profile, so no page's transcript depends on which
  *   pages came before (visited links, cookies, storage).
  * - The tab pass starts at the first focusable element: the first Tab after a load goes to the
@@ -58,14 +59,17 @@
  *   the first line of its reason. So is one that takes over 20 seconds, which can't be stopped, and
  *   says it's still under way in the page (leftRunning): the core opens the page again, and that
  *   load's fresh browser closes this one, ending the check with it. Neither fails the page.
- * - NVDA's own log is turned on at the input/output level, through Guidepup's settings (a
- *   general.loggingLevel the config sets itself wins). Each time voicecap's NVDA has quit, the driver
- *   reads that log, cleans it (./guidepup/nvda-log.ts), and hands the copy to the run's recorder,
- *   before anything starts NVDA again: NVDA moves the last log aside to nvda-old.log whenever it
- *   starts, as the person's own NVDA does when the final stop starts it again. It reads nothing
- *   for a recorder that keeps no copies, and a log it can't have (none, one it can't read, or one
- *   older than the NVDA session, an earlier NVDA's) is recorded as no copy, with why, and the
- *   console is told, once for a driver: it never stops a stop.
+ * - NVDA's own log is turned on at the input/output level, and NVDA's notifications are turned off
+ *   ("Report notifications", presentation.reportHelpBalloons), both through Guidepup's settings (a
+ *   value the config sets itself wins): a notification is never a page's own speech. Each time
+ *   voicecap's NVDA has quit, the driver reads that log, cleans it (./guidepup/nvda-log.ts), and
+ *   hands the copy to the run's recorder, before anything starts NVDA again: NVDA moves the last
+ *   log aside to nvda-old.log whenever it starts, as the person's own NVDA does when the final stop
+ *   starts it again. Once the copy is handed over, the raw log, which holds every key pressed while
+ *   NVDA ran, is deleted. It reads nothing for a recorder that keeps no copies, and a log it can't
+ *   have (none, one it can't read, or one older than the NVDA session, an earlier NVDA's) is
+ *   recorded as no copy, with why, and left as it is, and the console is told, once for a driver:
+ *   it never stops a stop.
  * - What NVDA says aloud is recorded only when the core asks (recordVoice), as each attempt at a page
  *   begins, by a helper that starts at the first recording and runs until the final stop (see
  *   voice-recorder.ts): one recording at a time, of NVDA's process and no other sound. The helper
@@ -76,6 +80,13 @@
  *   when it ends a recording itself and with the folder when the helper is closed. The helper ends
  *   with the process too: it ends when its input does. A folder that a crash, or a second Ctrl+C
  *   while the helper held its file, leaves behind is deleted by the next run's cleanupStale.
+ * - A recording during which another window came to the front, or may have, isn't kept: its stop
+ *   gives the reason (ANOTHER_WINDOW) and deletes its sound, as NVDA may have read that window
+ *   aloud. It's marked as that's found (heardAnotherWindow): NVDA+T read a window that isn't the
+ *   page's own browser's as the browser was brought forward (a lookup that can't say whose it is
+ *   counts), Windows Search or the Start menu was closed, a step lost the page's focus, or Windows
+ *   was found locked. NVDA+T reading the browser's own window by its old title, before Windows has
+ *   given it the marker, marks nothing: no other window was in front.
  */
 import { randomInt } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
@@ -95,7 +106,12 @@ import type { Logger } from "../util/log.js";
 import { formatDuration } from "../util/time.js";
 import { launchChrome, LimitReachedError, withinLimit } from "./guidepup/chrome.js";
 import { loadGuidepupNvda } from "./guidepup/nvda.js";
-import { beganWithSession, cleanNvdaLog, withNvdaLog } from "./guidepup/nvda-log.js";
+import {
+  beganWithSession,
+  cleanNvdaLog,
+  withNvdaLog,
+  withQuietNotifications,
+} from "./guidepup/nvda-log.js";
 import {
   guidepupInstall,
   nvdaLockFile,
@@ -120,6 +136,7 @@ import {
   nvdaProcesses,
   ownNvdaPaths,
   readNvdaLog,
+  removeNvdaLog,
   restartNvda,
   restartNvdaDetached,
   sessionLocked,
@@ -274,6 +291,13 @@ export interface GuidepupDriverDeps {
    */
   readNvdaLog: () => Promise<string | null>;
   /**
+   * Delete NVDA's own log (nvda.log in the temp folder), which holds every key pressed while that
+   * NVDA ran, once its cleaned copy has been handed to the run's recorder; the older log is never
+   * touched. It never rejects: a file another program holds stays, and NVDA's next start moves it
+   * aside.
+   */
+  removeNvdaLog: () => Promise<void>;
+  /**
    * The account's home folder, which a copy of NVDA's log writes as %USERPROFILE%, and so does the
    * reason a log couldn't be had, which is kept with the run.
    */
@@ -342,6 +366,7 @@ export function createGuidepupNvdaDriver(
     restartNvda,
     restartNvdaDetached: (exe) => restartNvdaDetached(exe, install.nvdaExe),
     readNvdaLog: () => readNvdaLog(os.tmpdir()),
+    removeNvdaLog: () => removeNvdaLog(os.tmpdir()),
     home: os.homedir(),
     lockFile: nvdaLockFile(process.env, os.homedir()),
     system: () => (system ??= { ...windowsSystemInfo(), guidepupVersion: guidepup.version }),
@@ -388,6 +413,12 @@ const OPTIONAL_SETTINGS_SECTIONS = ["presentation", "general"];
 const NVDA_ENDED = "NVDA's process ended during the recording";
 /** The recording was ended by the driver, which was stopped, so its sound is gone. */
 const DISCARDED = "the recording was discarded";
+/**
+ * Another window came to the front during the recording, or may have (see heardAnotherWindow): NVDA
+ * may have read it aloud, which can't be taken out of the sound, so the sound is deleted.
+ */
+export const ANOTHER_WINDOW =
+  "another window came to the front during the attempt, and NVDA may have read it aloud, so the recording isn't kept";
 
 export class GuidepupNvdaDriver implements ScreenReaderDriver {
   readonly name = "guidepup";
@@ -588,7 +619,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     try {
       await nvda.start({
         capture: this.options.config.capture,
-        settings: withNvdaLog(this.options.config.nvdaSettings),
+        settings: withQuietNotifications(withNvdaLog(this.options.config.nvdaSettings)),
       });
     } catch (error) {
       this.setNvdaState("stopped");
@@ -849,14 +880,16 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    *
    * One recording at a time: one the run never ended is discarded first. A recording that can't
    * begin still gives a VoiceRecording, whose stop() says why: not being able to record never
-   * fails a page. The commands for the helper take their turns, so a recording ended by the run and
-   * one ended by this driver stopping can't meet in the helper.
+   * fails a page. So does one during which another window came to the front (ANOTHER_WINDOW), whose
+   * sound is deleted. The commands for the helper take their turns, so a recording ended by the run
+   * and one ended by this driver stopping can't meet in the helper.
    */
   async recordVoice(): Promise<VoiceRecording> {
     const take: Take = {
       pcm: path.join(this.deps.voiceDir, `${++this.takes}.pcm`),
       ended: null,
       discarded: false,
+      heardElsewhere: false,
     };
     const previous = this.take;
     this.take = take;
@@ -886,7 +919,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     const { nvda, session } = page;
     const before = await session.focusState();
     this.checkLive(page.generation);
-    if (!before.focused) throw await this.foregroundLost(session);
+    if (!before.focused) throw await this.foregroundLost(page);
     let speech: Speech;
     if (this.firstTab) {
       this.firstTab = false;
@@ -908,7 +941,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       this.inDocument = false;
       return speech;
     }
-    throw await this.foregroundLost(session);
+    throw await this.foregroundLost(page);
   }
 
   focusInDocument(): Promise<boolean> {
@@ -934,14 +967,14 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   ): Promise<Speech> {
     const before = await page.session.focusState();
     this.checkLive(page.generation);
-    if (!before.focused) throw await this.foregroundLost(page.session);
+    if (!before.focused) throw await this.foregroundLost(page);
     const said = await this.command(() => page.nvda.press(key, options));
     // Only speech that was captured says anything about NVDA and Windows.
     const speech = options?.capture === false ? said : await this.heard(page, said);
     const after = await page.session.focusState();
     this.checkLive(page.generation);
     if (!after.focused || lostFocusBetween(before, after)) {
-      throw await this.foregroundLost(page.session);
+      throw await this.foregroundLost(page);
     }
     return speech;
   }
@@ -959,6 +992,12 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * error says no more than before. The warning after the last try names the program in front, or
    * "another window" when none is known, never the window's title as NVDA reads it.
    *
+   * NVDA+T says aloud the title of whatever window is in front, so a try that fails marks the
+   * recording under way (heardAnotherWindow), unless the window in front is the page's own browser:
+   * Windows can take a moment to give the window the marker title, and NVDA+T then reads the
+   * browser's old one, which is no other window's. A window the lookup can't say is the browser's
+   * counts as another's.
+   *
    * With openPage's Escape and Ctrl+Home, this is navigateToWebContent from @guidepup/playwright
    * 0.19.1, lib/nvdaTest.js (by Craig Morten, MIT License), adapted: the window is raised instead
    * of cycled with Alt+Esc (which brought other windows forward, and NVDA read them), and the
@@ -971,7 +1010,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     const restore = await session.setTitle(marker);
     try {
       // What the last try that failed found in front.
-      let front: InFront = { program: null, title: null };
+      let front: InFront = { program: null, title: null, own: false };
       for (let attempt = 0; attempt < RAISE_ATTEMPTS; attempt++) {
         // Raise before asking NVDA anything: a window in front that keeps changing (a terminal
         // with a spinner, say) keeps NVDA talking, and Guidepup waits for silence before every
@@ -985,6 +1024,8 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
         // Start menu coming up on a later one is found too.
         front = await this.windowInFront(session);
         this.checkLive(page.generation);
+        // NVDA+T read the window in front aloud: another window's, unless it's the browser's own.
+        if (!front.own) this.heardAnotherWindow(page.generation);
         const { program } = front;
         if (program !== null && closedProgram(program) !== null) {
           // Recorded as it's found, as any loss is. Another try follows, or there's nothing to close
@@ -1015,11 +1056,13 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * Start menu: see closedProgram). It goes through NVDA, as openPage's Escape does, to the window
    * in front, which isn't the page's: the page has no focus, so press()'s check of it would refuse.
    * It's recorded once it's sent, with the program's name as windowInFront gave it, and then
-   * Windows gets a moment to close it before the browser is raised again.
+   * Windows gets a moment to close it before the browser is raised again. NVDA may read the
+   * program, and what comes in front as it closes, so the recording under way isn't kept.
    */
   private async closeForeground(page: Current, program: string): Promise<void> {
     // The lookup before this took a while: a stop() that came meanwhile sends no key.
     this.checkLive(page.generation);
+    this.heardAnotherWindow(page.generation);
     await this.command(() => page.nvda.press("exitFocusMode", { capture: false }));
     this.checkLive(page.generation);
     this.events.record({ type: "foreground-escape", program });
@@ -1057,19 +1100,21 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     // On a locked computer, Windows keeps NVDA from pressing keys, and NVDA says nothing.
     if ((await this.deps.sessionLocked()) === true) {
       this.checkLive(page.generation);
-      throw this.computerLocked();
+      throw this.computerLocked(page.generation);
     }
     return speech;
   }
 
   /**
-   * The page of the browser `session` lost focus: to another window, or to the lock screen (checked
-   * on real Windows).
+   * The page lost focus: to another window, or to the lock screen (checked on real Windows). Either
+   * way, NVDA may have read what came in front, so the recording under way isn't kept, whatever the
+   * lookup of the window in front finds by then: it may have come and gone.
    */
-  private async foregroundLost(session: BrowserSession): Promise<Error> {
+  private async foregroundLost(page: Current): Promise<Error> {
+    this.heardAnotherWindow(page.generation);
     return (await this.deps.sessionLocked()) === true
-      ? this.computerLocked()
-      : lostForeground(await this.foregroundTakenBy(session));
+      ? this.computerLocked(page.generation)
+      : lostForeground(await this.foregroundTakenBy(page.session));
   }
 
   /**
@@ -1087,10 +1132,10 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   /**
    * The window in front now, as the log keeps it: its program's name and its title, each null when
    * it isn't known: the lookup failed, Windows didn't say, or the window in front is the page's own
-   * browser (`session`, told by its process id). The lookup comes a moment after the loss, and the
-   * foreground may have come back to the browser by then: no program took it. A browser with no
-   * process id can't be told from another program's window, so the answer stands. Nothing is
-   * recorded: whoever asks decides which loss is the one to record.
+   * browser (`session`, told by its process id), which `own` says. The lookup comes a moment after
+   * the loss, and the foreground may have come back to the browser by then: no program took it. A
+   * browser with no process id can't be told from another program's window, so the answer stands,
+   * and isn't its own. Nothing is recorded: whoever asks decides which loss is the one to record.
    */
   private async windowInFront(session: BrowserSession): Promise<InFront> {
     let front: ForegroundWindow | null = null;
@@ -1099,8 +1144,9 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     } catch {
       // Counts as not known.
     }
-    if (front !== null && front.pid === session.pid) front = null;
-    return { program: front?.program ?? null, title: front?.title ?? null };
+    const own = front !== null && front.pid === session.pid;
+    if (own) front = null;
+    return { program: front?.program ?? null, title: front?.title ?? null, own };
   }
 
   /** Another window took the foreground from the browser: recorded, with the program and its title. */
@@ -1108,10 +1154,25 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     this.events.record({ type: "foreground-lost", program: front.program, title: front.title });
   }
 
-  /** Windows was found locked: recorded, as the error that says so is made. */
-  private computerLocked(): EnvironmentError {
+  /**
+   * Windows was found locked, by a call of `generation`: recorded, as the error that says so is
+   * made. The lock screen came to the front, and NVDA may have read it, or a notification on it.
+   */
+  private computerLocked(generation: number): EnvironmentError {
+    this.heardAnotherWindow(generation);
     this.events.record({ type: "computer-locked" });
     return windowsLocked();
+  }
+
+  /**
+   * Another window came to the front, or may have, while a call of `generation` was under way: NVDA
+   * may have read it aloud, and the recording under way would keep that, so it isn't kept (see
+   * recordingOf). A call that began before a stop says nothing of the recording begun after it: the
+   * core stops the driver without waiting for a call it gave up on, so what that call finds may
+   * come once the next attempt is being recorded.
+   */
+  private heardAnotherWindow(generation: number): void {
+    if (generation === this.generation && this.take !== null) this.take.heardElsewhere = true;
   }
 
   private markerTitle(): string {
@@ -1280,6 +1341,10 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * run the driver with none. A log that can't be had (see cleanedNvdaLog) is recorded as no copy,
    * with why, and the console is told, once for a driver; it never stops the stop that was under
    * way. What the recorder does with a copy is its own: it never throws, as `record` never does.
+   *
+   * Once the copy is handed over, the raw log is deleted (removeNvdaLog), as it holds every key
+   * pressed while that NVDA ran, typing in other windows included. A log the run has no copy of is
+   * left as it is: it may be an earlier NVDA's, the person's own.
    */
   private async keepNvdaLog(): Promise<void> {
     const recorder = this.events;
@@ -1287,6 +1352,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     const log = await this.cleanedNvdaLog();
     if ("cleaned" in log) {
       recorder.screenReaderLog(log.cleaned);
+      await this.deps.removeNvdaLog();
       return;
     }
     recorder.record({ type: "screen-reader-log", file: null, reason: log.reason });
@@ -1486,7 +1552,10 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     if (this.take === take) this.take = null;
   }
 
-  /** `take` as the core holds it: it ends it with stop(), which keeps its sound, or discard(). */
+  /**
+   * `take` as the core holds it: it ends it with stop(), which keeps its sound, or discard(). A
+   * take during which another window came to the front gives the reason at stop(), and no sound.
+   */
   private recordingOf(take: Take): VoiceRecording {
     /** The reason the recording has no sound; its file is deleted, as no one will read it. */
     const without = async (reason: string): Promise<VoiceCapture> => {
@@ -1498,6 +1567,8 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
         const end = await this.inTurn(() => this.endTakeNow(take));
         this.release(take);
         if (take.discarded) return without(DISCARDED);
+        // NVDA may have read another window aloud, which can't be taken out of the sound.
+        if (take.heardElsewhere) return without(ANOTHER_WINDOW);
         if ("reason" in end) return without(end.reason);
         const { stopped } = end;
         // What follows an exit is silence, which says nothing of the page: the recording is no
@@ -1600,6 +1671,11 @@ interface InFront {
   program: string | null;
   /** Its title, which can hold private text: the log keeps it; no report or warning shows it. */
   title: string | null;
+  /**
+   * Whether it's the page's own browser's window, by its process id: false when the lookup failed,
+   * found no window, or the browser has no process id to tell it by.
+   */
+  own: boolean;
 }
 
 /** One recording of NVDA's voice: what the driver needs to end it, however it ends. */
@@ -1614,6 +1690,11 @@ interface Take {
   ended: Promise<TakeEnd> | null;
   /** Whether it was ended to be thrown away: its sound is deleted, and it has none to give. */
   discarded: boolean;
+  /**
+   * Whether another window came to the front while it was being made, or may have: NVDA may have
+   * read it aloud, so its sound isn't kept (see heardAnotherWindow). False when it's made.
+   */
+  heardElsewhere: boolean;
 }
 
 /** How a recording ended: what the helper said, or why it couldn't say. */

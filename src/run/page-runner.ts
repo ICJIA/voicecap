@@ -116,9 +116,10 @@ export interface PageOutcome {
   axe?: AxeRecord;
   /**
    * The recording of NVDA's voice the last attempt kept in the page's folder, or why it has none: made
-   * from the attempt's start to its end, as the screenshot is taken as the page first loads. Left out
-   * when the driver can't record, and for a page the attempt didn't read (it was skipped, the site
-   * answered with an HTTP error, or the page wouldn't open).
+   * from the attempt's start to its end, as the screenshot is taken as the page first loads, and
+   * kept only when the attempt read the page to the end (see endVoice). Left out when the driver
+   * can't record, and for a page the attempt didn't read (it was skipped, the site answered with an
+   * HTTP error, or the page wouldn't open).
    */
   voice?: VoiceRecord;
   skip?: SkippedRecord;
@@ -203,11 +204,13 @@ type Attempt = Loaded &
  * recorded before it's kept, and before any restart for the next.
  *
  * A driver that can record NVDA's voice is asked to as each attempt begins, before the attempt's
- * start is recorded, and the recording is stopped as the attempt ends, before its end is recorded:
- * keepVoice encodes it into the page's folder (voice.webm) and the attempt's record of it is the
- * page's, apart from its files. An attempt that didn't read the page keeps none (its recording is
- * discarded), and neither does one that Ctrl+C or an unexpected error stopped. Not being able to
- * record, or to keep a recording, never fails the attempt: the reason is the page's record.
+ * start is recorded, and the recording is ended as the attempt ends, before its end is recorded
+ * (endVoice). One of an attempt that read the page to the end is stopped: keepVoice encodes it into
+ * the page's folder (voice.webm), and the attempt's record of it is the page's, apart from its
+ * files. An attempt that read the page and then failed keeps none, and its record says why; one
+ * that didn't read the page keeps none and has no record of one, and neither does one that Ctrl+C
+ * or an unexpected error stopped. Not being able to record, or to keep a recording, never fails the
+ * attempt: the reason is the page's record.
  */
 export async function processPage(ctx: PageContext): Promise<PageOutcome> {
   const clock = ctx.clock ?? (() => performance.now());
@@ -544,11 +547,22 @@ async function startVoice(ctx: PageContext): Promise<VoiceRecording | null> {
 }
 
 /**
+ * Why a page's last attempt has no recording when it read the page and then failed: the recording
+ * is discarded as the attempt ends. An attempt can fail because another window came to the front,
+ * and NVDA may have read that window aloud, which its sound would hold. A clause in lowercase with
+ * no full stop, as every reason a page's record keeps of its recording.
+ */
+export const UNFINISHED_ATTEMPT =
+  "the attempt didn't finish, and a recording is kept only of an attempt that did";
+
+/**
  * End the attempt's recording, now the attempt has ended, and set the attempt's voice. One of an
- * attempt that read the page is stopped and kept, whether the attempt was done or failed (see
- * keepVoice). One of an attempt that didn't (it was skipped, the site answered with an HTTP error, or
- * the page wouldn't open) is discarded, with no record: its sound says nothing of a page that wasn't
- * read, as its screenshot and axe's results aren't kept either. Neither fails the attempt.
+ * attempt that read the page to the end is stopped and kept (see keepVoice). One of an attempt that
+ * read the page and then failed is discarded, and the attempt's voice says why
+ * (UNFINISHED_ATTEMPT): it may hold what NVDA read of another window. One of an attempt that didn't
+ * read the page (it was skipped, the site answered with an HTTP error, or the page wouldn't open)
+ * is discarded, with no record: its sound says nothing of a page that wasn't read, as its
+ * screenshot and axe's results aren't kept either. None of it fails the attempt.
  */
 async function endVoice(
   ctx: PageContext,
@@ -558,6 +572,11 @@ async function endVoice(
   if (recording === null) return;
   if (attempt.toBeRead !== true) {
     await recording.discard().catch(() => {});
+    return;
+  }
+  if (attempt.kind !== "done") {
+    await recording.discard().catch(() => {});
+    attempt.voice = { error: UNFINISHED_ATTEMPT, recordedAt: isoLocalMs(ctx.now()) };
     return;
   }
   let capture: VoiceCapture;

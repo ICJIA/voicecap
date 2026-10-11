@@ -267,6 +267,7 @@ function setup(options: Setup = {}) {
     restartNvda: (exe) => desktop.restartNvda(exe),
     restartNvdaDetached: (exe) => desktop.restartNvdaDetached(exe),
     readNvdaLog: () => desktop.readNvdaLog(),
+    removeNvdaLog: () => desktop.removeNvdaLog(),
     home: HOME,
     // Waits end on the next turn of the event loop, after anything already settled.
     sleep: () => new Promise((resolve) => setImmediate(resolve)),
@@ -427,14 +428,18 @@ describe("starting the Guidepup NVDA driver", () => {
     expect(logger.text("alert")).toBe("");
   });
 
-  it("starts NVDA with the configured capture mode and settings overrides, and its log turned on", async () => {
+  it("starts NVDA with the configured capture mode and settings overrides, its log turned on, and its notifications off", async () => {
     const { driver, nvda } = setup({
       config: { capture: "initial", nvdaSettings: { speech: { oneCore: { rate: 60 } } } },
     });
     await driver.start();
     expect(nvda.startOptions).toEqual({
       capture: "initial",
-      settings: { speech: { oneCore: { rate: 60 } }, general: { loggingLevel: "IO" } },
+      settings: {
+        speech: { oneCore: { rate: 60 } },
+        general: { loggingLevel: "IO" },
+        presentation: { reportHelpBalloons: false },
+      },
     });
   });
 
@@ -2288,6 +2293,86 @@ describe("the program that took the foreground", () => {
   });
 });
 
+// A notification is never a page's own speech: voicecap starts its NVDA with "Report notifications"
+// off (presentation.reportHelpBalloons), so a reminder or a message isn't read into a step's
+// transcript or a recording. A value the config sets itself wins. The merge itself is
+// withQuietNotifications's, tested with it (nvda-log-clean.test.ts): here, that the driver gives
+// NVDA what it makes, and that the run's record of NVDA's settings has it.
+describe("NVDA's notifications", () => {
+  it("are off as NVDA starts, beside its log at the input/output level", async () => {
+    const { driver, nvda } = setup();
+    await driver.start();
+    expect(nvda.startOptions?.settings).toEqual({
+      general: { loggingLevel: "IO" },
+      presentation: { reportHelpBalloons: false },
+    });
+  });
+
+  it("are off again when NVDA starts again, at a restart", async () => {
+    const { driver, nvda } = setup();
+    await driver.start();
+    await driver.stop({ restarting: true });
+    nvda.startOptions = null;
+    await driver.start();
+    expect(nvda.startOptions).toMatchObject({
+      settings: { presentation: { reportHelpBalloons: false } },
+    });
+  });
+
+  it("are as the config sets them itself, with the config's other presentation settings", async () => {
+    const { driver, nvda } = setup({
+      config: {
+        nvdaSettings: {
+          presentation: { reportHelpBalloons: true, reportKeyboardShortcuts: false },
+        },
+      },
+    });
+    await driver.start();
+    expect(nvda.startOptions?.settings).toEqual({
+      presentation: { reportHelpBalloons: true, reportKeyboardShortcuts: false },
+      general: { loggingLevel: "IO" },
+    });
+  });
+
+  it("are recorded off with NVDA's other settings, as NVDA's session has them", async () => {
+    const { driver, nvda } = setup();
+    // Guidepup writes the settings NVDA starts with into its session's configuration, merged into
+    // its own, and NVDA's settings are read back from there.
+    const own = nvda.settingsInEffect;
+    nvda.settings = () => sessionSettings(own, nvda.startOptions?.settings ?? {});
+    await driver.start();
+    const { screenReaderSettings } = await driver.getEnvironmentInfo();
+    expect(screenReaderSettings).toEqual({
+      recorded:
+        "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      speech: { synth: "oneCore" },
+      documentFormatting: {},
+      virtualBuffers: { autoSayAllOnPageLoad: false },
+      keyboard: {},
+      presentation: { reportHelpBalloons: false },
+      general: { language: "Windows", loggingLevel: "IO" },
+    });
+  });
+});
+
+/**
+ * NVDA's settings as Guidepup's session has them: its own configuration, with each section of the
+ * settings NVDA was started with merged into it, setting by setting.
+ */
+function sessionSettings(
+  own: Record<string, unknown>,
+  given: Record<string, unknown>,
+): Record<string, unknown> {
+  const isSection = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === "object" && !Array.isArray(value);
+  const merged: Record<string, unknown> = { ...own };
+  for (const [name, value] of Object.entries(given)) {
+    const section = merged[name];
+    merged[name] = isSection(section) && isSection(value) ? { ...section, ...value } : value;
+  }
+  return merged;
+}
+
 // NVDA's own log: turned on as NVDA starts, and, each time voicecap's NVDA has quit, read, cleaned,
 // and handed to the run, before anything starts NVDA again (it moves the last log aside to
 // nvda-old.log as it starts, and the person's own NVDA starts again at the final stop).
@@ -2328,12 +2413,15 @@ describe("NVDA's own log", () => {
     desktop.events.filter((event) => event === "nvda-log:read").length;
 
   // The merge itself is withNvdaLog's, tested with it (nvda-log-clean.test.ts): here, that the driver
-  // gives NVDA what it makes.
+  // gives NVDA what it makes. NVDA's notifications go off beside it (see "NVDA's notifications").
   describe("turning it on", () => {
     it("starts NVDA with its log at the input/output level", async () => {
       const { driver, nvda } = setup();
       await driver.start();
-      expect(nvda.startOptions?.settings).toEqual({ general: { loggingLevel: "IO" } });
+      expect(nvda.startOptions?.settings).toEqual({
+        general: { loggingLevel: "IO" },
+        presentation: { reportHelpBalloons: false },
+      });
     });
 
     it("starts it with a loggingLevel the config sets itself, and the config's other settings", async () => {
@@ -2346,6 +2434,7 @@ describe("NVDA's own log", () => {
       expect(nvda.startOptions?.settings).toEqual({
         general: { language: "en", loggingLevel: "OFF" },
         speech: { rate: 60 },
+        presentation: { reportHelpBalloons: false },
       });
     });
   });
@@ -2620,9 +2709,11 @@ describe("NVDA's own log", () => {
       expect(only(recorder.events, "screen-reader-log")).toEqual([OLDER]);
     });
 
-    it("is recorded so at a restart whose NVDA couldn't begin a log of its own: the last session's is still there", async () => {
+    it("is recorded so at a restart whose NVDA couldn't begin a log of its own: the last session's is still there, as another program held it", async () => {
       const { driver, desktop, recorder } = recordingLogs();
       desktop.nvdaLog = FIRST_LOG;
+      // Held, so it couldn't be deleted once its copy was kept (see "deleting the raw log").
+      desktop.nvdaLogHeld = true;
       await driver.start();
       await driver.stop({ restarting: true });
       // The restarted NVDA left the log as it was, so it's still the first session's.
@@ -2630,6 +2721,18 @@ describe("NVDA's own log", () => {
       await driver.stop();
       expect(recorder.logs).toEqual([cleaned(FIRST_LOG)]);
       expect(only(recorder.events, "screen-reader-log")).toEqual([OLDER]);
+    });
+
+    it("is recorded as not there at a restart whose NVDA couldn't begin a log of its own, once the last session's was deleted", async () => {
+      const { driver, desktop, recorder } = recordingLogs();
+      desktop.nvdaLog = FIRST_LOG;
+      await driver.start();
+      await driver.stop({ restarting: true });
+      // The first session's log went once its copy was kept, and the restarted NVDA began none.
+      await driver.start();
+      await driver.stop();
+      expect(recorder.logs).toEqual([cleaned(FIRST_LOG)]);
+      expect(only(recorder.events, "screen-reader-log")).toEqual([NOT_THERE]);
     });
 
     it("allows for midnight: a session begun before it keeps a log begun after it, and not one from before it", async () => {
@@ -2818,6 +2921,158 @@ describe("NVDA's own log", () => {
         }
       });
     });
+  });
+
+  // At the input/output level, NVDA's raw log holds every key pressed while that NVDA ran, typing
+  // in another window included. Once the run has its cleaned copy, the raw log is deleted; a log
+  // the run kept no copy of is never touched: it may be an earlier NVDA's, the person's own.
+  describe("deleting the raw log", () => {
+    /** How many times the driver has had NVDA's log deleted. */
+    const removals = (desktop: FakeDesktop) =>
+      desktop.events.filter((event) => event === "nvda-log:remove").length;
+
+    it("deletes it once its cleaned copy is handed to the run, before the browser closes and the person's own NVDA starts again", async () => {
+      const { driver, desktop } = setup();
+      desktop.ownNvda = [OWN_NVDA];
+      desktop.nvdaLog = FIRST_LOG;
+      // A run's recorder, which says when it's handed the copy.
+      const copies: string[] = [];
+      driver.setEventRecorder({
+        record: () => {},
+        screenReaderLog: (copy) => {
+          desktop.events.push("nvda-log:kept");
+          copies.push(copy);
+        },
+      });
+      await driver.start();
+      await driver.openPage(URL_HOME);
+      await driver.stop();
+
+      expect(copies).toEqual([cleaned(FIRST_LOG)]);
+      expect(removals(desktop)).toBe(1);
+      expect(desktop.nvdaLog).toBeNull();
+      const marks = [
+        "nvda:stop",
+        "nvda-log:read",
+        "nvda-log:kept",
+        "nvda-log:remove",
+        "browser:close",
+        `own-nvda:restart:${OWN_NVDA}`,
+      ];
+      expect(desktop.events.filter((event) => marks.includes(event))).toEqual(marks);
+    });
+
+    it("deletes each NVDA session's log once its copy is kept, a restart's and then the final stop's", async () => {
+      const { driver, desktop, recorder } = recordingLogs();
+      desktop.nvdaLog = FIRST_LOG;
+      await driver.start();
+      await driver.stop({ restarting: true });
+      expect(removals(desktop)).toBe(1);
+      desktop.nvdaLog = SECOND_LOG;
+      await driver.start();
+      await driver.stop();
+      expect(removals(desktop)).toBe(2);
+      expect(recorder.logs).toEqual([cleaned(FIRST_LOG), cleaned(SECOND_LOG)]);
+    });
+
+    it("leaves a log it kept no copy of: one older than the NVDA session, one it can't read, one that isn't there, or one it didn't read", async () => {
+      const older = recordingLogs();
+      older.deps.now = steppingClock(new Date(2026, 9, 6, 9, 5));
+      older.desktop.nvdaLog = FIRST_LOG;
+      await older.driver.start();
+      await older.driver.stop();
+      expect(only(older.recorder.events, "screen-reader-log"), "older").toEqual([
+        {
+          type: "screen-reader-log",
+          file: null,
+          reason: "NVDA's log is older than this NVDA session, so it isn't this session's.",
+        },
+      ]);
+      expect(removals(older.desktop), "older").toBe(0);
+      expect(older.desktop.nvdaLog, "older").toBe(FIRST_LOG);
+
+      for (const log of [new Error("EBUSY: resource busy or locked"), null, ""]) {
+        const { driver, desktop, recorder } = recordingLogs();
+        desktop.nvdaLog = log;
+        await driver.start();
+        await driver.stop();
+        expect(recorder.logs, String(log)).toEqual([]);
+        expect(removals(desktop), String(log)).toBe(0);
+      }
+
+      // The account's home folder isn't known, so the log isn't read, or deleted.
+      const unread = recordingLogs();
+      unread.deps.home = "";
+      unread.desktop.nvdaLog = FIRST_LOG;
+      await unread.driver.start();
+      await unread.driver.stop();
+      expect(removals(unread.desktop), "unread").toBe(0);
+      expect(unread.desktop.nvdaLog, "unread").toBe(FIRST_LOG);
+    });
+
+    it("deletes nothing for a run that keeps no copies, or as the process exits", async () => {
+      // No recorder (as for doctor's live check and fixture capture), and one that keeps no copies.
+      for (const made of [setup(), recording()]) {
+        made.desktop.nvdaLog = FIRST_LOG;
+        await made.driver.start();
+        await made.driver.stop();
+        expect(removals(made.desktop)).toBe(0);
+        expect(made.desktop.nvdaLog).toBe(FIRST_LOG);
+      }
+      const exiting = recordingLogs();
+      exiting.desktop.nvdaLog = FIRST_LOG;
+      await exiting.driver.start();
+      exiting.driver.abandon();
+      expect(removals(exiting.desktop)).toBe(0);
+    });
+
+    it("never stops the stop when another program holds the log: it stays, and the run goes on", async () => {
+      const { driver, desktop, deps, recorder } = recordingLogs();
+      desktop.ownNvda = [OWN_NVDA];
+      desktop.nvdaLog = FIRST_LOG;
+      desktop.nvdaLogHeld = true;
+      await driver.start();
+      await driver.openPage(URL_HOME);
+      await driver.stop();
+      expect(recorder.logs).toEqual([cleaned(FIRST_LOG)]);
+      expect(removals(desktop)).toBe(1);
+      expect(desktop.nvdaLog).toBe(FIRST_LOG);
+      expect(desktop.sessions.every((session) => session.closed)).toBe(true);
+      expect(desktop.restarts).toEqual([OWN_NVDA]);
+      expect(recorder.types().at(-1)).toBe("screen-reader-lock-released");
+      // The NVDA lock was let go.
+      await setup({ lockFile: deps.lockFile }).driver.start();
+    });
+  });
+
+  it("is deleted from the temp folder, nvda.log alone, with retries, by the driver voicecap makes", async () => {
+    // The wiring of the real driver: made with a temp folder of the test's own, so that the real
+    // temp folder's log is never touched.
+    const dir = mkdtempSync(path.join(os.tmpdir(), "voicecap-factory-remove-"));
+    temps.push(dir);
+    writeFileSync(path.join(dir, "nvda.log"), FIRST_LOG);
+    writeFileSync(path.join(dir, "nvda-old.log"), SECOND_LOG);
+    const tmpdir = vi.spyOn(os, "tmpdir").mockReturnValue(dir);
+    try {
+      const driver = createGuidepupNvdaDriver(
+        { config: DEFAULT_CONFIG, logger: createMemoryLogger() },
+        "win32",
+      );
+      const { deps } = driver as unknown as { deps: GuidepupDriverDeps };
+      vi.mocked(rm).mockClear();
+      await deps.removeNvdaLog();
+      expect(existsSync(path.join(dir, "nvda.log"))).toBe(false);
+      // The older log, an earlier NVDA's, is never touched.
+      expect(readFileSync(path.join(dir, "nvda-old.log"), "utf8")).toBe(SECOND_LOG);
+      // A few tries, as every other removal makes: a scanner can hold the file for a moment.
+      expect(vi.mocked(rm).mock.calls).toEqual([
+        [path.join(dir, "nvda.log"), { force: true, maxRetries: 3 }],
+      ]);
+      // There's nothing to delete the second time, and that's no failure.
+      await expect(deps.removeNvdaLog()).resolves.toBeUndefined();
+    } finally {
+      tmpdir.mockRestore();
+    }
   });
 
   it("is read from the temp folder's nvda.log, with the account's home folder, by the driver voicecap makes", async () => {
@@ -3438,6 +3693,251 @@ describe("recording NVDA's voice", () => {
     expect(process.listenerCount("exit")).toBeGreaterThan(before);
     await driver.stop();
     expect(process.listenerCount("exit")).toBe(before);
+  });
+});
+
+// A recording holds everything NVDA said during the attempt, between the steps too, and a window
+// NVDA read can't be taken out of the sound afterwards. So a recording during which another window
+// came to the front, or may have, isn't kept: NVDA+T read a window that wasn't the browser's as it
+// was brought forward, Windows Search or the Start menu was closed, a step lost the browser, or
+// Windows locked.
+describe("keeping a recording only when no other window came to the front", () => {
+  /** Why a recording isn't kept when another window came to the front, as its stop gives it. */
+  const ANOTHER_WINDOW = {
+    error:
+      "another window came to the front during the attempt, and NVDA may have read it aloud, so the recording isn't kept",
+  };
+  /** What NVDA+T reads of the browser's window with the check's marker title in it. */
+  const MARKER_TITLE = "voicecap check k3m9x2 - Google Chrome";
+
+  /** The recording's sound file, the first of the driver's. */
+  const firstPcm = (voiceDir: string) => path.join(voiceDir, "1.pcm");
+
+  it("keeps the recording of an attempt during which the browser stayed in front", async () => {
+    const { driver, desktop, voiceDir } = setup();
+    await driver.start();
+    const recording = await driver.recordVoice();
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    await driver.nextHeading();
+    await driver.nextFocusable();
+    expect(desktop.titlesRead).toEqual([MARKER_TITLE]);
+    expect(await recording.stop()).toEqual({
+      pcm: firstPcm(voiceDir),
+      frames: 16_000,
+      lostMs: 0,
+      peak: 1_200,
+      startedAt: "2026-10-09T14:03:07.215Z",
+    });
+    expect(existsSync(firstPcm(voiceDir))).toBe(true);
+  });
+
+  it("keeps none when NVDA+T read another program's window as the browser was brought forward", async () => {
+    const { driver, desktop, voiceDir } = setup();
+    await driver.start();
+    const recording = await driver.recordVoice();
+    // Outlook stays in front for one try: NVDA+T reads its window, and the next try works.
+    desktop.front = "other";
+    desktop.raiseFailures = 1;
+    await expect(driver.openPage(URL_HOME)).resolves.toMatchObject({ title: "Fake page" });
+    expect(desktop.titlesRead).toEqual(["Inbox - Outlook", MARKER_TITLE]);
+    expect(lookups(desktop)).toBe(1);
+
+    expect(await recording.stop()).toEqual(ANOTHER_WINDOW);
+    expect(existsSync(firstPcm(voiceDir))).toBe(false);
+  });
+
+  // Windows can take a moment to give the window its page's new title, so NVDA+T can read the
+  // browser's old one first. That's the browser's own window, not another's, so nothing private was
+  // read, and the recording is kept.
+  it("keeps the recording when NVDA+T read the browser's own window by its old title first", async () => {
+    const { driver, desktop, voiceDir } = setup();
+    await driver.start();
+    const recording = await driver.recordVoice();
+    desktop.oldTitleReads = 1;
+    await expect(driver.openPage(URL_HOME)).resolves.toMatchObject({ title: "Fake page" });
+    expect(desktop.titlesRead).toEqual(["Fake page - Google Chrome", MARKER_TITLE]);
+    // Asked which window was in front after the first try: the browser's own, by its process.
+    expect(lookups(desktop)).toBe(1);
+
+    expect(await recording.stop()).toMatchObject({ pcm: firstPcm(voiceDir), frames: 16_000 });
+    expect(existsSync(firstPcm(voiceDir))).toBe(true);
+  });
+
+  it("keeps none when Windows doesn't say which window NVDA+T read, or the lookup fails", async () => {
+    for (const [how, lookup] of [
+      ["finds nothing", () => Promise.resolve(null)],
+      ["fails", () => Promise.reject(new Error("PowerShell didn't answer"))],
+    ] as [string, GuidepupDriverDeps["foregroundWindow"]][]) {
+      const { driver, desktop, deps, voiceDir } = setup();
+      deps.foregroundWindow = lookup;
+      await driver.start();
+      const recording = await driver.recordVoice();
+      desktop.oldTitleReads = 1;
+      await driver.openPage(URL_HOME);
+      // It may well have been the browser's own old title, but nothing says so.
+      expect(await recording.stop(), how).toEqual(ANOTHER_WINDOW);
+      expect(existsSync(firstPcm(voiceDir)), how).toBe(false);
+    }
+  });
+
+  it("keeps none when Windows Search was found in front and closed with Escape", async () => {
+    const { driver, desktop, voiceDir } = setup();
+    await driver.start();
+    const recording = await driver.recordVoice();
+    desktop.otherProgram = "SearchHost";
+    desktop.otherTitle = "Search";
+    desktop.otherClosesOnEscape = true;
+    desktop.raiseWorks = false;
+    desktop.front = "other";
+    await expect(driver.openPage(URL_HOME)).resolves.toMatchObject({ title: "Fake page" });
+    expect(desktop.strayKeys).toEqual(["exitFocusMode"]);
+
+    expect(await recording.stop()).toEqual(ANOTHER_WINDOW);
+    expect(existsSync(firstPcm(voiceDir))).toBe(false);
+  });
+
+  it("keeps none when a step lost the browser to another window, however it was found", async () => {
+    type Loss = (desktop: FakeDesktop, driver: GuidepupNvdaDriver) => Promise<unknown>;
+    const losses: [string, Loss][] = [
+      [
+        "before a step",
+        (desktop, driver) => {
+          desktop.front = "other";
+          return driver.nextLine();
+        },
+      ],
+      [
+        "during a step",
+        (desktop, driver) => {
+          desktop.speech = () => {
+            desktop.front = "other";
+            return "Inbox - Outlook, window. 3 unread messages";
+          };
+          return driver.nextLine();
+        },
+      ],
+      [
+        "coming and going during a step",
+        (desktop, driver) => {
+          desktop.speech = () => {
+            desktop.front = "other";
+            desktop.front = "browser";
+            return "Inbox - Outlook, window. 3 unread messages";
+          };
+          return driver.nextLine();
+        },
+      ],
+      [
+        // Focus left the page, and NVDA+T, which asks whether the browser is still in front, read
+        // the other window.
+        "during a Tab",
+        async (desktop, driver) => {
+          await driver.nextFocusable();
+          desktop.speech = () => {
+            desktop.front = "other";
+            return "Inbox - Outlook, window. 3 unread messages";
+          };
+          return driver.nextFocusable();
+        },
+      ],
+    ];
+    for (const [when, lose] of losses) {
+      const { driver, desktop, voiceDir } = setup();
+      await driver.start();
+      const recording = await driver.recordVoice();
+      await driver.openPage(URL_HOME);
+      await expect(lose(desktop, driver), when).rejects.toBeInstanceOf(ForegroundError);
+      expect(await recording.stop(), when).toEqual(ANOTHER_WINDOW);
+      expect(existsSync(firstPcm(voiceDir)), when).toBe(false);
+    }
+  });
+
+  it("keeps none when Windows locked during the attempt, however it was found", async () => {
+    for (const [how, lock] of [
+      ["NVDA said nothing", (desktop: FakeDesktop) => (desktop.locked = true)],
+      [
+        "the lock screen took the page's focus",
+        (desktop: FakeDesktop) => {
+          desktop.locked = true;
+          desktop.front = "other";
+        },
+      ],
+    ] as const) {
+      const { driver, desktop, voiceDir } = setup();
+      await driver.start();
+      const recording = await driver.recordVoice();
+      await driver.openPage(URL_HOME);
+      lock(desktop);
+      await expect(driver.nextLine(), how).rejects.toMatchObject({ failure: "locked" });
+      desktop.locked = false;
+      expect(await recording.stop(), how).toEqual(ANOTHER_WINDOW);
+      expect(existsSync(firstPcm(voiceDir)), how).toBe(false);
+    }
+  });
+
+  it("keeps the next page's recording when only an earlier one's attempt saw another window", async () => {
+    const { driver, desktop, voiceDir } = setup();
+    await driver.start();
+    const first = await driver.recordVoice();
+    desktop.front = "other";
+    desktop.raiseFailures = 1;
+    await driver.openPage(URL_HOME);
+    expect(await first.stop()).toEqual(ANOTHER_WINDOW);
+
+    const second = await driver.recordVoice();
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    expect(await second.stop()).toMatchObject({ pcm: path.join(voiceDir, "2.pcm") });
+  });
+
+  it("leaves the recording alone when another window comes forward after it has stopped", async () => {
+    const { driver, desktop, voiceDir } = setup();
+    await driver.start();
+    const recording = await driver.recordVoice();
+    await driver.openPage(URL_HOME);
+    const stopped = await recording.stop();
+    desktop.front = "other";
+    await expect(driver.nextLine()).rejects.toBeInstanceOf(ForegroundError);
+    expect(stopped).toMatchObject({ pcm: firstPcm(voiceDir) });
+    expect(existsSync(firstPcm(voiceDir))).toBe(true);
+    // And the next one starts unmarked.
+    const next = await driver.recordVoice();
+    await driver.openPage(URL_HOME);
+    expect(await next.stop()).toMatchObject({ pcm: path.join(voiceDir, "2.pcm") });
+  });
+
+  // The core gives up on a call that takes too long and stops the driver without waiting for it, so
+  // a step can still be finding out what happened after the driver has started again and the next
+  // attempt's recording has begun. What it finds is of an attempt that's over.
+  it("leaves the next attempt's recording alone when what a step finds comes after a stop", async () => {
+    const { driver, desktop, deps, voiceDir } = setup();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    // The step finds the page without focus and asks whether Windows is locked, which is slow.
+    const answer = new Gate();
+    const askLocked = deps.sessionLocked;
+    deps.sessionLocked = async () => {
+      await answer.wait();
+      return askLocked();
+    };
+    desktop.front = "other";
+    const step = driver.nextLine();
+    step.catch(() => {});
+    await until(() => answer.waiting > 0);
+    await driver.stop({ restarting: true });
+
+    deps.sessionLocked = askLocked;
+    await driver.start();
+    const recording = await driver.recordVoice();
+    await driver.openPage(URL_HOME);
+    // The old step's answer comes now, and says Windows is locked.
+    desktop.locked = true;
+    answer.open();
+    await expect(step).rejects.toMatchObject({ failure: "locked" });
+    desktop.locked = false;
+
+    expect(await recording.stop()).toMatchObject({ pcm: firstPcm(voiceDir) });
   });
 });
 

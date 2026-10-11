@@ -54,6 +54,19 @@ export class FakeDesktop {
   /** Whether asking the browser window to come forward works. */
   raiseWorks = true;
   /**
+   * How many more times asking the browser window to come forward fails before it works again, as
+   * when Windows keeps another window in front for a moment (default: none).
+   */
+  raiseFailures = 0;
+  /**
+   * How many more NVDA+T presses read the browser's window title from before its page's title last
+   * changed, while the browser is in front: Windows can take a moment to give the window its page's
+   * new title (default: none).
+   */
+  oldTitleReads = 0;
+  /** What each NVDA+T said, in order: the title it read of the window in front. */
+  readonly titlesRead: string[] = [];
+  /**
    * The other window closes when it gets Escape, as Windows Search and the Start menu do: the
    * browser, which was behind it, is in front again, and can be raised.
    */
@@ -104,6 +117,8 @@ export class FakeDesktop {
    * whenever it starts, so a test sets the log of the NVDA session it's about to stop.
    */
   nvdaLog: string | Error | null = null;
+  /** Another program holds NVDA's log, so deleting it fails and the file stays as it is. */
+  nvdaLogHeld = false;
 
   /** The driver's ownNvda(): the person's own NVDA copies running now. */
   async findOwnNvda(): Promise<string[]> {
@@ -138,6 +153,16 @@ export class FakeDesktop {
       : Promise.resolve(this.nvdaLog);
   }
 
+  /**
+   * The driver's removeNvdaLog(): NVDA's log is deleted, unless another program holds it
+   * (nvdaLogHeld), and then it stays. It never fails. Every call is in `events`.
+   */
+  removeNvdaLog(): Promise<void> {
+    this.events.push("nvda-log:remove");
+    if (!this.nvdaLogHeld) this.nvdaLog = null;
+    return Promise.resolve();
+  }
+
   /** Which window is in front. The browser's page sees every switch away as a focus loss. */
   get front(): "browser" | "other" {
     return this.frontWindow;
@@ -154,6 +179,21 @@ export class FakeDesktop {
     return this.front === "browser"
       ? `${this.frontBrowser?.title ?? ""} - Google Chrome`
       : this.otherTitle;
+  }
+
+  /**
+   * What NVDA+T says: the title of the window in front, or, while oldTitleReads lasts and the
+   * browser is in front, its window's title from before its page's title last changed.
+   */
+  reportTitle(): Speech {
+    const browser = this.frontBrowser;
+    let title = this.frontTitle;
+    if (this.front === "browser" && browser !== undefined && this.oldTitleReads > 0) {
+      this.oldTitleReads--;
+      title = `${browser.titleBefore} - Google Chrome`;
+    }
+    this.titlesRead.push(title);
+    return title;
   }
 
   /**
@@ -351,7 +391,10 @@ export class FakeNvda implements NvdaControl {
         this.silencing.add(command);
       });
     }
-    if (key === "reportTitle") return options.capture === false ? "" : this.desktop.frontTitle;
+    if (key === "reportTitle") {
+      const title = this.desktop.reportTitle();
+      return options.capture === false ? "" : title;
+    }
     const spoken = this.desktop.deliver(key);
     return options.capture === false ? "" : spoken;
   }
@@ -395,6 +438,8 @@ export class FakeSession implements BrowserSession {
   /** The browser's process id: each browser launched has its own, counting up from 6001. */
   readonly pid: number;
   title = "";
+  /** The page's title before it last changed (see FakeDesktop.oldTitleReads). */
+  titleBefore = "";
   /** The loaded page's canonical tag: null when it has none. */
   canonical: string | null = null;
   closed = false;
@@ -485,9 +530,11 @@ export class FakeSession implements BrowserSession {
 
   setTitle(title: string): Promise<() => Promise<void>> {
     const previous = this.title;
+    this.titleBefore = previous;
     this.title = title;
     this.desktop.events.push(`title:${title}`);
     return Promise.resolve(() => {
+      this.titleBefore = this.title;
       this.title = previous;
       this.desktop.events.push(`title:${previous}`);
       return Promise.resolve();
@@ -513,7 +560,9 @@ export class FakeSession implements BrowserSession {
 
   raise(): Promise<void> {
     this.desktop.events.push("raise");
-    if (this.desktop.raiseWorks) {
+    if (this.desktop.raiseFailures > 0) {
+      this.desktop.raiseFailures--;
+    } else if (this.desktop.raiseWorks) {
       this.desktop.front = "browser";
       this.activated = true;
     }

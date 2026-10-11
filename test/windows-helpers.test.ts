@@ -35,6 +35,7 @@ import {
   powershellCommand,
   powershellString,
   readNvdaLog,
+  removeNvdaLog,
   restartAfterScript,
   restartNvda,
   sessionLocked,
@@ -1022,5 +1023,39 @@ describe("reading NVDA's own log", () => {
     // A folder where the file goes: nothing can be read from it.
     mkdirSync(path.join(dir, "nvda.log"));
     await expect(readNvdaLog(dir)).rejects.toThrow(/EISDIR/);
+  });
+});
+
+// Once the run has its cleaned copy, voicecap deletes nvda.log, which holds every key pressed while
+// its NVDA ran. These use a folder of their own, never the real temp folder's log.
+describe("deleting NVDA's own log", () => {
+  function tempFolder(): string {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "voicecap-nvda-log-"));
+    temps.push(dir);
+    return dir;
+  }
+
+  it("deletes nvda.log in the folder, and no other file", async () => {
+    const dir = tempFolder();
+    writeFileSync(path.join(dir, "nvda.log"), "IO - inputCore:\nInput: kb(desktop):x\n");
+    writeFileSync(path.join(dir, "nvda-old.log"), "The log of the NVDA before.\n");
+    await removeNvdaLog(dir);
+    expect(existsSync(path.join(dir, "nvda.log"))).toBe(false);
+    expect(existsSync(path.join(dir, "nvda-old.log"))).toBe(true);
+  });
+
+  it("does nothing, and doesn't fail, when there's no log, or no folder", async () => {
+    const dir = tempFolder();
+    await expect(removeNvdaLog(dir)).resolves.toBeUndefined();
+    await expect(removeNvdaLog(path.join(dir, "missing"))).resolves.toBeUndefined();
+  });
+
+  it("never fails when the log can't be deleted, and leaves it as it is", async () => {
+    const dir = tempFolder();
+    // A folder where the file goes, with something in it: it isn't a log, and isn't deleted.
+    mkdirSync(path.join(dir, "nvda.log"));
+    writeFileSync(path.join(dir, "nvda.log", "kept"), "x");
+    await expect(removeNvdaLog(dir)).resolves.toBeUndefined();
+    expect(existsSync(path.join(dir, "nvda.log", "kept"))).toBe(true);
   });
 });

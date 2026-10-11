@@ -82,7 +82,10 @@ export function windowsReadiness(
   return {
     screenReader: "NVDA",
     cannotRunYet: null,
-    readyTip: null,
+    // NVDA reads aloud a window that comes to the front, a notification's included, and Do Not
+    // Disturb lets calls and reminders through unless they're turned off.
+    readyTip:
+      "Tip: turn on Do Not Disturb and turn off its calls and reminders (or quit Outlook and Teams), and close windows that show private text: NVDA reads aloud any window that comes to the front.",
     liveTestNotice: [
       "The live test takes about 20 seconds. NVDA speaks and takes over the keyboard, so keep your hands off.",
     ],

@@ -440,7 +440,7 @@ export const TECHNICAL_TEXT = {
                         { code: "axe.json" },
                         ", what axe-core found on the page, and ",
                         { code: VOICE_FILE },
-                        ", what NVDA said aloud on the page",
+                        ", what NVDA said aloud while voicecap read the page, kept only from an attempt that finished with no other window in front",
                       ],
                     },
                     { name: "attempts/", words: ["The earlier tries at a page, kept"] },
@@ -690,12 +690,14 @@ export const TECHNICAL_TEXT = {
           [
             "No telemetry, analytics, or cookies. A voicecap page stores only the reader's choice of theme, in their browser.",
           ],
-          ["No accounts, keys, or passwords, read or stored."],
+          [
+            "voicecap asks for no account, key, or password, and keeps none. It reads NVDA's own log, which has every key pressed while its NVDA ran, keeps only its own keys, and deletes the log once it has its copy.",
+          ],
           [
             "The browser gets a new profile for each page load, deleted after, with sync, background networking, and extensions off, and downloads refused.",
           ],
           [
-            "A window's title, which can hold private text, is kept in the event log, never on a page or in a Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. A page counts what NVDA said outside voicecap's steps, and never shows it.",
+            "A window's title, which can hold private text, is kept in the event log, never on the shareable page or in its Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. The shareable page counts what NVDA said outside voicecap's steps, and never shows it. A voice page plays it: everything NVDA said while a page was read, between the steps too, such as its title checks and what it said as each load opened. voicecap keeps no recording of NVDA's voice from an attempt during which another window came to the front, but a window that came and went between two steps can still be heard.",
           ],
           [
             "An NVDA log from a manual session can hold every keystroke, so voicecap warns, can take typed text out, and keeps the raw copy out of Git.",

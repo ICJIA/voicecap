@@ -14,6 +14,7 @@ import {
   cleanNvdaLog,
   gestureOf,
   withNvdaLog,
+  withQuietNotifications,
 } from "../src/drivers/guidepup/nvda-log.js";
 import { parseNvdaLog, splitLogEntries } from "../src/manual/nvda-log.js";
 import type { DriverCommand, RunJson, TranscriptJson } from "../src/model.js";
@@ -524,6 +525,76 @@ describe("withNvdaLog: the settings NVDA starts with", () => {
     expect(general).toEqual({ language: "en" });
     // What's beside general is the config's, as it is.
     expect(made.speech).toBe(settings.speech);
+  });
+});
+
+// NVDA's notifications ("Report notifications", presentation.reportHelpBalloons) go off as
+// voicecap's NVDA starts, so that a reminder or a message isn't read into a transcript or a
+// recording. A value the config sets itself wins.
+describe("withQuietNotifications: NVDA's notifications, off", () => {
+  it("turns them off, when the config sets nothing", () => {
+    expect(withQuietNotifications({})).toEqual({ presentation: { reportHelpBalloons: false } });
+  });
+
+  it("keeps the config's other presentation settings, and its other sections, beside it", () => {
+    expect(
+      withQuietNotifications({
+        presentation: { reportKeyboardShortcuts: false, reportObjectDescriptions: true },
+        speech: { symbolLevel: 100 },
+      }),
+    ).toEqual({
+      presentation: {
+        reportKeyboardShortcuts: false,
+        reportObjectDescriptions: true,
+        reportHelpBalloons: false,
+      },
+      speech: { symbolLevel: 100 },
+    });
+  });
+
+  it("leaves alone a reportHelpBalloons the config sets itself", () => {
+    for (const reportHelpBalloons of [true, false]) {
+      expect(
+        withQuietNotifications({ presentation: { reportHelpBalloons, reportTooltips: true } }),
+        String(reportHelpBalloons),
+      ).toEqual({ presentation: { reportHelpBalloons, reportTooltips: true } });
+    }
+  });
+
+  it("takes a reportHelpBalloons the config leaves undefined for one it didn't set", () => {
+    expect(withQuietNotifications({ presentation: { reportHelpBalloons: undefined } })).toEqual({
+      presentation: { reportHelpBalloons: false },
+    });
+  });
+
+  it("takes a presentation that isn't a table of settings for none", () => {
+    for (const presentation of ["off", [false], 7, null]) {
+      expect(withQuietNotifications({ presentation }), JSON.stringify(presentation)).toEqual({
+        presentation: { reportHelpBalloons: false },
+      });
+    }
+  });
+
+  it("makes new objects, and never changes the config's own, which the run records", () => {
+    const presentation = { reportTooltips: true };
+    const settings = { presentation, general: { language: "en" } };
+    const made = withQuietNotifications(settings);
+    expect(made).not.toBe(settings);
+    expect(made.presentation).not.toBe(presentation);
+    expect(settings).toEqual({
+      presentation: { reportTooltips: true },
+      general: { language: "en" },
+    });
+    expect(presentation).toEqual({ reportTooltips: true });
+    // What's beside presentation is the config's, as it is.
+    expect(made.general).toBe(settings.general);
+  });
+
+  it("goes with the log's setting, each in its own section, as NVDA starts", () => {
+    expect(withQuietNotifications(withNvdaLog({}))).toEqual({
+      general: { loggingLevel: "IO" },
+      presentation: { reportHelpBalloons: false },
+    });
   });
 });
 

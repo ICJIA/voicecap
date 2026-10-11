@@ -250,8 +250,9 @@ export const VOICE_FILE = "voice.webm";
  * out. One that couldn't be kept has the first line of the reason, at most 300 characters,
  * with the account's home folder in it replaced, and no file: the recorder couldn't run, NVDA's
  * process wasn't found or ended during the recording, the recording is empty or silent, or it
- * couldn't be encoded. Both have when the run recorded it (a local ISO time to the millisecond), a
- * moment after the driver stopped the recording.
+ * couldn't be encoded; or the attempt didn't finish, or another window came to the front during it,
+ * and NVDA may have read that aloud. Both have when the run recorded it (a local ISO time to the
+ * millisecond), a moment after the recording ended.
  */
 export type VoiceRecord =
   | (FileHash & { seconds: number; lostMs: number; startedAt?: string; recordedAt: string })
@@ -425,12 +426,13 @@ export interface PageRecord extends PageRef {
    */
   axe?: AxeRecord;
   /**
-   * What NVDA said aloud while the page was read, recorded from the start of its last attempt to its
-   * end. Kept apart from `files` for the screenshot's reason: a review copies those to find a page
-   * that changed since it was reviewed, and the sound isn't what the transcripts say. Absent when the
-   * page has none: the driver can't record, the page wasn't read (it was skipped, the site answered
-   * with an HTTP error, or the page wouldn't open), it's pending, or the run is from before voicecap
-   * 0.18.0.
+   * What NVDA said aloud while the page was read, recorded from the start of its last attempt to
+   * its end, and kept only when that attempt read the page to the end with no other window coming
+   * to the front; otherwise the reason. Kept apart from `files` for the screenshot's reason: a
+   * review copies those to find a page that changed since it was reviewed, and the sound isn't what
+   * the transcripts say. Absent when the page has none: the driver can't record, the page wasn't
+   * read (it was skipped, the site answered with an HTTP error, or the page wouldn't open), it's
+   * pending, or the run is from before voicecap 0.18.0.
    */
   voice?: VoiceRecord;
   flags: FlagResult[];

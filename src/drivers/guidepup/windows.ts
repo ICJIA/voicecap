@@ -214,6 +214,21 @@ export async function readNvdaLog(tmpDir: string): Promise<string | null> {
   }
 }
 
+/**
+ * Delete NVDA's own log, nvda.log in the temp folder `tmpDir`, once the run has its cleaned copy:
+ * at the input/output level it holds every key pressed while that NVDA ran, typing in other windows
+ * included. Only that file: the older log, nvda-old.log, is never touched. A few tries, as Windows
+ * refuses for a moment while a scanner has the file open. A file another program holds stays, and
+ * NVDA's next start moves it aside. It never rejects: a log that stays changes nothing for a run.
+ */
+export async function removeNvdaLog(tmpDir: string): Promise<void> {
+  try {
+    await rm(path.join(tmpDir, NVDA_LOG_FILE), { force: true, maxRetries: 3 });
+  } catch {
+    // Held by another program, or not a file at all: it stays as it is.
+  }
+}
+
 /** A Windows path in one spelling, for comparing: Windows ignores letter case in paths. */
 function samePath(file: string): string {
   return path.win32.normalize(file).toLowerCase();

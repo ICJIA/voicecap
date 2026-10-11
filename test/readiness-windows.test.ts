@@ -102,7 +102,11 @@ describe("Windows readiness", () => {
     const platform = windows();
     expect(platform.screenReader).toBe("NVDA");
     expect(platform.cannotRunYet).toBeNull();
-    expect(platform.readyTip).toBeNull();
+    // NVDA reads aloud a window that comes to the front, and Do Not Disturb lets calls and
+    // reminders through unless they're turned off: said after "Ready: …".
+    expect(platform.readyTip).toBe(
+      "Tip: turn on Do Not Disturb and turn off its calls and reminders (or quit Outlook and Teams), and close windows that show private text: NVDA reads aloud any window that comes to the front.",
+    );
     expect(platform.liveTestNotice).toEqual([
       "The live test takes about 20 seconds. NVDA speaks and takes over the keyboard, so keep your hands off.",
     ]);

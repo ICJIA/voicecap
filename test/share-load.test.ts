@@ -90,6 +90,28 @@ async function rewrite(
   await writeFile(file, JSON.stringify({ ...unsealed, seal: sealOf(unsealed) }, null, 2));
 }
 
+/** Why a run keeps no recording of an attempt that read the page and then failed. */
+const UNFINISHED = "the attempt didn't finish, and a recording is kept only of an attempt that did";
+
+/**
+ * Give the failed page `index` of a run a recording, as the voice's first builds kept the recording
+ * of a page's failed last attempt: a file in the page's folder, and its record (`like`'s, with the
+ * file's fingerprint, or one of its own), sealed again with the run.
+ */
+async function keepFailedRecording(
+  siteDir: string,
+  run: RunJson,
+  index: number,
+  like?: RunJson["pages"][number]["voice"],
+): Promise<void> {
+  const bytes = Buffer.from("the recording of a failed attempt");
+  await writeFile(voiceFile(siteDir, run, index), bytes);
+  const kept = { seconds: 1, lostMs: 0, recordedAt: "2026-09-27T09:31:00.000-05:00" };
+  await rewrite(siteDir, run, (_page, at) =>
+    at === index ? { voice: { ...(like ?? kept), ...fileHash(bytes) } } : {},
+  );
+}
+
 describe("loadShareInput: each page's recording", () => {
   it("loads a recording only when it matches its record", async () => {
     const { siteDir, run } = await voiceSite();
@@ -204,8 +226,8 @@ describe("loadShareInput: each page's recording", () => {
         },
       ),
     );
-    // The second run reads the home page again, and the page /about fails after it was recorded: its
-    // failed attempt is the page's last, so its recording is kept (and sealed) with the run.
+    // The second run reads the home page again, and the page /about fails after it was read into:
+    // the run keeps no recording of an attempt that didn't finish, and says why.
     const second = await runAudit(
       runOptions(
         dir,
@@ -220,7 +242,10 @@ describe("loadShareInput: each page's recording", () => {
       ),
     );
     expect(second.run.pages.map((page) => page.status)).toEqual(["done", "failed"]);
-    expect(second.run.pages[1]?.voice).toHaveProperty("sha256");
+    expect(second.run.pages[1]?.voice).toMatchObject({ error: UNFINISHED });
+    // So that the later failure has a recording the loader could take, its record is given one and
+    // sealed again, as the voice's first builds kept the recording of a failed last attempt.
+    await keepFailedRecording(second.siteDir, second.run, 1, first.run.pages[1]?.voice);
     const input = await loadShareInput({ siteDir: first.siteDir, config: DEFAULT_CONFIG });
 
     // /about is shown from the first run, with its transcripts: its recording is the first run's.
@@ -237,8 +262,9 @@ describe("loadShareInput: each page's recording", () => {
 
   it("reads the recording of a page that was never transcribed, from the failure its card names", async () => {
     const dir = await newFolder(["/"]);
-    // Every attempt's read pass times out at its first Down Arrow, so the page is never transcribed,
-    // and its last attempt's recording is the one kept.
+    // Every attempt's read pass times out at its first Down Arrow, so the page is never transcribed.
+    // Its card speaks for its last attempt's failure, whose recording the run didn't keep: the
+    // attempt didn't finish.
     const driver = new ScriptedDriver(sitePages({ home: { voice: SPEECH } }), {
       hang: (command) => command === "nextLine",
     });
@@ -246,6 +272,13 @@ describe("loadShareInput: each page's recording", () => {
       runOptions(dir, driver, { config: runConfig({ pageAttempts: 2 }) }),
     );
     expect(result.run.pages[0]).toMatchObject({ status: "failed", attempts: 2 });
+    expect(result.run.pages[0]?.voice).toMatchObject({ error: UNFINISHED });
+    const none = await loadShareInput({ siteDir: result.siteDir, config: DEFAULT_CONFIG });
+    expect(none.recordings.size).toBe(0);
+
+    // A failure whose record lists a recording, as the voice's first builds kept the last attempt's:
+    // the loader reads it, from the failure the card names.
+    await keepFailedRecording(result.siteDir, result.run, 0);
     const input = await loadShareInput({ siteDir: result.siteDir, config: DEFAULT_CONFIG });
 
     expect([...input.recordings.keys()]).toEqual([keyOf(result.run, 0)]);

@@ -34,7 +34,7 @@ import {
   type ScriptedPage,
   type ScriptedVoice,
 } from "./helpers/scripted-driver.js";
-import { busySound, silence, speechAndPauses } from "./helpers/voice-signal.js";
+import { silence, speechAndPauses } from "./helpers/voice-signal.js";
 
 // The encoder is the real one, except in the one test that makes it fail.
 vi.mock("../src/voice/encode.js", async (importOriginal) => {
@@ -132,6 +132,15 @@ function peakingAt(peak: number): Int16Array {
 
 /** The home page with nothing for NVDA to say: no lines, no headings, nothing to Tab to. */
 const NO_WORDS: Partial<ScriptedPage> = { lines: [], headings: [], stops: [], leaving: "" };
+
+/** Why an attempt that read the page and then failed keeps no recording, as the run records it. */
+const UNFINISHED = "the attempt didn't finish, and a recording is kept only of an attempt that did";
+
+/** The record of a page whose last attempt read it and then failed. */
+const unfinished = (): unknown => ({
+  error: UNFINISHED,
+  recordedAt: expect.stringMatching(ISO_MS) as unknown,
+});
 
 describe("a page's recording of NVDA's voice, in a run", () => {
   it("records each attempt from its start to its end", async () => {
@@ -501,6 +510,7 @@ describe("a page's recording of NVDA's voice, in a run", () => {
         "the recording's folder couldn't be made (EPERM)",
         "NVDA's process ended during the recording",
         "Starting the recording did not finish within 60 seconds",
+        "another window came to the front during the attempt, and NVDA may have read it aloud, so the recording isn't kept",
       ]) {
         const { logger } = await everyPage({ error: why });
         expect(aboutVoice(logger), why).toEqual([]);
@@ -541,6 +551,36 @@ describe("a page's recording of NVDA's voice, in a run", () => {
           `NVDA's voice isn't being recorded: ${first}. The pages are read as usual.`,
         ]);
       }
+    });
+
+    it("says nothing of attempts that didn't finish, which are each one page's", async () => {
+      const dir = await setup();
+      const logger = createMemoryLogger();
+      const voice = { samples: SPEECH };
+      // Every page's read pass loses the browser at its first Down Arrow, after the page was read
+      // into: each attempt read its page, and none finished.
+      const driver = new ScriptedDriver(
+        sitePages({ home: { voice }, about: { voice }, resources: { voice } }),
+        {
+          fail: (command) =>
+            command === "nextLine"
+              ? new ForegroundError("The browser lost the foreground to another window")
+              : null,
+        },
+      );
+      const run = await runAudit(
+        options(dir, driver, {
+          logger,
+          config: config({ pageAttempts: 1, maxConsecutiveFailures: 5 }),
+        }),
+      );
+      expect(run.run.pages.map((page) => page.status)).toEqual(["failed", "failed", "failed"]);
+      expect(run.run.pages.map((page) => page.voice)).toEqual([
+        unfinished(),
+        unfinished(),
+        unfinished(),
+      ]);
+      expect(aboutVoice(logger)).toEqual([]);
     });
 
     it("says nothing when every recording is kept, or when the driver records none", async () => {
@@ -729,45 +769,48 @@ describe("a page's recording of NVDA's voice, in a run", () => {
           : null;
     };
 
-    it("moves its voice.webm to attempts/ with its folder, and seals the last attempt's", async () => {
+    // An attempt that read the page and then failed may have failed because another window came to
+    // the front, and NVDA may have read that window aloud: its recording is deleted, and the page's
+    // record says why when it's the last attempt. Only an attempt that read the page to the end
+    // keeps its recording.
+    it("keeps no recording of an attempt that read the page and then failed, and keeps the next attempt's", async () => {
       const dir = await setup(["/"]);
-      const first = busySound(1, 3);
       const { driver, timeline } = watched(
-        sitePages({ home: { voice: [{ samples: first }, { samples: SPEECH }] } }),
+        sitePages({ home: { voice: { samples: SPEECH } } }),
         losesForeground(1),
       );
       const run = await runAudit(options(dir, driver));
       const page = run.run.pages[0]!;
       expect(page).toMatchObject({ status: "done", attempts: 2 });
 
-      // Each attempt is recorded before it begins, and stopped before its end is recorded: the
-      // failed one's too, ahead of the failure.
+      // Each attempt is recorded before it begins. The failed one's recording is thrown away as it
+      // ends, ahead of its failure; the next one's is stopped before its end is recorded.
       const marks = [
         "recordVoice",
         "event page-started",
         "stopVoice",
+        "discardVoice",
         "event page-failed",
         "event page-finished",
       ];
       expect(timeline.filter((mark) => marks.includes(mark))).toEqual([
         "recordVoice",
         "event page-started",
-        "stopVoice",
+        "discardVoice",
         "event page-failed",
         "recordVoice",
         "event page-started",
         "stopVoice",
         "event page-finished",
       ]);
-
-      // Each attempt had a recording of its own, stopped as it ended.
       expect(driver.calls.filter((call) => call === "recordVoice")).toHaveLength(2);
-      expect(driver.calls.filter((call) => call === "stopVoice")).toHaveLength(2);
-      // The first attempt's, with the rest of its folder, unsealed.
-      expect(await holds(earlierVoiceOf(dir, run, 1), await encoded(first))).toBe(true);
+      expect(driver.calls.filter((call) => call === "stopVoice")).toHaveLength(1);
+
+      // The first attempt's folder moved to attempts/ with its transcripts, and no recording.
       expect(existsSync(path.join(path.dirname(earlierVoiceOf(dir, run, 1)), "read.txt"))).toBe(
         true,
       );
+      expect(existsSync(earlierVoiceOf(dir, run, 1))).toBe(false);
       // The last attempt's, which the record is of.
       expect(await holds(voiceOf(dir, run), await encoded(SPEECH))).toBe(true);
       expect(page.voice).toMatchObject({ ...fileHash(await encoded(SPEECH)), seconds: 2 });
@@ -775,7 +818,7 @@ describe("a page's recording of NVDA's voice, in a run", () => {
       expect(await problemsIn(dir)).toBe(0);
     });
 
-    it("is kept for a page whose last attempt failed, so the record accounts for the file", async () => {
+    it("keeps none for a page whose last attempt read it and then failed, and its record says the attempt didn't finish", async () => {
       const dir = await setup(["/"]);
       const driver = new ScriptedDriver(sitePages({ home: { voice: { samples: SPEECH } } }), {
         fail: losesForeground(2),
@@ -783,16 +826,23 @@ describe("a page's recording of NVDA's voice, in a run", () => {
       const run = await runAudit(options(dir, driver, { config: config({ pageAttempts: 2 }) }));
       const page = run.run.pages[0]!;
       expect(page).toMatchObject({ status: "failed", attempts: 2 });
-      expect(page.voice).toMatchObject({ ...fileHash(await encoded(SPEECH)), seconds: 2 });
-      expect(await holds(voiceOf(dir, run), await encoded(SPEECH))).toBe(true);
-      expect(await holds(earlierVoiceOf(dir, run, 1), await encoded(SPEECH))).toBe(true);
+      expect(page.voice).toEqual(unfinished());
+      expect(existsSync(voiceOf(dir, run))).toBe(false);
+      expect(existsSync(earlierVoiceOf(dir, run, 1))).toBe(false);
+      // Each attempt's recording was thrown away as it ended, with its sound, and none was stopped.
+      expect(driver.calls.filter((call) => call === "discardVoice")).toHaveLength(2);
+      expect(driver.calls).not.toContain("stopVoice");
       expect(pcmLeft(driver)).toEqual([]);
+      // The record on disk says the same, under the run's seal.
+      const stored = await readRunJson(outDir(dir), run.runId);
+      expect(stored.pages[0]?.voice).toEqual(page.voice);
+      expect(stored.seal).toBe(sealOf(stored));
       expect(await problemsIn(dir)).toBe(0);
     });
 
     it("leaves no voice in the record of a page whose next attempt couldn't record", async () => {
       const dir = await setup(["/"]);
-      // The first session: the page fails after its recording, and the run stops there.
+      // The first session: the page fails after it was read into, and the run stops there.
       const first = new ScriptedDriver(sitePages({ home: { voice: { samples: SPEECH } } }), {
         fail: losesForeground(1),
       });
@@ -800,16 +850,17 @@ describe("a page's recording of NVDA's voice, in a run", () => {
         options(dir, first, { config: config({ pageAttempts: 1, maxConsecutiveFailures: 1 }) }),
       );
       expect(stopped.outcome).toBe("stopped");
-      expect(stopped.run.pages[0]?.voice).toMatchObject(fileHash(await encoded(SPEECH)));
+      expect(stopped.run.pages[0]?.voice).toEqual(unfinished());
 
       // The next session tries the failed page again, with a driver that can't record.
       const resumed = await runAudit(options(dir, new ScriptedDriver(sitePages())));
       expect(resumed).toMatchObject({ runId: stopped.runId, outcome: "completed" });
       expect(resumed.run.pages[0]).toMatchObject({ status: "done", attempts: 2 });
       expect(resumed.run.pages[0]).not.toHaveProperty("voice");
-      // The first session's recording stays with its attempt.
+      // Neither session kept a recording: the first's attempt didn't finish.
       expect(existsSync(voiceOf(dir, resumed))).toBe(false);
-      expect(await holds(earlierVoiceOf(dir, resumed, 1), await encoded(SPEECH))).toBe(true);
+      expect(existsSync(earlierVoiceOf(dir, resumed, 1))).toBe(false);
+      expect(existsSync(path.dirname(earlierVoiceOf(dir, resumed, 1)))).toBe(true);
       expect(await problemsIn(dir)).toBe(0);
     });
   });

@@ -3,8 +3,9 @@
  * everything it hears and does: its speech, every key pressed on the computer (typing, too), every
  * word typed, and what it says about itself. The copy a run keeps is NVDA's speech, the keys
  * voicecap pressed, and NVDA's warnings and errors. The raw log is never kept: it holds what the
- * person typed, and the account name in its paths. NVDA is started with the log at that level by
- * the settings `withNvdaLog` makes.
+ * person typed, and the account name in its paths, and the NVDA driver deletes it once the run has
+ * its copy. NVDA is started with the log at that level by the settings `withNvdaLog` makes, and
+ * with its notifications off by those `withQuietNotifications` makes.
  *
  * NVDA speaks each character a person types, and logs it as speech like any other. So speech is
  * kept only while the last key NVDA logged was one voicecap pressed (or none has been logged yet),
@@ -175,10 +176,34 @@ export function cleanNvdaLog(
  * records, is left as it is.
  */
 export function withNvdaLog(settings: Record<string, unknown>): Record<string, unknown> {
-  const own = settings.general;
-  const general =
-    own !== null && typeof own === "object" && !Array.isArray(own)
-      ? (own as Record<string, unknown>)
-      : {};
+  const general = sectionOf(settings.general);
   return { ...settings, general: { ...general, loggingLevel: general.loggingLevel ?? "IO" } };
+}
+
+/**
+ * The settings NVDA starts with, with its notifications off: NVDA's "Report notifications",
+ * `presentation.reportHelpBalloons`, is false, so that a reminder, a message, or a help balloon
+ * that appears during a run isn't read aloud into a step's transcript or a recording of NVDA's
+ * voice. A notification is never a page's own speech. It's Guidepup's own settings again, beside
+ * withNvdaLog's, and the config's own settings win, a presentation.reportHelpBalloons among them
+ * (one left undefined counts as none), and the rest of its presentation settings stay. A
+ * `presentation` that isn't a table of settings counts as none. New objects are made, and the
+ * config's own, which the run records, is left as it is.
+ */
+export function withQuietNotifications(settings: Record<string, unknown>): Record<string, unknown> {
+  const presentation = sectionOf(settings.presentation);
+  return {
+    ...settings,
+    presentation: {
+      ...presentation,
+      reportHelpBalloons: presentation.reportHelpBalloons ?? false,
+    },
+  };
+}
+
+/** A section of NVDA's settings as the config gives it: a table of settings, or none. */
+function sectionOf(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }

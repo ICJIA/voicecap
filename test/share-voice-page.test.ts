@@ -10,6 +10,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { VOICE_FILE, type RunJson, type VoiceRecord } from "../src/model.js";
+import { UNFINISHED_ATTEMPT } from "../src/run/page-runner.js";
 import { CHECK_LIBRARY, CHECK_SCRIPT, type CheckData } from "../src/share/check.js";
 import { sizeLine } from "../src/share/format.js";
 import { cardAnchor, transcriptAnchor, voiceAnchor } from "../src/share/anchors.js";
@@ -647,6 +648,27 @@ describe("renderVoicePage", () => {
       ).toBe("Not recorded: couldn't make <home>\\AppData\\x.cs: <b>access</b>.");
       expect(whyOf(withEarlier("0.18.0", reason("")))).toBe(
         "Not recorded: the recording couldn't be made.",
+      );
+    });
+
+    // A page no run read in full speaks for its latest failure, whose attempt read the page and
+    // then failed: the run kept no recording of it, and recorded why, which the section says.
+    it("says the attempt didn't finish, for a page whose latest record is a failure", () => {
+      const latest = shareRun({
+        id: RUN,
+        createdAt: "2026-09-29T14:02:51-05:00",
+        voicecapVersion: "0.18.0",
+        pages: [
+          read("/", speech.record),
+          read("/old/", reason(UNFINISHED_ATTEMPT), { status: "failed" }),
+        ],
+      });
+      const model = modelOf([latest]);
+      // Its card speaks for the failure, the only record of it.
+      const old = model.pages.find(({ path }) => path === "/old/");
+      expect(old?.speaksFor).toEqual({ run: RUN, slug: old?.slug });
+      expect(whyOf(model)).toBe(
+        "Not recorded: the attempt didn't finish, and a recording is kept only of an attempt that did.",
       );
     });
 
