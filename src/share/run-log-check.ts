@@ -50,10 +50,12 @@ export type GestureOf = (command: DriverCommand) => string | null;
  * - `unread`: the steps' transcripts couldn't be read;
  * - `placed`: the event log doesn't show when the page was read;
  * - `unaligned`: the copy's keys couldn't be paired with the steps of their pass for certain: two
- *   ways of pairing them pair as many keys, as when a key no step pressed comes just before the
- *   pass's first step or after its last, or NVDA didn't log the key of its first or last step, or
- *   order can't say whose a key is, as when two keys in a row came after their steps' time (see
- *   lineUp in ./log-check.ts).
+ *   ways of pairing them account for as many keys, as when a key no step pressed comes just before
+ *   the pass's first step or after its last, or NVDA didn't log the key of its first or last step;
+ *   or a key is left over among the pass's keys, which order couldn't place, as when a key no step
+ *   pressed comes among them or NVDA logged one twice; or NVDA's log has nothing where they place
+ *   the pass's first Tab, which has no key of its own (see checkAgainstLog and lineUp in
+ *   ./log-check.ts).
  */
 export type WhyNotChecked =
   | "none"
