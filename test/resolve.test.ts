@@ -494,6 +494,103 @@ describe("resolvePages: --page", () => {
   });
 });
 
+// A name and a password written with no scheme (`staging:secret@staging.example.org/a`) read as the
+// scheme `staging:` to the URL standard, so the address has no user name to it. It's still a name and
+// a password to a person, and an entry that has them is recorded, and said, without them.
+describe("resolvePages: a name and a password that read as a scheme", () => {
+  const example = parseSiteUrl("https://example.org");
+
+  it.each([
+    ["CSV", "scheme-less.csv", "url,label\nstaging:secret@staging.example.org/a,Secret\n/b,Fine\n"],
+    ["JSON", "scheme-less.json", '[\n"staging:secret@staging.example.org/a",\n"/b"\n]\n'],
+  ])("is recorded as invalid in a %s page list, without them", async (_format, name, text) => {
+    const file = path.join(dir, name);
+    await writeFile(file, text);
+    const logger = createMemoryLogger();
+
+    const result = await resolvePages({ site: example, pagesFile: file, cwd: dir, logger });
+
+    expect(result.pages.map((p) => p.url)).toEqual(["https://example.org/b"]);
+    expect(result.source.invalid).toEqual([
+      { line: 2, value: "staging.example.org/a", reason: "has a user name or password in it" },
+    ]);
+    expect(logger.text("warn")).toContain(
+      "Ignored an invalid entry (line 2: has a user name or password in it): staging.example.org/a",
+    );
+    for (const kept of [JSON.stringify(result), logger.text()])
+      expect(kept).not.toContain("secret");
+  });
+
+  it("is recorded as invalid in a sitemap, without them, and a mail address is not one", async () => {
+    const logger = createMemoryLogger();
+    const result = await resolvePages({
+      site,
+      sitemap: `${ORIGIN}/scheme-less.xml`,
+      logger,
+      fetch: fetchFrom({
+        [`${ORIGIN}/scheme-less.xml`]: urlset(
+          "staging:secret@staging.example.org/a",
+          "mailto:web@example.com",
+          `${ORIGIN}/ok`,
+        ),
+      }),
+    });
+
+    expect(result.pages.map((p) => p.url)).toEqual([`${ORIGIN}/ok`]);
+    expect(result.source.invalid).toEqual([
+      { line: null, value: "staging.example.org/a", reason: "has a user name or password in it" },
+      {
+        line: null,
+        value: "mailto:web@example.com",
+        reason: "not an http(s) URL or a root-relative path",
+      },
+    ]);
+    for (const kept of [JSON.stringify(result), logger.text()])
+      expect(kept).not.toContain("secret");
+  });
+
+  it("is not repeated by the refusal of a --page", async () => {
+    for (const attempt of [
+      () => resolvePages({ site, pageUrls: ["staging:secret@example.org/a"] }),
+      () => pageSourceFor({ site, pageUrls: ["staging:secret@example.org/a"] }),
+    ]) {
+      const error = await attempt().then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      expect((error as UsageError).message).toBe(
+        `--page "example.org/a" isn't a page URL or a path like /faq/.`,
+      );
+    }
+  });
+
+  it("is not repeated by the refusal of a --sitemap, before anything is fetched", async () => {
+    let fetched = 0;
+    const counting: typeof fetch = () => {
+      fetched += 1;
+      return Promise.resolve(new Response("not found", { status: 404 }));
+    };
+    const sitemap = "staging:secret@example.org/sitemap.xml";
+    const words =
+      '--sitemap must be a full URL such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on --site such as sitemap.xml (got "example.org/sitemap.xml").';
+
+    for (const attempt of [
+      () => resolvePages({ site, sitemap, fetch: counting }),
+      () => pageSourceFor({ site, sitemap }),
+      () => pageSourceFor({ sitemap }),
+    ]) {
+      const error = await attempt().then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      expect((error as UsageError).message).toBe(words);
+    }
+    expect(fetched).toBe(0);
+  });
+});
+
 describe("resolvePages: arguments", () => {
   it("requires exactly one page source", async () => {
     await expect(resolvePages({ site })).rejects.toThrow(/--page <url>/);

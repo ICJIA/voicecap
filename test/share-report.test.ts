@@ -1016,7 +1016,7 @@ describe("shareReport", () => {
         {
           level: "warn",
           message:
-            "Run 2026-09-29_1315's walkthrough file can't be made, so it isn't shared: page 1's label has a control or invisible character in it.",
+            "Run 2026-09-29_1315's walkthrough file can't be made, so it isn't shared: page 1's label has a control character (U+001B) in it.",
         },
       ]);
     });

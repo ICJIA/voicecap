@@ -8,13 +8,14 @@
  * a user name or password in its address, a page address that isn't on the file's own site (or is
  * too long, or is written with a space or a control character, or has a user name or password in
  * it), a page's label, template, or notes with a control character, an invisible formatting
- * character, or a line separator in it (a tab or a line break is fine), a ready selector over 1,024
- * characters, with a control or format character in it, or that isn't plain CSS (Playwright's own
- * selectors, such as `text=` or `xpath=`), a run id made of anything but a run id's characters,
- * NVDA settings nested too deep, a step limit over 100,000, or a readiness time over ten minutes
- * (600,000 milliseconds) refuses the whole file, saying what's wrong and where, before anything
- * runs. `walkthroughProblem` gives that same reason for a walkthrough in hand, so a writer can say
- * why a file of it couldn't be read back before it writes one.
+ * character, or a line separator in it (a tab, a line break, and the zero-width joiner and
+ * non-joiner are fine), a ready selector over 1,024 characters, with a control or format character
+ * in it, or that isn't plain CSS (Playwright's own selectors, such as `text=` or `xpath=`), a run id
+ * made of anything but a run id's characters, NVDA settings nested too deep, a step limit over
+ * 100,000, or a readiness time over ten minutes (600,000 milliseconds) refuses the whole file,
+ * saying what's wrong and where, before anything runs. `walkthroughProblem` gives that same reason
+ * for a walkthrough in hand, so a writer can say why a file of it couldn't be read back before it
+ * writes one.
  *
  * The file goes to auditors, and into the shareable page, so it holds no folders: the file of a
  * page list, or of a walkthrough, is kept by its name alone, since a path can carry the person's
@@ -37,7 +38,15 @@ import {
   type RunSettings,
   type SourceDetails,
 } from "../model.js";
-import { canonicalKey, CREDENTIALS_REASON, hasCredentials, hasEmptyLabel } from "../pages/url.js";
+import { isNearbyHost } from "../pages/canonical.js";
+import {
+  canonicalKey,
+  CREDENTIALS_REASON,
+  hasCredentials,
+  hasEmptyLabel,
+  withoutUserInfo,
+} from "../pages/url.js";
+import { formatCommand } from "../util/command-line.js";
 import { UsageError } from "../util/errors.js";
 import { fileNameOf } from "../util/file-name.js";
 import { canonicalJson } from "../util/hash.js";
@@ -210,6 +219,25 @@ function copyOfSettings(settings: Record<string, unknown>): Record<string, unkno
 /** As the file holds it: two-space indents and a final newline. */
 export function walkthroughJson(walkthrough: Walkthrough): string {
   return `${JSON.stringify(walkthrough, null, 2)}\n`;
+}
+
+/**
+ * The command that repeats a run from its walkthrough file, `file` being where the person has it:
+ * `--walkthrough <file>`, and, when the file's site is this computer, an IP address, or a name of
+ * one word (see isNearbyHost), `--site <that site>` after it, since a live repeat of such a file is
+ * refused without it (readRepeat, in ../run/audit.ts). The site is the walkthrough's own: the
+ * address voicecap read, never the canonical address a page names the site by, which is a site a
+ * repeat doesn't read. It is the one place a repeat's command is made, so that the terminal's, the
+ * shareable page's, and the Word copy's are the same command. `walkthrough` is one that
+ * `walkthroughProblem` finds nothing wrong with, so its site is a web address.
+ */
+export function repeatCommand(walkthrough: Pick<Walkthrough, "site">, file: string): string {
+  const site = new URL(walkthrough.site);
+  return formatCommand([
+    "--walkthrough",
+    file,
+    ...(isNearbyHost(site.hostname) ? ["--site", site.origin] : []),
+  ]);
 }
 
 /**
@@ -854,15 +882,37 @@ const UNSAFE_IN_AN_ADDRESS = /[\p{Cc}\p{Cf}\p{Z}]/u;
 /**
  * What a page's label, template, and notes may not hold: a control character other than a tab, a
  * carriage return, or a line feed, a format character (a zero-width space, a right-to-left
- * override, a byte-order mark, a soft hyphen), or a line or paragraph separator (U+2028, U+2029).
- * They're the file's own words, and a repeat copies them, as they are, into the header of every
- * transcript it writes, where an escape sequence could clear or rewrite the screen of whoever reads
- * the transcript with `type` or `cat`, and a character that can't be seen could turn the words
- * around or start a line of its own. A carriage return or a line feed is a legitimate part of a
- * note from a CSV, and the header folds both into a space. One character is looked for at a time,
- * so the time is in proportion to the words.
+ * override, a byte-order mark, a soft hyphen) other than the two joiners, or a line or paragraph
+ * separator (U+2028, U+2029). They're the file's own words, and a repeat copies them, as they are,
+ * into the header of every transcript it writes, where an escape sequence could clear or rewrite
+ * the screen of whoever reads the transcript with `type` or `cat`, and a character that can't be
+ * seen could turn the words around or start a line of its own. A carriage return or a line feed is
+ * a legitimate part of a note from a CSV, and the header folds both into a space. The zero-width
+ * joiner (U+200D) and non-joiner (U+200C) are too: an emoji sequence, and words in Persian, Indic
+ * scripts, and Arabic, are written with them, and a file is made of a page list's words as they are,
+ * so a file that voicecap wrote must be one it reads. One character is looked for at a time, so
+ * the time is in proportion to the words.
  */
-const UNSAFE_IN_PAGE_TEXT = /(?![\t\n\r])[\p{Cc}\p{Cf}\u2028\u2029]/u;
+const UNSAFE_IN_PAGE_TEXT = /(?![\t\n\r\u{200c}\u{200d}])[\p{Cc}\p{Cf}\u{2028}\u{2029}]/u;
+
+/** A control character, which a refusal says apart from the other characters it names. */
+const CONTROL_CHARACTER = /\p{Cc}/u;
+
+/**
+ * The first character of `text` that a page's words may not hold, named for a refusal by what it is
+ * and its code point, which can be said whatever the character is ("an invisible character
+ * (U+200B)"); null when there is none.
+ */
+function unsafeCharacterIn(text: string): string | null {
+  const found = UNSAFE_IN_PAGE_TEXT.exec(text);
+  if (found === null) return null;
+  const code = found[0].codePointAt(0) ?? 0;
+  const point = `U+${code.toString(16).toUpperCase().padStart(4, "0")}`;
+  if (code === 0x2028 || code === 0x2029) return `a line separator (${point})`;
+  return CONTROL_CHARACTER.test(found[0])
+    ? `a control character (${point})`
+    : `an invisible character (${point})`;
+}
 
 /**
  * What the ready selector may not hold: a control character (an escape, a bell, a tab, a line
@@ -931,12 +981,8 @@ function pageProblem(
   if (address !== null) return { field: "url", reason: address };
   for (const field of PAGE_TEXT_FIELDS) {
     const text = page[field];
-    if (text !== undefined && UNSAFE_IN_PAGE_TEXT.test(text)) {
-      return {
-        field,
-        reason: `page ${place}'s ${field} has a control or invisible character in it`,
-      };
-    }
+    const found = text === undefined ? null : unsafeCharacterIn(text);
+    if (found !== null) return { field, reason: `page ${place}'s ${field} has ${found} in it` };
   }
   return null;
 }
@@ -954,7 +1000,8 @@ function pageAddressProblem(place: number, address: string, origin: string): str
   // An address with a user name or password in it is said by its place, as one written with a space
   // is: it's never repeated, and no address shown without them stands in for it.
   if (problem === CREDENTIALS_REASON) return `${subject} ${problem}`;
-  return `${subject}, ${address === "" ? '""' : shown(address)}, ${problem}`;
+  // A name and a password with no scheme (`staging:secret@host/a`) are left out of the address shown.
+  return `${subject}, ${address === "" ? '""' : shown(withoutUserInfo(address))}, ${problem}`;
 }
 
 /**

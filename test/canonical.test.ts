@@ -30,6 +30,28 @@ function refusalOf(input: string): unknown {
 }
 
 describe("normalizeCanonical", () => {
+  // The address people visit is kept in the records and shown, so what is said of one that is refused
+  // leaves out a user name and password, as the root it gives does.
+  it("repeats no user name or password of an address it refuses", () => {
+    for (const [input, repeated] of [
+      ["jane:secret@dvfr.illinois.gov", "dvfr.illinois.gov"],
+      ["https://jane:secret@exa mple.org", "https://exa mple.org"],
+      ["http://jane:secret@127.0.0.1:4848/", "http://127.0.0.1:4848/"],
+    ] as const) {
+      const message = (refusalOf(input) as UsageError).message;
+
+      expect(message, input).toContain(`"${repeated}"`);
+      expect(message, input).not.toContain("secret");
+      expect(message, input).not.toContain("jane");
+    }
+  });
+
+  it("drops a user name and password from the root it gives", () => {
+    expect(normalizeCanonical("https://jane:secret@dvfr.illinois.gov/faq")).toBe(
+      "https://dvfr.illinois.gov/faq/",
+    );
+  });
+
   it("adds https:// to a bare host", () => {
     expect(normalizeCanonical("dvfr.illinois.gov")).toBe("https://dvfr.illinois.gov/");
   });

@@ -708,7 +708,9 @@ export const TECHNICAL_TEXT = {
             ", in the spellings Windows gives them, the short one too when the temp folder is in the home folder. The shareable page names such a file by its name alone, for runs recorded before too.",
           ],
           [
-            "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser; one whose site is on the computer running the test, or on its network, is read only when the person names it.",
+            "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser. A live repeat of one whose site is on the computer running the test, or on its network, needs the person to name that site with ",
+            { code: "--site" },
+            ".",
           ],
           [
             "What a website, a sitemap, a server, or a record says is printed as text: a control character, an invisible formatting character, or a line separator in it is written as an escape such as ",

@@ -38,6 +38,7 @@ import {
   sitePages,
 } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
+import { argumentsOf } from "./helpers/split-command.js";
 
 // Every call goes through as it did, and is kept: the config each driver is made with, what the page
 // runner is given, and which files are read.
@@ -84,6 +85,32 @@ interface Original {
   /** The walkthrough's full path, in `dir`. */
   file: string;
   run: RunAuditResult;
+  /** The command `voicecap walkthrough` said repeats the run, as it printed it. */
+  command: string;
+}
+
+/** The command that repeats the run, from what `writeWalkthrough` said to its logger. */
+function printedCommand(logger: MemoryLogger): string {
+  const said = logger.entries.map(({ message }) => message);
+  const line = said.find((message) => message.startsWith("To repeat the run: "));
+  if (line === undefined) throw new Error(`It said no command: ${said.join(" / ")}`);
+  return line.slice("To repeat the run: ".length);
+}
+
+/**
+ * The options a command of voicecap's gives `runAudit`, for the two options a repeat's command has,
+ * --walkthrough and --site, as the program's own parser gives them.
+ */
+function repeatOptions(args: readonly string[]): Pick<RunAuditOptions, "walkthrough" | "site"> {
+  const options: Pick<RunAuditOptions, "walkthrough" | "site"> = {};
+  for (let at = 0; at < args.length; at += 2) {
+    const [flag, value] = [args[at], args[at + 1]];
+    if (value === undefined) throw new Error(`${String(flag)} has no value.`);
+    if (flag === "--walkthrough") options.walkthrough = value;
+    else if (flag === "--site") options.site = value;
+    else throw new Error(`A repeat's command has ${String(flag)}, which this test doesn't read.`);
+  }
+  return options;
 }
 
 /**
@@ -98,6 +125,7 @@ async function original(
   const run = await runAudit(runOptions(dir, new ScriptedDriver(sitePages()), extra));
   expect(run.outcome).toBe("completed");
   const file = path.join(dir, NAME);
+  const logger = createMemoryLogger();
   await writeWalkthrough({
     file,
     run: run.runId,
@@ -105,12 +133,12 @@ async function original(
     site: SITE,
     cwd: dir,
     env: {},
-    logger: createMemoryLogger(),
+    logger,
   });
   // What a test looks at is what the repeat does, not what making its original did.
   vi.mocked(createDriver).mockClear();
   vi.mocked(processPage).mockClear();
-  return { dir, file, run };
+  return { dir, file, run, command: printedCommand(logger) };
 }
 
 /** The walkthrough in `file`, read as a repeat reads it. */
@@ -798,6 +826,7 @@ describe("a repeat of a file whose site is on this computer or its network", () 
     );
     expect(run.outcome).toBe("completed");
     const file = path.join(dir, NAME);
+    const logger = createMemoryLogger();
     await writeWalkthrough({
       file,
       run: run.runId,
@@ -805,12 +834,12 @@ describe("a repeat of a file whose site is on this computer or its network", () 
       site: origin,
       cwd: dir,
       env: {},
-      logger: createMemoryLogger(),
+      logger,
     });
     expect((await walkthroughIn(file)).site).toBe(origin);
     vi.mocked(createDriver).mockClear();
     vi.mocked(processPage).mockClear();
-    return { dir, file, run };
+    return { dir, file, run, command: printedCommand(logger) };
   }
 
   const NEARBY = [
@@ -898,6 +927,37 @@ describe("a repeat of a file whose site is on this computer or its network", () 
     expect(repeat.run.replayed).toBe(true);
     expect(repeat.run.site).toBe(origin);
     expect(repeat.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
+  });
+
+  // The command `voicecap walkthrough` prints to repeat a run is one a person pastes, so a repeat of the
+  // file it wrote must be one that command asks for: for a site on this computer or its network, that
+  // is --site, or the live repeat is refused. Split as a shell splits it, its arguments are what the
+  // program is given, and the scripted driver stands in for the screen reader.
+  it.each(NEARBY)("is repeated by the command voicecap prints for %s", async (origin) => {
+    const { file, command } = await originalAt(origin);
+    const args = argumentsOf(command);
+    expect(args).toEqual(["--walkthrough", file, "--site", origin]);
+
+    const repeat = await runAudit(
+      repeating(await newFolder(), new ScriptedDriver(pagesAt(origin)), file, repeatOptions(args)),
+    );
+
+    expect(repeat.outcome).toBe("completed");
+    expect(repeat.run.site).toBe(origin);
+    expect(repeat.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
+  });
+
+  it("is the file alone for a site people visit, and a repeat of it asks for nothing more", async () => {
+    const { file, command } = await original();
+    const args = argumentsOf(command);
+    expect(args).toEqual(["--walkthrough", file]);
+
+    const repeat = await runAudit(
+      repeating(await newFolder(), new ScriptedDriver(sitePages()), file, repeatOptions(args)),
+    );
+
+    expect(repeat.outcome).toBe("completed");
+    expect(repeat.run.site).toBe(SITE);
   });
 
   it("isn't asked of a file whose site has a dot in its name, which is a name people visit", async () => {

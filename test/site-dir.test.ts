@@ -70,6 +70,18 @@ describe("chooseSiteDir", () => {
     );
   });
 
+  // A name and a password with no scheme read as the scheme `staging:`, not as a user name: the page is no
+  // page, and the refusal doesn't repeat them.
+  it("doesn't repeat the name and password of a page that reads as another scheme", async () => {
+    const home = await makeHome("i2i.illinois.gov");
+
+    const error = await refusal({ home, page: "staging:secret@dvfr.illinois.gov/faq/" });
+
+    expect(error.message).toBe(
+      `--page "dvfr.illinois.gov/faq/" isn't a page URL or a path like /about.`,
+    );
+  });
+
   it("uses the only site folder when a path is given", async () => {
     const home = await makeHome("dvfr.illinois.gov", ".git", "runs", "manual", "compare");
     await writeFile(path.join(home, ".gitattributes"), "* -text\n");

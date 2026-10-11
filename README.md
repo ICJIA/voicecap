@@ -1069,7 +1069,7 @@ voicecap can keep a permanent, non-destructive record of every run and every man
 
 ### Layout
 
-The home's folders are shown under [The transcripts folder](#the-transcripts-folder). A site's folder is its host name, lowercased, plus `_<port>` when the URL has one, with anything other than `a-z 0-9 . -` replaced by `_` (`https://dvfr.illinois.gov` → `dvfr.illinois.gov`; `http://127.0.0.1:4747` → `127.0.0.1_4747`). `review`, `manual add`, `report`, `share`, and `walkthrough` work in one site's folder at a time (see [Other commands](#other-commands) for how they pick it).
+The home's folders are shown under [The transcripts folder](#the-transcripts-folder). A site's folder is its host name, lowercased, plus `_<port>` when the URL has one, with anything other than `a-z 0-9 . -` replaced by `_` (`https://dvfr.illinois.gov` → `dvfr.illinois.gov`; `http://127.0.0.1:4747` → `127.0.0.1_4747`). A host that names no folder in the home is refused, with a message that says so: one of only dots (`http://../` would be the folder that holds the home), and one that Windows keeps for itself (`con`, `nul`, `com1`, `aux.example.org`). `voicecap verify` lists a record that names such a site as one it can't read, and checks the rest. `review`, `manual add`, `report`, `share`, and `walkthrough` work in one site's folder at a time (see [Other commands](#other-commands) for how they pick it).
 
 A site's folder is named for the address voicecap read, whatever the site's canonical address is. What readers meet, the shareable page, its Word copy, the dated copies, and the website, names the site by its canonical address instead (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)).
 
@@ -2184,12 +2184,14 @@ Wrote the walkthrough of run 2026-09-26_1405 (12 pages) to C:\Users\cschw\walkth
 To repeat the run: npx @icjia/voicecap --walkthrough 'C:\Users\cschw\walkthrough.json'
 ```
 
+For a run read on this computer or its network (an IP address, `localhost`, a one-word name), the command also names the address that run read, such as `… --walkthrough 'walkthrough.json' --site http://127.0.0.1:4747`, since a live repeat of such a file needs it (see [Repeating the run from the file](#repeating-the-run-from-the-file)). The shareable page and its Word copy say the same command.
+
 - **Which run.** `--run <id>` names it. Without it, voicecap takes the site's latest completed run, a replayed one included (the file says it was a replay). A run that didn't complete can't be written: run it to the end first. `--site` and `--out` pick the site and the transcripts home as `share` does (see [Other commands](#other-commands)).
 - **It never overwrites a file.** A name that's taken is refused: give another, or move that file first. It makes the file's folder when that's missing.
 - **Write it outside the transcripts home,** which is the audit record. `voicecap verify` names a new folder inside a site's folder, and a file inside a run's `pages/` folder, as problems.
 - **It needs no screen reader,** so it works on any computer, a Mac included.
 - **It never writes a file that voicecap would refuse to read.** For example, a run with more than 10,000 pages, a step limit above 100,000, or a file that would be over 8 MB can't be written. voicecap says why, writes nothing, and exits with code 1.
-- **The shareable page offers each run's file too.** In the evidence behind its results, each run the page draws on has a link that downloads its walkthrough file, with the command that repeats the run.
+- **The shareable page offers each run's file too.** In the evidence behind its results, each run the page draws on has a link that downloads its walkthrough file, with the command that repeats the run (which names the address the run read, with `--site`, for a run read on this computer or its network).
   - The link says "Download the walkthrough file" and the file's size, and names its run for a screen reader.
   - The file is the one `voicecap walkthrough` writes for that run, saved as `<site name>_<run id>_walkthrough.json`, such as `dvfr.illinois.gov_2026-09-26_1405_walkthrough.json`. The site's name is its canonical name, made safe for a file name as a site's folder is, or the address voicecap read when the site has no canonical address (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)). It's carried inside the page as text, so each file adds about a third more than its size to the page.
   - The Word copy can't carry a file, so it says to get it from the web page, or with `voicecap walkthrough --site <site> --run <id> <file>`, which finds the run in whichever folder the site's canonical address names (see [Other commands](#other-commands)), and gives the command that repeats the run.
@@ -2231,7 +2233,7 @@ A repeat is a run like any other, with its own folder, its own record, and its o
 - it lists more than 10,000 pages;
 - the site isn't a web address: its host has an empty part (`http://../`, `https://example.org.`), or its address has a user name or password in it (`https://name:password@…`);
 - a page isn't on the file's own site, or its address has a space or a control character in it, or a user name or password, or is over 8,192 characters;
-- a page's label, template, or notes has a control character in it other than a tab or a line break, or an invisible formatting character (a zero-width space, a right-to-left override, a soft hyphen) or a line separator (U+2028, U+2029);
+- a page's label, template, or notes has a control character in it other than a tab or a line break, or an invisible formatting character (a zero-width space, a right-to-left override, a soft hyphen) or a line separator (U+2028, U+2029), and the refusal names the character by its code point, such as `U+200B`. The zero-width joiner and non-joiner (U+200D, U+200C) are fine: an emoji sequence, and Persian, Indic, and Arabic words, are written with them, and voicecap writes a file's words as a page list gives them;
 - the ready selector (`readySelector`) has a control character in it, is over 1,024 characters, or isn't plain CSS: Playwright's own selectors (`text=`, `xpath=`, `>>`, and its pseudo-classes such as `:has-text()`) aren't read from a file;
 - its NVDA settings are nested more than 32 levels deep;
 - a run id has characters that a run id doesn't have (it can be 1 to 100 letters, digits, `.`, `_`, and `-`);

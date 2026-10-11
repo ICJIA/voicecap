@@ -14,6 +14,7 @@ import {
   resolveSitemapUrl,
   sameOrigin,
   withoutCredentials,
+  withoutUserInfo,
 } from "../src/pages/url.js";
 import { UsageError } from "../src/util/errors.js";
 
@@ -106,12 +107,97 @@ describe("parseSiteUrl", () => {
     expect(parseSiteUrl("https://@example.org").href).toBe("https://example.org/");
   });
 
+  // An address that reads as another scheme (`staging:secret@host` is the scheme `staging:`), or that isn't one
+  // (a space in its host), has no user name to the URL standard, but it has a name and a password to a person.
+  it("repeats nothing of a name and password in an address it refuses as no address", () => {
+    expect(siteRefusal("staging:secret@staging.example.org").message).toBe(
+      '--site must be an http or https URL (got "staging.example.org").',
+    );
+    expect(siteRefusal("https://jane:secret@exa mple.org").message).toBe(
+      '--site must be a full URL such as https://dvfr.illinois.gov (got "https://exa mple.org").',
+    );
+    for (const input of [
+      "staging:secret@staging.example.org/a",
+      "  staging:secret@staging.example.org",
+      "https://jane:secret@exa mple.org/a b",
+      "//jane:secret@example.org",
+    ]) {
+      const message = siteRefusal(input).message;
+      expect(message, input).not.toContain("secret");
+      expect(message, input).not.toContain("jane");
+    }
+  });
+
   it("still takes a local address, an address with a port, and a host in capitals", () => {
     expect(parseSiteUrl("http://127.0.0.1:4747").href).toBe("http://127.0.0.1:4747/");
     expect(parseSiteUrl("http://localhost:3000/x").href).toBe("http://localhost:3000/");
     expect(parseSiteUrl("http://[::1]:4747/").href).toBe("http://[::1]:4747/");
     expect(parseSiteUrl("http://intranet").href).toBe("http://intranet/");
     expect(parseSiteUrl("HTTPS://DVFR.Illinois.GOV").href).toBe("https://dvfr.illinois.gov/");
+  });
+});
+
+// An address that isn't one, or that reads as another scheme, can still hold a name and a password: the
+// text of a page list's row, a sitemap's entry, or what a person typed. It's repeated, and recorded, without them.
+describe("withoutUserInfo", () => {
+  it.each([
+    // An address with an authority: what comes before the last @ in it goes, whatever the rest is.
+    ["https://jane:secret@example.org/a", "https://example.org/a"],
+    ["https://jane@example.org/a", "https://example.org/a"],
+    ["//jane:secret@example.org/a", "//example.org/a"],
+    ["ftp://jane:secret@example.org/file.xml", "ftp://example.org/file.xml"],
+    ["https://jane:secret@exa mple.org/a", "https://exa mple.org/a"],
+    ["  https://jane:secret@example.org/a", "  https://example.org/a"],
+    ["https://jane:pa@ss@example.org/a", "https://example.org/a"],
+    [String.raw`https:\\jane:secret@example.org\a`, String.raw`https:\\example.org\a`],
+    // No scheme: a name, a colon, and a password before an @ are a name and a password.
+    ["staging:secret@staging.example.org/a", "staging.example.org/a"],
+    ["staging:secret@staging.example.org", "staging.example.org"],
+    ["staging:pa@ss@staging.example.org/a", "staging.example.org/a"],
+    ["  staging:secret@staging.example.org/a", "  staging.example.org/a"],
+    ["staging:@staging.example.org/a", "staging.example.org/a"],
+  ])("takes the user name and password out of %j", (text, without) => {
+    expect(withoutUserInfo(text)).toBe(without);
+  });
+
+  it.each([
+    // A mail address, in the scheme that has one, is not a name and a password.
+    "mailto:someone@example.org",
+    "MAILTO:someone@example.org",
+    "https://example.org/a",
+    "https://example.org/@jane",
+    "https://example.org/?mail=a@b.c",
+    "https://example.org/#a:b@c",
+    "/about",
+    "about@us",
+    "jane@example.org",
+    "localhost:3000",
+    "localhost:3000/faq",
+    "data:text/html,a:b@c",
+    "javascript:alert(1)",
+    String.raw`C:\Program Files\Git\about`,
+    "C:/Program Files/Git/about",
+    "",
+  ])("leaves %j as it is", (text) => {
+    expect(withoutUserInfo(text)).toBe(text);
+  });
+
+  it("reads a text of hundreds of thousands of characters in time that doesn't grow with its square", () => {
+    const texts = [
+      "a".repeat(300_000),
+      "a:".repeat(150_000),
+      ":".repeat(300_000),
+      "@".repeat(300_000),
+      `${"a:b".repeat(100_000)}@`,
+      `https://${"a:".repeat(150_000)}`,
+      `x:${"y".repeat(300_000)}@z`,
+      `//${"@".repeat(200_000)}`,
+      `${" ".repeat(300_000)}x:y@z`,
+      "mailto:" + "a".repeat(300_000),
+    ];
+    const started = performance.now();
+    for (const text of texts) withoutUserInfo(text);
+    expect(performance.now() - started).toBeLessThan(2_000);
   });
 });
 

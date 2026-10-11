@@ -62,6 +62,16 @@ const on = (path: string): string => `${DEMO_ROOT}${path}`;
 /** What marks the address of a copy on this computer, wherever it shows. */
 const LOCAL_ADDRESS = /127\.0\.0\.1|localhost/i;
 
+/**
+ * The command that repeats run `id` of the demo, which is the one place a page or a Word copy names the
+ * address a copy was read at: a repeat of a file read at an IP address is refused without it, so the
+ * command to paste has `--site` and the address read, never the canonical address (a repeat reads
+ * the site the file says). It is a command, not the site's name: the names, titles, links, and
+ * words around it leave the address out.
+ */
+const repeating = (id: string): string =>
+  `npx @icjia/voicecap --walkthrough ${NAME}_${id}_walkthrough.json --site ${READ}`;
+
 /** Each page the cards of what needs attention are on, once, by the name the cards give it. */
 const namesOnCards = ({ attention }: ShareModel): string[] => [
   ...new Set(attention.flatMap(({ pages }) => pages.map(({ name }) => name))),
@@ -341,7 +351,8 @@ describe("the addresses a model shows", () => {
       expect(file.get).toBe(
         `npx @icjia/voicecap walkthrough --site ${DEMO_ROOT} --run ${each.run.id} ${name}`,
       );
-      expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}`);
+      // The file is named for the canonical name, and the site a repeat reads is the address read.
+      expect(file.repeat).toBe(repeating(each.run.id));
     }
   });
 
@@ -624,7 +635,11 @@ describe("the page shows no address of a copy on this computer", () => {
     expect(met).toContain("npx @icjia/voicecap verify");
     expect(met).toContain(`${NAME}_2026-09-29_1402_walkthrough.json`);
 
-    expect(met.filter((text) => LOCAL_ADDRESS.test(text))).toEqual([]);
+    // Nothing names the address but the command that repeats each run.
+    expect(met.filter((text) => LOCAL_ADDRESS.test(text))).toEqual([
+      repeating("2026-09-29_1402"),
+      repeating("2026-09-29_1315"),
+    ]);
     // The records the page carries for its fingerprint check are as recorded, so they have it.
     expect(
       /<script type="application\/json" id="fp-data">[\s\S]*?<\/script>/.exec(html)?.[0],
@@ -647,7 +662,11 @@ describe("the page shows no address of a copy on this computer", () => {
       `npx @icjia/voicecap walkthrough --site ${DEMO_ROOT} --run 2026-09-29_1402 ${NAME}_2026-09-29_1402_walkthrough.json`,
     );
 
-    expect(met.filter((text) => LOCAL_ADDRESS.test(text))).toEqual([]);
+    // Nothing names the address but the command that repeats each run.
+    expect(met.filter((text) => LOCAL_ADDRESS.test(text))).toEqual([
+      repeating("2026-09-29_1402"),
+      repeating("2026-09-29_1315"),
+    ]);
   });
 
   it("leaves none in a page with a label, a query, a page no longer listed, a flag resolved, and a failure", () => {
@@ -667,7 +686,8 @@ describe("the page shows no address of a copy on this computer", () => {
     // A problem's record says word for word what voicecap recorded, address and all.
     expect(html).toContain(`Failed: unreachable: ${REFUSED}`);
 
-    expect(met.filter((text) => LOCAL_ADDRESS.test(text))).toEqual([]);
+    // Nothing names the address but the command that repeats the run.
+    expect(met.filter((text) => LOCAL_ADDRESS.test(text))).toEqual([repeating("2026-09-26_1405")]);
   });
 
   it("leaves none in the Word copy of that page either", async () => {
@@ -682,7 +702,8 @@ describe("the page shows no address of a copy on this computer", () => {
     expect(met.some((text) => text.startsWith(`${on("broken/")}: `))).toBe(true);
     expect(met).toContain(`8 pages from the sitemap ${on("sitemap.xml")}.`);
 
-    expect(met.filter((text) => LOCAL_ADDRESS.test(text))).toEqual([]);
+    // Nothing names the address but the command that repeats the run.
+    expect(met.filter((text) => LOCAL_ADDRESS.test(text))).toEqual([repeating("2026-09-26_1405")]);
   });
 
   // The guards above would pass on a page that said nothing: here they meet the address where a

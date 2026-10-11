@@ -813,11 +813,30 @@ describe("wordEvidence", () => {
           "To repeat this run exactly, with the same pages in the same order and the same passes and limits, get its walkthrough file from the web page, or with:",
           `npx @icjia/voicecap walkthrough --site http://127.0.0.1:4848 --run ${id} 127.0.0.1_4848_${id}_walkthrough.json`,
           "then run:",
-          `npx @icjia/voicecap --walkthrough 127.0.0.1_4848_${id}_walkthrough.json`,
+          // The demo was read at an IP address, so a repeat of its file needs --site: the command names it.
+          `npx @icjia/voicecap --walkthrough 127.0.0.1_4848_${id}_walkthrough.json --site http://127.0.0.1:4848`,
           "A repeat reads the same pages the same way, but can't promise the same words: a changed site, or a newer screen reader or browser, changes what's said. After a repeat, voicecap says page by page whether each sounds the same.",
         ]);
         // The part comes after the fingerprints', and is the last of the run's.
         expect(part.at(-1), id).toEqual(para(EVIDENCE_TEXT.walkthrough.promise));
+      }
+    });
+
+    it("names the address the run read after --site, never the canonical address the page names the site by", async () => {
+      const [latest = "", earlier = ""] = runParts(await demoModel(DEMO_ROOT)).map(saysOf);
+
+      for (const [says, id] of [
+        [latest, "2026-09-29_1402"],
+        [earlier, "2026-09-29_1315"],
+      ] as const) {
+        const file = `voicecap.icjia.app_${id}_walkthrough.json`;
+        // Getting the file names the site as the page does, and repeating it the address that was read.
+        expect(says).toContain(
+          `npx @icjia/voicecap walkthrough --site ${DEMO_ROOT} --run ${id} ${file}`,
+        );
+        expect(says).toContain(
+          `npx @icjia/voicecap --walkthrough ${file} --site http://127.0.0.1:4848`,
+        );
       }
     });
 

@@ -806,8 +806,41 @@ describe("renderEvidence", () => {
             (found) => found[1],
           ),
         ).toEqual([
-          "npx @icjia/voicecap --walkthrough 127.0.0.1_4848_2026-09-29_1402_walkthrough.json",
-          "npx @icjia/voicecap --walkthrough 127.0.0.1_4848_2026-09-29_1315_walkthrough.json",
+          // The demo was read at an IP address, so a repeat of its file needs --site: the command names it.
+          "npx @icjia/voicecap --walkthrough 127.0.0.1_4848_2026-09-29_1402_walkthrough.json --site http://127.0.0.1:4848",
+          "npx @icjia/voicecap --walkthrough 127.0.0.1_4848_2026-09-29_1315_walkthrough.json --site http://127.0.0.1:4848",
+        ]);
+      });
+
+      it("names the address the run read after --site, never the canonical address the page names the site by", async () => {
+        const model = await demoModel(DEMO_ROOT);
+        const html = renderEvidence(model);
+
+        // The file is named for the site as the page names it, the commands' --site for the address read.
+        expect(attributes(html, "download")).toEqual([
+          "voicecap.icjia.app_2026-09-29_1402_walkthrough.json",
+          "voicecap.icjia.app_2026-09-29_1315_walkthrough.json",
+        ]);
+        expect(
+          [...html.matchAll(/<pre>(npx @icjia\/voicecap --walkthrough [^<]*)<\/pre>/g)].map(
+            (found) => found[1],
+          ),
+        ).toEqual([
+          "npx @icjia/voicecap --walkthrough voicecap.icjia.app_2026-09-29_1402_walkthrough.json --site http://127.0.0.1:4848",
+          "npx @icjia/voicecap --walkthrough voicecap.icjia.app_2026-09-29_1315_walkthrough.json --site http://127.0.0.1:4848",
+        ]);
+      });
+
+      it("is the file alone for a run read at a site people visit", () => {
+        const run = shareRun({ id: "2026-09-26_1405", pages: [{ path: "/" }] });
+        const html = renderEvidence(buildShareModel(inputOf([run])));
+
+        expect(
+          [...html.matchAll(/<pre>(npx @icjia\/voicecap --walkthrough [^<]*)<\/pre>/g)].map(
+            (found) => found[1],
+          ),
+        ).toEqual([
+          "npx @icjia/voicecap --walkthrough example.illinois.gov_2026-09-26_1405_walkthrough.json",
         ]);
       });
 

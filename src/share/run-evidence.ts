@@ -43,7 +43,12 @@ import {
   type SessionTimeline,
   type UnloggedSession,
 } from "./timeline.js";
-import { walkthroughJson, walkthroughOf, walkthroughProblem } from "./walkthrough.js";
+import {
+  repeatCommand,
+  walkthroughJson,
+  walkthroughOf,
+  walkthroughProblem,
+} from "./walkthrough.js";
 
 /** A line of a run's evidence: what it is, and what the record says. */
 export interface EvidenceRow {
@@ -61,7 +66,11 @@ export interface WalkthroughDownload {
   bytes: number;
   /** The command that writes the file from the run's record: "npx @icjia/voicecap walkthrough …". */
   get: string;
-  /** The command that repeats the run from the file: "npx @icjia/voicecap --walkthrough <file>". */
+  /**
+   * The command that repeats the run from the file: "npx @icjia/voicecap --walkthrough <file>", and,
+   * for a run read on the computer or the network it ran on, "--site <the address it read>" after
+   * the file (see repeatCommand), which a live repeat of such a file is refused without.
+   */
   repeat: string;
 }
 
@@ -481,7 +490,8 @@ function timelineOf(
  * named for the run and the site as the page names it: its host, made safe for a file name as a
  * site's folder is (`siteFolder`). voicecap never offers a file it would refuse to read back, so a
  * run beyond what the format holds (see `walkthroughProblem`) gets its reason instead, which is a
- * sentence already.
+ * sentence already. The command that repeats the run names the address voicecap read, which the file
+ * has as its site, never `site`, which can be the canonical address (see repeatCommand).
  *
  * It never throws: the file is an extra, and a run whose record can't be made into one (a completed
  * run with no time of completion, or a value JSON can't write) must not stop the page or its Word
@@ -500,7 +510,7 @@ function walkthroughFor(record: RunJson, site: string): RunWalkthrough {
       base64: file.toString("base64"),
       bytes: file.length,
       get: formatCommand(["walkthrough", "--site", site, "--run", record.id, fileName]),
-      repeat: formatCommand(["--walkthrough", fileName]),
+      repeat: repeatCommand(walkthrough, fileName),
     };
   } catch {
     return { problem: EVIDENCE_TEXT.walkthrough.unreadable };

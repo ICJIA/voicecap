@@ -48,10 +48,11 @@ voicecap now records what NVDA said aloud on each page, sealed with the run, wit
 - **Text from a website can't act on the terminal.** Everything voicecap prints, and each line `voicecap review --replay` shows, writes a control character, an invisible formatting character, or a line separator as an escape such as `\u{1b}`. That covers text from a website, a sitemap, a server's reply, or a record. When the browser can't come to the front, the warning names the program in front, never its window's title. On a Mac, the replay's voice reads `[[` in a transcript as text.
 - **Walkthrough files and page addresses are checked more strictly.**
   - A site whose host is only dots (`http://../`) or has an empty part is refused everywhere, and no site's folder can be outside the transcripts home.
-  - A site, page address, or sitemap with a user name or password in it is refused, and a refused line is recorded without them, so a password never reaches a record or the website.
-  - A live repeat of a walkthrough file whose site is an IP address, a local address, or a one-word name needs `--site` naming it.
-  - A file's labels, templates, and notes may not hold invisible formatting characters or line separators.
+  - A site, page address, or sitemap with a user name or password in it is refused, and a refused line is recorded without them, so a password never reaches a record or the website. A name and password written with no scheme (`staging:secret@host/a`, which reads as a scheme to a browser) are left out of a line recorded as invalid, and of the words that refuse an address, too.
+  - A live repeat of a walkthrough file whose site is an IP address, a local address, or a one-word name needs `--site` naming it, and the command voicecap prints to repeat such a run (in the terminal, on the shareable page, and in its Word copy) names it, so it can be pasted as it is.
+  - A file's labels, templates, and notes may not hold control characters, invisible formatting characters, or line separators, and the refusal names the character by its code point (`U+200B`). The zero-width joiner and non-joiner are fine, since emoji sequences and Persian, Indic, and Arabic words are written with them.
   - A file's ready selector must be plain CSS: Playwright's own selectors (`text=`, `xpath=`, `>>`) aren't read from a file.
+  - `voicecap verify` lists a record whose site no folder can be named for (only dots, a name Windows keeps for itself) as one it can't read, and checks the rest. `voicecap init` takes no website with an empty part in its host or a user name and password in its address, and no page or sitemap with a user name and password.
 
 ## [0.17.0] - 2026-10-10
 

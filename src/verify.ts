@@ -230,9 +230,25 @@ function isIncompleteRun(run: Record<string, unknown>): boolean {
 
 /** Where a run belongs, by its own id and site; null when those aren't as voicecap writes them. */
 function runBelongsAt(home: string, run: Record<string, unknown>): string | null {
-  return typeof run.id === "string" && isUrl(run.site)
-    ? runDir(siteDirFor(home, run.site), run.id)
-    : null;
+  if (typeof run.id !== "string") return null;
+  const siteDir = siteDirOf(home, run.site);
+  return siteDir === null ? null : runDir(siteDir, run.id);
+}
+
+/**
+ * The folder of the site at `address`, which a record names. Null when that isn't an address voicecap
+ * writes: text that isn't a URL, or one whose host no site's folder is named for (only dots, a name
+ * Windows keeps for itself, or none at all: see siteFolder). A record can hold any of them, sealed
+ * or not, and `verify` says the record can't be read; it doesn't stop.
+ */
+function siteDirOf(home: string, address: unknown): string | null {
+  if (!isUrl(address)) return null;
+  try {
+    return siteDirFor(home, address);
+  } catch (error) {
+    if (error instanceof UsageError) return null;
+    throw error;
+  }
 }
 
 /**
@@ -397,9 +413,8 @@ function sessionBelongsAt(home: string, session: Record<string, unknown>): strin
   if (typeof session.id !== "string" || !isRecord(page) || typeof page.slug !== "string") {
     return null;
   }
-  return isUrl(page.url)
-    ? manualSessionDir(siteDirFor(home, page.url), session.id, page.slug)
-    : null;
+  const siteDir = siteDirOf(home, page.url);
+  return siteDir === null ? null : manualSessionDir(siteDir, session.id, page.slug);
 }
 
 /** One entry of a chain (reviews.json's, or shares.json's): an entry with a seq. */

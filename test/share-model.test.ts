@@ -3274,7 +3274,8 @@ describe("the walkthrough file each run's evidence offers", () => {
         base64: Buffer.from(text, "utf8").toString("base64"),
         bytes: Buffer.byteLength(text, "utf8"),
         get: `npx @icjia/voicecap walkthrough --site http://127.0.0.1:4848 --run ${each.run.id} ${fileName}`,
-        repeat: `npx @icjia/voicecap --walkthrough ${fileName}`,
+        // The demo was read at an IP address, so a repeat of its file needs --site: the command names it.
+        repeat: `npx @icjia/voicecap --walkthrough ${fileName} --site http://127.0.0.1:4848`,
       });
     }
   });
@@ -3315,10 +3316,11 @@ describe("the walkthrough file each run's evidence offers", () => {
   });
 
   it.each([
-    ["https://example.illinois.gov/", "example.illinois.gov"],
-    ["http://127.0.0.1:4848", "127.0.0.1_4848"],
-    ["http://Localhost:3000/some/path", "localhost_3000"],
-  ])("names the file for the site's folder, as siteFolder does: %s", (site, folder) => {
+    ["https://example.illinois.gov/", "example.illinois.gov", ""],
+    ["http://127.0.0.1:4848", "127.0.0.1_4848", " --site http://127.0.0.1:4848"],
+    // The command names the site's origin, as the program reads it, whatever the record wrote.
+    ["http://Localhost:3000/some/path", "localhost_3000", " --site http://localhost:3000"],
+  ])("names the file for the site's folder, as siteFolder does: %s", (site, folder, siteOption) => {
     // A run of that site, whose page is on it, as a walkthrough file needs.
     const home = new URL("/", site).href;
     const run = { ...shareRun({ id: "2026-09-26_1405", pages: [{ path: home }] }), site };
@@ -3329,7 +3331,7 @@ describe("the walkthrough file each run's evidence offers", () => {
     expect(file.get).toBe(
       `npx @icjia/voicecap walkthrough --site ${site} --run 2026-09-26_1405 ${name}`,
     );
-    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}`);
+    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}${siteOption}`);
   });
 
   // The commands are for pasting into a shell, so a value that a shell would read is quoted, as the
@@ -3352,7 +3354,10 @@ describe("the walkthrough file each run's evidence offers", () => {
       `npx @icjia/voicecap walkthrough --site 'http://[::1]:4848' --run 2026-09-26_1405 ${name}`,
     );
     expect(evidence.verify).toBe("npx @icjia/voicecap verify");
-    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}`);
+    // The command that repeats the run names the address too, quoted the same way.
+    expect(file.repeat).toBe(
+      `npx @icjia/voicecap --walkthrough ${name} --site 'http://[::1]:4848'`,
+    );
   });
 
   it("says why there is no file for a run beyond what a walkthrough file can hold, a step limit of 100,001", () => {

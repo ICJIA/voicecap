@@ -74,9 +74,43 @@ export function addressWithCredentials(input: string, site?: URL): URL | null {
 }
 
 /**
+ * What comes before the last @ of an address's authority, with the @: the user name and password of
+ * `https://name:password@host/`, `//name:password@host/`, or `ftp://name@host/`. The authority is
+ * what follows a scheme and two slashes (or two slashes alone) up to the next slash, question mark, or
+ * hash. What is before it, the scheme and the slashes, is kept (the first group).
+ */
+const AUTHORITY_USER_INFO = /^(\s*(?:[a-z][a-z0-9+.-]*:)?[/\\]{2})[^/\\?#]*@/i;
+
+/**
+ * A name, a colon, a password, and an @ at the start of a text that has no authority for them:
+ * `staging:secret@staging.example.org/a`, which the URL standard reads as an address in the scheme
+ * `staging:` with a path, so that it has no user name, though it has a name and a password to a person.
+ */
+const BARE_USER_INFO = /^(\s*)[^\s/\\?#:@]+:[^\s/\\?#]*@/;
+
+/** A mail address in its own scheme, whose "name:" is the scheme and is no user name. */
+const MAIL_ADDRESS = /^\s*mailto:/i;
+
+/**
+ * `text` without the user name and password an address in it has, for a message or a record of what
+ * a person gave that isn't an address voicecap reads (see `addressWithCredentials`, which finds the
+ * ones that are, and `withoutCredentials`, which clears a URL's). It reads the text as it is written:
+ * an address with an authority, whatever else is wrong with it (`https://name:password@exa mple.org/`),
+ * and a name and password with no scheme in front of them (`staging:secret@staging.example.org/a`).
+ * A mail address (`mailto:someone@example.org`) and every text with no @ before its first slash are
+ * left as they are. It is linear in the text's length: each pattern is tried once, at the start.
+ */
+export function withoutUserInfo(text: string): string {
+  const withAuthority = text.replace(AUTHORITY_USER_INFO, "$1");
+  if (withAuthority !== text) return withAuthority;
+  return MAIL_ADDRESS.test(text) ? text : text.replace(BARE_USER_INFO, "$1");
+}
+
+/**
  * Parse --site: an absolute http(s) URL, with a host that is a name or an address (no empty part:
  * see hasEmptyLabel) and no user name or password. Returns the site's origin as a URL
- * ("https://host/"). The user name and password are checked first, so no message repeats them.
+ * ("https://host/"). The user name and password are checked first, and what a message repeats of
+ * the input is repeated without any (see withoutUserInfo), so no message holds them.
  */
 export function parseSiteUrl(input: string): URL {
   let url: URL;
@@ -84,18 +118,18 @@ export function parseSiteUrl(input: string): URL {
     url = new URL(input.trim());
   } catch {
     throw new UsageError(
-      `--site must be a full URL such as https://dvfr.illinois.gov (got "${input}").`,
+      `--site must be a full URL such as https://dvfr.illinois.gov (got "${withoutUserInfo(input)}").`,
     );
   }
   if (hasCredentials(url)) {
     throw new UsageError(`--site ${CREDENTIALS_REASON}: give the site's address without them.`);
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new UsageError(`--site must be an http or https URL (got "${input}").`);
+    throw new UsageError(`--site must be an http or https URL (got "${withoutUserInfo(input)}").`);
   }
   if (hasEmptyLabel(url.hostname)) {
     throw new UsageError(
-      `--site must be a web address such as https://dvfr.illinois.gov: a host can't start or end with a dot or have two dots in a row (got "${input}").`,
+      `--site must be a web address such as https://dvfr.illinois.gov: a host can't start or end with a dot or have two dots in a row (got "${withoutUserInfo(input)}").`,
     );
   }
   return new URL(`${url.origin}/`);

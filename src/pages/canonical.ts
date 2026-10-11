@@ -1,5 +1,5 @@
 import { UsageError } from "../util/errors.js";
-import { hasEmptyLabel, withScheme } from "./url.js";
+import { hasEmptyLabel, withoutUserInfo, withScheme } from "./url.js";
 
 /** `value` as a URL, or null when it isn't one. */
 function parseUrl(value: string): URL | null {
@@ -57,16 +57,19 @@ export function isWebRoot(value: unknown): value is string {
  * `https://` (`dvfr.illinois.gov` is `https://dvfr.illinois.gov/`), by the rule of `withScheme`.
  * Throws a `UsageError` when `input` isn't an http(s) web address (a host with an empty label, such
  * as `.example.com`, isn't one), and when it's an IP address or a local address (see
- * `isLocalHost`), since neither is a site's name.
+ * `isLocalHost`), since neither is a site's name. What the message repeats of `input` has no user
+ * name or password in it (see `withoutUserInfo`): the root it gives never has any.
  */
 export function normalizeCanonical(input: string): string {
   const url = parseUrl(withScheme(input.trim()));
   if (url === null || !isWebAddress(url) || hasEmptyLabel(url.hostname)) {
-    throw new UsageError(`"${input}" isn't a web address, such as https://dvfr.illinois.gov.`);
+    throw new UsageError(
+      `"${withoutUserInfo(input)}" isn't a web address, such as https://dvfr.illinois.gov.`,
+    );
   }
   if (isLocalHost(url.hostname)) {
     throw new UsageError(
-      `"${input}" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.`,
+      `"${withoutUserInfo(input)}" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.`,
     );
   }
   const path = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;

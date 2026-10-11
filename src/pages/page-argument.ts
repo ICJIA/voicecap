@@ -13,6 +13,7 @@ import {
   parseSiteUrl,
   resolvePageUrl,
   sameOrigin,
+  withoutUserInfo,
 } from "./url.js";
 
 export interface PageArgument {
@@ -61,7 +62,11 @@ export async function resolvePageArgument(
       );
     }
   }
-  if (!url) throw new UsageError(`--page "${value}" isn't a page URL or a path like /about.`);
+  if (!url) {
+    throw new UsageError(
+      `--page "${withoutUserInfo(value)}" isn't a page URL or a path like /about.`,
+    );
+  }
   if (given && !sameOrigin(url, given)) {
     // The hosts say which site each is on; when only the scheme differs, the origins do.
     const [page, wanted] =
@@ -77,13 +82,33 @@ export async function resolvePageArgument(
  * chosen for it, isn't the one named after that origin. Then `site` was a canonical address that
  * found `outDir` by what its runs recorded (see chooseSiteDir), and its pages are on the address
  * those runs read: that is where the folder's records are filed, and where `voicecap verify` looks
- * for them.
+ * for them. A run that recorded an address no site has (a host that ends with a dot, which was
+ * taken before voicecap 0.18.0, or text that is no address) is said to be unreadable, in the
+ * record's terms, and not as a mistake in what the person gave.
  */
 async function siteOfPages(site: string, outDir: string): Promise<URL> {
   const named = parseSiteUrl(site);
   if (path.basename(outDir) === siteFolder(named)) return named;
-  const read = await latestSite(outDir);
-  return read === null ? named : parseSiteUrl(read);
+  // A record can hold anything: text that is no site's address, or what isn't text at all.
+  const read: unknown = await latestSite(outDir);
+  if (read === null) return named;
+  const recorded = typeof read === "string" ? readableSite(read) : null;
+  if (recorded === null) {
+    throw new UsageError(
+      `The newest run in ${outDir} records its site as an address voicecap can't read, so --page can't be matched to it.`,
+    );
+  }
+  return recorded;
+}
+
+/** The site an address recorded by a run names, or null when `parseSiteUrl` refuses it. */
+function readableSite(address: string): URL | null {
+  try {
+    return parseSiteUrl(address);
+  } catch (error) {
+    if (error instanceof UsageError) return null;
+    throw error;
+  }
 }
 
 async function latestSite(outDir: string): Promise<string | null> {

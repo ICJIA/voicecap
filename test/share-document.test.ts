@@ -884,14 +884,18 @@ describe("renderSharePage", () => {
     // these Word copies' blocks exactly, and these pages but for the fingerprint check's script,
     // which plan 11 widened to check the recordings the voice page plays: each page here is 2,023
     // characters longer than 0.17.0's, all of them in that script.
+    // Task 6 of the security fixes re-pinned the demo's page and Word copy once more, 58 characters
+    // longer each: the command that repeats a run read at an IP address names that address
+    // (`--site http://127.0.0.1:4848`, 29 characters), as the program asks of a repeat of such a file,
+    // and the demo's two runs each have one. The other two models are of sites people visit.
     const before = {
       i2i: {
         page: [218_310, "9dab1a17157d6444830100140971c9bd2e0e727ed0c7e2a71ce5de5b3a62021d"],
         word: [59_899, "f274eebbb73909a793c5b92f17b4f9a7534a6a02a7f20a8a7a4cd8b312052a51"],
       },
       demo: {
-        page: [252_746, "51be6f52ffc2ab68621a16a627b394e2d60881fd07e6e04c736dc9a4ec2bcd82"],
-        word: [82_631, "f4716a7a51c53e74df6ddcf9d6dc53cf2e4f8f3c831001a7c24321bce9168a99"],
+        page: [252_804, "46e5327aa255f97bdc9c51fc7924c9a4a425304aec2a16a1689bccd33a4ce3e2"],
+        word: [82_689, "fc3741f4a39f7eabf5ad3262dc2f2bf0248dbec141b8a0555c7e7135cefb85a1"],
       },
       logged: {
         page: [135_240, "a17efc62e175dffa6a7b75c8ef0bc851098e5bce570b1d4a1f40b5ac18b252ed"],

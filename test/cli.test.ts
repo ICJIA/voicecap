@@ -40,6 +40,7 @@ import { realSitesFetch } from "./helpers/real-sites.js";
 import { fakeVoice, ttyInput } from "./helpers/replay.js";
 import { homeWithCountedRun, MACHINE_PROBE, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
 import { homeWithShares } from "./helpers/site-home.js";
+import { argumentsOf, splitCommand } from "./helpers/split-command.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
@@ -177,42 +178,6 @@ async function oneSiteHome(): Promise<string> {
 /** Every file and folder under `dir`, relative to it, sorted. */
 async function contents(dir: string): Promise<string[]> {
   return (await readdir(dir, { recursive: true })).sort();
-}
-
-/**
- * A command line split into its arguments, as Git Bash splits what `formatCommand` writes (and
- * PowerShell too, unless a value has a single quote in it): words apart at spaces, a value in
- * single quotes whole, a backslash in it just a backslash, and `'\''` for a single quote inside one.
- */
-function splitCommand(line: string): string[] {
-  const args: string[] = [];
-  let word = "";
-  // An empty value, '', is still an argument.
-  let started = false;
-  let quoted = false;
-  for (let at = 0; at < line.length; at++) {
-    const char = line.charAt(at);
-    if (quoted) {
-      if (char === "'") quoted = false;
-      else word += char;
-    } else if (char === "'") {
-      quoted = true;
-      started = true;
-    } else if (char === "\\" && line.charAt(at + 1) === "'") {
-      word += "'";
-      started = true;
-      at++;
-    } else if (char === " ") {
-      if (started) args.push(word);
-      word = "";
-      started = false;
-    } else {
-      word += char;
-      started = true;
-    }
-  }
-  if (started) args.push(word);
-  return args;
 }
 
 /** A computer that isn't ready: one quick check FAILs, with its problem. */
@@ -2470,13 +2435,22 @@ describe("voicecap --walkthrough", () => {
     return JSON.parse(await readFile(file, "utf8")) as RunJson;
   }
 
-  /** A home with a replayed run in it, and that run's walkthrough, as walkthrough.json in it. */
-  async function homeWithWalkthrough(): Promise<{ home: string; original: RunJson }> {
+  /**
+   * A home with a replayed run in it, and that run's walkthrough, as walkthrough.json in it, and the
+   * command that `voicecap walkthrough` printed to repeat the run.
+   */
+  async function homeWithWalkthrough(): Promise<{
+    home: string;
+    original: RunJson;
+    command: string;
+  }> {
     const home = await oneSiteHome();
     const original = await latestRun(home);
     const written = await cli(["walkthrough", "walkthrough.json"], home);
     expect(written.code).toBe(0);
-    return { home, original };
+    const [, command = ""] =
+      /^To repeat the run: (npx @icjia\/voicecap .+)$/m.exec(written.out) ?? [];
+    return { home, original, command };
   }
 
   /** The runs the home's site has: how many run.json files its folder holds. */
@@ -2515,6 +2489,48 @@ describe("voicecap --walkthrough", () => {
 
     expect([without.code, same.code]).toEqual([0, 0]);
     expect(await runCount(home)).toBe(3);
+  });
+
+  // The run was read at an IP address, so a live repeat of its file is refused without --site: the command
+  // that `voicecap walkthrough` prints names it, and as a person pastes it, the program takes it.
+  it("prints a command for a site at an IP address that the program takes as it is", async () => {
+    const { home, command } = await homeWithWalkthrough();
+    const file = path.join(home, "walkthrough.json");
+
+    const args = argumentsOf(command);
+
+    expect(args).toEqual(["--walkthrough", file, "--site", SITE]);
+    // Given to the program's own parser, with runAudit replaced by one that only keeps its options,
+    // so that nothing is read: the file and the site are what runAudit is asked to repeat.
+    vi.resetModules();
+    let given: RunAuditOptions | undefined;
+    vi.doMock("../src/run/audit.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      runAudit: (options: RunAuditOptions) => {
+        given = options;
+        return Promise.resolve({ exitCode: 0 });
+      },
+    }));
+    try {
+      const { main: mainKeepingOptions } = await import("../src/cli/main.js");
+      const code = await mainKeepingOptions(args, {
+        stdout: capture().stream,
+        stderr: capture().stream,
+        cwd: home,
+        env: {},
+        signal: new AbortController().signal,
+        interactive: false,
+        platform: "linux",
+      });
+      expect(code).toBe(0);
+      expect(given).toMatchObject({ walkthrough: file, site: SITE, replayFrom: null });
+    } finally {
+      vi.doUnmock("../src/run/audit.js");
+      vi.resetModules();
+    }
+    // And with the replay driver, so that nothing real starts, the same command is a run.
+    const run = await cli([...args, "--replay-from", fixture("replay-run")], home);
+    expect(run.code).toBe(0);
   });
 
   it("still needs --site when there's no --walkthrough", async () => {

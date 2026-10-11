@@ -12,6 +12,7 @@ import {
   MAX_WALKTHROUGH_BYTES,
   MAX_WALKTHROUGH_PAGES,
   parseWalkthrough,
+  repeatCommand,
   walkthroughJson,
   walkthroughOf,
   walkthroughProblem,
@@ -1061,36 +1062,37 @@ describe("parseWalkthrough", () => {
     ],
     // The file's own words reach a transcript's header and the terminal as they are, so a control
     // character in them is refused (Ruling P22), and so is a character that can't be seen: a
-    // right-to-left override that turns the words around, a zero-width space, a line separator.
+    // right-to-left override that turns the words around, a zero-width space, a line separator. The
+    // refusal names the character it found by its code point, which can be said whatever it is.
     [
       "a label with an escape sequence in it",
       (w) => withPageText(w, 0, "label", "Home\u{1b}]52;c;ZWNobyBwd25lZA==\u{7}\u{1b}[2J"),
-      "w.json isn't a voicecap walkthrough file: page 1's label has a control or invisible character in it.",
+      "w.json isn't a voicecap walkthrough file: page 1's label has a control character (U+001B) in it.",
     ],
     [
       "a template with a bell in it",
       (w) => withPageText(w, 1, "template", "grants\u{7}"),
-      "w.json isn't a voicecap walkthrough file: page 2's template has a control or invisible character in it.",
+      "w.json isn't a voicecap walkthrough file: page 2's template has a control character (U+0007) in it.",
     ],
     [
       "notes with a C1 control character in them, a single-character CSI",
       (w) => withPageText(w, 2, "notes", "Check\u{9b}2J the table."),
-      "w.json isn't a voicecap walkthrough file: page 3's notes has a control or invisible character in it.",
+      "w.json isn't a voicecap walkthrough file: page 3's notes has a control character (U+009B) in it.",
     ],
     [
       "a label with a right-to-left override in it",
       (w) => withPageText(w, 0, "label", "Home \u{202e}esaelp"),
-      "w.json isn't a voicecap walkthrough file: page 1's label has a control or invisible character in it.",
+      "w.json isn't a voicecap walkthrough file: page 1's label has an invisible character (U+202E) in it.",
     ],
     [
       "notes with a zero-width space in them",
       (w) => withPageText(w, 2, "notes", "Check\u{200b} the table."),
-      "w.json isn't a voicecap walkthrough file: page 3's notes has a control or invisible character in it.",
+      "w.json isn't a voicecap walkthrough file: page 3's notes has an invisible character (U+200B) in it.",
     ],
     [
       "a template with a line separator in it",
       (w) => withPageText(w, 1, "template", "grants\u{2028}fake"),
-      "w.json isn't a voicecap walkthrough file: page 2's template has a control or invisible character in it.",
+      "w.json isn't a voicecap walkthrough file: page 2's template has a line separator (U+2028) in it.",
     ],
     [
       "a page address with a user name and a password in it",
@@ -1344,7 +1346,7 @@ describe("parseWalkthrough", () => {
       `${NOT_A_WALKTHROUGH}page 3's address has a user name or password in it.`,
     );
     expect(refusal(textOf(withPageText(walkthrough, 0, "label", "Home\u{200b}")))).toBe(
-      `${NOT_A_WALKTHROUGH}page 1's label has a control or invisible character in it.`,
+      `${NOT_A_WALKTHROUGH}page 1's label has an invisible character (U+200B) in it.`,
     );
   });
 
@@ -1355,6 +1357,27 @@ describe("parseWalkthrough", () => {
       expect(message).toBe(`${NOT_A_WALKTHROUGH}its site has a user name or password in it.`);
       expect(message).not.toContain("u:p");
     }
+  });
+
+  // An address that reads as another scheme (`staging:secret@host/a` is the scheme `staging:`) has no
+  // user name to the URL standard, but it has a name and a password to a person, and the refusal
+  // that repeats it leaves them out.
+  it.each([
+    "staging:secret@example.illinois.gov/a",
+    "staging:secret@example.illinois.gov/a?b=c",
+    "ftp://staging:secret@example.illinois.gov/a",
+  ])("doesn't repeat the name and password of %s, when it refuses the address", (address) => {
+    const message = refusal(textOf(withPageUrl(valid(), 0, address)));
+
+    expect(message).toContain("page 1's address");
+    expect(message).not.toContain("secret");
+    expect(message).not.toContain("staging");
+  });
+
+  it("repeats the rest of such an address, which is how a person finds the page", () => {
+    expect(refusal(textOf(withPageUrl(valid(), 0, "staging:secret@example.illinois.gov/a")))).toBe(
+      `${NOT_A_WALKTHROUGH}page 1's address, example.illinois.gov/a, isn't on its site.`,
+    );
   });
 
   it("takes an address whose @ is in its path, query, or fragment, which is no user name", () => {
@@ -1473,54 +1496,59 @@ describe("parseWalkthrough", () => {
   // from a CSV may run over several lines, and the header folds those (Ruling P22). A character
   // that can't be seen is refused too: a format character (a zero-width space, a right-to-left
   // override, a byte-order mark, a soft hyphen) or a line separator (U+2028, U+2029) can turn the
-  // words around or start a line of its own.
+  // words around or start a line of its own. The two joiners are the exception (Ruling P11): an
+  // emoji sequence, and Persian, Indic, and Arabic words, are written with them, and voicecap writes
+  // a file from a page list's words as they are. The refusal names the character it found by its
+  // code point, which can be said whatever the character is.
   describe.each(["label", "template", "notes"] as const)("a page's %s", (field) => {
-    it.each<[name: string, character: string]>([
-      ["a null character", "\u{0}"],
-      ["a backspace", "\u{8}"],
-      ["a vertical tab", "\u{b}"],
-      ["a form feed", "\u{c}"],
-      ["a shift-out", "\u{e}"],
-      ["an escape", "\u{1b}"],
-      ["the last control character of the first block", "\u{1f}"],
-      ["a delete character", "\u{7f}"],
-      ["the first of the C1 block", "\u{80}"],
-      ["a next-line character", "\u{85}"],
-      ["a single-character CSI", "\u{9b}"],
-      ["the last of the C1 block", "\u{9f}"],
-      ["a soft hyphen", "\u{ad}"],
-      ["an Arabic letter mark", "\u{61c}"],
-      ["a zero-width space", "\u{200b}"],
-      ["a zero-width non-joiner", "\u{200c}"],
-      ["a zero-width joiner", "\u{200d}"],
-      ["a left-to-right mark", "\u{200e}"],
-      ["a right-to-left mark", "\u{200f}"],
-      ["a line separator", "\u{2028}"],
-      ["a paragraph separator", "\u{2029}"],
-      ["a left-to-right embedding", "\u{202a}"],
-      ["a right-to-left override", "\u{202e}"],
-      ["a word joiner", "\u{2060}"],
-      ["a left-to-right isolate", "\u{2066}"],
-      ["a pop directional isolate", "\u{2069}"],
-      ["a byte-order mark", "\u{feff}"],
-      ["a language tag, past the first plane", "\u{e0001}"],
-      ["a tag letter, past the first plane", "\u{e0041}"],
-    ])("refuses %s, naming the page", (_name, character) => {
+    it.each<[name: string, character: string, found: string]>([
+      ["a null character", "\u{0}", "a control character (U+0000)"],
+      ["a backspace", "\u{8}", "a control character (U+0008)"],
+      ["a vertical tab", "\u{b}", "a control character (U+000B)"],
+      ["a form feed", "\u{c}", "a control character (U+000C)"],
+      ["a shift-out", "\u{e}", "a control character (U+000E)"],
+      ["an escape", "\u{1b}", "a control character (U+001B)"],
+      ["the last control character of the first block", "\u{1f}", "a control character (U+001F)"],
+      ["a delete character", "\u{7f}", "a control character (U+007F)"],
+      ["the first of the C1 block", "\u{80}", "a control character (U+0080)"],
+      ["a next-line character", "\u{85}", "a control character (U+0085)"],
+      ["a single-character CSI", "\u{9b}", "a control character (U+009B)"],
+      ["the last of the C1 block", "\u{9f}", "a control character (U+009F)"],
+      ["a soft hyphen", "\u{ad}", "an invisible character (U+00AD)"],
+      ["an Arabic letter mark", "\u{61c}", "an invisible character (U+061C)"],
+      ["a zero-width space", "\u{200b}", "an invisible character (U+200B)"],
+      ["a left-to-right mark", "\u{200e}", "an invisible character (U+200E)"],
+      ["a right-to-left mark", "\u{200f}", "an invisible character (U+200F)"],
+      ["a line separator", "\u{2028}", "a line separator (U+2028)"],
+      ["a paragraph separator", "\u{2029}", "a line separator (U+2029)"],
+      ["a left-to-right embedding", "\u{202a}", "an invisible character (U+202A)"],
+      ["a right-to-left override", "\u{202e}", "an invisible character (U+202E)"],
+      ["a word joiner", "\u{2060}", "an invisible character (U+2060)"],
+      ["a left-to-right isolate", "\u{2066}", "an invisible character (U+2066)"],
+      ["a pop directional isolate", "\u{2069}", "an invisible character (U+2069)"],
+      ["a byte-order mark", "\u{feff}", "an invisible character (U+FEFF)"],
+      ["a language tag, past the first plane", "\u{e0001}", "an invisible character (U+E0001)"],
+      ["a tag letter, past the first plane", "\u{e0041}", "an invisible character (U+E0041)"],
+    ])("refuses %s, naming the page and the character", (_name, character, found) => {
       const walkthrough = withPageText(valid(), 1, field, `a${character}b`);
-      const reason = `page 2's ${field} has a control or invisible character in it.`;
+      const reason = `page 2's ${field} has ${found} in it.`;
 
       expect(refusal(textOf(walkthrough))).toBe(`${NOT_A_WALKTHROUGH}${reason}`);
       expect(walkthroughProblem(walkthrough)).toBe(reason);
     });
 
-    it("refuses a character that can't be seen at either end of the words, or alone", () => {
-      for (const text of ["\u{200b}Home", "Home\u{200b}", "\u{2028}", "a\u{202e}"]) {
-        const walkthrough = withPageText(valid(), 1, field, text);
+    it.each<[name: string, text: string, found: string]>([
+      ["an invisible character at the start", "\u{200b}Home", "an invisible character (U+200B)"],
+      ["an invisible character at the end", "Home\u{200b}", "an invisible character (U+200B)"],
+      ["a line separator alone", "\u{2028}", "a line separator (U+2028)"],
+      ["an override at the end", "a\u{202e}", "an invisible character (U+202E)"],
+      // The first of them is the one named, and a joiner before it isn't one.
+      ["several, the first named", "a\u{200b}b\u{1b}c", "an invisible character (U+200B)"],
+      ["a joiner before one", "\u{200d}x\u{200c}y\u{202e}", "an invisible character (U+202E)"],
+    ])("names the first character that can't be seen: %s", (_name, text, found) => {
+      const walkthrough = withPageText(valid(), 1, field, text);
 
-        expect(walkthroughProblem(walkthrough)).toBe(
-          `page 2's ${field} has a control or invisible character in it.`,
-        );
-      }
+      expect(walkthroughProblem(walkthrough)).toBe(`page 2's ${field} has ${found} in it.`);
     });
 
     it.each<[name: string, text: string]>([
@@ -1538,6 +1566,17 @@ describe("parseWalkthrough", () => {
         "\u{2764}\u{fe0f} \u{1f469}",
       ],
       ["a combining accent", "e\u{301}"],
+      [
+        "an emoji sequence, joined with a zero-width joiner",
+        "\u{1f469}\u{200d}\u{1f4bb} \u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}",
+      ],
+      [
+        "Persian, written with a zero-width non-joiner",
+        "\u{645}\u{6cc}\u{200c}\u{62e}\u{648}\u{627}\u{647}\u{645}",
+      ],
+      ["a zero-width joiner alone", "a\u{200d}b"],
+      ["a zero-width non-joiner alone", "a\u{200c}b"],
+      ["joiners at the ends of the words", "\u{200d}a\u{200c}"],
       ["nothing at all", ""],
     ])("accepts %s", (_name, text) => {
       const walkthrough = withPageText(valid(), 1, field, text);
@@ -1556,7 +1595,7 @@ describe("parseWalkthrough", () => {
     );
 
     expect(refusal(textOf(walkthrough))).toBe(
-      `${NOT_A_WALKTHROUGH}page 2's notes has a control or invisible character in it.`,
+      `${NOT_A_WALKTHROUGH}page 2's notes has a control character (U+0007) in it.`,
     );
   });
 
@@ -1738,8 +1777,14 @@ describe("parseWalkthrough", () => {
       const fine = withPageText(valid(), 1, field, words);
       expect(parseWalkthrough(textOf(fine), "w.json")).toStrictEqual(fine);
 
-      for (const text of [`${words}\u{200b}`, `\u{2028}${words}`, `${words}\u{1b}${words}`]) {
-        const reason = `page 2's ${field} has a control or invisible character in it.`;
+      for (const [text, found] of [
+        [`${words}\u{200b}`, "an invisible character (U+200B)"],
+        [`\u{2028}${words}`, "a line separator (U+2028)"],
+        [`${words}\u{1b}${words}`, "a control character (U+001B)"],
+        // Hundreds of thousands of joiners are no trouble either, and none is refused.
+        [`${"\u{200d}".repeat(400_000)}\u{202e}`, "an invisible character (U+202E)"],
+      ] as const) {
+        const reason = `page 2's ${field} has ${found} in it.`;
         expect(refusal(textOf(withPageText(valid(), 1, field, text)))).toBe(
           `${NOT_A_WALKTHROUGH}${reason}`,
         );
@@ -2613,11 +2658,11 @@ describe("walkthroughProblem", () => {
     expect(walkthrough.pages[0]?.label).toBe("Home\u{1b}]0;pwned\u{7}");
 
     expect(walkthroughProblem(walkthrough)).toBe(
-      "page 1's label has a control or invisible character in it.",
+      "page 1's label has a control character (U+001B) in it.",
     );
     // Its file, which no writer makes, is refused in the same words.
     expect(refusal(walkthroughJson(walkthrough))).toBe(
-      `${NOT_A_WALKTHROUGH}page 1's label has a control or invisible character in it.`,
+      `${NOT_A_WALKTHROUGH}page 1's label has a control character (U+001B) in it.`,
     );
   });
 
@@ -2627,28 +2672,28 @@ describe("walkthroughProblem", () => {
       (run) => {
         run.pages[0]!.template = "home\u{1b}[2J";
       },
-      "page 1's template has a control or invisible character in it.",
+      "page 1's template has a control character (U+001B) in it.",
     ],
     [
       "notes with a C1 control character",
       (run) => {
         run.pages[1]!.notes = "Check\u{9b}2J";
       },
-      "page 2's notes has a control or invisible character in it.",
+      "page 2's notes has a control character (U+009B) in it.",
     ],
     [
-      "a label with an emoji sequence, joined with a zero-width joiner",
+      "a label with a zero-width space in it",
       (run) => {
-        run.pages[0]!.label = "Home \u{1f469}\u{200d}\u{1f4bb}";
+        run.pages[0]!.label = "Home\u{200b}";
       },
-      "page 1's label has a control or invisible character in it.",
+      "page 1's label has an invisible character (U+200B) in it.",
     ],
     [
       "notes with a line separator",
       (run) => {
         run.pages[1]!.notes = "One.\u{2028}Two.";
       },
-      "page 2's notes has a control or invisible character in it.",
+      "page 2's notes has a line separator (U+2028) in it.",
     ],
     [
       "a page address with a user name and a password in it",
@@ -2700,9 +2745,13 @@ describe("walkthroughProblem", () => {
   it("gives null for a run whose words and ready selector the reader takes", () => {
     const run = shareRun({
       id: "2026-09-26_1405",
-      pages: [{ path: "/", label: "Home \u{1f469} caf\u{e9}" }, { path: "/about" }],
+      pages: [
+        { path: "/", label: "Home \u{1f469}\u{200d}\u{1f4bb} caf\u{e9}" },
+        { path: "/about" },
+      ],
     });
     run.pages[1]!.notes = "Line one.\r\nLine two.\n\tIndented.";
+    run.pages[1]!.template = "\u{645}\u{6cc}\u{200c}\u{62e}\u{648}\u{627}\u{647}\u{645}";
     run.settings.readiness = {
       readySelector: "#".padEnd(SELECTOR_LIMIT, "a"),
       settleMs: 500,
@@ -2918,5 +2967,57 @@ describe("a 400-page walkthrough", () => {
     // Far more than it takes; this is here to catch something that grows with the square of the
     // pages, not to time a runner.
     expect(elapsed).toBeLessThan(2000);
+  });
+});
+
+// The command that repeats a run from its walkthrough file is made in one place, so that the
+// terminal, the shareable page, and its Word copy say the same. A live repeat of a file whose site is
+// on this computer or its network is refused without --site (readRepeat), so the command carries it.
+describe("repeatCommand", () => {
+  it("is --walkthrough and the file, for a site people visit", () => {
+    expect(repeatCommand({ site: "https://dvfr.illinois.gov" }, "walkthrough.json")).toBe(
+      "npx @icjia/voicecap --walkthrough walkthrough.json",
+    );
+    expect(repeatCommand(walkthroughOf(sampleRun()), "w.json")).toBe(
+      "npx @icjia/voicecap --walkthrough w.json",
+    );
+  });
+
+  it.each([
+    ["http://127.0.0.1:4848", "http://127.0.0.1:4848"],
+    ["http://localhost:3000", "http://localhost:3000"],
+    // The brackets of an IPv6 address are a pattern to a shell, so the address is quoted.
+    ["http://[::1]:4747", "'http://[::1]:4747'"],
+    ["http://10.0.0.5:8080", "http://10.0.0.5:8080"],
+    ["http://intranet", "http://intranet"],
+  ])("names the site, as %s, after the file: a repeat of it is refused without", (site, shown) => {
+    expect(repeatCommand({ site }, "w.json")).toBe(
+      `npx @icjia/voicecap --walkthrough w.json --site ${shown}`,
+    );
+  });
+
+  it("names the site's origin, whatever the file's site was written with", () => {
+    expect(repeatCommand({ site: "HTTP://127.0.0.1:4747/some/path?x=1" }, "w.json")).toBe(
+      "npx @icjia/voicecap --walkthrough w.json --site http://127.0.0.1:4747",
+    );
+  });
+
+  it("goes by the walkthrough's own site, the address voicecap read", () => {
+    const local = walkthroughOf(
+      shareRun({ id: "2026-09-26_1405", site: "http://127.0.0.1:4848", pages: [{ path: "/" }] }),
+    );
+
+    expect(local.site).toBe("http://127.0.0.1:4848");
+    expect(repeatCommand(local, "w.json")).toBe(
+      "npx @icjia/voicecap --walkthrough w.json --site http://127.0.0.1:4848",
+    );
+  });
+
+  it("quotes a file name that needs it, and still names the site", () => {
+    const file = String.raw`C:\Users\jane\my walks\w.json`;
+
+    expect(repeatCommand({ site: "http://127.0.0.1:4848" }, file)).toBe(
+      `npx @icjia/voicecap --walkthrough '${file}' --site http://127.0.0.1:4848`,
+    );
   });
 });

@@ -24,6 +24,7 @@ import {
   sameOrigin,
   startsWithHost,
   withoutCredentials,
+  withoutUserInfo,
 } from "./url.js";
 
 /** A walkthrough file as a repeat reads it: read once, as bytes, then parsed. */
@@ -75,6 +76,9 @@ export interface ResolvedPages {
 
 /** How many examples to print per kind of skipped or invalid URL. */
 const EXAMPLES = 3;
+
+/** Why an entry that isn't a page address is recorded as invalid: what a person can fix. */
+const NOT_A_PAGE = "not an http(s) URL or a root-relative path";
 
 /**
  * Read a walkthrough file for a repeat. A UsageError refuses a file that's over
@@ -201,7 +205,8 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
     const file = recordedPath(cwd, absolute);
     pageSource = { kind: "pages", file, sha256: list.sha256 };
     entries = list.entries;
-    invalid.push(...list.invalid);
+    // What a row held is recorded without a name and password it began with (see withoutUserInfo).
+    invalid.push(...list.invalid.map((row) => ({ ...row, value: withoutUserInfo(row.value) })));
     source = baseDetails("pages", list.entries.length + list.invalid.length, list.warnings);
     source.file = file;
     source.sha256 = list.sha256;
@@ -245,10 +250,13 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
       continue;
     }
     if (!url) {
+      // A name and a password with no scheme (`staging:secret@host/a`) read as a scheme to the URL
+      // standard, so they weren't found above; they are left out of what is recorded, and said.
+      const recorded = withoutUserInfo(entry.value);
       invalid.push({
         line: entry.line,
-        value: entry.value,
-        reason: "not an http(s) URL or a root-relative path",
+        value: recorded,
+        reason: recorded === entry.value ? NOT_A_PAGE : CREDENTIALS_REASON,
       });
       continue;
     }
@@ -383,7 +391,11 @@ function resolvePageUrlOption(values: readonly string[], site: URL): string[] {
       throw new UsageError(PAGE_CREDENTIALS_REFUSAL);
     }
     const url = resolvePageUrl(value, site);
-    if (!url) throw new UsageError(`--page "${value}" isn't a page URL or a path like /faq/.`);
+    if (!url) {
+      throw new UsageError(
+        `--page "${withoutUserInfo(value)}" isn't a page URL or a path like /faq/.`,
+      );
+    }
     return url.href;
   });
 }
@@ -417,7 +429,7 @@ function parseSitemapUrl(input: string, site: URL | undefined): string {
     );
   }
   throw new UsageError(
-    `--sitemap must be a full URL such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on --site such as sitemap.xml (got "${input}").`,
+    `--sitemap must be a full URL such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on --site such as sitemap.xml (got "${withoutUserInfo(input)}").`,
   );
 }
 

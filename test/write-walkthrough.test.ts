@@ -145,15 +145,18 @@ async function refusal(writing: Promise<unknown>): Promise<string> {
   return (error as UsageError).message;
 }
 
-/** The two lines it says when it has written `file`, and nothing else. */
-const wrote = (runId: string, pages: string, file: string) => [
+/**
+ * The two lines it says when it has written `file`, and nothing else. `more` is what the command that
+ * repeats the run says after the file: the site, for a run read on this computer or its network.
+ */
+const wrote = (runId: string, pages: string, file: string, more: string[] = []) => [
   {
     level: "info",
     message: `Wrote the walkthrough of run ${runId} (${pages}) to ${file}.`,
   },
   {
     level: "info",
-    message: `To repeat the run: ${formatCommand(["--walkthrough", file])}`,
+    message: `To repeat the run: ${formatCommand(["--walkthrough", file, ...more])}`,
   },
 ];
 
@@ -348,7 +351,10 @@ describe("writeWalkthrough", () => {
     // 0.4.1 didn't record the readiness settings it waited with.
     expect(written.settings.readiness).toBeNull();
     expect(written.pages).toHaveLength(7);
-    expect(logger.entries).toEqual(wrote("2026-09-29_1402", "7 pages", file));
+    // The demo was read at an IP address, so a repeat of it needs --site: the command names it.
+    expect(logger.entries).toEqual(
+      wrote("2026-09-29_1402", "7 pages", file, ["--site", DEMO_SITE]),
+    );
   });
 
   // Ruling P17. A run of a copy of the site, whose folder is named for the copy's address, and the
@@ -385,7 +391,7 @@ describe("writeWalkthrough", () => {
     it("writes the copy's run from the copy's folder, though the live site's folder is named for the address", async () => {
       const { dir, copy } = await homeWithACopy();
       const file = path.join(dir, "walkthrough.json");
-      const { options } = writing(dir, file, { site: CANONICAL, run: copy.runId });
+      const { logger, options } = writing(dir, file, { site: CANONICAL, run: copy.runId });
 
       const result = await writeWalkthrough(options);
 
@@ -394,6 +400,9 @@ describe("writeWalkthrough", () => {
       expect(written.original).toMatchObject({ run: copy.runId, replayed: true });
       // It repeats where the run read: the copy.
       expect(written.site).toBe(REPLAY_SITE);
+      // And the command that repeats it names that address, never the canonical one --site was
+      // given: a repeat of a file read at an IP address is refused without the address it read.
+      expect(logger.entries).toEqual(wrote(copy.runId, "3 pages", file, ["--site", REPLAY_SITE]));
     });
 
     it("writes the live site's run from its own folder", async () => {

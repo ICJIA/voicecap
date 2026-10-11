@@ -178,6 +178,33 @@ describe("runWizard", () => {
     expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
   });
 
+  // The command init composes is the run's, so a website the run would refuse is asked for again, and
+  // an address with a user name or password in it is said not to take them.
+  it("asks again for a website with an empty part in its host, or with a user name and password", async () => {
+    const hint =
+      "Enter the site's address, such as dvfr.illinois.gov or https://dvfr.illinois.gov.";
+    const credentials = "Enter the address without a user name or password in it.";
+    const { result, screen } = await session([
+      "http://../",
+      "https://dvfr.illinois.gov.",
+      "https://jane:secret@dvfr.illinois.gov",
+      "dvfr.illinois.gov",
+      "",
+      "",
+      "",
+      "",
+    ]);
+
+    expect(screen).toContain(
+      `Website: http://../\n${hint}\n` +
+        `Website: https://dvfr.illinois.gov.\n${hint}\n` +
+        `Website: https://jane:secret@dvfr.illinois.gov\n${credentials}\n` +
+        "Website: dvfr.illinois.gov\n",
+    );
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
+    expect(result.command).not.toContain("secret");
+  });
+
   it("asks about a site that doesn't answer", async () => {
     const fetch = realSitesFetch({
       "https://i2i.illinois.gov/": () => new Response("Forbidden", { status: 403 }),
@@ -336,6 +363,49 @@ describe("runWizard", () => {
       "npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/faq/" +
         R,
     );
+  });
+
+  it("asks again for a page with a user name and password in its address, and a sitemap with one", async () => {
+    const credentials = "Enter the address without a user name or password in it.";
+    const page = await session([
+      "dvfr.illinois.gov",
+      "4",
+      "https://jane:secret@dvfr.illinois.gov/faq/",
+      "//jane:secret@dvfr.illinois.gov/faq/",
+      "/faq/",
+      "",
+      "",
+    ]);
+
+    expect(page.screen).toContain(
+      "Page (a full URL, or a path like /faq/) [https://dvfr.illinois.gov/]: https://jane:secret@dvfr.illinois.gov/faq/\n" +
+        `${credentials}\n` +
+        "Page (a full URL, or a path like /faq/) [https://dvfr.illinois.gov/]: //jane:secret@dvfr.illinois.gov/faq/\n" +
+        `${credentials}\n` +
+        "Page (a full URL, or a path like /faq/) [https://dvfr.illinois.gov/]: /faq/\n",
+    );
+    expect(page.result.command).toBe(
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/faq/" +
+        R,
+    );
+    expect(page.result.command).not.toContain("secret");
+
+    const sitemap = await session([
+      "dvfr.illinois.gov",
+      "2",
+      "https://jane:secret@dvfr.illinois.gov/sitemap.xml",
+      "sitemap.xml",
+      "",
+      "",
+      "",
+    ]);
+
+    expect(sitemap.screen).toContain(
+      "Sitemap (a full URL, or a name like sitemap.xml): https://jane:secret@dvfr.illinois.gov/sitemap.xml\n" +
+        `${credentials}\n` +
+        "Sitemap (a full URL, or a name like sitemap.xml): sitemap.xml\n",
+    );
+    expect(sitemap.result.command).toBe(DVFR_SITEMAP_COMMAND + R);
   });
 
   it("says what to change for cmd when the command has a value in single quotes", async () => {
