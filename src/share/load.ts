@@ -143,8 +143,9 @@ export interface ShareInput {
    */
   flagsAsRecorded: { run: string; slug: string }[];
   /**
-   * The ids of the run folders whose run.json is there but couldn't be read (damaged, or not
-   * JSON): no record says what they did, and the page lists them among the runs left out.
+   * The ids of the run folders whose run.json is there but couldn't be read (damaged, not JSON, or
+   * not the folder's own record: see runRecordProblem): no record says what they did, and the page
+   * lists them among the runs left out.
    */
   unreadableRuns: string[];
   /** config.report.siteName. */
@@ -549,8 +550,8 @@ function withFlagsFromTranscripts(
 
 /**
  * The run folders of a site whose run.json is there but wasn't read (listRuns leaves out one it
- * can't parse), by run id, oldest first. A folder with no run.json at all, as a manual session's,
- * isn't a run.
+ * can't parse, and one that isn't its folder's own), by run id, oldest first. A folder with no
+ * run.json at all, as a manual session's, isn't a run.
  */
 async function runsNotRead(siteDir: string, records: RunJson[]): Promise<string[]> {
   const read = new Set(records.map((run) => run.id));

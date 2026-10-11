@@ -1,7 +1,13 @@
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import type { RunJson, RunSettings } from "../src/model.js";
+import { runAudit } from "../src/run/audit.js";
 import { chooseRun, describeDifferences, settingsHash } from "../src/run/resume.js";
+import { options, outDir, setup, sitePages } from "./helpers/run-site.js";
+import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
 const settings: RunSettings = {
   site: "https://example.illinois.gov",
@@ -245,6 +251,50 @@ describe("a run that recorded the readiness settings", () => {
       resume: null,
       message:
         'Starting a new run. Not resuming old because its settings differ: readiness: {"readySelector":null,"settleMs":500,"networkIdleTimeoutMs":15000} → {"readySelector":null,"settleMs":2000,"networkIdleTimeoutMs":15000}.',
+    });
+  });
+});
+
+// A record in a home is read as found: it can say any id, and a run that resumes it writes where
+// its id points. So a run's record counts only when its id is its folder's.
+describe("a home with a record that names another folder", () => {
+  it("starts a new run, and writes nothing outside the site's folder", async () => {
+    const dir = await setup();
+    const first = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    expect(first.outcome).toBe("completed");
+
+    // An incomplete copy of that run, with its real settings, newer than any run, and an id that
+    // would take a resumed run out of the site's folder.
+    const site = outDir(dir);
+    const realFile = path.join(site, first.runId.slice(0, 10), first.runId.slice(11), "run.json");
+    const real = JSON.parse(await readFile(realFile, "utf8")) as RunJson;
+    const forged = {
+      ...real,
+      id: "../../escape",
+      status: "incomplete",
+      completedAt: null,
+      createdAt: "2099-01-01T09:00:00-05:00",
+      seal: undefined,
+    };
+    const folder = path.join(site, "2099-01-01", "0900");
+    await mkdir(folder, { recursive: true });
+    await writeFile(path.join(folder, "run.json"), `${JSON.stringify(forged, null, 2)}\n`);
+
+    const home = path.dirname(site);
+    const homeBefore = (await readdir(home)).sort();
+    const dirBefore = (await readdir(dir)).sort();
+
+    const second = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+
+    expect(second.outcome).toBe("completed");
+    expect(second.runId).not.toBe("../../escape");
+    expect(second.runId).toMatch(/^\d{4}-\d{2}-\d{2}_\d{4}(-\d+)?$/);
+    expect((await readdir(home)).sort()).toEqual(homeBefore);
+    expect((await readdir(dir)).sort()).toEqual(dirBefore);
+    // The forged record is left as it was found.
+    expect(JSON.parse(await readFile(path.join(folder, "run.json"), "utf8"))).toMatchObject({
+      id: "../../escape",
+      status: "incomplete",
     });
   });
 });

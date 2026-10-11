@@ -11,6 +11,7 @@ import {
   MAX_SELECTOR_LENGTH,
   MAX_WALKTHROUGH_BYTES,
   MAX_WALKTHROUGH_PAGES,
+  isRunId,
   parseWalkthrough,
   repeatCommand,
   walkthroughJson,
@@ -2342,6 +2343,8 @@ describe("parseWalkthrough", () => {
       ["a backslash", "..\\2026-09-26_1405"],
       ["a letter from another script", "2026-09-26_14\u{43e}5"],
       ["101 characters", "a".repeat(101)],
+      ["only a dot", "."],
+      ["only dots", ".."],
       ["nothing in it", ""],
       ["a number", 5],
       ["nothing at all", null],
@@ -3019,5 +3022,20 @@ describe("repeatCommand", () => {
     expect(repeatCommand({ site: "http://127.0.0.1:4848" }, file)).toBe(
       `npx @icjia/voicecap --walkthrough '${file}' --site http://127.0.0.1:4848`,
     );
+  });
+});
+
+// A run id names a folder (a path is built from it), so a value made only of dots is no id: `.` is
+// the folder it's in and `..` the one above.
+describe("isRunId", () => {
+  it("refuses a value made only of dots, and accepts a run id as voicecap makes one", () => {
+    for (const value of [".", "..", "...", "......"]) {
+      expect(isRunId(value), value).toBe(false);
+    }
+    expect(isRunId("2026-10-10_1405")).toBe(true);
+    expect(isRunId("2026-10-10_1405_run.2-3")).toBe(true);
+    // Dots among other characters are a name, as before.
+    expect(isRunId("a..b")).toBe(true);
+    expect(isRunId("..a")).toBe(true);
   });
 });

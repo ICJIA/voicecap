@@ -536,7 +536,7 @@ export const TECHNICAL_TEXT = {
         ],
         [
           { code: "voicecap verify" },
-          ` checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there. An incomplete run is listed, and its files aren't checked: they can change until it's sealed. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
+          ` checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there, and read only under the name voicecap gives it. An incomplete run is listed, and its files aren't checked: they can change until it's sealed. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
         ],
         [
           "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, axe results, run seals, and review chain the report carries. It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",

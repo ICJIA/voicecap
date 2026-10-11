@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { AXE_FILE, SCREENSHOT_FILE, VOICE_FILE, type FileHash, type ReviewsFile } from "./model.js";
@@ -79,6 +79,10 @@ const CHANGED = "changed since it was recorded (SHA-256 differs)";
 const MISSING = "missing";
 const UNRECORDED = "not recorded by the run";
 const UNREADABLE = "not a readable run or manual session";
+const NOT_ITS_NAME = "its raw copy has a name voicecap never writes, so it wasn't read";
+
+/** The names voicecap gives a manual session's raw copy (see ./manual/import.ts), under raw/. */
+const RAW_COPY_NAME = /^raw\/(?:nvda-log|speech-viewer)\.txt$/;
 
 /**
  * Check that the records voicecap wrote in the home still match their hashes and seals (the design
@@ -388,13 +392,14 @@ async function checkManualSession(
   if (problem !== null) site.problems.push(`${linkPath(home, txt)}: ${problem}`);
 
   const input = session.input;
-  if (
-    isRecord(input) &&
-    isFileHash(input) &&
-    isRecord(input.raw) &&
-    input.raw.kept === true &&
-    typeof input.raw.path === "string"
-  ) {
+  if (isRecord(input) && isFileHash(input) && isRecord(input.raw) && input.raw.kept === true) {
+    // The seal covers the name, but a record can be sealed again with any name, so it's read only
+    // under the names voicecap gives a raw copy: not a device such as CON, and not a path out of
+    // raw/. The name is the record's own words, so the line doesn't repeat it.
+    if (typeof input.raw.path !== "string" || !RAW_COPY_NAME.test(input.raw.path)) {
+      site.problems.push(`${linkPath(home, file)}: ${NOT_ITS_NAME}`);
+      return;
+    }
     const raw = path.join(dir, input.raw.path);
     // A missing raw copy isn't a problem: .gitignore keeps raw copies out of Git, so a clone of
     // the home never has them.
@@ -714,10 +719,18 @@ function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
-/** How a file differs from its record: MISSING, CHANGED, or null when it doesn't. */
+/**
+ * How a file differs from its record: MISSING, CHANGED, or null when it doesn't. What's there is
+ * looked at with `lstat` first, and a symbolic link or anything else that isn't a file is CHANGED,
+ * never read: voicecap writes files, and a link would give the bytes of whatever it points to,
+ * wherever that is. A folder where the file goes is no file there, as before: MISSING.
+ */
 async function difference(file: string, recorded: FileHash): Promise<string | null> {
   let bytes: Buffer;
   try {
+    const found = await lstat(file);
+    if (found.isDirectory()) return MISSING;
+    if (!found.isFile()) return CHANGED;
     bytes = await readFile(file);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;

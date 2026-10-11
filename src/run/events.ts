@@ -156,17 +156,21 @@ export function openEventLog(
       let reason: string | null = null;
       try {
         mkdirSync(path.dirname(copy), { recursive: true });
-        writeFileSync(copy, cleaned, { flush: true });
+        // Never over a file that's there: a copy is a new file, and the name is the session's own.
+        writeFileSync(copy, cleaned, { flag: "wx", flush: true });
         kept.push(name);
       } catch (error) {
         reason = reasonOf(error);
         // A write that failed partway (a disk that filled) may have left part of the copy. It isn't
         // one: no copy is kept, so none should be there for `voicecap verify` to call unrecorded. Not
-        // being able to take it away changes nothing, and the reason stays the write's.
-        try {
-          rmSync(copy, { force: true });
-        } catch {
-          // Left where it is.
+        // being able to take it away changes nothing, and the reason stays the write's. A name that
+        // was taken (EEXIST) wrote nothing: the file there is not this copy's, and stays as it is.
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+          try {
+            rmSync(copy, { force: true });
+          } catch {
+            // Left where it is.
+          }
         }
       }
       // After the copy, so the log never names a file that isn't there.

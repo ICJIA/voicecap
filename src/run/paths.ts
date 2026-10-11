@@ -43,6 +43,7 @@ import { EVENT_LOG } from "./events.js";
  *   <date>/<time>/attempts/<slug>/<n>/<pass>.{txt,json}     (an earlier attempt, kept, n = 1, 2, ...)
  *   <date>/<time>/compare/<base-id>/<slug>/<pass>.diff.txt   (diffs made when the run completed)
  *   <date>/<time>_manual_<slug>/session.{txt,json}  <date>/<time>_manual_<slug>/raw/<format>.txt
+ *                                       (and raw/.gitignore, `*`, beside a raw log that is kept)
  *   compare/<base-id>__<run-id>/<slug>/<pass>.diff.txt        (diffs made by `voicecap report`)
  *
  * voicecap 0.2.0's layout (<home>/runs/..., <home>/manual/...) is left where it is and never read.

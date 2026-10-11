@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -8,8 +8,11 @@ import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import type { PageSource, RunJson } from "../src/model.js";
 import { buildReportModel, generateReport, renderReport } from "../src/report/index.js";
+import { regenerateLiveFiles } from "../src/run/live-report.js";
 import { linkPath, liveCompareDir, runDir, runJsonPath, runReportPath } from "../src/run/paths.js";
 import { writeRunJson } from "../src/run/store.js";
+import { UsageError } from "../src/util/errors.js";
+import { createMemoryLogger } from "../src/util/log.js";
 import {
   LOGO,
   addManualSession,
@@ -582,5 +585,31 @@ describe("generateReport", () => {
     expect(html.split("<tr data-flagged=").length - 1).toBe(2000);
     expect(model.templates).toHaveLength(10);
     expect(elapsed).toBeLessThan(3000);
+  });
+});
+
+// latest.txt is a file in the home: whatever it says is a run id only if it has the shape of one.
+describe("regenerateLiveFiles, and what latest.txt says", () => {
+  it("refuses an id of another shape, without reading what it points to", async () => {
+    const root = await tempOutDir();
+    const outDir = path.join(root, "site");
+    // A run record where `../x` would reach from the site's folder, naming that same id.
+    await mkdir(path.join(root, "x"), { recursive: true });
+    await writeFile(
+      path.join(root, "x", "run.json"),
+      `${JSON.stringify({ id: "../x", status: "completed", createdAt: "2026-09-26T14:05:00-05:00", pages: [] })}\n`,
+    );
+    await mkdir(outDir, { recursive: true });
+    await writeFile(path.join(outDir, "latest.txt"), "../x\n");
+
+    const error = await regenerateLiveFiles({
+      outDir,
+      config,
+      logger: createMemoryLogger(),
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(UsageError);
+    expect((error as Error).message).toBe(`"../x" isn't a run id, such as 2026-10-10_1405.`);
+    expect(existsSync(path.join(outDir, "report.html"))).toBe(false);
   });
 });

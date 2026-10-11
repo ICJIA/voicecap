@@ -695,7 +695,7 @@ describe("renderTechnical", () => {
     // What verify checks, and what it doesn't: a raw copy that isn't there, which a clone of the
     // home never has, and an incomplete run's files (src/verify.ts).
     expect(evidence).toContain(
-      "voicecap verify checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there. An incomplete run is listed, and its files aren't checked: they can change until it's sealed.",
+      "voicecap verify checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there, and read only under the name voicecap gives it. An incomplete run is listed, and its files aren't checked: they can change until it's sealed.",
     );
     for (const overstated of [
       "fingerprint of every file",

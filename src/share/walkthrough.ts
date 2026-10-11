@@ -158,6 +158,9 @@ const MAX_RUN_ID_LENGTH = 100;
 /** What a run id is made of, as run-id.ts makes one: letters, digits, ".", "_", and "-". */
 const RUN_ID_CHARACTERS = /^[A-Za-z0-9._-]+$/;
 
+/** A value of only dots, which names a folder (`.`, `..`) and so is never a run id. */
+const ONLY_DOTS = /^\.+$/;
+
 /** The number of the format `walkthroughOf` writes, and the only one `parseWalkthrough` reads. */
 const FORMAT_VERSION = 1;
 
@@ -693,11 +696,15 @@ const siteSchema = z.string().superRefine((site, ctx) => {
  * "_", and "-". An id is printed in a transcript's header, in messages, and in warnings, so a file
  * can't give one that breaks a header's lines or reaches the terminal. It's the one rule for a run
  * id: a walkthrough file's runs are read by it (see runId), and so is the run that a record of what
- * was shared names for a file.
+ * was shared names for a file. A value of only dots (`.`, `..`) is none: it names a folder, not a
+ * run, where an id is made into a path.
  */
 export function isRunId(value: unknown): value is string {
   return (
-    typeof value === "string" && value.length <= MAX_RUN_ID_LENGTH && RUN_ID_CHARACTERS.test(value)
+    typeof value === "string" &&
+    value.length <= MAX_RUN_ID_LENGTH &&
+    RUN_ID_CHARACTERS.test(value) &&
+    !ONLY_DOTS.test(value)
   );
 }
 

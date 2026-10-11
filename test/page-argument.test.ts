@@ -87,7 +87,7 @@ describe("resolvePageArgument: a site folder whose newest run records an address
     made.push(out);
     const folder = path.join(out, "recorded-folder");
     await mkdir(path.join(folder, "2026-09-29", "1402"), { recursive: true });
-    const run = { id: "2026-09-29_1402", createdAt: "2026-09-29T14:02:00-05:00", site };
+    const run = { id: "2026-09-29_1402", createdAt: "2026-09-29T14:02:00-05:00", site, pages: [] };
     await writeFile(path.join(folder, "2026-09-29", "1402", "run.json"), JSON.stringify(run));
     return folder;
   }

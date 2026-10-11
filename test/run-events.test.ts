@@ -1190,6 +1190,25 @@ describe("openEventLog", () => {
       expect(readFileSync(path.join(folder, "2-2.txt"), "utf8")).toBe("kept\n");
     });
 
+    it("is never written over a file that's there: none is kept, with why, and the old file stays", async () => {
+      const file = await logFile();
+      const folder = path.join(path.dirname(file), "nvda-log");
+      await mkdir(folder);
+      await writeFile(path.join(folder, "2-1.txt"), "already here\n");
+      const log = openEventLog(file, { now: () => NOW, logger: createMemoryLogger(), session: 2 });
+      expect(() => log.screenReaderLog("a copy\n")).not.toThrow();
+
+      expect(readFileSync(path.join(folder, "2-1.txt"), "utf8")).toBe("already here\n");
+      expect(log.copies()).toEqual([]);
+      const [event] = readEventLog(readFileSync(file, "utf8")).events;
+      expect(event).toMatchObject({ type: "screen-reader-log", file: null });
+      expect(whyNoCopy(event)).toMatch(/^EEXIST: /);
+      // The name is spent: the next copy is the session's next, as after any copy that wasn't kept.
+      log.screenReaderLog("the next\n");
+      expect(log.copies()).toEqual([copy(2)]);
+      expect(readdirSync(folder).sort()).toEqual(["2-1.txt", "2-2.txt"]);
+    });
+
     /**
      * A run's folder in a new home, with a file where its folder of copies goes, and the log of
      * that run: the copy can't be written.

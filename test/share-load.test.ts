@@ -6,7 +6,7 @@
  * encoder making the WebM Opus files. Nothing here plays a sound.
  */
 import type * as Fsp from "node:fs/promises";
-import { appendFile, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -367,5 +367,23 @@ describe("loadShareInput: each page's recording", () => {
     expect(
       (await loadShareInput({ siteDir, config: DEFAULT_CONFIG, voiceName: VOICE_PAGE })).voiceName,
     ).toBe(VOICE_PAGE);
+  });
+});
+
+describe("loadShareInput: a record that isn't its folder's", () => {
+  it("leaves the record out, and lists its folder among the runs that couldn't be read", async () => {
+    const dir = await newFolder();
+    const result = await runAudit(runOptions(dir, new ScriptedDriver(sitePages())));
+    expect(result.outcome).toBe("completed");
+    // A copy of the run that names another place for itself, newer than the run.
+    const folder = path.join(result.siteDir, "2099-01-01", "0900");
+    await mkdir(folder, { recursive: true });
+    const forged = { ...result.run, id: "../../escape", createdAt: "2099-01-01T09:00:00-05:00" };
+    await writeFile(path.join(folder, "run.json"), JSON.stringify(forged));
+
+    const input = await loadShareInput({ siteDir: result.siteDir, config: DEFAULT_CONFIG });
+
+    expect(input.records.map((record) => record.id)).toEqual([result.run.id]);
+    expect(input.unreadableRuns).toEqual(["2099-01-01_0900"]);
   });
 });

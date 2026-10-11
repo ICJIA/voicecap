@@ -8,6 +8,7 @@ import {
   readFile,
   rename,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -1033,6 +1034,44 @@ describe("verifyHome", () => {
     await rm(at(home, `${SESSION}/raw`), { recursive: true });
     expect((await verify(home)).lines).toEqual([MATCHES]);
   });
+
+  // The raw copy's name is in the sealed record, so a record can be resealed with any name. voicecap
+  // writes two (raw/nvda-log.txt, raw/speech-viewer.txt), and reads no other: a name such as CON
+  // is a device on Windows, and one with ".." reaches outside the session's folder.
+  it.each([
+    ["CON", "CON"],
+    ["a path outside the session's folder", "../../../x"],
+    ["a path that leaves raw/ again", "raw/nvda-log.txt/../../session.txt"],
+    ["a name voicecap doesn't give it", "raw/nvda-log.txt.bak"],
+    ["a path that isn't a name", 7],
+  ])("reports a raw copy named %s as a name voicecap never writes", async (_name, rawPath) => {
+    const home = await copyOfHome();
+    await editJson<ManualSessionJson>(at(home, `${SESSION}/session.json`), (session) => {
+      (session.input.raw as { path: unknown }).path = rawPath;
+      session.seal = sealOf(session);
+    });
+    expect((await verify(home)).lines).toEqual([
+      `${SESSION}/session.json: its raw copy has a name voicecap never writes, so it wasn't read`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
+  it.runIf(process.platform !== "win32")(
+    "reports a raw copy that is a symbolic link, without following it",
+    async () => {
+      const home = await copyOfHome();
+      const raw = at(home, `${SESSION}/raw/nvda-log.txt`);
+      // A link to a file with the bytes the session recorded, which a read through it would pass.
+      const target = at(home, "elsewhere.txt");
+      await cp(raw, target);
+      await rm(raw);
+      await symlink(target, raw);
+      expect((await verify(home)).lines).toEqual([
+        `${SESSION}/raw/nvda-log.txt: changed since it was recorded (SHA-256 differs)`,
+        `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+      ]);
+    },
+  );
 
   it("counts unsealed records as problems, and lists incomplete runs, which aren't", async () => {
     const home = await copyOfHome();

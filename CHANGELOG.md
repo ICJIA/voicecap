@@ -53,6 +53,12 @@ voicecap now records what NVDA said aloud on each page, sealed with the run, wit
   - A file's labels, templates, and notes may not hold control characters, invisible formatting characters, or line separators, and the refusal names the character by its code point (`U+200B`). The zero-width joiner and non-joiner are fine, since emoji sequences and Persian, Indic, and Arabic words are written with them.
   - A file's ready selector must be plain CSS: Playwright's own selectors (`text=`, `xpath=`, `>>`) aren't read from a file.
   - `voicecap verify` lists a record whose site no folder can be named for (only dots, a name Windows keeps for itself) as one it can't read, and checks the rest. `voicecap init` takes no website with an empty part in its host or a user name and password in its address, and no page or sitemap with a user name and password.
+- **Records name only their own folders.**
+  - A run's record whose id isn't its folder's, or whose page has a slug voicecap never makes, is left out: resume starts a new run, and `share` says the record couldn't be read.
+  - `report`, `review`, and `--compare` refuse a run id of any other shape.
+  - `verify` reads a manual session's raw copy only under the name voicecap gives it.
+  - A copy of NVDA's log never replaces a file.
+  - Each manual session that keeps a raw NVDA log writes a `.gitignore` of its own into `raw/`.
 
 ## [0.17.0] - 2026-10-10
 

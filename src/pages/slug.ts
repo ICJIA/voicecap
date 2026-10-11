@@ -26,6 +26,15 @@ export function pageSlug(canonicalUrl: string): string {
   return isWindowsReservedName(slug) ? `page-${slug}` : slug;
 }
 
+/**
+ * Whether `slug` is one pageSlug makes: 1 to 60 of a-z, 0-9 and "-" (it makes at most 56). A slug
+ * is a folder's name under a run's folder, and a record can say any text, so a record whose page has
+ * another is left out where records are read.
+ */
+export function isPageSlug(slug: unknown): boolean {
+  return typeof slug === "string" && /^[a-z0-9-]{1,60}$/.test(slug);
+}
+
 function readablePart(pathname: string): string {
   let decoded: string;
   try {
