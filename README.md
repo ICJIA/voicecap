@@ -192,7 +192,7 @@ The "Unlabeled graphic" in two of those lines is the one problem the report find
 - [Reviews: the audit trail](#reviews-the-audit-trail)
   - [Hearing pages again: voicecap review --replay](#hearing-pages-again-voicecap-review---replay)
 - [Manual NVDA sessions](#manual-nvda-sessions)
-  - [Security](#security)
+- [Security](#security)
 - [Verifying transcript fidelity](#verifying-transcript-fidelity)
 - [Reading the report](#reading-the-report)
 - [The shareable page](#the-shareable-page)
@@ -1498,7 +1498,7 @@ voicecap's own runs turn this log on for their NVDA too, and never keep the raw 
 
 </details>
 
-### Security
+## Security
 
 voicecap runs on your own computer, starts a real screen reader, and writes records that can end up on a public website, so it takes care over what it starts, what it prints, and what it keeps. This part sums up what voicecap guards against from 0.18.0, what stays with you, and how voicecap's own repository and package are set up. **To report a security problem, report it privately:** on the repository's page on GitHub, open the **Security** tab and choose **Report a vulnerability** (GitHub's private vulnerability reporting, on since 11 October 2026). Please don't report it in a public issue.
 
