@@ -28,26 +28,40 @@ const REMOTE_ACCESS_REFUSAL =
   "voicecap doesn't change NVDA's Remote Access settings (remote): Guidepup's own configuration sets them, and voicecap's connection to NVDA depends on them.";
 
 /**
- * Whether `name` is the section that holds NVDA's Remote Access settings, `remote`. It is compared
- * in any case, and with the spaces around it left off: Guidepup writes a section's name as it is
- * given, and the reader of NVDA's settings file may ignore spaces there.
+ * Whether `name` is the section that holds NVDA's Remote Access settings, `remote`, in any case. (A
+ * name with spaces around it is refused as a name, whatever it spells: see OUTSIDE_A_NAME.)
  */
 function isRemoteAccessSection(name: string): boolean {
-  return name.trim().toLowerCase() === "remote";
+  return name.toLowerCase() === "remote";
 }
 
 /**
- * What a config is told, after the place and the code point, when a name or a word of its
- * nvdaSettings holds a control character. Why: see firstControlCharacter.
+ * The characters a setting's name may not have: a name matches `^[A-Za-z0-9_.-]+$`, so this finds
+ * the first character of a name that is none of those. NVDA's and Guidepup's setting names are
+ * plain identifiers, and Guidepup writes each name into NVDA's settings file as it is, between
+ * brackets or before an equals sign. NVDA reads that file with ConfigObj, whose section pattern
+ * takes the quotation marks off a section's name and reads a number sign after the closing bracket
+ * as a comment. So the name "remote" (with its quotation marks) writes the line ["remote"], and
+ * `remote]#` writes [remote]#], and each would read as the Remote Access section. ConfigObj's ways
+ * with quotation marks, brackets, and number signs are more than a list of the characters that
+ * do this could promise to cover, so the characters a name may have are listed, and no others.
  */
-const CONTROL_CHARACTER_REASON =
-  "NVDA's settings are plain text: voicecap writes each name and word into NVDA's settings file as it is, so a control character or a line break could start a section of its own there, such as the one for NVDA's Remote Access settings (remote).";
+const OUTSIDE_A_NAME = /[^A-Za-z0-9_.-]/u;
 
 /**
  * A control character (Unicode's Cc: U+0000 to U+001F and U+007F to U+009F), or a line or paragraph
- * separator (U+2028, U+2029). No name or word of NVDA's settings needs one, and several end a line.
+ * separator (U+2028, U+2029). No word of NVDA's settings needs one, and several end a line there: a
+ * word such as "1\n[remote]\n" writes the line [remote], a section header.
  */
 const CONTROL_OR_SEPARATOR = /[\p{Cc}\u{2028}\u{2029}]/u;
+
+/** What a config is told, after the place and the code point, about a name it can't have. */
+const NAME_RULE =
+  "A name is letters, digits, underscores, dots, and hyphens: voicecap writes it into NVDA's settings file as it is, and anything else could write a section of its own there, such as the one for NVDA's Remote Access settings (remote).";
+
+/** What a config is told, after the place and the code point, about a word it can't have. */
+const WORDS_RULE =
+  "NVDA's settings are plain text: voicecap writes each word into NVDA's settings file as it is, so a control character or a line break could start a section of its own there, such as the one for NVDA's Remote Access settings (remote).";
 
 /** Where something is in nvdaSettings: its name, and the place of the section that holds it. */
 interface Place {
@@ -56,24 +70,21 @@ interface Place {
 }
 
 /**
- * The first control character or separator (see CONTROL_OR_SEPARATOR) in a name or a string of
- * `settings`, at any depth and in lists too: the names that lead to it, the last being the name or
- * the string that holds it, and its code point as Unicode writes it (`U+000A`). Null when there is
- * none. The shallowest comes first, and the first is all a refusal says: taking it out shows the
- * next.
- *
- * Guidepup writes each name and string of nvdaSettings into NVDA's settings file as it is, and a
- * line break ends a line there: a name such as "x]\n[remote" writes the line "[remote]", a section
- * header, so refusing the name `remote` alone would not keep a config out of NVDA's Remote Access
- * settings.
+ * What is wrong in a name or a string of `settings`, at any depth and in lists too, and where: the
+ * names that lead to it (the last being the name, or the name of the string, that is at fault) and
+ * what to tell the person. Null when nothing is wrong. A name is wrong if it is empty or holds a
+ * character outside A-Z, a-z, 0-9, "_", ".", and "-" (OUTSIDE_A_NAME), and a string is wrong if it
+ * holds a control character or a separator (CONTROL_OR_SEPARATOR). The shallowest comes first,
+ * and the first is all a refusal says: putting it right shows the next. A character is named by its
+ * code point as Unicode writes it (`U+005B`).
  *
  * It looks with a queue of what's left, never by calling itself: the settings may come from a file
  * built to be deep enough to overflow the call stack, or (in memory) to hold themselves, so each
  * object is looked at once.
  */
-function firstControlCharacter(
+function firstProblem(
   settings: Record<string, unknown>,
-): { names: string[]; code: string } | null {
+): { names: string[]; message: string } | null {
   const seen = new Set<object>([settings]);
   const queue: { table: Record<string, unknown>; place: Place | null }[] = [
     { table: settings, place: null },
@@ -81,44 +92,57 @@ function firstControlCharacter(
   // The queue grows as it's read: a loop over an array follows its length as it goes.
   for (const { table, place } of queue) {
     for (const [name, value] of Object.entries(table)) {
-      const held =
-        CONTROL_OR_SEPARATOR.exec(name) ??
-        (typeof value === "string" ? CONTROL_OR_SEPARATOR.exec(value) : null);
+      const here = { name, within: place };
+      if (name === "") {
+        return { names: namesOf(place), message: `has a setting with no name. ${NAME_RULE}` };
+      }
+      const outside = OUTSIDE_A_NAME.exec(name);
+      if (outside !== null) {
+        const code = codePointOf(outside[0]);
+        return {
+          names: namesOf(here),
+          message: `holds ${code}, which a setting's name can't have. ${NAME_RULE}`,
+        };
+      }
+      const held = typeof value === "string" ? CONTROL_OR_SEPARATOR.exec(value) : null;
       if (held !== null) {
-        const code = held[0].codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0");
-        return { names: namesOf({ name, within: place }), code: `U+${code}` };
+        const code = codePointOf(held[0]);
+        return {
+          names: namesOf(here),
+          message: `holds ${code}, which a setting's words can't have. ${WORDS_RULE}`,
+        };
       }
       if (typeof value === "object" && value !== null && !seen.has(value)) {
         seen.add(value);
-        queue.push({ table: value as Record<string, unknown>, place: { name, within: place } });
+        queue.push({ table: value as Record<string, unknown>, place: here });
       }
     }
   }
   return null;
 }
 
+/** `U+000A`: a character as Unicode writes it, in upper-case hex of four digits or more. */
+function codePointOf(character: string): string {
+  return `U+${character.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
 /** The names that lead to a place, outermost first. */
-function namesOf(place: Place): string[] {
+function namesOf(place: Place | null): string[] {
   const names: string[] = [];
-  for (let at: Place | null = place; at !== null; at = at.within) names.push(at.name);
+  for (let at = place; at !== null; at = at.within) names.push(at.name);
   return names.reverse();
 }
 
 /**
- * `name`, written to be shown in a message: every control character, invisible formatting
- * character, and separator is an escape such as \u{a}. inertText does that, but leaves a line feed
- * and a tab as they are, and a name that holds one is what the message points at.
+ * `name`, written to be shown in a path: every control character, invisible formatting character,
+ * and separator is an escape such as \u{a}. inertText does that, but leaves a line feed and a tab
+ * as they are, and a name that holds one is what the message points at. (A name that is only
+ * letters, digits, "_", ".", and "-" is shown as it is.)
  */
 function written(name: string): string {
   return inertText(
     name.replace(/[\r\n\t]/g, (character) => `\\u{${character.codePointAt(0)!.toString(16)}}`),
   );
-}
-
-/** What a config is told when a name or a string in its nvdaSettings holds a control character. */
-function controlCharacterRefusal(names: string[], code: string): string {
-  const place = ["nvdaSettings", ...names].map(written).join(".");
-  return `${place} holds ${code}. ${CONTROL_CHARACTER_REASON}`;
 }
 
 /**
@@ -141,9 +165,11 @@ export const configSchema = z.strictObject({
   /**
    * NVDA settings overrides, applied through Guidepup's start({ settings }) and recorded. They may
    * not set NVDA's Remote Access settings, a section named `remote` in any case: voicecap's
-   * connection to NVDA depends on them, and Guidepup's own configuration sets them. And no name or
-   * string in them, at any depth, may hold a control character or a line or paragraph separator,
-   * which could write a section of NVDA's settings file, that one included, past the check of names.
+   * connection to NVDA depends on them, and Guidepup's own configuration sets them. And a name in
+   * them, at any depth, is letters, digits, "_", ".", and "-", and no string in them holds a
+   * control character or a line or paragraph separator: Guidepup writes both into NVDA's settings
+   * file as they are, so anything else could write a section of its own there, that one included,
+   * past the check of the name `remote`.
    */
   nvdaSettings: z
     .record(z.string(), z.unknown())
@@ -152,9 +178,11 @@ export const configSchema = z.strictObject({
       message: REMOTE_ACCESS_REFUSAL,
     })
     .superRefine((settings, ctx) => {
-      const found = firstControlCharacter(settings);
-      if (found === null) return;
-      ctx.addIssue({ code: "custom", message: controlCharacterRefusal(found.names, found.code) });
+      const problem = firstProblem(settings);
+      if (problem === null) return;
+      // The path is for the person to read, so each name is written out: a name that holds a line
+      // break must not break the line, nor forge a line of its own.
+      ctx.addIssue({ code: "custom", path: problem.names.map(written), message: problem.message });
     }),
   readiness: z.strictObject({
     /** Wait for this selector after network idle (Nuxt sites keep rendering after load). */

@@ -351,7 +351,7 @@ describe("a config's nvdaSettings and NVDA's Remote Access settings", () => {
   const REASON =
     "voicecap doesn't change NVDA's Remote Access settings (remote): Guidepup's own configuration sets them, and voicecap's connection to NVDA depends on them.";
 
-  it.each(["remote", "Remote", "REMOTE", " remote "])(
+  it.each(["remote", "Remote", "REMOTE"])(
     "refuses a section named %j, with a reason that names nvdaSettings.remote",
     (key) => {
       const error = thrownBy(() =>
@@ -412,35 +412,99 @@ describe("a config's nvdaSettings and NVDA's Remote Access settings", () => {
   });
 });
 
-// Guidepup writes each name and string of nvdaSettings into NVDA's settings file as it is, and a line
-// break ends a line there: a name such as "x]\n[remote" writes the line "[remote]", a section header,
-// which the check of the names above would never see. So a name or a word of nvdaSettings, at any
-// depth, may not hold a control character or a line or paragraph separator, and no NVDA setting
-// needs one.
-describe("a config's nvdaSettings and control characters", () => {
-  const HOW =
-    "NVDA's settings are plain text: voicecap writes each name and word into NVDA's settings file as it is, so a control character or a line break could start a section of its own there, such as the one for NVDA's Remote Access settings (remote).";
+// Guidepup writes each name and string of nvdaSettings into NVDA's settings file as it is, and the
+// reader of that file takes quotation marks off a section's name, a number sign for a comment, and a
+// line break for the end of a line. So the name "remote", with its quotation marks, writes the
+// header ["remote"]; remote]# writes [remote]#]; and x]\n[remote writes the line [remote]: each
+// would read as the Remote Access section, which a check of the name `remote` alone never sees. So a
+// setting's name, at any depth, is letters, digits, "_", ".", and "-" and nothing else, and no
+// string, at any depth, holds a control character or a line or paragraph separator. No NVDA setting
+// needs more.
+describe("a config's nvdaSettings names and words", () => {
+  const NAME_RULE =
+    "A name is letters, digits, underscores, dots, and hyphens: voicecap writes it into NVDA's settings file as it is, and anything else could write a section of its own there, such as the one for NVDA's Remote Access settings (remote).";
+  const WORDS_RULE =
+    "NVDA's settings are plain text: voicecap writes each word into NVDA's settings file as it is, so a control character or a line break could start a section of its own there, such as the one for NVDA's Remote Access settings (remote).";
 
   /** What a config that fails for one place in its nvdaSettings is told. */
-  const told = (place: string, code: string, config = "The config"): string =>
-    `${config} is invalid:\n  - nvdaSettings: ${place} holds ${code}. ${HOW}`;
+  const told = (where: string, problem: string, config = "The config"): string =>
+    `${config} is invalid:\n  - ${where}: ${problem}`;
+  /** ... when the place is a name that holds a character a name can't have. */
+  const toldOfName = (where: string, code: string, config?: string): string =>
+    told(where, `holds ${code}, which a setting's name can't have. ${NAME_RULE}`, config);
+  /** ... when the place is a string that holds a control character or a separator. */
+  const toldOfWords = (where: string, code: string): string =>
+    told(where, `holds ${code}, which a setting's words can't have. ${WORDS_RULE}`);
 
-  it("refuses a name that would write a [remote] header, and says where and what", async () => {
+  it("refuses a name that would write a [remote] line, and says where and what", async () => {
     const nvdaSettings = { "x]\n[remote": { controlServer: { host: "x" } } };
 
     const error = thrownBy(() => resolveConfig({ nvdaSettings }));
 
     expect(error).toBeInstanceOf(ConfigError);
-    // The name is written out in the message, so its line break doesn't break the message's lines.
-    expect(error.message).toBe(told("nvdaSettings.x]\\u{a}[remote", "U+000A"));
+    // The first character a name can't have is the bracket. The name is written out in the path, so
+    // its line break doesn't break the message's lines.
+    expect(error.message).toBe(toldOfName("nvdaSettings.x]\\u{a}[remote", "U+005D"));
     expect(error.message.split("\n")).toHaveLength(2);
+    // Nor can a name forge a line of the message, such as another problem of the config.
+    const forged = thrownBy(() =>
+      resolveConfig({ nvdaSettings: { "a\n  - stepCaps.read: ok": 1 } }),
+    );
+    expect(forged.message.split("\n")).toHaveLength(2);
 
     // From a config file, the same, naming the file.
     const dir = await tmp();
     await writeFile(path.join(dir, "voicecap.config.json"), JSON.stringify({ nvdaSettings }));
     await expect(loadConfig({ cwd: dir, env: {} })).rejects.toMatchObject({
-      message: told("nvdaSettings.x]\\u{a}[remote", "U+000A", "The config in voicecap.config.json"),
+      message: toldOfName(
+        "nvdaSettings.x]\\u{a}[remote",
+        "U+005D",
+        "The config in voicecap.config.json",
+      ),
     });
+  });
+
+  // Each is one line, with no control character, and would read as the `remote` section.
+  it.each([
+    ['"remote"', "U+0022"],
+    ["remote]#", "U+005D"],
+    ["[remote]#", "U+005B"],
+  ])("refuses the name %s, naming its path and the code point", (name, code) => {
+    // As a section, and as a setting with a value, which Guidepup writes differently.
+    for (const value of [{ enabled: 1 }, 1]) {
+      const error = thrownBy(() => resolveConfig({ nvdaSettings: { [name]: value } }));
+
+      expect(error).toBeInstanceOf(ConfigError);
+      expect(error.message).toBe(toldOfName(`nvdaSettings.${name}`, code));
+    }
+  });
+
+  it.each(["x y", " remote ", "remote "])("refuses the name %j, which holds a space", (name) => {
+    const error = thrownBy(() => resolveConfig({ nvdaSettings: { speech: { [name]: 1 } } }));
+
+    expect(error.message).toBe(toldOfName(`nvdaSettings.speech.${name}`, "U+0020"));
+  });
+
+  it("refuses a name past ASCII, naming its code point whatever its length", () => {
+    const accented = thrownBy(() => resolveConfig({ nvdaSettings: { "caf\u{e9}": 1 } }));
+    const astral = thrownBy(() =>
+      resolveConfig({ nvdaSettings: { [`rate${String.fromCodePoint(0x1f600)}`]: 1 } }),
+    );
+
+    expect(accented.message).toBe(toldOfName("nvdaSettings.caf\u{e9}", "U+00E9"));
+    expect(astral.message).toBe(
+      toldOfName(`nvdaSettings.rate${String.fromCodePoint(0x1f600)}`, "U+1F600"),
+    );
+  });
+
+  it("refuses a setting with no name, at the top or inside a section", () => {
+    const top = thrownBy(() => resolveConfig({ nvdaSettings: { "": 1 } }));
+    const inside = thrownBy(() => resolveConfig({ nvdaSettings: { speech: { "": 1 } } }));
+
+    expect(top.message).toBe(told("nvdaSettings", `has a setting with no name. ${NAME_RULE}`));
+    expect(inside.message).toBe(
+      told("nvdaSettings.speech", `has a setting with no name. ${NAME_RULE}`),
+    );
   });
 
   it("refuses a string that holds a line break, in a section or in a list", () => {
@@ -451,8 +515,8 @@ describe("a config's nvdaSettings and control characters", () => {
       resolveConfig({ nvdaSettings: { general: { words: ["fine", "not\nfine"] } } }),
     );
 
-    expect(section.message).toBe(told("nvdaSettings.speech.note", "U+000A"));
-    expect(list.message).toBe(told("nvdaSettings.general.words.1", "U+000A"));
+    expect(section.message).toBe(toldOfWords("nvdaSettings.speech.note", "U+000A"));
+    expect(list.message).toBe(toldOfWords("nvdaSettings.general.words.1", "U+000A"));
   });
 
   const HELD: [string, number][] = [
@@ -479,21 +543,30 @@ describe("a config's nvdaSettings and control characters", () => {
       expect(error).toBeInstanceOf(ConfigError);
       // Written out as an escape, so the character reaches the message nowhere.
       expect(error.message).toBe(
-        told(`nvdaSettings.speech.oneCore.x\\u{${codePoint.toString(16)}}y`, code),
+        toldOfName(`nvdaSettings.speech.oneCore.x\\u{${codePoint.toString(16)}}y`, code),
       );
     },
   );
 
-  it("still loads the settings a person writes", () => {
+  it("still loads the names NVDA's settings use, and the words a person writes", () => {
     expect(resolveConfig({ nvdaSettings: { speech: { rate: 50 } } }).nvdaSettings).toEqual({
       speech: { rate: 50 },
     });
-    // Plain strings, whatever else they hold: spaces, brackets on one line, and letters past ASCII.
-    const nvdaSettings = {
-      general: { language: "en", loggingLevel: "OFF" },
-      braille: { tables: ["en-ueb-g1.ctb", "über – naïve"], note: "[remote] = 1" },
+    // A name is letters of either case, digits, "_", ".", and "-", at any depth.
+    const names = {
+      speech: { oneCore: { voice_name: "x", "pitch.offset": 1, "inflection-level": 2 } },
+      UIA: { enabled2: true, _private: 0, "9lives": 9 },
+      "speech.rate": 55,
+      "keyboard-typed": false,
     };
-    expect(resolveConfig({ nvdaSettings }).nvdaSettings).toEqual(nvdaSettings);
+    expect(resolveConfig({ nvdaSettings: names }).nvdaSettings).toEqual(names);
+    // Words are plain strings, whatever else they hold: spaces, brackets on one line, and quotation
+    // marks, and letters past ASCII.
+    const words = {
+      general: { language: "en", loggingLevel: "OFF" },
+      braille: { tables: ["en-ueb-g1.ctb", "über – naïve"], note: '[remote] = "1" # 2' },
+    };
+    expect(resolveConfig({ nvdaSettings: words }).nvdaSettings).toEqual(words);
   });
 
   it("looks at settings nested very deep, or holding themselves, without stopping", () => {
