@@ -120,11 +120,12 @@ const FACES = [
 ] as const;
 
 /**
- * The fonts' copyright and license, as the comment their rules begin with says it: IBM Plex's own
- * copyright, with its Reserved Font Name, and the license's name and address.
+ * The fonts' copyright and license, as the comment their rules begin with says it: each family's
+ * copyright line as the license file (fonts/OFL.txt) has it, with its year, and then the license's
+ * name and address.
  */
 const PLEX_LINE =
-  '/* IBM Plex: Copyright © 2017 IBM Corp. with Reserved Font Name "Plex". SIL Open Font License 1.1: https://openfontlicense.org */';
+  "/* IBM Plex Sans: Copyright 2019 IBM Corp. All rights reserved. IBM Plex Sans Condensed: Copyright 2019 IBM Corp. All rights reserved. IBM Plex Mono: Copyright 2017 IBM Corp. All rights reserved. SIL Open Font License 1.1: https://openfontlicense.org */";
 
 const LINK_FLAG: FlagResult = {
   rule: "generic-link-text",
@@ -1070,7 +1071,7 @@ describe("renderSharePage", () => {
     );
   });
 
-  it("carries the IBM Plex fonts' copyright and license line once, at the top of its style", () => {
+  it("carries the IBM Plex fonts' copyright lines and license once, at the top of its style", () => {
     for (const { name, html } of pages) {
       const style = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? "";
 
@@ -1223,13 +1224,36 @@ describe("fontFaceCss", () => {
     }
   });
 
-  it("begins with one comment that carries the IBM Plex copyright and license line", async () => {
+  it("begins with one comment that carries the IBM Plex copyright lines and license", async () => {
     const css = await fontFaceCss();
 
     expect(css.startsWith(`${PLEX_LINE}\n@font-face`)).toBe(true);
     expect(css.split(PLEX_LINE)).toHaveLength(2);
     // The comment can't end itself early, or the page's style, or open an HTML comment in it.
     expect(PLEX_LINE.slice(2, -2)).not.toMatch(/\*\/|<\/style|<!--/i);
+  });
+
+  it("gives each family's copyright line as the license file has it, in its words and with its year", async () => {
+    const licence = await readFile(path.join(FONTS, "OFL.txt"), "utf8");
+    // The file begins each family's notice with its name and package, and its copyright line next.
+    const lines = [
+      ...licence.matchAll(
+        /^(IBM Plex [^\n(]+) \(@fontsource\/[^)\n]+\):\n(Copyright \d{4} IBM Corp\. All rights reserved\.)/gm,
+      ),
+    ].map(([, family, copyright]) => ({ family, line: `${family}: ${copyright}` }));
+    const css = await fontFaceCss();
+    const comment = `/* ${lines.map(({ line }) => line).join(" ")} SIL Open Font License 1.1: https://openfontlicense.org */`;
+
+    // One for each family the page embeds, in the order the file gives them.
+    expect(lines.map(({ family }) => family)).toEqual([
+      ...new Set(FACES.map(([family]) => family)),
+    ]);
+    expect(css.startsWith(`${comment}\n@font-face`)).toBe(true);
+    expect(PLEX_LINE).toBe(comment);
+    // The file names no Reserved Font Name for the fonts (its text only defines the term), so the
+    // comment names none.
+    expect(licence).not.toMatch(/with Reserved Font Name/i);
+    expect(css).not.toMatch(/Reserved Font Name/i);
   });
 
   it("reads the files once", () => {

@@ -29,7 +29,7 @@
  * model supplies in the middle of voicecap's own sentences is escaped, and a plain web address in a
  * sentence of voicecap's own (the site's, a page's) is set in code, where it reads as it is. A run's
  * record may name the library that drives the screen reader; the page, its Word copy, and these
- * files name none, and say `AI_TEXT.driver` where a record does (`ownWords`, ../format.ts).
+ * files name none, and say `AI_TEXT.driver` where a record does (`ownWords`, ../text.ts).
  *
  * Deterministic: it reads the model and nothing else, so the same model gives the same bytes. The
  * file ends with one newline. Pure.
@@ -49,7 +49,7 @@ import {
   type AxeViewRule,
 } from "../axe-view.js";
 import type { DiffLine, OnlyInOnePage, PageChange } from "../changes.js";
-import { count, ownWords, pagePath, pageTitle } from "../format.js";
+import { count, pagePath, pageTitle } from "../format.js";
 import { firstSentenceBold, type Inline, type Line } from "../line.js";
 import type {
   AppendixFile,
@@ -72,6 +72,7 @@ import {
   DETAILS_TEXT,
   EVIDENCE_TEXT,
   GLANCE_TEXT,
+  ownWords,
   PAGES_TEXT,
   PASS_TITLE,
   PASS_WORDS,

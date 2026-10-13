@@ -4,7 +4,7 @@
  * each finding may relate to. It is drawn from the same model the page and its Word copy are drawn
  * from (`ShareModel`), with the page's own words wherever the page has words for a part, and the
  * steps of a transcript and the words of a record as the Markdown says them (`stepsOf`, ./shared.ts,
- * and `ownWords`, ../format.ts), so the two files can't say different things. It imports nothing of
+ * and `ownWords`, ../text.ts), so the two files can't say different things. It imports nothing of
  * the page's or the Word copy's own renderers.
  *
  * `AiReport` is the file's shape, and the keys of each object are in the order it declares them:
@@ -57,7 +57,7 @@ import {
   type AxeViewRule,
 } from "../axe-view.js";
 import type { DiffLine, PageChange } from "../changes.js";
-import { ownWords, pagePath } from "../format.js";
+import { pagePath } from "../format.js";
 import { lineText } from "../line.js";
 import type { NoLongerListed, PageCard, RunEvidence, ShareModel } from "../model.js";
 import type { Problem, ProblemKind } from "../problems.js";
@@ -68,6 +68,7 @@ import {
   APPENDIX_TEXT,
   CHANGES_TEXT,
   EVIDENCE_TEXT,
+  ownWords,
   PAGES_TEXT,
   PROBLEMS_TEXT,
   WORD_TEXT,

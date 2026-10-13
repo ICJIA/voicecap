@@ -35,7 +35,6 @@ import { resultOf, stepsOf } from "../src/share/ai/shared.js";
 import type { AttentionCard } from "../src/share/attention.js";
 import { attentionWords } from "../src/share/attention-words.js";
 import { axeCriteriaList } from "../src/share/axe-view.js";
-import { ownWords } from "../src/share/format.js";
 import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
 import {
@@ -43,6 +42,7 @@ import {
   APPENDIX_TEXT,
   CHANGES_TEXT,
   EVIDENCE_TEXT,
+  ownWords,
   PAGES_TEXT,
   WORD_TEXT,
 } from "../src/share/text.js";

@@ -27,7 +27,6 @@ import { MOST_ELEMENTS, renderAiMarkdown } from "../src/share/ai/markdown.js";
 import { stepsOf } from "../src/share/ai/shared.js";
 import type { AttentionCard } from "../src/share/attention.js";
 import { attentionWords } from "../src/share/attention-words.js";
-import { ownWords } from "../src/share/format.js";
 import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import * as text from "../src/share/text.js";
@@ -52,7 +51,7 @@ import {
   withoutTxt,
 } from "./helpers/share-model.js";
 
-const { AI_TEXT } = text;
+const { AI_TEXT, ownWords } = text;
 
 /** The i2i v3 run of 6 October 2026: its site's folder, read in place, never written to. */
 const I2I = fileURLToPath(new URL("../fixture/i2i-v3-run/v3--i2i.netlify.app", import.meta.url));

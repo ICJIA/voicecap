@@ -1,14 +1,12 @@
 /**
  * Dates, times, lists, numbers, sizes, and page names and addresses in the plain words the
- * shareable report uses, and a record's own words where it names the library that drives the
- * screen reader (`ownWords`).
+ * shareable report uses.
  *
  * The times are the local ISO times voicecap records ("2026-09-29T13:15:02-05:00", or to the
  * millisecond). Each is read from its own date and time fields, never through the machine's time
  * zone, so a page reads the same wherever it is built.
  */
 import { plural } from "../report/html.js";
-import { DRIVER_WORDS } from "./text.js";
 
 const MONTHS = [
   "January",
@@ -163,12 +161,3 @@ export function sizeWords(bytes: number): string {
 export function sizeLine(bytes: number): string {
   return `${sizeWords(bytes)} (${plural(bytes, "byte")})`;
 }
-
-/**
- * Words as a run's record has them, where the record may name the library that drives the screen
- * reader (a row of the test environment, an error it recorded, a stack, a tool that changed between
- * runs): the page, its Word copy, and the files for AI tools name no library, and say `DRIVER_WORDS`
- * where a record does. Only what voicecap and its runs wrote goes through it; what a website said,
- * in a transcript or a title, is never changed.
- */
-export const ownWords = (words: string): string => words.replace(/guidepup/gi, DRIVER_WORDS);

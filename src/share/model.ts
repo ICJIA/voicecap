@@ -60,7 +60,6 @@ import {
   dateRange,
   longDate,
   names,
-  ownWords,
   pageTitle,
   seconds,
   utcOffset,
@@ -80,7 +79,7 @@ import {
 } from "./run-evidence.js";
 import { runBefore, standingOf, type PageStanding, type Standing } from "./standing.js";
 import { summaryOf, type Summary } from "./summary.js";
-import { TIMELINE_TEXT } from "./text.js";
+import { ownWords, TIMELINE_TEXT } from "./text.js";
 import {
   attemptEvents,
   eventText,

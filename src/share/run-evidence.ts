@@ -26,14 +26,14 @@ import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
 import { formatCommand, urlArg } from "../util/command-line.js";
 import { fileNameOf } from "../util/file-name.js";
-import { clock, dateAndTime, names, ownWords, pagePath, type Shown } from "./format.js";
+import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
 import type { LogCheck } from "./log-check.js";
 import { nothingCheckedLine } from "./log-words.js";
 import { keepsEventLog, keepsNvdaLog } from "./problems.js";
 import { axeRecordOf, isFileHash, screenshotRecordOf, voiceRecordOf } from "./records.js";
 import { checkRunAgainstLog, type GestureOf, type NotChecked } from "./run-log-check.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
-import { EVIDENCE_TEXT, NVDA_LOG_TEXT, TIMELINE_TEXT } from "./text.js";
+import { EVIDENCE_TEXT, NVDA_LOG_TEXT, ownWords, TIMELINE_TEXT } from "./text.js";
 import {
   isEventTime,
   restartsOf,

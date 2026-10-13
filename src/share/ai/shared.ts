@@ -3,7 +3,7 @@
  * the steps of a transcript (`stepsOf`), a page's result as sentences (`resultOf`), and a phrase of
  * the page's as a sentence of its own (`asSentence`). The words of a record, where it names the
  * library that drives the screen reader, are said as the page and its Word copy say them
- * (`ownWords`, ../format.ts). Pure.
+ * (`ownWords`, ../text.ts). Pure.
  *
  * The steps are each step's number, the key pressed, and what NVDA said. The Markdown puts one on
  * each line of a transcript's block, and the JSON gives each as data. They are worked out from the
@@ -20,9 +20,8 @@
  * which is the one label taken twice. Words that begin like a label anywhere else are what NVDA
  * said, and are never cut.
  */
-import { ownWords } from "../format.js";
 import type { AppendixFile, PageCard } from "../model.js";
-import { AI_TEXT, HOW_TEXT } from "../text.js";
+import { AI_TEXT, HOW_TEXT, ownWords } from "../text.js";
 import { fromRun, sentence } from "../words.js";
 
 /** One step of a pass: its place in it, the key pressed, and what NVDA said, word for word. */
