@@ -28,9 +28,8 @@
  * backticks in it, so nothing in it can end the block or become a heading. What a person or the
  * model supplies in the middle of voicecap's own sentences is escaped, and a plain web address in a
  * sentence of voicecap's own (the site's, a page's) is set in code, where it reads as it is. A run's
- * record may name the library that drives the screen reader; these files name none, and say
- * `AI_TEXT.driver` where a record does (`ownWords`, ./shared.ts, which the steps of a transcript
- * come from too).
+ * record may name the library that drives the screen reader; the page, its Word copy, and these
+ * files name none, and say `AI_TEXT.driver` where a record does (`ownWords`, ../format.ts).
  *
  * Deterministic: it reads the model and nothing else, so the same model gives the same bytes. The
  * file ends with one newline. Pure.
@@ -50,7 +49,7 @@ import {
   type AxeViewRule,
 } from "../axe-view.js";
 import type { DiffLine, OnlyInOnePage, PageChange } from "../changes.js";
-import { count, pagePath, pageTitle } from "../format.js";
+import { count, ownWords, pagePath, pageTitle } from "../format.js";
 import { firstSentenceBold, type Inline, type Line } from "../line.js";
 import type {
   AppendixFile,
@@ -132,7 +131,7 @@ import {
   markdownSentence,
   markdownText,
 } from "./escape.js";
-import { asSentence, ownWords, resultOf, stepsOf } from "./shared.js";
+import { asSentence, resultOf, stepsOf } from "./shared.js";
 
 /**
  * A block of the file: one or more lines, with no blank line in it but a fence's own. The blocks are

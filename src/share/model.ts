@@ -60,6 +60,7 @@ import {
   dateRange,
   longDate,
   names,
+  ownWords,
   pageTitle,
   seconds,
   utcOffset,
@@ -287,8 +288,12 @@ export function buildShareModel(input: ShareInput): ShareModel {
   const before = latest && runBefore(standing.counted, latest);
   const compared =
     latest && before ? changesOf(before, latest, bodyOf(input.transcripts), nameOf) : null;
-  // What tools differ can name a setting's path, which can hold the home folder.
-  const changes = compared && { ...compared, tools: compared.tools.map(redact) };
+  // What tools differ can name a setting's path, which can hold the home folder, and the library
+  // that drives the screen reader, which the page names no more than its test environment does.
+  const changes = compared && {
+    ...compared,
+    tools: compared.tools.map((line) => ownWords(redact(line))),
+  };
   const pages = cardsOf({
     standing,
     review,
@@ -639,7 +644,7 @@ function coverageOf(
     limits: [
       ...toolsOf(latest),
       "Flags match NVDA's English phrasing, and the person reviewing decides what they mean.",
-      ...toolChanges(standing.drawnOn).map(redact),
+      ...toolChanges(standing.drawnOn).map((line) => ownWords(redact(line))),
     ],
   };
 }

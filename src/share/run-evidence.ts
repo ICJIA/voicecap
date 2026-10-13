@@ -26,7 +26,7 @@ import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
 import { formatCommand, urlArg } from "../util/command-line.js";
 import { fileNameOf } from "../util/file-name.js";
-import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
+import { clock, dateAndTime, names, ownWords, pagePath, type Shown } from "./format.js";
 import type { LogCheck } from "./log-check.js";
 import { nothingCheckedLine } from "./log-words.js";
 import { keepsEventLog, keepsNvdaLog } from "./problems.js";
@@ -641,7 +641,10 @@ function sourceShown(source: PageSource, shown: Shown): PageSource {
 /**
  * The test environment, from the run's latest session with one: who ran it, the computer, then the
  * screen reader, browser, driver, voicecap, and page source as a transcript's header lists them,
- * with the page source's addresses as the page shows them.
+ * with the page source's addresses as the page shows them. A row's value names no library that
+ * drives the screen reader (`ownWords`): where the record does, in the software, the driver, the
+ * line on NVDA's settings, and what changed during the run, the row says `DRIVER_WORDS`. The record
+ * keeps the name.
  */
 function environmentOf(
   run: RunJson,
@@ -677,7 +680,7 @@ function environmentOf(
       value: redact(`${describeChanges(first, last).join("; ")}.`),
     });
   }
-  return rows;
+  return rows.map((row) => ({ ...row, value: ownWords(row.value) }));
 }
 
 /** Said of a part of the computer the system wouldn't report. */

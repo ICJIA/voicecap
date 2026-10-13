@@ -703,6 +703,14 @@ const REPEAT_EXACTLY =
   "To repeat this run exactly, with the same pages in the same order and the same passes and limits, ";
 
 /**
+ * What the page, its Word copy, and the files for AI tools say where a run's record names the
+ * library that drives the screen reader (the software, the driver, and the line on NVDA's
+ * settings): they name no library, and this stands in its place (`ownWords`, ./format.ts). A run's
+ * record keeps the name as the run wrote it; only what the copies show says this.
+ */
+export const DRIVER_WORDS = "the screen reader driver";
+
+/**
  * "The evidence behind these results": its heading, that the runs read a copy of the site, what a
  * fingerprint is, what the check proves, what a run's line says it is, the titles of a run's parts,
  * the heads of its tables, a run's walkthrough file, and the runs left out.
@@ -1787,9 +1795,10 @@ export const AI_TEXT = {
   setupKeys: { "to bottom": "Ctrl+End", "to top": "Ctrl+Home" } as Readonly<Record<string, string>>,
   /**
    * What the files say where a record names the library that drives the screen reader: they name
-   * no library, and this stands in its place.
+   * no library, and this stands in its place, as it does on the page and in its Word copy
+   * (`DRIVER_WORDS`).
    */
-  driver: "the screen reader driver",
+  driver: DRIVER_WORDS,
   /**
    * The sentence the JSON file adds to the note (`about`), after the sentences both files carry:
    * what the WCAG criteria in its `wcag` lists are, and that whether a finding relates to any of

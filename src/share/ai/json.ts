@@ -3,9 +3,9 @@
  * tool: the same report as the Markdown beside it (./markdown.ts), as data, with the WCAG criteria
  * each finding may relate to. It is drawn from the same model the page and its Word copy are drawn
  * from (`ShareModel`), with the page's own words wherever the page has words for a part, and the
- * steps of a transcript and the words of a record as the Markdown says them (`stepsOf` and
- * `ownWords`, ./shared.ts), so the two files can't say different things. It imports nothing of the
- * page's or the Word copy's own renderers.
+ * steps of a transcript and the words of a record as the Markdown says them (`stepsOf`, ./shared.ts,
+ * and `ownWords`, ../format.ts), so the two files can't say different things. It imports nothing of
+ * the page's or the Word copy's own renderers.
  *
  * `AiReport` is the file's shape, and the keys of each object are in the order it declares them:
  * the file is `JSON.stringify` of plain data built in that order, with a 2-space indent and one
@@ -57,7 +57,7 @@ import {
   type AxeViewRule,
 } from "../axe-view.js";
 import type { DiffLine, PageChange } from "../changes.js";
-import { pagePath } from "../format.js";
+import { ownWords, pagePath } from "../format.js";
 import { lineText } from "../line.js";
 import type { NoLongerListed, PageCard, RunEvidence, ShareModel } from "../model.js";
 import type { Problem, ProblemKind } from "../problems.js";
@@ -86,7 +86,7 @@ import {
   readCopyNote,
   sentence,
 } from "../words.js";
-import { asSentence, ownWords, resultOf, stepsOf, type Step } from "./shared.js";
+import { asSentence, resultOf, stepsOf, type Step } from "./shared.js";
 
 /**
  * A part a run didn't record, said as the page says it: "Not recorded: this run used voicecap

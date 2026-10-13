@@ -24,9 +24,10 @@ import {
   markdownText,
 } from "../src/share/ai/escape.js";
 import { MOST_ELEMENTS, renderAiMarkdown } from "../src/share/ai/markdown.js";
-import { ownWords, stepsOf } from "../src/share/ai/shared.js";
+import { stepsOf } from "../src/share/ai/shared.js";
 import type { AttentionCard } from "../src/share/attention.js";
 import { attentionWords } from "../src/share/attention-words.js";
+import { ownWords } from "../src/share/format.js";
 import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import * as text from "../src/share/text.js";

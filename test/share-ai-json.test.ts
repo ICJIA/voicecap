@@ -31,10 +31,11 @@ import {
 import { aiReportOf, renderAiJson, type AiReport } from "../src/share/ai/json.js";
 import { markdownInline, markdownText } from "../src/share/ai/escape.js";
 import { renderAiMarkdown } from "../src/share/ai/markdown.js";
-import { ownWords, resultOf, stepsOf } from "../src/share/ai/shared.js";
+import { resultOf, stepsOf } from "../src/share/ai/shared.js";
 import type { AttentionCard } from "../src/share/attention.js";
 import { attentionWords } from "../src/share/attention-words.js";
 import { axeCriteriaList } from "../src/share/axe-view.js";
+import { ownWords } from "../src/share/format.js";
 import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
 import {

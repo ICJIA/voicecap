@@ -1172,6 +1172,45 @@ describe("buildShareModel", () => {
     );
   });
 
+  it("names no library that drives the screen reader in the changes of tools, only the driver", () => {
+    const driver = (version: string): Partial<EnvironmentRecord> => ({
+      driver: { name: "guidepup", version },
+    });
+    const earlier = shareRun({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      sessions: [{ environment: driver("0.34.0") }],
+      pages: [{ path: "/" }],
+    });
+    const latest = shareRun({
+      id: "r2",
+      sessions: [{ environment: driver("0.35.0") }],
+      pages: [{ path: "/" }],
+    });
+    const change =
+      "Driver differs: the screen reader driver 0.34.0 → the screen reader driver 0.35.0";
+    const model = buildShareModel(inputOf([earlier, latest]));
+
+    // What changed since the last run, and the results' technical limits.
+    expect(model.changes?.tools).toEqual([`${change} (run r1 → run r2).`]);
+    expect(model.coverage.limits).toContain(`${change} (run r1 → run r2).`);
+
+    // A run resumed with another driver says so too.
+    const resumed = shareRun({
+      id: "r3",
+      sessions: [{ environment: driver("0.34.0") }, { environment: driver("0.35.0") }],
+      pages: [{ path: "/" }],
+    });
+    expect(buildShareModel(inputOf([resumed])).coverage.limits).toContain(
+      `${change} (during run r3).`,
+    );
+    // The records keep the library's name.
+    expect(model.evidence.map(({ run }) => run.sessions[0]?.environment?.driver.name)).toEqual([
+      "guidepup",
+      "guidepup",
+    ]);
+  });
+
   it("lists every run it left out, with what each did", async () => {
     expect((await demoModel()).leftOut).toEqual([
       { id: "2026-09-29_1415", text: "2026-09-29_1415: interrupted after 1 of 7 pages" },
@@ -2260,7 +2299,8 @@ describe("buildShareModel", () => {
       "Browser window": "1280 × 960",
       "Time zone": "America/Chicago (UTC-05:00 as the session started)",
       "Display language": "en-US",
-      Software: "Node.js 24.19.0, voicecap 0.6.0, Guidepup 0.34.0, Playwright 1.63.0",
+      Software:
+        "Node.js 24.19.0, voicecap 0.6.0, the screen reader driver 0.34.0, Playwright 1.63.0",
     });
     expect(rows.get("Screen reader")).toBe("NVDA 2026.2 (build 0.2.1-2026.2, language en)");
     expect(evidence?.fingerprints).toEqual([

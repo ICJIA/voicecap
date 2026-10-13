@@ -55,10 +55,11 @@ import {
 } from "../src/share/words.js";
 import { heading, mono, monoCell, para, wordsOf, type Block } from "../src/share/word/blocks.js";
 import { wordCoverage, wordEvidence, wordFooter, wordStory } from "../src/share/word/evidence.js";
-import { keptWithNext, unzipDocx } from "./helpers/docx.js";
+import { keptWithNext, paragraphsOf, tablesOf, unzipDocx } from "./helpers/docx.js";
 import { TINY_RECORD } from "./helpers/jpeg.js";
 import { FIRST_COPY, keptLogsRun, nvdaFixtureSite } from "./helpers/nvda-log.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
+import { driverNamedModel } from "./helpers/share-driver.js";
 import { foldsIn, rowsOf, termsOf, textOf } from "./helpers/share-html.js";
 import {
   AXE_RAN_AT,
@@ -967,6 +968,56 @@ describe("wordEvidence", () => {
       expect(wordsOf([tableAt(earlier ?? [], 2)])).toContain(
         `/a/ | read.txt | 1 byte | ${"0".repeat(64)}`,
       );
+    });
+  });
+
+  describe("a run whose record names the library that drives the screen reader", () => {
+    /** The rows of the run's test environment, as its table has them. */
+    function environmentRows(resumed = false): string[] {
+      const [part] = runParts(driverNamedModel(resumed));
+      return wordsOf([tableAt(part ?? [], 1)]);
+    }
+
+    it("says 'the screen reader driver' in the software, driver, and settings rows of its test environment", () => {
+      const rows = environmentRows();
+
+      expect(rows).toContain("Driver | the screen reader driver 0.34.0 (capture: complete)");
+      expect(rows).toContain(
+        "Software | Node.js 24.19.0, voicecap 0.6.0, the screen reader driver 0.34.0, Playwright 1.63.0",
+      );
+      expect(rows).toContain(
+        `NVDA recorded | "only settings that differ from NVDA 2026.2's defaults (the screen reader driver's configuration plus voicecap's nvdaSettings)"`,
+      );
+      expect(rows.join("\n")).not.toMatch(/guidepup/i);
+    });
+
+    it("says it where the tools changed during the run too: in its row, and in the technical limits", () => {
+      const rows = environmentRows(true);
+      const change =
+        "Driver differs: the screen reader driver 0.34.0 → the screen reader driver 0.35.0";
+
+      expect(rows).toContain(`Changed during the run | ${change}.`);
+      expect(rows).toContain("Driver | the screen reader driver 0.35.0 (capture: complete)");
+      expect(rows.join("\n")).not.toMatch(/guidepup/i);
+      expect(wordsOf(wordCoverage(driverNamedModel(true)))).toContain(`${change} (during run r1).`);
+    });
+
+    it("names no library in any word of the document, in its paragraphs or its tables", async () => {
+      for (const resumed of [false, true]) {
+        const { document } = await unzipDocx(await renderWordCopy(driverNamedModel(resumed)));
+        const words = [
+          ...paragraphsOf(document).map(({ text }) => text),
+          ...tablesOf(document).flatMap(({ rows }) => rows.flat()),
+        ];
+
+        // The words are read from the tables too: the environment's cells are among them.
+        expect(words, `resumed: ${resumed}`).toContain(
+          resumed
+            ? "the screen reader driver 0.35.0 (capture: complete)"
+            : "the screen reader driver 0.34.0 (capture: complete)",
+        );
+        expect(words.join("\n"), `resumed: ${resumed}`).not.toMatch(/guidepup/i);
+      }
     });
   });
 
