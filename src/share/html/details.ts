@@ -17,13 +17,19 @@
  *
  * Where no run counts there is nothing to count, so the five parts that were the summary's panels
  * and bars, which are all counts, are left out, as the summary leaves them out.
+ *
+ * Under the line that says what is here, and before the parts, a report that has NVDA's voice says
+ * what it is, in a paragraph with no heading of its own: with a link to the voice page, or why there
+ * is none (`voiceDetails`). A report from before voicecap recorded NVDA's voice has none, and is
+ * as it was.
  */
 import { esc } from "../../report/html.js";
 import type { ShareModel } from "../model.js";
 import { DETAILS_TEXT } from "../text.js";
+import { voiceDetails } from "../words.js";
 import { renderChanges } from "./changes.js";
 import { renderCoverage, renderEvidence, renderStory } from "./evidence.js";
-import { demoted } from "./parts.js";
+import { demoted, lineHtml } from "./parts.js";
 import { renderProblems } from "./problems.js";
 import { completePart, renderHow, reviewPart, rulesPart, todoPart, whenHowPart } from "./top.js";
 
@@ -34,6 +40,7 @@ import { completePart, renderHow, reviewPart, rulesPart, todoPart, whenHowPart }
 export function renderDetails(model: ShareModel): string {
   const { summary } = model;
   const counted = model.header.tested !== null;
+  const voice = voiceDetails(model);
   const parts = [
     ...(counted ? [todoPart(summary), completePart(model), whenHowPart(summary)] : []),
     demoted(renderChanges(model)),
@@ -48,6 +55,7 @@ export function renderDetails(model: ShareModel): string {
     `<section id="details" aria-labelledby="details-h">`,
     `  <h2 id="details-h">${esc(DETAILS_TEXT.title)}</h2>`,
     `  <p class="gist">${esc(DETAILS_TEXT.gist)}</p>`,
+    ...(voice === null ? [] : [`  <p class="gist">${lineHtml(voice)}</p>`]),
     `  ${parts.join("\n  ")}`,
     `</section>`,
   ].join("\n");

@@ -9,7 +9,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ForegroundError, type EventRecorder } from "../src/drivers/types.js";
 import type { AttemptRecord, RunEvent } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
-import { copiesInFolder, EVENT_LOG, openEventLog, readEventLog } from "../src/run/events.js";
+import {
+  copiesInFolder,
+  EVENT_LOG,
+  openEventLog,
+  readEventLog,
+  type EventLog,
+} from "../src/run/events.js";
 import { eventLogFile, linkPath } from "../src/run/paths.js";
 import { listRuns, readRunJson, writeRunJson } from "../src/run/store.js";
 import { fileHash } from "../src/transcripts/write.js";
@@ -1184,24 +1190,70 @@ describe("openEventLog", () => {
       expect(readFileSync(path.join(folder, "2-2.txt"), "utf8")).toBe("kept\n");
     });
 
-    it("leaves the account's folder out of why it couldn't be written", async () => {
-      // The reason is kept in the log, which the transcripts' Git history keeps.
+    it("is never written over a file that's there: none is kept, with why, and the old file stays", async () => {
+      const file = await logFile();
+      const folder = path.join(path.dirname(file), "nvda-log");
+      await mkdir(folder);
+      await writeFile(path.join(folder, "2-1.txt"), "already here\n");
+      const log = openEventLog(file, { now: () => NOW, logger: createMemoryLogger(), session: 2 });
+      expect(() => log.screenReaderLog("a copy\n")).not.toThrow();
+
+      expect(readFileSync(path.join(folder, "2-1.txt"), "utf8")).toBe("already here\n");
+      expect(log.copies()).toEqual([]);
+      const [event] = readEventLog(readFileSync(file, "utf8")).events;
+      expect(event).toMatchObject({ type: "screen-reader-log", file: null });
+      expect(whyNoCopy(event)).toMatch(/^EEXIST: /);
+      // The name is spent: the next copy is the session's next, as after any copy that wasn't kept.
+      log.screenReaderLog("the next\n");
+      expect(log.copies()).toEqual([copy(2)]);
+      expect(readdirSync(folder).sort()).toEqual(["2-1.txt", "2-2.txt"]);
+    });
+
+    /**
+     * A run's folder in a new home, with a file where its folder of copies goes, and the log of
+     * that run: the copy can't be written.
+     */
+    async function blockedLog(): Promise<{ home: string; file: string; log: EventLog }> {
       const home = await mkdtemp(path.join(os.tmpdir(), "voicecap-events-home-"));
       const file = path.join(home, "run", EVENT_LOG);
       await mkdir(path.dirname(file));
       await writeFile(path.join(path.dirname(file), "nvda-log"), "in the way");
       const log = openEventLog(file, { now: () => NOW, logger: createMemoryLogger(), session: 1 });
+      return { home, file, log };
+    }
+
+    it("leaves the account's folder out of why it couldn't be written", async () => {
+      // The reason is kept in the log, which the transcripts' Git history keeps.
+      const { home, file, log } = await blockedLog();
+      // The home folder was made in the temp folder, to have a folder to write in. The computer's
+      // temp folder is another, as an account's is: a path in the home is then the home's.
+      const tmpdir = vi.spyOn(os, "tmpdir").mockReturnValue(path.join(os.tmpdir(), "elsewhere"));
       const homedir = vi.spyOn(os, "homedir").mockReturnValue(home);
       try {
         log.screenReaderLog("first\n");
       } finally {
         homedir.mockRestore();
+        tmpdir.mockRestore();
       }
       const [event] = readEventLog(readFileSync(file, "utf8")).events;
       const reason = whyNoCopy(event);
       expect(reason).not.toContain(home);
       expect(reason).toMatch(/^E[A-Z]+: .*'(%USERPROFILE%|~)[\\/]run[\\/]nvda-log'$/);
     });
+
+    // A path in the temp folder is named by its variable, in whichever spelling Windows gives it.
+    it.runIf(process.platform === "win32")(
+      "names the temp folder as %TEMP% in why it couldn't be written",
+      async () => {
+        const { home, file, log } = await blockedLog();
+        log.screenReaderLog("first\n");
+        const [event] = readEventLog(readFileSync(file, "utf8")).events;
+        const reason = whyNoCopy(event);
+        expect(reason).not.toContain(os.tmpdir());
+        expect(reason).toMatch(/^E[A-Z]+: .*'%TEMP%\\voicecap-events-home-[^\\]+\\run\\nvda-log'$/);
+        expect(reason).toContain(path.basename(home));
+      },
+    );
 
     it("writes nothing, and records nothing, after the log is closed", async () => {
       const file = await logFile();

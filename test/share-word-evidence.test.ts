@@ -55,10 +55,11 @@ import {
 } from "../src/share/words.js";
 import { heading, mono, monoCell, para, wordsOf, type Block } from "../src/share/word/blocks.js";
 import { wordCoverage, wordEvidence, wordFooter, wordStory } from "../src/share/word/evidence.js";
-import { keptWithNext, unzipDocx } from "./helpers/docx.js";
+import { keptWithNext, paragraphsOf, tablesOf, unzipDocx } from "./helpers/docx.js";
 import { TINY_RECORD } from "./helpers/jpeg.js";
 import { FIRST_COPY, keptLogsRun, nvdaFixtureSite } from "./helpers/nvda-log.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
+import { driverNamedModel } from "./helpers/share-driver.js";
 import { foldsIn, rowsOf, termsOf, textOf } from "./helpers/share-html.js";
 import {
   AXE_RAN_AT,
@@ -75,6 +76,7 @@ import {
   STEP_LIMIT_PROBLEM,
   storeOf,
   TRANSCRIPTS,
+  voiceRecord,
   withOwnFiles,
   withStepLimit,
 } from "./helpers/share-model.js";
@@ -650,6 +652,84 @@ describe("wordEvidence", () => {
       expect(files?.rows).toHaveLength(model.evidence[0]?.fingerprints.length ?? -1);
     });
 
+    it("lists voice.webm in the Word copy's fingerprints, after the page's axe.json", () => {
+      const axe = keptAxe({ passes: 3 });
+      const voice = voiceRecord(61.5);
+      const run = shareRun({
+        id: "r1",
+        voicecapVersion: "0.18.0",
+        pages: [
+          {
+            path: "/",
+            files: ["read.txt"],
+            screenshot: TINY_RECORD,
+            axe: axe.record,
+            voice,
+          },
+          {
+            path: "/b",
+            files: ["read.txt"],
+            voice: { error: "no program", recordedAt: voice.recordedAt },
+          },
+          { path: "/c", voice },
+        ],
+      });
+      const model = buildShareModel(inputOf([run]));
+      const part = partOf(runParts(model), 0);
+      const files = tablesIn(part).find((table) => table.head[0] === "Page");
+      const row = `${byteCount(voice.bytes)} | ${voice.sha256}`;
+      const axeRow = `${byteCount(axe.record.bytes)} | ${axe.record.sha256}`;
+
+      // After the page's transcripts, its screenshot, and its axe results, as the page lists them;
+      // a record of why there's none lists no file, as the others don't.
+      expect(files && wordsOf([files])).toEqual([
+        "Page | File | Size | SHA-256",
+        `/ | read.txt | ${byteCount(1)} | ${"0".repeat(64)}`,
+        `/ | screenshot.jpg | ${byteCount(TINY_RECORD.bytes)} | ${TINY_RECORD.sha256}`,
+        `/ | axe.json | ${axeRow}`,
+        `/ | voice.webm | ${row}`,
+        `/b | read.txt | ${byteCount(1)} | ${"0".repeat(64)}`,
+        `/c | voice.webm | ${row}`,
+      ]);
+      // The fingerprint is in the fixed-width font, as every one is, and the rest is not.
+      const voiceRows = files?.rows.filter((cells) => cellLines(cells[1]).includes("voice.webm"));
+      expect(voiceRows?.map((cells) => cells[3])).toEqual([
+        monoCell(voice.sha256),
+        monoCell(voice.sha256),
+      ]);
+      expect(voiceRows?.flatMap((cells) => cells.slice(0, 3).map((cell) => cell.mono))).toEqual(
+        Array.from({ length: 6 }, () => undefined),
+      );
+      // The model lists the same files, and the copy says no more and no less.
+      expect(model.evidence[0]?.fingerprints.filter(({ file }) => file === "voice.webm")).toEqual([
+        { page: "/", file: "voice.webm", bytes: voice.bytes, sha256: voice.sha256 },
+        { page: "/c", file: "voice.webm", bytes: voice.bytes, sha256: voice.sha256 },
+      ]);
+      expect(files?.rows).toHaveLength(model.evidence[0]?.fingerprints.length ?? -1);
+    });
+
+    it("lists no voice.webm for a record no voicecap writes, or for a run that recorded none", () => {
+      const odd = shareRun({
+        id: "r1",
+        voicecapVersion: "0.18.0",
+        pages: [
+          { path: "/", files: ["read.txt"], voice: null as never },
+          { path: "/b", files: ["read.txt"], voice: "voice.webm" as never },
+        ],
+      });
+      const plain = shareRun({ id: "r2", pages: [{ path: "/", files: ["read.txt"] }] });
+
+      for (const run of [odd, plain]) {
+        const model = buildShareModel(inputOf([run]));
+        const files = tablesIn(partOf(runParts(model), 0)).find(
+          (table) => table.head[0] === "Page",
+        );
+
+        expect(files && wordsOf([files]).join("\n")).not.toContain("voice.webm");
+        expect(model.evidence[0]?.fingerprints.map(({ file }) => file)).not.toContain("voice.webm");
+      }
+    });
+
     it("lists the run's own files first, its event log as the run's, as the page does", () => {
       const run = withOwnFiles(
         shareRun({ id: "r1", pages: [{ path: "/", files: ["read.txt"] }] }),
@@ -734,11 +814,30 @@ describe("wordEvidence", () => {
           "To repeat this run exactly, with the same pages in the same order and the same passes and limits, get its walkthrough file from the web page, or with:",
           `npx @icjia/voicecap walkthrough --site http://127.0.0.1:4848 --run ${id} 127.0.0.1_4848_${id}_walkthrough.json`,
           "then run:",
-          `npx @icjia/voicecap --walkthrough 127.0.0.1_4848_${id}_walkthrough.json`,
+          // The demo was read at an IP address, so a repeat of its file needs --site: the command names it.
+          `npx @icjia/voicecap --walkthrough 127.0.0.1_4848_${id}_walkthrough.json --site http://127.0.0.1:4848`,
           "A repeat reads the same pages the same way, but can't promise the same words: a changed site, or a newer screen reader or browser, changes what's said. After a repeat, voicecap says page by page whether each sounds the same.",
         ]);
         // The part comes after the fingerprints', and is the last of the run's.
         expect(part.at(-1), id).toEqual(para(EVIDENCE_TEXT.walkthrough.promise));
+      }
+    });
+
+    it("names the address the run read after --site, never the canonical address the page names the site by", async () => {
+      const [latest = "", earlier = ""] = runParts(await demoModel(DEMO_ROOT)).map(saysOf);
+
+      for (const [says, id] of [
+        [latest, "2026-09-29_1402"],
+        [earlier, "2026-09-29_1315"],
+      ] as const) {
+        const file = `voicecap.icjia.app_${id}_walkthrough.json`;
+        // Getting the file names the site as the page does, and repeating it the address that was read.
+        expect(says).toContain(
+          `npx @icjia/voicecap walkthrough --site ${DEMO_ROOT} --run ${id} ${file}`,
+        );
+        expect(says).toContain(
+          `npx @icjia/voicecap --walkthrough ${file} --site http://127.0.0.1:4848`,
+        );
       }
     });
 
@@ -869,6 +968,56 @@ describe("wordEvidence", () => {
       expect(wordsOf([tableAt(earlier ?? [], 2)])).toContain(
         `/a/ | read.txt | 1 byte | ${"0".repeat(64)}`,
       );
+    });
+  });
+
+  describe("a run whose record names the library that drives the screen reader", () => {
+    /** The rows of the run's test environment, as its table has them. */
+    function environmentRows(resumed = false): string[] {
+      const [part] = runParts(driverNamedModel(resumed));
+      return wordsOf([tableAt(part ?? [], 1)]);
+    }
+
+    it("says 'the screen reader driver' in the software, driver, and settings rows of its test environment", () => {
+      const rows = environmentRows();
+
+      expect(rows).toContain("Driver | the screen reader driver 0.34.0 (capture: complete)");
+      expect(rows).toContain(
+        "Software | Node.js 24.19.0, voicecap 0.6.0, the screen reader driver 0.34.0, Playwright 1.63.0",
+      );
+      expect(rows).toContain(
+        `NVDA recorded | "only settings that differ from NVDA 2026.2's defaults (the screen reader driver's configuration plus voicecap's nvdaSettings)"`,
+      );
+      expect(rows.join("\n")).not.toMatch(/guidepup/i);
+    });
+
+    it("says it where the tools changed during the run too: in its row, and in the technical limits", () => {
+      const rows = environmentRows(true);
+      const change =
+        "Driver differs: the screen reader driver 0.34.0 → the screen reader driver 0.35.0";
+
+      expect(rows).toContain(`Changed during the run | ${change}.`);
+      expect(rows).toContain("Driver | the screen reader driver 0.35.0 (capture: complete)");
+      expect(rows.join("\n")).not.toMatch(/guidepup/i);
+      expect(wordsOf(wordCoverage(driverNamedModel(true)))).toContain(`${change} (during run r1).`);
+    });
+
+    it("names no library in any word of the document, in its paragraphs or its tables", async () => {
+      for (const resumed of [false, true]) {
+        const { document } = await unzipDocx(await renderWordCopy(driverNamedModel(resumed)));
+        const words = [
+          ...paragraphsOf(document).map(({ text }) => text),
+          ...tablesOf(document).flatMap(({ rows }) => rows.flat()),
+        ];
+
+        // The words are read from the tables too: the environment's cells are among them.
+        expect(words, `resumed: ${resumed}`).toContain(
+          resumed
+            ? "the screen reader driver 0.35.0 (capture: complete)"
+            : "the screen reader driver 0.34.0 (capture: complete)",
+        );
+        expect(words.join("\n"), `resumed: ${resumed}`).not.toMatch(/guidepup/i);
+      }
     });
   });
 
@@ -1618,6 +1767,7 @@ describe("wordStory", () => {
         ["9 October"],
         ["9 October"],
         ["10 October"],
+        ["13 October"],
         ["Next"],
       ]);
       // Each day is what the page says: a date is read as the day it begins.
@@ -1649,7 +1799,7 @@ describe("wordStory", () => {
 
         expect(cellLines(rows[at]?.[0])).toEqual(["2 January 2027"]);
         expect(cellLines(rows[at]?.[1])).toEqual(["A line in the next year."]);
-        expect(cellLines(rows[at - 1]?.[0])).toEqual(["10 October"]);
+        expect(cellLines(rows[at - 1]?.[0])).toEqual(["13 October"]);
         expect(cellLines(rows.at(-1)?.[0])).toEqual(["Next"]);
       } finally {
         TIMELINE.splice(at, 1);
@@ -1703,11 +1853,10 @@ describe("wordStory", () => {
       ]);
     });
 
-    it("says what isn't done yet as the others, a line for each track", async () => {
+    it("says what isn't done yet as the others, a line for the track that has words", async () => {
       const { rows } = tableAt(wordStory(await demoModel()), 0);
 
       expect(cellLines(rows.at(-1)?.[1])).toEqual([
-        "Windows PC, with NVDA: NVDA's voice: a recording of what NVDA said on each page, sealed with the run.",
         "Mac, with VoiceOver: Full runs with VoiceOver, with voicecap's VoiceOver driver.",
       ]);
     });

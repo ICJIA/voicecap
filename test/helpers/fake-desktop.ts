@@ -12,6 +12,22 @@ import { rawAxe } from "./raw-axe.js";
 /** For FakePage's axe: a check that never finishes. */
 export const AXE_HANGS = Symbol("axe never finishes");
 
+/**
+ * Something NVDA said aloud on the fake desktop, and when, on its time (FakeDesktop.clockMs): of
+ * the browser's page or window, of another window in front, or of the window behind the browser,
+ * which NVDA reads while a browser opens or is raised (FakeDesktop.behind).
+ */
+export interface FakeSound {
+  from: number;
+  to: number;
+  text: string;
+  by: "browser" | "other" | "behind";
+}
+
+/** How long NVDA takes to say anything on the fake desktop, and the quiet after it, in ms. */
+export const SPEECH_MS = 200;
+export const QUIET_MS = 100;
+
 /** Holds whoever waits on it until the test opens it: for work still in progress at a given moment. */
 export class Gate {
   /** How many callers have waited on the gate. */
@@ -53,6 +69,36 @@ export class FakeDesktop {
   otherTitle = "Inbox - Outlook";
   /** Whether asking the browser window to come forward works. */
   raiseWorks = true;
+  /**
+   * How many more times asking the browser window to come forward fails before it works again, as
+   * when Windows keeps another window in front for a moment (default: none).
+   */
+  raiseFailures = 0;
+  /**
+   * How many more NVDA+T presses read the browser's window title from before its page's title last
+   * changed, while the browser is in front: Windows can take a moment to give the window its page's
+   * new title (default: none).
+   */
+  oldTitleReads = 0;
+  /** What each NVDA+T said, in order: the title it read of the window in front. */
+  readonly titlesRead: string[] = [];
+  /**
+   * The desktop's own time, in ms since the epoch, which a test can give the driver as its clock
+   * (`now`). It moves on only as NVDA speaks (see say), so any moment the driver reads is one the
+   * desktop's sounds can be lined up with.
+   */
+  clockMs = Date.UTC(2026, 9, 11, 14, 0, 0);
+  /** The desktop's time as a clock, for a driver's `now`. */
+  readonly now = (): Date => new Date(this.clockMs);
+  /** Everything NVDA said aloud, in order, with when: what a recording of NVDA holds. */
+  readonly sounds: FakeSound[] = [];
+  /**
+   * The window behind voicecap's browser. While a browser opens, or is raised (which minimizes it
+   * for a moment), that window is in front, and NVDA reads its title and some of its text aloud, as
+   * it read Visual Studio Code's terminal in the r3 run of 2026-10-10. Null (the default): nothing
+   * is behind the browser that NVDA reads.
+   */
+  behind: { title: string; text: string } | null = null;
   /**
    * The other window closes when it gets Escape, as Windows Search and the Start menu do: the
    * browser, which was behind it, is in front again, and can be raised.
@@ -104,6 +150,8 @@ export class FakeDesktop {
    * whenever it starts, so a test sets the log of the NVDA session it's about to stop.
    */
   nvdaLog: string | Error | null = null;
+  /** Another program holds NVDA's log, so deleting it fails and the file stays as it is. */
+  nvdaLogHeld = false;
 
   /** The driver's ownNvda(): the person's own NVDA copies running now. */
   async findOwnNvda(): Promise<string[]> {
@@ -138,6 +186,34 @@ export class FakeDesktop {
       : Promise.resolve(this.nvdaLog);
   }
 
+  /** NVDA says `text` aloud from now: it takes SPEECH_MS, and QUIET_MS of quiet follow it. */
+  say(text: Speech, by: FakeSound["by"]): void {
+    if (text.trim() === "") return;
+    const from = this.clockMs;
+    this.clockMs += SPEECH_MS;
+    this.sounds.push({ from, to: this.clockMs, text, by });
+    this.clockMs += QUIET_MS;
+  }
+
+  /**
+   * A browser opens or is raised: the window behind it is in front for a moment, and NVDA reads it.
+   * Nothing is said when nothing is behind the browser (behind is null).
+   */
+  handOver(): void {
+    if (this.behind !== null)
+      this.say(`${this.behind.title}, window. ${this.behind.text}`, "behind");
+  }
+
+  /**
+   * The driver's removeNvdaLog(): NVDA's log is deleted, unless another program holds it
+   * (nvdaLogHeld), and then it stays. It never fails. Every call is in `events`.
+   */
+  removeNvdaLog(): Promise<void> {
+    this.events.push("nvda-log:remove");
+    if (!this.nvdaLogHeld) this.nvdaLog = null;
+    return Promise.resolve();
+  }
+
   /** Which window is in front. The browser's page sees every switch away as a focus loss. */
   get front(): "browser" | "other" {
     return this.frontWindow;
@@ -154,6 +230,22 @@ export class FakeDesktop {
     return this.front === "browser"
       ? `${this.frontBrowser?.title ?? ""} - Google Chrome`
       : this.otherTitle;
+  }
+
+  /**
+   * What NVDA+T says: the title of the window in front, or, while oldTitleReads lasts and the
+   * browser is in front, its window's title from before its page's title last changed.
+   */
+  reportTitle(): Speech {
+    const browser = this.frontBrowser;
+    let title = this.frontTitle;
+    if (this.front === "browser" && browser !== undefined && this.oldTitleReads > 0) {
+      this.oldTitleReads--;
+      title = `${browser.titleBefore} - Google Chrome`;
+    }
+    this.titlesRead.push(title);
+    this.say(title, this.front === "browser" ? "browser" : "other");
+    return title;
   }
 
   /**
@@ -209,12 +301,14 @@ export class FakeDesktop {
     this.beforeKey?.(key);
     if (this.front !== "browser") {
       this.strayKeys.push(key);
+      const reacts = `${this.otherTitle} reacts to ${key}`;
+      this.say(reacts, "other");
       if (key === "exitFocusMode" && this.otherClosesOnEscape) {
         this.events.push("other:closed");
         this.raiseWorks = true;
         this.front = "browser";
       }
-      return `${this.otherTitle} reacts to ${key}`;
+      return reacts;
     }
     this.events.push(`key:${key}`);
     const page = this.frontBrowser;
@@ -351,7 +445,10 @@ export class FakeNvda implements NvdaControl {
         this.silencing.add(command);
       });
     }
-    if (key === "reportTitle") return options.capture === false ? "" : this.desktop.frontTitle;
+    if (key === "reportTitle") {
+      const title = this.desktop.reportTitle();
+      return options.capture === false ? "" : title;
+    }
     const spoken = this.desktop.deliver(key);
     return options.capture === false ? "" : spoken;
   }
@@ -395,6 +492,8 @@ export class FakeSession implements BrowserSession {
   /** The browser's process id: each browser launched has its own, counting up from 6001. */
   readonly pid: number;
   title = "";
+  /** The page's title before it last changed (see FakeDesktop.oldTitleReads). */
+  titleBefore = "";
   /** The loaded page's canonical tag: null when it has none. */
   canonical: string | null = null;
   closed = false;
@@ -485,9 +584,11 @@ export class FakeSession implements BrowserSession {
 
   setTitle(title: string): Promise<() => Promise<void>> {
     const previous = this.title;
+    this.titleBefore = previous;
     this.title = title;
     this.desktop.events.push(`title:${title}`);
     return Promise.resolve(() => {
+      this.titleBefore = this.title;
       this.title = previous;
       this.desktop.events.push(`title:${previous}`);
       return Promise.resolve();
@@ -513,7 +614,11 @@ export class FakeSession implements BrowserSession {
 
   raise(): Promise<void> {
     this.desktop.events.push("raise");
-    if (this.desktop.raiseWorks) {
+    // Raising minimizes the window and restores it: meanwhile, the window behind it is in front.
+    this.desktop.handOver();
+    if (this.desktop.raiseFailures > 0) {
+      this.desktop.raiseFailures--;
+    } else if (this.desktop.raiseWorks) {
       this.desktop.front = "browser";
       this.activated = true;
     }
@@ -547,7 +652,7 @@ export class FakeSession implements BrowserSession {
     this.desktop.events.push("browser:kill");
   }
 
-  /** A key reaching the page. */
+  /** A key reaching the page: what NVDA says of it, aloud on the desktop. */
   receive(key: string): Speech {
     if (key === "tab") {
       this.tabs++;
@@ -557,6 +662,7 @@ export class FakeSession implements BrowserSession {
       }
     }
     this.lastSpoken = this.desktop.speech(key, this);
+    this.desktop.say(this.lastSpoken, this.desktop.front === "browser" ? "browser" : "other");
     return this.lastSpoken;
   }
 }

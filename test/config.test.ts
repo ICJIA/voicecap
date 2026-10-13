@@ -1,14 +1,52 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { defaultConfig, defineConfig, loadConfig, resolveConfig } from "../src/config/load.js";
+import { ConfigError } from "../src/util/errors.js";
 import { hashJson } from "../src/util/hash.js";
 
 const tmp = () => mkdtemp(path.join(os.tmpdir(), "voicecap-config-"));
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+/** The four names of a config written as code, which voicecap runs only when it's named. */
+const CODE_CONFIG_NAMES = [
+  "voicecap.config.ts",
+  "voicecap.config.mts",
+  "voicecap.config.js",
+  "voicecap.config.mjs",
+];
+
+/**
+ * A config written as code that writes a marker file when it runs, so that a test can tell a config
+ * that ran from one that was only found. `settings` is what it exports.
+ */
+function markedConfig(marker: string, settings: object = {}): string {
+  return `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(marker)}, "ran");\nexport default ${JSON.stringify(settings)};\n`;
+}
+
+/** What voicecap says to a person whose folder has a config written as code that no one named. */
+function codeConfigRefusal(name: string, folder: string): string {
+  return `${name} in ${folder} is code, and voicecap runs a config's code only when you name it: anyone who can add a file to this folder could have put it there. Write the same settings as voicecap.config.json, or set VOICECAP_CONFIG to the file's full path to run it.`;
+}
+
+/** The error `run` throws, or a failure of the test when it doesn't throw. */
+function thrownBy(run: () => unknown): Error {
+  try {
+    run();
+  } catch (error) {
+    if (error instanceof Error) return error;
+    throw error;
+  }
+  throw new Error("Expected the call to throw.");
+}
 
 describe("loadConfig", () => {
   it("uses the defaults when there's no config file", async () => {
@@ -23,6 +61,7 @@ describe("loadConfig", () => {
     expect(defaultConfig()).toEqual(await loadConfig({ cwd: await tmp() }));
   });
 
+  // A config written as code runs only when it's named, with VOICECAP_CONFIG.
   it.each([
     // TypeScript syntax, to prove the .ts config is transpiled.
     [
@@ -32,24 +71,229 @@ describe("loadConfig", () => {
     ["voicecap.config.mts", 'export default { reviewer: "TS Reviewer" };\n'],
     ["voicecap.config.js", 'export default { reviewer: "TS Reviewer" };\n'],
     ["voicecap.config.mjs", 'export default { reviewer: "TS Reviewer" };\n'],
-    ["voicecap.config.json", '\uFEFF{ "reviewer": "TS Reviewer" }\n'],
-  ])("loads %s", async (name, source) => {
+  ])("loads %s when VOICECAP_CONFIG names it", async (name, source) => {
     const dir = await tmp();
     await writeFile(path.join(dir, name), source);
-    const loaded = await loadConfig({ cwd: dir });
+    const loaded = await loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: path.join(dir, name) } });
     expect(loaded.file).toBe(path.join(dir, name));
+    expect(loaded.config.reviewer).toBe("TS Reviewer");
+    expect(loaded.config.passes).toEqual(DEFAULT_CONFIG.passes);
+  });
+
+  it("finds voicecap.config.json in the folder, as before", async () => {
+    const dir = await tmp();
+    await writeFile(
+      path.join(dir, "voicecap.config.json"),
+      '\u{FEFF}{ "reviewer": "TS Reviewer" }\n',
+    );
+    const loaded = await loadConfig({ cwd: dir, env: {} });
+    expect(loaded.file).toBe(path.join(dir, "voicecap.config.json"));
     expect(loaded.config.reviewer).toBe("TS Reviewer");
     expect(loaded.config.passes).toEqual(DEFAULT_CONFIG.passes);
   });
 
   it("lets a config import defineConfig from @icjia/voicecap with no node_modules (npx)", async () => {
     const dir = await tmp();
+    const file = path.join(dir, "voicecap.config.ts");
     await writeFile(
-      path.join(dir, "voicecap.config.ts"),
+      file,
       'import { defineConfig } from "@icjia/voicecap";\nexport default defineConfig({ reviewer: "Alias Test" });\n',
     );
-    const loaded = await loadConfig({ cwd: dir });
+    const loaded = await loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: file } });
     expect(loaded.config.reviewer).toBe("Alias Test");
+  });
+
+  describe("a config written as code that no one named", () => {
+    it.each(CODE_CONFIG_NAMES)(
+      "refuses %s, says to write JSON or to name it, and never runs it",
+      async (name) => {
+        const dir = await tmp();
+        const marker = path.join(dir, "ran.txt");
+        await writeFile(path.join(dir, name), markedConfig(marker, { reviewer: "Not Run" }));
+
+        const refused = expect(loadConfig({ cwd: dir, env: {} })).rejects;
+
+        await refused.toBeInstanceOf(ConfigError);
+        await refused.toMatchObject({ message: codeConfigRefusal(name, dir) });
+        await refused.toThrow(/VOICECAP_CONFIG/);
+        await refused.toThrow(/voicecap\.config\.json/);
+        expect(existsSync(marker)).toBe(false);
+      },
+    );
+
+    it("refuses one beside voicecap.config.json too, and never runs it", async () => {
+      const dir = await tmp();
+      const marker = path.join(dir, "ran.txt");
+      await writeFile(path.join(dir, "voicecap.config.json"), '{ "reviewer": "Json Reviewer" }');
+      await writeFile(path.join(dir, "voicecap.config.mjs"), markedConfig(marker));
+
+      await expect(loadConfig({ cwd: dir, env: {} })).rejects.toThrow(
+        codeConfigRefusal("voicecap.config.mjs", dir),
+      );
+      expect(existsSync(marker)).toBe(false);
+    });
+
+    it("names the first of two, and runs neither", async () => {
+      const dir = await tmp();
+      const markers = [path.join(dir, "ts.txt"), path.join(dir, "mjs.txt")];
+      await writeFile(path.join(dir, "voicecap.config.mjs"), markedConfig(markers[1]!));
+      await writeFile(path.join(dir, "voicecap.config.ts"), markedConfig(markers[0]!));
+
+      await expect(loadConfig({ cwd: dir, env: {} })).rejects.toThrow(
+        codeConfigRefusal("voicecap.config.ts", dir),
+      );
+      expect(markers.map((marker) => existsSync(marker))).toEqual([false, false]);
+    });
+
+    it("is refused when VOICECAP_CONFIG is blank, as when it's not set", async () => {
+      const dir = await tmp();
+      const marker = path.join(dir, "ran.txt");
+      await writeFile(path.join(dir, "voicecap.config.ts"), markedConfig(marker));
+
+      for (const blank of ["", "   ", "\t"]) {
+        await expect(loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: blank } })).rejects.toThrow(
+          codeConfigRefusal("voicecap.config.ts", dir),
+        );
+      }
+      expect(existsSync(marker)).toBe(false);
+    });
+
+    it("is run once it's named, which its marker shows", async () => {
+      const dir = await tmp();
+      const marker = path.join(dir, "ran.txt");
+      const file = path.join(dir, "voicecap.config.ts");
+      await writeFile(file, markedConfig(marker, { reviewer: "Named" }));
+
+      const loaded = await loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: file } });
+
+      expect(loaded.config.reviewer).toBe("Named");
+      expect(existsSync(marker)).toBe(true);
+    });
+  });
+
+  describe("the file VOICECAP_CONFIG names", () => {
+    it("is trimmed", async () => {
+      const dir = await tmp();
+      const file = path.join(dir, "mine.config.ts");
+      await writeFile(file, 'export default { reviewer: "Trimmed" };\n');
+
+      const loaded = await loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: `  ${file} \t` } });
+
+      expect(loaded.file).toBe(file);
+      expect(loaded.config.reviewer).toBe("Trimmed");
+    });
+
+    // Set once, in a profile, a relative path would name a file in whichever folder voicecap runs
+    // in, as a shared transcripts repository can be: so only a full path names a config.
+    it("is refused when it isn't a full path, and the file it would name is not run", async () => {
+      const dir = await tmp();
+      const marker = path.join(dir, "ran.txt");
+      await writeFile(path.join(dir, "mine.config.ts"), markedConfig(marker));
+      await mkdir(path.join(dir, "sub"));
+      await writeFile(path.join(dir, "sub", "mine.config.ts"), markedConfig(marker));
+
+      for (const relative of [
+        "mine.config.ts",
+        "./mine.config.ts",
+        "sub/mine.config.ts",
+        " mine.config.ts ",
+      ]) {
+        const refused = loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: relative } });
+        await expect(refused, relative).rejects.toThrow(ConfigError);
+        await expect(refused, relative).rejects.toThrow(
+          `VOICECAP_CONFIG must be a full path (it is "${relative.trim()}"), so that it names one file wherever voicecap runs.`,
+        );
+      }
+      expect(existsSync(marker)).toBe(false);
+    });
+
+    // Git Bash writes C:\Users\jane as /c/Users/jane, and voicecap reads that form on Windows.
+    it.skipIf(process.platform !== "win32")(
+      "takes Git Bash's way of writing a full path, on Windows",
+      async () => {
+        const dir = await tmp();
+        const file = path.join(dir, "bash.config.json");
+        await writeFile(file, '{ "reviewer": "Git Bash" }');
+        const bashForm = `/${dir[0]!.toLowerCase()}${dir.slice(2).replaceAll(path.win32.sep, "/")}/bash.config.json`;
+
+        const loaded = await loadConfig({ cwd: await tmp(), env: { VOICECAP_CONFIG: bashForm } });
+
+        expect(bashForm).toMatch(/^\/[a-z]\//);
+        expect(loaded.file).toBe(file);
+        expect(loaded.config.reviewer).toBe("Git Bash");
+      },
+    );
+
+    it("can be in another folder, and then the folder's own code config is not run", async () => {
+      const here = await tmp();
+      const elsewhere = await tmp();
+      const stray = path.join(here, "ran.txt");
+      await writeFile(path.join(here, "voicecap.config.ts"), markedConfig(stray));
+      await writeFile(
+        path.join(elsewhere, "voicecap.config.ts"),
+        'export default { reviewer: "Elsewhere" };\n',
+      );
+
+      const loaded = await loadConfig({
+        cwd: here,
+        env: { VOICECAP_CONFIG: path.join(elsewhere, "voicecap.config.ts") },
+      });
+
+      expect(loaded.file).toBe(path.join(elsewhere, "voicecap.config.ts"));
+      expect(loaded.config.reviewer).toBe("Elsewhere");
+      expect(existsSync(stray)).toBe(false);
+    });
+
+    it("is read in place of the folder's voicecap.config.json", async () => {
+      const dir = await tmp();
+      await writeFile(path.join(dir, "voicecap.config.json"), '{ "reviewer": "From Json" }');
+      await writeFile(path.join(dir, "named.json"), '{ "reviewer": "Named Json" }');
+
+      const loaded = await loadConfig({
+        cwd: dir,
+        env: { VOICECAP_CONFIG: path.join(dir, "named.json") },
+      });
+
+      expect(loaded.file).toBe(path.join(dir, "named.json"));
+      expect(loaded.config.reviewer).toBe("Named Json");
+    });
+
+    it("comes second: the file option beats it", async () => {
+      const dir = await tmp();
+      await writeFile(path.join(dir, "option.json"), '{ "reviewer": "Option" }');
+      await writeFile(path.join(dir, "env.json"), '{ "reviewer": "Env" }');
+
+      const loaded = await loadConfig({
+        cwd: dir,
+        file: "option.json",
+        env: { VOICECAP_CONFIG: path.join(dir, "env.json") },
+      });
+
+      expect(loaded.file).toBe(path.join(dir, "option.json"));
+      expect(loaded.config.reviewer).toBe("Option");
+    });
+
+    it("is reported when it names a file that isn't there", async () => {
+      const dir = await tmp();
+      const missing = path.join(dir, "nowhere.config.ts");
+
+      await expect(loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: missing } })).rejects.toThrow(
+        `Config file not found: ${missing}`,
+      );
+    });
+
+    it("is read from process.env when the caller gives no env", async () => {
+      const dir = await tmp();
+      // Not a name the folder is searched for, so only the variable can have named it.
+      const file = path.join(dir, "ambient.config.ts");
+      await writeFile(file, 'export default { reviewer: "Ambient" };\n');
+      vi.stubEnv("VOICECAP_CONFIG", file);
+
+      const loaded = await loadConfig({ cwd: dir });
+
+      expect(loaded.file).toBe(file);
+      expect(loaded.config.reviewer).toBe("Ambient");
+    });
   });
 
   it("merges nested settings over the defaults, replacing arrays", () => {
@@ -129,13 +373,6 @@ describe("loadConfig", () => {
     expect(() => resolveConfig({ stepcaps: { read: 5 } })).toThrow(/stepcaps|Unrecognized/);
   });
 
-  it("refuses to guess between two config files", async () => {
-    const dir = await tmp();
-    await writeFile(path.join(dir, "voicecap.config.json"), "{}");
-    await writeFile(path.join(dir, "voicecap.config.mjs"), "export default {};");
-    await expect(loadConfig({ cwd: dir })).rejects.toThrow(/more than one config file/);
-  });
-
   it("explains a config that fails to load", async () => {
     const dir = await tmp();
     await writeFile(path.join(dir, "voicecap.config.json"), "{ not json");
@@ -144,6 +381,241 @@ describe("loadConfig", () => {
 
   it("hashes the effective config, so any change is visible", () => {
     expect(defineConfig({ reviewer: "x" })).toEqual({ reviewer: "x" });
+  });
+});
+
+// NVDA's Remote Access service is what voicecap's connection to NVDA goes through, and its
+// settings are NVDA's `remote` section. A config may set the rest of NVDA's settings, not that one.
+describe("a config's nvdaSettings and NVDA's Remote Access settings", () => {
+  const REASON =
+    "voicecap doesn't change NVDA's Remote Access settings (remote): Guidepup's own configuration sets them, and voicecap's connection to NVDA depends on them.";
+
+  it.each(["remote", "Remote", "REMOTE"])(
+    "refuses a section named %j, with a reason that names nvdaSettings.remote",
+    (key) => {
+      const error = thrownBy(() =>
+        resolveConfig({ nvdaSettings: { [key]: { controlServer: { host: "x" } } } }),
+      );
+
+      expect(error).toBeInstanceOf(ConfigError);
+      // The reason names the setting as voicecap writes it, never the spelling the config had.
+      expect(error.message).toBe(`The config is invalid:\n  - nvdaSettings.remote: ${REASON}`);
+    },
+  );
+
+  it("gives the reason once, whatever the spellings, and keeps the other problems", () => {
+    const error = thrownBy(() =>
+      resolveConfig({ nvdaSettings: { remote: {}, Remote: {} }, stepCaps: { read: -1 } }),
+    );
+
+    expect(error.message.match(/nvdaSettings\.remote/g)).toHaveLength(1);
+    expect(error.message).toMatch(/- stepCaps\.read: /);
+  });
+
+  it("refuses it in a config file too, and names the file", async () => {
+    const dir = await tmp();
+    await writeFile(
+      path.join(dir, "voicecap.config.json"),
+      JSON.stringify({ nvdaSettings: { remote: { controlServer: { host: "x" } } } }),
+    );
+
+    await expect(loadConfig({ cwd: dir, env: {} })).rejects.toThrow(
+      `The config in voicecap.config.json is invalid:\n  - nvdaSettings.remote: ${REASON}`,
+    );
+  });
+
+  it("refuses it in a config written as code that is named", async () => {
+    const dir = await tmp();
+    const file = path.join(dir, "voicecap.config.ts");
+    await writeFile(file, "export default { nvdaSettings: { Remote: { enabled: false } } };\n");
+
+    await expect(loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: file } })).rejects.toThrow(
+      `The config in voicecap.config.ts is invalid:\n  - nvdaSettings.remote: ${REASON}`,
+    );
+  });
+
+  it("loads any other NVDA setting", () => {
+    const nvdaSettings = { speech: { rate: 50 }, general: { loggingLevel: "OFF" } };
+
+    expect(resolveConfig({ nvdaSettings }).nvdaSettings).toEqual(nvdaSettings);
+    expect(resolveConfig({ nvdaSettings: { speech: { rate: 50 } } }).nvdaSettings).toEqual({
+      speech: { rate: 50 },
+    });
+    expect(resolveConfig({}).nvdaSettings).toEqual({});
+  });
+
+  it("refuses a section named remote and no other: not one inside a section, nor one that only starts so", () => {
+    const nvdaSettings = { speech: { remote: true }, remoteness: { enabled: false } };
+
+    expect(resolveConfig({ nvdaSettings }).nvdaSettings).toEqual(nvdaSettings);
+  });
+});
+
+// Guidepup writes each name and string of nvdaSettings into NVDA's settings file as it is, and the
+// reader of that file takes quotation marks off a section's name, a number sign for a comment, and a
+// line break for the end of a line. So the name "remote", with its quotation marks, writes the
+// header ["remote"]; remote]# writes [remote]#]; and x]\n[remote writes the line [remote]: each
+// would read as the Remote Access section, which a check of the name `remote` alone never sees. So a
+// setting's name, at any depth, is letters, digits, "_", ".", and "-" and nothing else, and no
+// string, at any depth, holds a control character or a line or paragraph separator. No NVDA setting
+// needs more.
+describe("a config's nvdaSettings names and words", () => {
+  const NAME_RULE =
+    "A name is letters, digits, underscores, dots, and hyphens: voicecap writes it into NVDA's settings file as it is, and anything else could write a section of its own there, such as the one for NVDA's Remote Access settings (remote).";
+  const WORDS_RULE =
+    "NVDA's settings are plain text: voicecap writes each word into NVDA's settings file as it is, so a control character or a line break could start a section of its own there, such as the one for NVDA's Remote Access settings (remote).";
+
+  /** What a config that fails for one place in its nvdaSettings is told. */
+  const told = (where: string, problem: string, config = "The config"): string =>
+    `${config} is invalid:\n  - ${where}: ${problem}`;
+  /** ... when the place is a name that holds a character a name can't have. */
+  const toldOfName = (where: string, code: string, config?: string): string =>
+    told(where, `holds ${code}, which a setting's name can't have. ${NAME_RULE}`, config);
+  /** ... when the place is a string that holds a control character or a separator. */
+  const toldOfWords = (where: string, code: string): string =>
+    told(where, `holds ${code}, which a setting's words can't have. ${WORDS_RULE}`);
+
+  it("refuses a name that would write a [remote] line, and says where and what", async () => {
+    const nvdaSettings = { "x]\n[remote": { controlServer: { host: "x" } } };
+
+    const error = thrownBy(() => resolveConfig({ nvdaSettings }));
+
+    expect(error).toBeInstanceOf(ConfigError);
+    // The first character a name can't have is the bracket. The name is written out in the path, so
+    // its line break doesn't break the message's lines.
+    expect(error.message).toBe(toldOfName("nvdaSettings.x]\\u{a}[remote", "U+005D"));
+    expect(error.message.split("\n")).toHaveLength(2);
+    // Nor can a name forge a line of the message, such as another problem of the config.
+    const forged = thrownBy(() =>
+      resolveConfig({ nvdaSettings: { "a\n  - stepCaps.read: ok": 1 } }),
+    );
+    expect(forged.message.split("\n")).toHaveLength(2);
+
+    // From a config file, the same, naming the file.
+    const dir = await tmp();
+    await writeFile(path.join(dir, "voicecap.config.json"), JSON.stringify({ nvdaSettings }));
+    await expect(loadConfig({ cwd: dir, env: {} })).rejects.toMatchObject({
+      message: toldOfName(
+        "nvdaSettings.x]\\u{a}[remote",
+        "U+005D",
+        "The config in voicecap.config.json",
+      ),
+    });
+  });
+
+  // Each is one line, with no control character, and would read as the `remote` section.
+  it.each([
+    ['"remote"', "U+0022"],
+    ["remote]#", "U+005D"],
+    ["[remote]#", "U+005B"],
+  ])("refuses the name %s, naming its path and the code point", (name, code) => {
+    // As a section, and as a setting with a value, which Guidepup writes differently.
+    for (const value of [{ enabled: 1 }, 1]) {
+      const error = thrownBy(() => resolveConfig({ nvdaSettings: { [name]: value } }));
+
+      expect(error).toBeInstanceOf(ConfigError);
+      expect(error.message).toBe(toldOfName(`nvdaSettings.${name}`, code));
+    }
+  });
+
+  it.each(["x y", " remote ", "remote "])("refuses the name %j, which holds a space", (name) => {
+    const error = thrownBy(() => resolveConfig({ nvdaSettings: { speech: { [name]: 1 } } }));
+
+    expect(error.message).toBe(toldOfName(`nvdaSettings.speech.${name}`, "U+0020"));
+  });
+
+  it("refuses a name past ASCII, naming its code point whatever its length", () => {
+    const accented = thrownBy(() => resolveConfig({ nvdaSettings: { "caf\u{e9}": 1 } }));
+    const astral = thrownBy(() =>
+      resolveConfig({ nvdaSettings: { [`rate${String.fromCodePoint(0x1f600)}`]: 1 } }),
+    );
+
+    expect(accented.message).toBe(toldOfName("nvdaSettings.caf\u{e9}", "U+00E9"));
+    expect(astral.message).toBe(
+      toldOfName(`nvdaSettings.rate${String.fromCodePoint(0x1f600)}`, "U+1F600"),
+    );
+  });
+
+  it("refuses a setting with no name, at the top or inside a section", () => {
+    const top = thrownBy(() => resolveConfig({ nvdaSettings: { "": 1 } }));
+    const inside = thrownBy(() => resolveConfig({ nvdaSettings: { speech: { "": 1 } } }));
+
+    expect(top.message).toBe(told("nvdaSettings", `has a setting with no name. ${NAME_RULE}`));
+    expect(inside.message).toBe(
+      told("nvdaSettings.speech", `has a setting with no name. ${NAME_RULE}`),
+    );
+  });
+
+  it("refuses a string that holds a line break, in a section or in a list", () => {
+    const section = thrownBy(() =>
+      resolveConfig({ nvdaSettings: { speech: { note: "1\n[remote]\nfoo = bar" } } }),
+    );
+    const list = thrownBy(() =>
+      resolveConfig({ nvdaSettings: { general: { words: ["fine", "not\nfine"] } } }),
+    );
+
+    expect(section.message).toBe(toldOfWords("nvdaSettings.speech.note", "U+000A"));
+    expect(list.message).toBe(toldOfWords("nvdaSettings.general.words.1", "U+000A"));
+  });
+
+  const HELD: [string, number][] = [
+    ["U+0000", 0x0],
+    ["U+0009", 0x9],
+    ["U+000A", 0xa],
+    ["U+000D", 0xd],
+    ["U+001B", 0x1b],
+    ["U+007F", 0x7f],
+    ["U+0085", 0x85],
+    ["U+2028", 0x2028],
+    ["U+2029", 0x2029],
+  ];
+
+  it.each(HELD)(
+    "refuses a nested name that holds %s, naming its path and the code point",
+    (code, codePoint) => {
+      const name = `x${String.fromCodePoint(codePoint)}y`;
+
+      const error = thrownBy(() =>
+        resolveConfig({ nvdaSettings: { speech: { oneCore: { [name]: 1 } } } }),
+      );
+
+      expect(error).toBeInstanceOf(ConfigError);
+      // Written out as an escape, so the character reaches the message nowhere.
+      expect(error.message).toBe(
+        toldOfName(`nvdaSettings.speech.oneCore.x\\u{${codePoint.toString(16)}}y`, code),
+      );
+    },
+  );
+
+  it("still loads the names NVDA's settings use, and the words a person writes", () => {
+    expect(resolveConfig({ nvdaSettings: { speech: { rate: 50 } } }).nvdaSettings).toEqual({
+      speech: { rate: 50 },
+    });
+    // A name is letters of either case, digits, "_", ".", and "-", at any depth.
+    const names = {
+      speech: { oneCore: { voice_name: "x", "pitch.offset": 1, "inflection-level": 2 } },
+      UIA: { enabled2: true, _private: 0, "9lives": 9 },
+      "speech.rate": 55,
+      "keyboard-typed": false,
+    };
+    expect(resolveConfig({ nvdaSettings: names }).nvdaSettings).toEqual(names);
+    // Words are plain strings, whatever else they hold: spaces, brackets on one line, and quotation
+    // marks, and letters past ASCII.
+    const words = {
+      general: { language: "en", loggingLevel: "OFF" },
+      braille: { tables: ["en-ueb-g1.ctb", "über – naïve"], note: '[remote] = "1" # 2' },
+    };
+    expect(resolveConfig({ nvdaSettings: words }).nvdaSettings).toEqual(words);
+  });
+
+  it("looks at settings nested very deep, or holding themselves, without stopping", () => {
+    let deep: Record<string, unknown> = {};
+    for (let level = 0; level < 100_000; level += 1) deep = { inside: deep };
+    const loop: Record<string, unknown> = {};
+    loop.again = loop;
+
+    expect(() => resolveConfig({ nvdaSettings: deep })).not.toThrow();
+    expect(() => resolveConfig({ nvdaSettings: loop })).not.toThrow();
   });
 });
 

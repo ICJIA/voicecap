@@ -1,3 +1,6 @@
+import os from "node:os";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
@@ -457,6 +460,20 @@ describe("failures inside a pass", () => {
     const result = await runPass("headings", driver, settings);
     expect(result.stopReason).toBe("error");
     expect(result.errors).toEqual(["NVDA went away"]);
+  });
+
+  // A pass's errors are kept in the page's record and in the transcript's header, and the failure's
+  // message in the attempt's record: none of them may name the account that ran voicecap.
+  it("writes the home folder in an error's words as %USERPROFILE%, or ~ away from Windows", async () => {
+    const mark = process.platform === "win32" ? "%USERPROFILE%" : "~";
+    const driver = new ScriptedDriver([{ url: URL_, lines: ["A"] }]);
+    driver.nextHeading = () =>
+      Promise.reject(new Error(`can't read ${path.join(os.homedir(), "secret.txt")}`));
+    await driver.openPage(URL_);
+    const result = await runPass("headings", driver, settings);
+    const said = `can't read ${mark}${path.sep}secret.txt`;
+    expect(result.errors).toEqual([said]);
+    expect(result.failure?.message).toBe(said);
   });
 
   it("propagates an interruption instead of recording it", async () => {

@@ -737,8 +737,9 @@ describe("failed attempts", () => {
     // The home folder's place is kept, as %USERPROFILE% on Windows and ~ elsewhere.
     const home = process.platform === "win32" ? "%USERPROFILE%" : "~";
     expect(attempt.stack).toContain(`Cannot read properties of undefined (${home})\n`);
-    // The message is kept word for word: the report replaces the home folder where it shows it.
-    expect(attempt.message).toBe(`Cannot read properties of undefined (${os.homedir()})`);
+    // The message has the home folder replaced too, as the record is kept in Git and shown on a
+    // website: from 0.18.0 it is not kept word for word.
+    expect(attempt.message).toBe(`Cannot read properties of undefined (${home})`);
   });
 
   // Where there's no home folder (no HOME or USERPROFILE, and no account entry), Node can't give
@@ -1069,13 +1070,13 @@ describe("the reviewer", () => {
     const dir = await setup(["/"]);
     const logger = createMemoryLogger();
     const result = await runAudit(
-      options(dir, new ScriptedDriver(sitePages()), { reviewer: "cschweda", logger }),
+      options(dir, new ScriptedDriver(sitePages()), { reviewer: "jane", logger }),
     );
 
-    expect(result.run.sessions[0]?.reviewer).toEqual({ name: "cschweda", source: "option" });
-    expect(logger.text("info")).toContain("Reviewer: cschweda (from --reviewer)");
+    expect(result.run.sessions[0]?.reviewer).toEqual({ name: "jane", source: "option" });
+    expect(logger.text("info")).toContain("Reviewer: jane (from --reviewer)");
     const stored = await readRunJson(outDir(dir), result.runId);
-    expect(stored.sessions[0]?.reviewer).toEqual({ name: "cschweda", source: "option" });
+    expect(stored.sessions[0]?.reviewer).toEqual({ name: "jane", source: "option" });
     expect(stored.seal).toBe(sealOf(stored));
   });
 
@@ -1120,7 +1121,7 @@ describe("the reviewer", () => {
       return openPage(url);
     };
     const interrupted = await runAudit(
-      options(dir, first, { signal: controller.signal, reviewer: "cschweda" }),
+      options(dir, first, { signal: controller.signal, reviewer: "jane" }),
     );
     expect(interrupted.outcome).toBe("interrupted");
 
@@ -1129,7 +1130,7 @@ describe("the reviewer", () => {
     );
     expect(resumed.runId).toBe(interrupted.runId);
     expect(resumed.run.sessions.map((session) => session.reviewer?.name)).toEqual([
-      "cschweda",
+      "jane",
       "Jane Doe",
     ]);
   });

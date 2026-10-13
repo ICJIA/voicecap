@@ -45,6 +45,7 @@ import {
   STORY,
   TIMELINE_TEXT,
   TOP_TEXT,
+  VOICE_TEXT,
 } from "./text.js";
 import type { SessionTimeline, UnloggedSession } from "./timeline.js";
 
@@ -377,6 +378,21 @@ export function fileFingerprint(file: AppendixFile): Line {
  */
 export function axeFingerprint({ bytes, sha256 }: { bytes: number; sha256: string }): Line {
   return [`${AXE_FILE}: ${byteCount(bytes)}, SHA-256 `, { text: sha256, mono: true }];
+}
+
+/**
+ * What the details say of NVDA's voice, in a paragraph of its own under their opening line: what the
+ * recordings are, and then a link to the voice page (its words, and its file's name beside them in
+ * the fixed-width font, for a reader of paper, since the page is a file beside this one), or why
+ * there is none. Null when the details say nothing of it: the report draws on no run from a voicecap
+ * that records NVDA's voice, and has no recording (see `ShareModel.voicePage`).
+ */
+export function voiceDetails({ voicePage }: ShareModel): Line | null {
+  if (voicePage === null) return null;
+  const { lead, open } = VOICE_TEXT.details;
+  if ("why" in voicePage) return [lead, ` ${voicePage.why}`];
+  const { name } = voicePage;
+  return [lead, " ", { text: open, href: name }, " (", { text: name, mono: true }, ")."];
 }
 
 // What changed since the last run.

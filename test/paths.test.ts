@@ -11,8 +11,10 @@ import {
   shareDir,
   sharePath,
   shareWordPath,
+  siteDirFor,
   siteFolder,
 } from "../src/run/paths.js";
+import { UsageError } from "../src/util/errors.js";
 
 describe("siteFolder", () => {
   it("names a site's folder after its host", () => {
@@ -21,6 +23,58 @@ describe("siteFolder", () => {
     expect(siteFolder("https://WWW.Example.gov/news/")).toBe("www.example.gov");
     expect(siteFolder(new URL("https://www.example.gov/x"))).toBe("www.example.gov");
     expect(siteFolder("http://[::1]:4747/")).toBe("___1__4747");
+    expect(siteFolder(new URL("http://127.0.0.1:4747/"))).toBe("127.0.0.1_4747");
+  });
+
+  // A folder named only of dots is the home or the folder that holds it, and Windows keeps some
+  // names for itself. A site's address that parseSiteUrl or a walkthrough file's reader takes never
+  // gives one; this is the backstop for any other way a host gets here.
+  it.each([
+    ["two dots", "http://../"],
+    ["two dots written percent-encoded", "http://%2e%2e/"],
+    ["three dots", "http://.../"],
+    ["one dot", "http://./"],
+  ])("refuses a host of %s: it would be the home, or the folder that holds it", (_name, site) => {
+    expect(() => siteFolder(new URL(site))).toThrow(UsageError);
+    expect(() => siteFolder(site)).toThrow(UsageError);
+    expect(() => siteFolder(new URL(site))).toThrow(/only dots/);
+    expect(() => siteDirFor("home", site)).toThrow(UsageError);
+  });
+
+  it.each([
+    "http://con/",
+    "http://CON/",
+    "http://nul/",
+    "http://prn/",
+    "http://aux/",
+    "http://com1/",
+    "http://lpt9/",
+    "http://con.example.org/",
+    "http://aux.illinois.gov/",
+  ])("refuses %s, a name Windows keeps for itself", (site) => {
+    expect(() => siteFolder(new URL(site))).toThrow(UsageError);
+    expect(() => siteFolder(new URL(site))).toThrow(/Windows keeps/);
+    expect(() => siteDirFor("home", new URL(site))).toThrow(UsageError);
+  });
+
+  it("refuses a site with no host, whose folder would be the home itself", () => {
+    expect(() => siteFolder(new URL("file:///C:/x"))).toThrow(UsageError);
+  });
+
+  it("takes a name that only starts like one Windows keeps, or holds one after its first part", () => {
+    expect(siteFolder(new URL("http://console.example.org/"))).toBe("console.example.org");
+    expect(siteFolder(new URL("http://example.con/"))).toBe("example.con");
+    expect(siteFolder(new URL("http://com10.example.org/"))).toBe("com10.example.org");
+    // A port makes the folder's name another name, which Windows doesn't keep.
+    expect(siteFolder(new URL("http://con:8080/"))).toBe("con_8080");
+    expect(siteFolder(new URL("http://localhost:3000/"))).toBe("localhost_3000");
+  });
+
+  it("names the folder of a site under the home, however the site is given", () => {
+    expect(siteDirFor("home", "http://127.0.0.1:4747/")).toBe(path.join("home", "127.0.0.1_4747"));
+    expect(siteDirFor("home", new URL("https://dvfr.illinois.gov"))).toBe(
+      path.join("home", "dvfr.illinois.gov"),
+    );
   });
 });
 

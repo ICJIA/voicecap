@@ -83,12 +83,14 @@ const FILE_NAME = /^[A-Za-z0-9._-]+$/;
  */
 const DOT_AT_EDGE = /^\.|\.$/;
 /**
- * What a published file's name ends with: .html (a page), .docx (its Word copy), or .json (a
- * walkthrough file), in lower case, as voicecap names its copies. Any other kind would be served
+ * What a published file's name ends with, in lower case, as voicecap names its copies: .html (a
+ * page, or, as .voice.html, a share's voice page), .docx (its Word copy), .md (the report for AI
+ * tools, as Markdown), or .json (the report as JSON, or a walkthrough file: only the walkthrough
+ * file's name ends `_walkthrough.json`, see fileKind in ./render.ts). Any other kind would be served
  * from the site's own address with no policy of its own, and an .svg or an .htm that holds a script
  * would run there.
  */
-const PUBLISHED_KIND = /\.(?:html|docx|json)$/;
+const PUBLISHED_KIND = /\.(?:html|docx|md|json)$/;
 /**
  * The name of the file a folder's own address is served from. Netlify serves a site folder's
  * index.html at /<folder>/ as well as at its own address, and _headers has no rule for /<folder>/,

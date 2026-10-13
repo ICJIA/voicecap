@@ -2,10 +2,13 @@
  * Opening a file in the app this computer uses for it, as double-clicking it would: voicecap
  * demo's report, in the browser. `open` on a Mac, Explorer on Windows, and `xdg-open` elsewhere.
  * Each starts with no shell and the path as its one argument, so no character in a folder's name
- * (a space, &, or a quote) is ever read as part of a command. Commands that belong to an operating
- * system live in src/drivers/, so this does.
+ * (a space, &, or a quote) is ever read as part of a command. Explorer is named by its full path in
+ * the Windows folder, so a file called explorer.exe in the folder voicecap runs in is never started
+ * in its place. Commands that belong to an operating system live in src/drivers/, so this does.
  */
 import { spawn } from "node:child_process";
+
+import { systemTool } from "../util/system-tools.js";
 
 export interface Command {
   file: string;
@@ -18,7 +21,7 @@ export function openFileCommand(file: string, platform: NodeJS.Platform): Comman
     case "darwin":
       return { file: "open", args: [file] };
     case "win32":
-      return { file: "explorer.exe", args: [file] };
+      return { file: systemTool("explorer"), args: [file] };
     default:
       return { file: "xdg-open", args: [file] };
   }

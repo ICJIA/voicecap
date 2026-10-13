@@ -10,11 +10,14 @@ set -euo pipefail
 #                                bump that part of the version and publish
 #   ./publish.sh current         publish package.json's version as is (not yet on npm)
 #   ./publish.sh 1.2.3           publish exactly this version
-#   ./publish.sh minor 123456    also pass an npm 2FA code (skips the y/N prompt, so the
-#                                code doesn't expire while waiting)
 #   ./publish.sh --dry-run [...] run every check and a dry-run publish; change nothing
 #                                (if you're not logged in to npm, it warns instead of
 #                                logging you in)
+#
+# A release is two commands: ./publish.sh --dry-run minor, then ./publish.sh minor (or patch,
+# major, current, or a version). The version is the only argument. A publish asks for npm's 6-digit
+# two-factor code last, just before it publishes: a code lasts about 30 seconds, and the checks
+# take minutes. A dry run asks for no code.
 #
 # Works in Git Bash on Windows as well as on macOS and Linux.
 #
@@ -22,11 +25,18 @@ set -euo pipefail
 #   - you're in the voicecap root, on main, up to date with origin/main, with a clean tree;
 #   - you're logged in to npm and the version isn't on npm or tagged elsewhere yet;
 #   - CHANGELOG.md has an entry for the version;
-#   - CI passed for this commit (when the GitHub CLI is available);
+#   - CI finished and passed for this commit (this needs the GitHub CLI, logged in: without it, a
+#     publish stops, and a dry run only warns);
 #   - lint, typecheck, tests, and build pass, and the release's facts (the test counts, the commits,
 #     and CI's matrix) are recorded in the package, in dist/release-facts.json;
-#   - the packed files are right, and the packed tarball installs and runs.
-# If anything fails before the publish, package.json is restored.
+#   - every dependency is locked in npm-shrinkwrap.json, which goes in the package, and npm audit
+#     finds no high or critical advisory in them;
+#   - the packed files are right, with nothing in the package but what this script expects, and the
+#     packed tarball installs and runs.
+# It then shows the commits since the last release and who made them, asks for the version to be
+# typed, and then for npm's two-factor code. What it publishes is the same tarball it installed and
+# ran in the scratch project.
+# If anything fails before the publish, package.json and npm-shrinkwrap.json are restored.
 
 PACKAGE_NAME="@icjia/voicecap"
 BRANCH="main"
@@ -50,14 +60,14 @@ POSITIONAL=()
 for arg in "$@"; do
   if [[ "$arg" == "--dry-run" ]]; then DRY_RUN=true; else POSITIONAL+=("$arg"); fi
 done
+# The version is the only argument. npm's two-factor code is asked for just before the publish.
+if [[ ${#POSITIONAL[@]} -gt 1 ]]; then
+  die "publish.sh takes one version at most (patch, minor, major, current, or a version like 1.2.3). It asks for npm's two-factor code itself, just before it publishes."
+fi
 BUMP="${POSITIONAL[0]:-}"
-OTP="${POSITIONAL[1]:-}"
 
 if [[ -n "$BUMP" && ! "$BUMP" =~ ^(patch|minor|major|current|[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
   die "Unknown version '$BUMP'. Use patch, minor, major, current, or a version like 1.2.3."
-fi
-if [[ -n "$OTP" && ! "$OTP" =~ ^[0-9]{6}$ ]]; then
-  warn "The 2FA code '$OTP' isn't 6 digits; passing it to npm anyway."
 fi
 
 # Read package.json with Node (the package is "type": "module", so force CommonJS here).
@@ -65,15 +75,29 @@ pkg_field() {
   node --input-type=commonjs -e "console.log(require('./package.json').$1)"
 }
 
-# ─── Restore package.json if we stop before publishing ─────────────
+# ─── Restore package.json and the lock if we stop before publishing ─
 
 PUBLISHED=false
 BUMPED=false
+LOCKED=false
+LOCKDIR=""
+SCRATCH=""
 restore() {
   if [[ "$BUMPED" == true && "$PUBLISHED" == false ]]; then
     git checkout -- package.json
     warn "Restored package.json (nothing was published)."
   fi
+  if [[ ( "$BUMPED" == true || "$LOCKED" == true ) && "$PUBLISHED" == false ]]; then
+    # `npm version` rewrites a committed lock along with package.json, before the lock step makes
+    # a new one, so a bump alone can leave it changed. Back to the last release's lock, or to none
+    # if there wasn't one. A command of its own: one checkout of both files fails as a whole when
+    # the lock isn't in Git yet.
+    git checkout -- npm-shrinkwrap.json 2>/dev/null || rm -f npm-shrinkwrap.json
+    warn "Put npm-shrinkwrap.json back as it was (nothing was published)."
+  fi
+  # The scratch project holds the tarball that gets published, so it stays until after the publish.
+  [[ -z "$LOCKDIR" ]] || rm -rf "$LOCKDIR"
+  [[ -z "$SCRATCH" ]] || rm -rf "$SCRATCH"
 }
 trap restore EXIT
 
@@ -150,17 +174,27 @@ info "CHANGELOG.md has an entry for $NEW_VERSION."
 
 # ─── CI status for this commit ──────────────────────────────────────
 
+# Only a run that finished and passed counts. A run still going, none found, or no way to look (no
+# GitHub CLI, or not logged in to it) stops a publish, and a dry run only warns.
+CI_PROBLEM=""
 if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
   CI=$(gh run list --commit "$(git rev-parse HEAD)" --workflow ci.yml --limit 1 \
     --json status,conclusion --jq '.[0] | "\(.status) \(.conclusion)"' 2>/dev/null || true)
   case "$CI" in
     "completed success") info "CI passed for this commit." ;;
-    "") warn "No CI run found for this commit." ;;
-    completed*) die "CI failed for this commit ($CI). Fix it before publishing." ;;
-    *) warn "CI hasn't finished for this commit ($CI)." ;;
+    "") CI_PROBLEM="GitHub gave no answer" ;;
+    "null null") CI_PROBLEM="no CI run found" ;;
+    *) CI_PROBLEM="${CI% }" ;;
   esac
 else
-  warn "GitHub CLI not available: couldn't check CI for this commit."
+  CI_PROBLEM="the GitHub CLI isn't installed or isn't logged in"
+fi
+if [[ -n "$CI_PROBLEM" ]]; then
+  if [[ "$DRY_RUN" == true ]]; then
+    warn "CI hasn't passed for this commit ($CI_PROBLEM). A publish would stop here."
+  else
+    die "CI hasn't passed for this commit ($CI_PROBLEM)."
+  fi
 fi
 
 # ─── Checks and build ───────────────────────────────────────────────
@@ -181,6 +215,29 @@ rm -rf dist
 pnpm build
 node scripts/release-facts.mjs "$RESULTS"
 
+# ─── Lock every dependency ──────────────────────────────────────────
+
+# npm-shrinkwrap.json goes in the package, so that `npx @icjia/voicecap` installs the same packages
+# for everyone. It's made from the package's own dependencies alone: a copy of package.json without
+# the development dependencies and the scripts, in a folder of its own. npm audit then looks at what
+# was locked, and a high or critical advisory stops the release.
+info "Locking every dependency (npm-shrinkwrap.json)..."
+LOCKDIR=$(mktemp -d)
+node --input-type=commonjs -e '
+  const pkg = require("./package.json");
+  delete pkg.devDependencies;
+  delete pkg.scripts;
+  require("fs").writeFileSync(process.argv[1] + "/package.json", JSON.stringify(pkg, null, 2));
+' "$LOCKDIR"
+LOCKED=true
+(cd "$LOCKDIR" && npm install --package-lock-only --ignore-scripts --no-audit --no-fund >/dev/null &&
+  npm audit --omit=dev --audit-level=high) ||
+  die "Locking the dependencies failed, or npm audit found a high or critical advisory in them."
+cp "$LOCKDIR/package-lock.json" npm-shrinkwrap.json
+rm -rf "$LOCKDIR"
+STRAY=$(git status --porcelain | grep -vE '^( M package\.json| M npm-shrinkwrap\.json|\?\? npm-shrinkwrap\.json)$' || true)
+[[ -z "$STRAY" ]] || die "The checks or the build changed the tree:"$'\n'"$STRAY"
+
 # ─── What's in the package ──────────────────────────────────────────
 
 info "Checking the packed files..."
@@ -188,12 +245,13 @@ FILES=$(npm pack --dry-run --json --ignore-scripts | node --input-type=commonjs 
   const [pack] = JSON.parse(require("fs").readFileSync(0, "utf8"));
   console.log(pack.files.map((f) => f.path).join("\n"));
 ')
-for required in package.json README.md CHANGELOG.md LICENSE dist/cli.js dist/index.js dist/index.d.ts dist/release-facts.json demo/site/index.html; do
+for required in package.json README.md CHANGELOG.md LICENSE npm-shrinkwrap.json dist/cli.js dist/index.js dist/index.d.ts dist/release-facts.json demo/site/index.html; do
   grep -qx "$required" <<<"$FILES" || die "The package is missing $required."
 done
-if grep -E '^(src|test|fixture|scripts|docs)/' <<<"$FILES" >/dev/null; then
-  die "The package would include source, tests, or fixtures. Check \"files\" in package.json."
-fi
+# Only these go in the package, so a file that "files" in package.json takes in by mistake is found
+# here and not published.
+UNEXPECTED=$(grep -vE '^(dist/|demo/site/|package\.json$|README\.md$|CHANGELOG\.md$|LICENSE$|npm-shrinkwrap\.json$)' <<<"$FILES" || true)
+[[ -z "$UNEXPECTED" ]] || die "The package would include files it shouldn't:"$'\n'"$UNEXPECTED"
 head -1 dist/cli.js | grep -q '^#!/usr/bin/env node' || die "dist/cli.js has no #!/usr/bin/env node line."
 info "$(wc -l <<<"$FILES" | tr -d ' ') files; nothing unexpected."
 
@@ -206,20 +264,34 @@ TARBALL=$(ls "$SCRATCH"/*.tgz)
 (
   cd "$SCRATCH"
   npm init -y >/dev/null
-  npm install --no-audit --no-fund "$TARBALL" >/dev/null
+  npm install --ignore-scripts --no-audit --no-fund "$TARBALL" >/dev/null
   INSTALLED=$(npx --no-install voicecap --version)
   [[ "$INSTALLED" == "$NEW_VERSION" ]] || {
     echo "voicecap --version printed '$INSTALLED', expected '$NEW_VERSION'" >&2
     exit 1
   }
 ) || die "The packed tarball didn't install and run."
-rm -rf "$SCRATCH"
 info "The packed tarball installs, and voicecap --version prints $NEW_VERSION."
 
 # ─── Dry run ────────────────────────────────────────────────────────
 
 info "npm publish --dry-run..."
-npm publish --dry-run --access public --ignore-scripts
+npm publish "$TARBALL" --dry-run --access public --ignore-scripts
+
+# What changed since the last release, and who made it: shown by a dry run as well as a publish,
+# to look over before anything goes out. A commit's author and subject are anyone's words, so a
+# control character in them is shown as an escape, as voicecap shows text from outside.
+LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+if [[ -n "$LAST_TAG" ]]; then
+  info "The commits since $LAST_TAG, and who made them:"
+  git log --format='  %h  %an  %s' "$LAST_TAG"..HEAD |
+    node --input-type=commonjs -e '
+      const text = require("fs").readFileSync(0, "utf8");
+      const shown = (c) => "\\u{" + c.codePointAt(0).toString(16) + "}";
+      process.stdout.write(text.replace(/(?![\n\t])[\p{Cc}\p{Cf}\u{2028}\u{2029}]/gu, shown));
+    '
+fi
+
 if [[ "$DRY_RUN" == true ]]; then
   info "Dry run complete. Nothing was published or changed."
   exit 0
@@ -227,31 +299,38 @@ fi
 
 # ─── Confirm ────────────────────────────────────────────────────────
 
-if [[ -z "$OTP" ]]; then
-  echo ""
-  if [[ "$FIRST_TIME" == true ]]; then
-    warn "About to publish $PACKAGE_NAME@$NEW_VERSION for the FIRST TIME (public)."
-  else
-    warn "About to publish $PACKAGE_NAME@$NEW_VERSION."
-  fi
-  read -r -p "Proceed? (y/N) " REPLY
-  [[ "$REPLY" =~ ^[Yy]$ ]] || {
-    info "Aborted. Nothing was published."
-    exit 0
-  }
+echo ""
+if [[ "$FIRST_TIME" == true ]]; then
+  warn "About to publish $PACKAGE_NAME@$NEW_VERSION for the FIRST TIME (public)."
+else
+  warn "About to publish $PACKAGE_NAME@$NEW_VERSION."
 fi
+read -r -p "To publish it, type the version ($NEW_VERSION): " REPLY
+[[ "$REPLY" == "$NEW_VERSION" ]] || {
+  info "Aborted. Nothing was published."
+  exit 0
+}
 
 # ─── Publish ────────────────────────────────────────────────────────
 
-# The checks above already ran, so skip prepublishOnly rather than run them all again.
-npm publish --access public --ignore-scripts ${OTP:+--otp "$OTP"}
+# npm asks every publish for a fresh two-factor code, and a code lasts about 30 seconds, so it's
+# asked for now, after every check and the typed version. A code that isn't 6 digits, or none at
+# all, stops the release here, with nothing published.
+read -r -p "npm's 6-digit two-factor code: " OTP || OTP=""
+[[ "$OTP" =~ ^[0-9]{6}$ ]] ||
+  die "That isn't a 6-digit code, so nothing was published. Run the same ./publish.sh command again, and type npm's code when it asks."
+
+# The tarball that was installed and run above, not a new one packed from the folder. The checks
+# above already ran, so skip prepublishOnly rather than run them all again.
+npm publish "$TARBALL" --access public --ignore-scripts --otp "$OTP"
 PUBLISHED=true
+rm -rf "$SCRATCH"
 info "Published $PACKAGE_NAME@$NEW_VERSION."
 
 # ─── Commit, tag, push ──────────────────────────────────────────────
 
-if [[ "$BUMPED" == true ]]; then
-  git add package.json
+git add package.json npm-shrinkwrap.json
+if ! git diff --cached --quiet; then
   git commit -m "Release $TAG"
 fi
 if [[ "$TAG_EXISTS" == false ]]; then

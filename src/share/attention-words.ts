@@ -8,6 +8,7 @@
  * the page and its Word copy, so the two can't say different things. Pure.
  */
 import { plural } from "../report/html.js";
+import { quoteArg, urlArg } from "../util/command-line.js";
 import type { AttentionCard, AttentionKind, AttentionPlace } from "./attention.js";
 import { count } from "./format.js";
 import { HOW_TEXT } from "./text.js";
@@ -79,10 +80,15 @@ function whereOn(part: string | null): string | null {
   return part === null ? null : (PART_LEADS.get(part) ?? `In the ${part}`);
 }
 
-/** "--page /about/": the option that runs voicecap on the card's first page; null for a card with no page. */
+/**
+ * "--page /about/": the option that runs voicecap on the card's first page; null for a card with no
+ * page. The path is the site's own, and is pasted into a shell, so it's written as a command line
+ * writes an address: bare when nothing in it needs quotes, and otherwise quoted, with a single
+ * quote in it written %27 (`--page '/x?$(calc)'`).
+ */
 function firstPage(card: AttentionCard): string | null {
   const path = card.pages[0]?.path;
-  return path === undefined ? null : `--page ${path}`;
+  return path === undefined ? null : `--page ${quoteArg(urlArg(path))}`;
 }
 
 /** " (--page /about/)": the first page's address, to run voicecap on; nothing for a card with no page. */

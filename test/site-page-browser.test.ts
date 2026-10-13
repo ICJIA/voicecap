@@ -48,7 +48,14 @@ import { TRUST_TEXT } from "../src/site/trust-text.js";
 import { renderWhatsNew } from "../src/site/whats-new.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { footerInTwoWindows } from "./helpers/footer.js";
-import { CONTENT, DEMO_REPORT, filesOf, published, reportsOf } from "./helpers/site-content.js";
+import {
+  CONTENT,
+  DEMO_REPORT,
+  DVFR_NEWEST,
+  filesOf,
+  published,
+  reportsOf,
+} from "./helpers/site-content.js";
 import { EARLIER_RELEASES, FACTS, RECORDS } from "./helpers/trust-facts.js";
 
 /** The page's background in each theme: the audit tool's, #0a0a0a and #f9fafb. */
@@ -61,16 +68,20 @@ const MONO = 'ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospa
 
 /**
  * A site whose names are as long as a name can be: a host of 88 characters, a person's name that is
- * one word, and file names that hold both, in its current report and in an earlier one. Nothing in
- * the page may run past a window 320 pixels wide.
+ * one word, and file names that hold both, in its current report and in an earlier one, the current
+ * report's with its voice page (from 0.18.0) among them. Nothing in the page may run past a window
+ * 320 pixels wide.
  */
 function longContent(): SiteContent {
   const folder = "research-hub-of-the-criminal-justice-information-authority.example.illinois.gov";
   const by = "Maximilian-Alexander-Bartholomew-Wolfeschlegelsteinhausenbergerdorff-Junior";
   const run = `2026-10-03_${"1".repeat(80)}`;
-  const files = (day: string) => [
+  const files = (day: string, voice = false) => [
     published("page", folder, `${folder}_${day}.html`, 324),
     published("word", folder, `${folder}_${day}.docx`, 51),
+    ...(voice ? [published("voice", folder, `${folder}_${day}.voice.html`, 2_048)] : []),
+    published("markdown", folder, `${folder}_${day}.md`, 262),
+    published("data", folder, `${folder}_${day}.json`, 521),
     published("walkthrough", folder, `${folder}_${day}_${run}_walkthrough.json`, 5, run),
   ];
   return {
@@ -87,7 +98,7 @@ function longContent(): SiteContent {
             id: `report-${folder}-2`,
             at: "2026-10-03T14:05:00-05:00",
             by,
-            files: files("2026-10-03"),
+            files: files("2026-10-03", true),
             notPublished: [
               { name: `${folder}_2026-10-03_${"x".repeat(60)}.docx`, reason: "missing" },
             ],
@@ -108,7 +119,7 @@ function longContent(): SiteContent {
 
 /**
  * Three sites whose current reports say each kind of verdict: nothing needs attention, problems that
- * need attention, and pages NVDA didn't read.
+ * need attention, and pages NVDA didn't read. The first's report lists its voice page too.
  */
 function verdictContent(): SiteContent {
   const results: NonNullable<PublishedReport["result"]>[] = [
@@ -128,6 +139,9 @@ function verdictContent(): SiteContent {
         files: [
           published("page", folder, `${folder}_2026-10-0${index + 1}.html`, 100),
           published("word", folder, `${folder}_2026-10-0${index + 1}.docx`, 40),
+          ...(index === 0
+            ? [published("voice", folder, `${folder}_2026-10-0${index + 1}.voice.html`, 900)]
+            : []),
         ],
         notPublished: [],
         result,
@@ -602,6 +616,9 @@ describe("the site's page", () => {
       const page = await open(files.page);
       // Closed, a fold's files aren't drawn, so axe wouldn't check them.
       await openFolds(page);
+      // With the line for AI tools on the cards that have the report as Markdown and as JSON: the
+      // first site's current report, and the demo's.
+      expect(await page.locator("p.ai").count()).toBe(2);
 
       expect(await theme(page)).toBe("dark");
       expect(await axeFindings(page, 1280), "dark").toEqual([]);
@@ -620,7 +637,11 @@ describe("the site's page", () => {
     "passes axe with zero violations, dark and light, with each kind of verdict on a card",
     async () => {
       const page = await open(files.verdicts);
+      // Closed, a fold's files aren't drawn, so axe wouldn't check them: this page has a share's voice
+      // page among them, listed as NVDA's voice, and the folds are opened so that axe sees it.
+      await openFolds(page);
       expect(await page.locator("p.verdict").count()).toBe(3);
+      expect(await page.locator("li", { hasText: "NVDA's voice" }).isVisible()).toBe(true);
 
       expect(await axeFindings(page, 1280), "dark").toEqual([]);
       await page.locator("#theme-toggle").click();
@@ -683,6 +704,25 @@ describe("the site's page", () => {
     ]);
   });
 
+  it("lists a share's voice page in its fold as NVDA's voice, a link that opens in the browser", async () => {
+    const page = await open(files.verdicts);
+    await openFolds(page);
+    const folder = "site-1.example.illinois.gov";
+
+    // One report has a voice page, and its item is drawn in the fold, as every file's is: its
+    // label, its link, its size, and its SHA-256.
+    const item = page.locator("li", { hasText: "NVDA's voice" });
+    expect(await item.count()).toBe(1);
+    expect(await item.isVisible()).toBe(true);
+    expect(await item.locator(".kind").textContent()).toBe("NVDA's voice");
+    const link = item.locator("a");
+    expect(await link.getAttribute("href")).toBe(`${folder}/${folder}_2026-10-01.voice.html`);
+    // It opens in the browser, as the page does, and is no download, as the Word copy is.
+    expect(await link.getAttribute("download")).toBeNull();
+    expect(await page.locator(`a[href$=".docx"]`).first().getAttribute("download")).not.toBeNull();
+    expect(await item.locator(".meta").textContent()).toMatch(/^900 KB, SHA-256 [0-9a-f]{64}$/);
+  });
+
   it.each([
     ["the tests' content", 390, "page"],
     ["the tests' content", 320, "page"],
@@ -697,6 +737,10 @@ describe("the site's page", () => {
     async (_, width, which) => {
       const page = await open(files[which], { width });
       await openFolds(page);
+      // The line for AI tools is on the page where a card has the report: it wraps, and axe sees it.
+      expect(await page.locator("p.ai").count(), which).toBe(
+        { page: 2, long: 1, verdicts: 0, bannerLong: 2, empty: 0 }[which],
+      );
 
       expect(await axeFindings(page, width), "dark").toEqual([]);
       await page.locator("#theme-toggle").click();
@@ -797,6 +841,79 @@ describe("the site's page", () => {
         })
         .count(),
     ).resolves.toBe(1);
+  });
+
+  it("gives a screen reader the line for AI tools whole, each link named by its words and then the site and the date", async () => {
+    const page = await open(files.page);
+
+    // The line's text, which a screen reader reads in order: its words, and after each link's words
+    // the site and the date, which the eye doesn't see.
+    expect(await page.locator(`[id="${DVFR_NEWEST.id}"] p.ai`).textContent()).toBe(
+      "For AI tools such as Claude or ChatGPT: the report as Markdown of dvfr.illinois.gov, 3 October 2026, 14:05, or as JSON of dvfr.illinois.gov, 3 October 2026, 14:05",
+    );
+    expect(await page.locator(`[id="${DVFR_NEWEST.id}"] p.ai .sr`).count()).toBe(2);
+    // Each link has a name of its own, so no two on the page read alike.
+    for (const name of [
+      "Markdown of dvfr.illinois.gov, 3 October 2026, 14:05",
+      "JSON of dvfr.illinois.gov, 3 October 2026, 14:05",
+      "Markdown of the demo, 29 September 2026, 15:40",
+      "JSON of the demo, 29 September 2026, 15:40",
+    ]) {
+      expect(await page.getByRole("link", { name, exact: true }).count(), name).toBe(1);
+    }
+    // Each saves the file it links to, as the Word copy's link does.
+    expect(
+      await page
+        .locator("p.ai a")
+        .evaluateAll((links) =>
+          links.map((link) => [link.getAttribute("href"), link.hasAttribute("download")]),
+        ),
+    ).toEqual([
+      // The demo's card comes first on the page, then the first site's.
+      ["demo/127.0.0.1_4848_2026-09-29.md", true],
+      ["demo/127.0.0.1_4848_2026-09-29.json", true],
+      ["dvfr.illinois.gov/dvfr.illinois.gov_2026-10-03.md", true],
+      ["dvfr.illinois.gov/dvfr.illinois.gov_2026-10-03.json", true],
+    ]);
+  });
+
+  it("draws the line for AI tools under the buttons in the quiet color, as the line of who prepared the report is, with its links in the link color, in both themes", async () => {
+    const page = await open(files.page);
+    const looks = () =>
+      page.evaluate(() => {
+        const line = document.querySelector("article.report p.ai");
+        const by = document.querySelector("article.report p.by");
+        const actions = document.querySelector("article.report p.actions");
+        const link = line?.querySelector("a");
+        if (!line || !by || !actions || !link) throw new Error("The card has no line.");
+        return {
+          line: getComputedStyle(line).color,
+          by: getComputedStyle(by).color,
+          link: getComputedStyle(link).color,
+          underlined: getComputedStyle(link).textDecorationLine,
+          // Under the buttons, on a line of its own.
+          below: line.getBoundingClientRect().top >= actions.getBoundingClientRect().bottom,
+          block: getComputedStyle(line).display,
+        };
+      });
+    // The audit tool's colors: --muted and --link in each theme.
+    const colors = {
+      dark: { quiet: "rgb(163, 163, 163)", link: "rgb(96, 165, 250)" },
+      light: { quiet: "rgb(75, 85, 99)", link: "rgb(37, 99, 235)" },
+    };
+
+    for (const mode of ["dark", "light"] as const) {
+      const seen = await looks();
+      expect(seen, mode).toEqual({
+        line: colors[mode].quiet,
+        by: colors[mode].quiet,
+        link: colors[mode].link,
+        underlined: "underline",
+        below: true,
+        block: "block",
+      });
+      if (mode === "dark") await page.locator("#theme-toggle").click();
+    }
   });
 
   it("puts its kicker over its heading: dots between its parts for the eye, commas for a screen reader, and the three names in --act", async () => {
@@ -1101,10 +1218,12 @@ describe("the site's page", () => {
     // The skip link, the top bar's four links (the website's name and its three pages) and its
     // button, the banner's link to every update, the "On this page" row's three links, the link to
     // the demo's pages, the link to the first site itself (the second has no address people
-    // visit), the current reports' links (the demo's two, the first site's two, and the second
-    // site's one: its Word copy is missing), the earlier report's one (its Word copy changed), the
-    // three folds' summaries, each report's page by date, and the bottom bar's five links.
-    const closed = 1 + 4 + 1 + 1 + 3 + 1 + 1 + 5 + 1 + 3 + reportsOf(CONTENT).length + 5;
+    // visit), the current reports' links (the demo's four and the first site's four: its page, its
+    // Word copy, and the report for AI tools as Markdown and as JSON; and the second site's one:
+    // its Word copy is missing, and it has no report for AI tools), the earlier report's one (its
+    // Word copy changed), the three folds' summaries, each report's page by date, and the bottom
+    // bar's five links.
+    const closed = 1 + 4 + 1 + 1 + 3 + 1 + 1 + 9 + 1 + 3 + reportsOf(CONTENT).length + 5;
     expect(await stops()).toBe(closed);
     expect(await stopsUnderTheBar(page)).toEqual([]);
 

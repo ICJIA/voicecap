@@ -8,6 +8,7 @@ import {
   readFile,
   rename,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -32,7 +33,7 @@ import { shareReport, type ShareReportResult } from "../src/share/share.js";
 import { fileHash } from "../src/transcripts/write.js";
 import { UsageError } from "../src/util/errors.js";
 import { sealOf, sha256 } from "../src/util/hash.js";
-import { createMemoryLogger } from "../src/util/log.js";
+import { createConsoleLogger, createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
 import { TINY_JPEG } from "./helpers/jpeg.js";
 import { rawAxe, rawRule } from "./helpers/raw-axe.js";
@@ -378,6 +379,113 @@ describe("verifyHome", () => {
     });
   });
 
+  describe("a page's recording of NVDA's voice", () => {
+    const VOICE = `${RUN}/pages/home/voice.webm`;
+    const RECORDED_AT = "2026-09-27T11:02:05.000-05:00";
+    const ONE_PROBLEM = `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`;
+    // Bytes verify hashes and doesn't play: it checks the file against the run's record of it.
+    const sound = Buffer.from(
+      "not a WebM file, but bytes the run could have recorded all the same",
+    );
+    const recorded = {
+      ...fileHash(sound),
+      seconds: 2,
+      lostMs: 0,
+      stretches: [{ startMs: 0, endMs: 2000 }],
+      recordedAt: RECORDED_AT,
+    };
+
+    /** A copy of the home whose home page has a recording, in its folder and in its record. */
+    async function withVoice(): Promise<string> {
+      const home = await changingPage("home", (page) => {
+        page.voice = recorded;
+      });
+      await writeFile(at(home, VOICE), sound);
+      return home;
+    }
+
+    it("finds nothing wrong with a recording that's as the run recorded it", async () => {
+      expect((await verify(await withVoice())).lines).toEqual([MATCHES]);
+    });
+
+    it("reports a changed voice.webm, whether or not its size changed", async () => {
+      const added = await withVoice();
+      await appendFile(at(added, VOICE), "An added byte.");
+      expect((await verify(added)).lines).toEqual([
+        `${VOICE}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+
+      // One byte for another: the file's size is as it was.
+      const sameSize = await withVoice();
+      const bytes = await readFile(at(sameSize, VOICE));
+      bytes[bytes.length - 3] = (bytes[bytes.length - 3] ?? 0) ^ 0xff;
+      await writeFile(at(sameSize, VOICE), bytes);
+      expect((await verify(sameSize)).lines).toEqual([
+        `${VOICE}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+    });
+
+    it("reports a missing voice.webm", async () => {
+      const home = await withVoice();
+      await rm(at(home, VOICE));
+      expect((await verify(home)).lines).toEqual([`${VOICE}: missing`, ONE_PROBLEM]);
+    });
+
+    it("reports a voice.webm the run doesn't record, as it does any file", async () => {
+      // A page with no voice in its record, and one whose record says why it has none.
+      for (const voice of [
+        undefined,
+        { error: "the recording is silent", recordedAt: RECORDED_AT },
+      ]) {
+        const home = await changingPage("home", (page) => {
+          if (voice) page.voice = voice;
+        });
+        await writeFile(at(home, VOICE), sound);
+        expect((await verify(home)).lines).toEqual([
+          `${VOICE}: not recorded by the run`,
+          ONE_PROBLEM,
+        ]);
+      }
+    });
+
+    it("finds nothing wrong with a record of why there's none", async () => {
+      const home = await changingPage("home", (page) => {
+        page.voice = { error: "the recording is silent", recordedAt: RECORDED_AT };
+      });
+      expect((await verify(home)).lines).toEqual([MATCHES]);
+    });
+
+    it("is filed in its own page's folder", async () => {
+      // The flawed page records one, with no file in its folder; the file is in the home page's.
+      const flawed = "flawed-68c5de39bc";
+      const home = await changingPage(flawed, (page) => {
+        page.voice = recorded;
+      });
+      await writeFile(at(home, VOICE), sound);
+      expect((await verify(home)).lines).toEqual([
+        `${RUN}/pages/${flawed}/voice.webm: missing`,
+        `${VOICE}: not recorded by the run`,
+        `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 2 problems.`,
+      ]);
+    });
+
+    it("passes a run from before 0.18.0, which records none", async () => {
+      const run = JSON.parse(await readFile(at(untouched, `${RUN}/run.json`), "utf8")) as RunJson;
+      expect(run.pages.length).toBeGreaterThan(0);
+      for (const page of run.pages) expect(page).not.toHaveProperty("voice");
+      expect(existsSync(at(untouched, VOICE))).toBe(false);
+      expect((await verify(untouched)).lines).toEqual([MATCHES]);
+
+      // The i2i fixture is sealed by 0.11.0, and passes with no recording too.
+      const { lines } = await verify(fixture("i2i-v3-run"));
+      expect(lines).toEqual([
+        "v3--i2i.netlify.app: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.",
+      ]);
+    });
+  });
+
   it("checks the event log its run recorded", async () => {
     const run = JSON.parse(await readFile(at(untouched, `${RUN}/run.json`), "utf8")) as RunJson;
     expect(Object.keys(run.files ?? {})).toEqual(["events.jsonl"]);
@@ -572,6 +680,68 @@ describe("verifyHome", () => {
       `${RUN}: not a readable run or manual session`,
       `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
+  });
+
+  // A record that is sealed, so that it matches its own seal, can still name a site that no folder can be
+  // named for: voicecap refuses the folder of a host of only dots, of one Windows keeps for itself, and
+  // of none at all. `verify` says that of the record, and goes on to the rest of the home.
+  it.each([
+    ["a host of only dots", "http://../"],
+    ["a single dot", "http://./"],
+    ["a name Windows keeps for itself", "http://con/"],
+    ["a name Windows keeps, with a domain", "http://aux.example.org/"],
+    ["an address with no host", "file:///C:/records"],
+  ])("lists a run whose site is %s as unreadable, and checks the rest", async (_name, site) => {
+    const home = await copyOfHome();
+    await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+      run.site = site;
+      run.seal = sealOf(run);
+    });
+    await appendFile(at(home, `${SESSION}/session.txt`), "23:59:59      An added line\n");
+
+    // The manual session is in the earlier date's folder, so it comes first.
+    expect((await verify(home)).lines).toEqual([
+      `${SESSION}/session.txt: changed since it was recorded (SHA-256 differs)`,
+      `${RUN}: not a readable run or manual session`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 2 problems.`,
+    ]);
+  });
+
+  it.each([
+    ["a host of only dots", "http://../x"],
+    ["a name Windows keeps for itself", "http://nul/x"],
+    ["an address with no host", "file:///C:/records/x"],
+  ])(
+    "lists a manual session whose page is at %s as unreadable, and checks the rest",
+    async (_name, url) => {
+      const home = await copyOfHome();
+      await editJson<ManualSessionJson>(at(home, `${SESSION}/session.json`), (session) => {
+        session.page = { ...session.page, url };
+        session.seal = sealOf(session);
+      });
+      await appendFile(at(home, `${RUN}/pages/home/read.txt`), "An added line.\n");
+
+      expect((await verify(home)).lines).toEqual([
+        `${SESSION}: not a readable run or manual session`,
+        `${RUN}/pages/home/read.txt: changed since it was recorded (SHA-256 differs)`,
+        `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 2 problems.`,
+      ]);
+    },
+  );
+
+  it("lists an incomplete run whose site is no site's as unreadable, not as one that belongs elsewhere", async () => {
+    const home = await copyOfHome();
+    await interruptedRun(home);
+    await editJson<RunJson>(at(home, `${FOLDER}/2026-09-27/1200/run.json`), (run) => {
+      run.site = "http://../";
+    });
+
+    const { lines } = await verify(home);
+
+    expect(lines).toContain(`${FOLDER}/2026-09-27/1200: not a readable run or manual session`);
+    expect(lines.at(-1)).toBe(
+      `${FOLDER}: 2 runs (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    );
   });
 
   it("doesn't mind the files an operating system leaves in folders", async () => {
@@ -871,6 +1041,44 @@ describe("verifyHome", () => {
     expect((await verify(home)).lines).toEqual([MATCHES]);
   });
 
+  // The raw copy's name is in the sealed record, so a record can be resealed with any name. voicecap
+  // writes two (raw/nvda-log.txt, raw/speech-viewer.txt), and reads no other: a name such as CON
+  // is a device on Windows, and one with ".." reaches outside the session's folder.
+  it.each([
+    ["CON", "CON"],
+    ["a path outside the session's folder", "../../../x"],
+    ["a path that leaves raw/ again", "raw/nvda-log.txt/../../session.txt"],
+    ["a name voicecap doesn't give it", "raw/nvda-log.txt.bak"],
+    ["a path that isn't a name", 7],
+  ])("reports a raw copy named %s as a name voicecap never writes", async (_name, rawPath) => {
+    const home = await copyOfHome();
+    await editJson<ManualSessionJson>(at(home, `${SESSION}/session.json`), (session) => {
+      (session.input.raw as { path: unknown }).path = rawPath;
+      session.seal = sealOf(session);
+    });
+    expect((await verify(home)).lines).toEqual([
+      `${SESSION}/session.json: its raw copy has a name voicecap never writes, so it wasn't read`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
+  it.runIf(process.platform !== "win32")(
+    "reports a raw copy that is a symbolic link, without following it",
+    async () => {
+      const home = await copyOfHome();
+      const raw = at(home, `${SESSION}/raw/nvda-log.txt`);
+      // A link to a file with the bytes the session recorded, which a read through it would pass.
+      const target = at(home, "elsewhere.txt");
+      await cp(raw, target);
+      await rm(raw);
+      await symlink(target, raw);
+      expect((await verify(home)).lines).toEqual([
+        `${SESSION}/raw/nvda-log.txt: changed since it was recorded (SHA-256 differs)`,
+        `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+      ]);
+    },
+  );
+
   it("counts unsealed records as problems, and lists incomplete runs, which aren't", async () => {
     const home = await copyOfHome();
     await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
@@ -1081,7 +1289,8 @@ interface LooseShares {
 
 describe("verifyHome, and what was shared", () => {
   // The scripted site's folder, and the names of the two pairs of copies, shared on the same day.
-  // Beside each pair is the walkthrough file of the one run (named for it, so known once it's run).
+  // Beside each pair are the report for AI tools (its Markdown and its JSON) and the walkthrough
+  // file of the one run (named for it, so known once it's run).
   const EXAMPLE = "example.illinois.gov";
   const SHARE = `${EXAMPLE}/share`;
   const SHARES_JSON = `${SHARE}/shares.json`;
@@ -1089,8 +1298,12 @@ describe("verifyHome, and what was shared", () => {
   const SECOND = `${FIRST}-2`;
   const PAGE_1 = `${FIRST}.html`;
   const WORD_1 = `${FIRST}.docx`;
+  const MD_1 = `${FIRST}.md`;
+  const JSON_1 = `${FIRST}.json`;
   const PAGE_2 = `${SECOND}.html`;
   const WORD_2 = `${SECOND}.docx`;
+  const MD_2 = `${SECOND}.md`;
+  const JSON_2 = `${SECOND}.json`;
   /** When an entry made by hand says it was made. */
   const LATER = "2027-01-16T09:00:00-06:00";
 
@@ -1137,9 +1350,13 @@ describe("verifyHome, and what was shared", () => {
     expect([...first.files, ...second.files].map(({ name }) => name)).toEqual([
       PAGE_1,
       WORD_1,
+      MD_1,
+      JSON_1,
       walkthrough1,
       PAGE_2,
       WORD_2,
+      MD_2,
+      JSON_2,
       walkthrough2,
     ]);
   });
@@ -1213,6 +1430,8 @@ describe("verifyHome, and what was shared", () => {
       `${SHARES_JSON}: entry 1 is missing`,
       `${SHARE}/${WORD_1}: not recorded in shares.json`,
       `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+      `${SHARE}/${JSON_1}: not recorded in shares.json`,
+      `${SHARE}/${MD_1}: not recorded in shares.json`,
       `${SHARE}/${walkthrough1}: not recorded in shares.json`,
     ]);
   });
@@ -1304,13 +1523,17 @@ describe("verifyHome, and what was shared", () => {
           `${SHARES_JSON}: not a readable record of what was shared`,
           `${SHARE}/${WORD_2}: not recorded in shares.json`,
           `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+          `${SHARE}/${JSON_2}: not recorded in shares.json`,
+          `${SHARE}/${MD_2}: not recorded in shares.json`,
           `${SHARE}/${walkthrough2}: not recorded in shares.json`,
           `${SHARE}/${WORD_1}: not recorded in shares.json`,
           `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+          `${SHARE}/${JSON_1}: not recorded in shares.json`,
+          `${SHARE}/${MD_1}: not recorded in shares.json`,
           `${SHARE}/${walkthrough1}: not recorded in shares.json`,
         ]);
         expect(logger.entries.at(-1)?.message).toBe(
-          "example.illinois.gov: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 7 problems.",
+          "example.illinois.gov: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 11 problems.",
         );
       },
     );
@@ -1323,9 +1546,13 @@ describe("verifyHome, and what was shared", () => {
       expect(sites[0]!.problems).toEqual([
         `${SHARE}/${WORD_2}: not recorded in shares.json`,
         `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+        `${SHARE}/${JSON_2}: not recorded in shares.json`,
+        `${SHARE}/${MD_2}: not recorded in shares.json`,
         `${SHARE}/${walkthrough2}: not recorded in shares.json`,
         `${SHARE}/${WORD_1}: not recorded in shares.json`,
         `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+        `${SHARE}/${JSON_1}: not recorded in shares.json`,
+        `${SHARE}/${MD_1}: not recorded in shares.json`,
         `${SHARE}/${walkthrough1}: not recorded in shares.json`,
       ]);
     });
@@ -1368,6 +1595,8 @@ describe("verifyHome, and what was shared", () => {
         `${SHARES_JSON}: entry 1 follows an entry that isn't there`,
         `${SHARE}/${WORD_1}: not recorded in shares.json`,
         `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+        `${SHARE}/${JSON_1}: not recorded in shares.json`,
+        `${SHARE}/${MD_1}: not recorded in shares.json`,
         `${SHARE}/${walkthrough1}: not recorded in shares.json`,
       ]);
     });
@@ -1491,6 +1720,8 @@ describe("verifyHome, and what was shared", () => {
           // It names none of the copies it was made with, so nothing records them.
           `${SHARE}/${WORD_2}: not recorded in shares.json`,
           `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+          `${SHARE}/${JSON_2}: not recorded in shares.json`,
+          `${SHARE}/${MD_2}: not recorded in shares.json`,
           `${SHARE}/${walkthrough2}: not recorded in shares.json`,
         ]);
       },
@@ -1508,6 +1739,8 @@ describe("verifyHome, and what was shared", () => {
       expect(await problemsIn(home)).toEqual([
         `${SHARES_JSON}: share 2 (${second.entry.at}) lists its files in a form voicecap can't read`,
         `${SHARE}/${WORD_2}: not recorded in shares.json`,
+        `${SHARE}/${JSON_2}: not recorded in shares.json`,
+        `${SHARE}/${MD_2}: not recorded in shares.json`,
         `${SHARE}/${walkthrough2}: not recorded in shares.json`,
       ]);
     });
@@ -1569,7 +1802,10 @@ describe("verifyHome, and what was shared", () => {
         `${SHARE}/${PAGE_2}: changed since it was recorded (SHA-256 differs)`,
         `${SHARES_JSON}: share 2 (${second.entry.at}) names "../x.html", which isn't a file in share/`,
         `${SHARE}/${WORD_2}: missing`,
-        // The entry no longer lists its walkthrough file, so nothing records it.
+        // The entry no longer lists its JSON, its Markdown, or its walkthrough file, so nothing
+        // records them.
+        `${SHARE}/${JSON_2}: not recorded in shares.json`,
+        `${SHARE}/${MD_2}: not recorded in shares.json`,
         `${SHARE}/${walkthrough2}: not recorded in shares.json`,
       ]);
 
@@ -1584,6 +1820,8 @@ describe("verifyHome, and what was shared", () => {
         `${SHARES_JSON}: share 2 (${second.entry.at}) lists its files in a form voicecap can't read`,
         `${SHARE}/${WORD_2}: not recorded in shares.json`,
         `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+        `${SHARE}/${JSON_2}: not recorded in shares.json`,
+        `${SHARE}/${MD_2}: not recorded in shares.json`,
         `${SHARE}/${walkthrough2}: not recorded in shares.json`,
       ]);
     });
@@ -1887,7 +2125,73 @@ describe("verifyHome, and what was shared", () => {
       `${SHARE}/b-folder: an unexpected folder`,
       `${SHARE}/${WORD_1}: not recorded in shares.json`,
       `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+      `${SHARE}/${JSON_1}: not recorded in shares.json`,
+      `${SHARE}/${MD_1}: not recorded in shares.json`,
       `${SHARE}/${walkthrough1}: not recorded in shares.json`,
     ]);
+  });
+});
+
+// verify prints what the records hold: a share's time, and the names of files in share/. Either can
+// hold a control character, or one that turns the words around, so both are printed through the
+// console logger, which writes each as text (see inertText).
+describe("what verify prints at a terminal", () => {
+  /**
+   * What `voicecap verify` prints, through the console logger, for a home whose one site's share/
+   * folder holds `shares` as shares.json and a file for each name in `copies`.
+   */
+  async function printed(shares: Record<string, unknown>[], copies: string[] = []) {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-verify-print-"));
+    try {
+      const home = path.join(dir, "transcripts");
+      const siteDir = path.join(home, "example.illinois.gov");
+      await mkdir(shareDir(siteDir), { recursive: true });
+      await writeFile(sharesPath(siteDir), JSON.stringify({ schemaVersion: 1, shares }));
+      for (const name of copies) await writeFile(path.join(shareDir(siteDir), name), "<p>");
+
+      let shown = "";
+      const terminal = { write: (chunk: string) => ((shown += chunk), true) };
+      const logger = createConsoleLogger(terminal, terminal);
+      const { problems } = await verifyHome({ home, site: "https://example.illinois.gov", logger });
+      return { shown, problems };
+    } finally {
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+
+  it("writes a share's time and the name of a copy that nothing records as text", async () => {
+    const at = "2027-01-15T10:00:00-06:00\u{1b}]0;pwned\u{7}";
+    // No seal that fits, so verify names the entry as changed, by its time.
+    const entry = { seq: 1, prev: null, at, by: "Pat Lee", runs: [], files: [], seal: "0" };
+
+    const { shown, problems } = await printed([entry], ["page\u{202e}fdp.html"]);
+
+    expect(problems).toBe(2);
+    expect(shown).toBe(
+      "example.illinois.gov/share/shares.json: share 1 (2027-01-15T10:00:00-06:00\\u{1b}]0;pwned\\u{7}) changed since it was recorded\n" +
+        "example.illinois.gov/share/page\\u{202e}fdp.html: not recorded in shares.json\n" +
+        "example.illinois.gov: 0 runs (0 incomplete), 0 manual sessions, 0 reviews, 1 share checked: 2 problems.\n",
+    );
+  });
+
+  it("writes the name of a file an entry records that can't be a file in share/ as text", async () => {
+    const entry: Record<string, unknown> = {
+      seq: 1,
+      prev: null,
+      at: "2027-01-15T10:00:00-06:00",
+      by: "Pat Lee",
+      runs: [],
+      files: [{ name: "../x\u{1b}[2J\u{202e}.html", bytes: 3, sha256: "0".repeat(64) }],
+    };
+    // Sealed, so verify goes on to the entry's files.
+    entry.seal = sealOf(entry);
+
+    const { shown, problems } = await printed([entry]);
+
+    expect(problems).toBe(1);
+    expect(shown).toBe(
+      'example.illinois.gov/share/shares.json: share 1 (2027-01-15T10:00:00-06:00) names "../x\\u{1b}[2J\\u{202e}.html", which isn\'t a file in share/\n' +
+        "example.illinois.gov: 0 runs (0 incomplete), 0 manual sessions, 0 reviews, 1 share checked: 1 problem.\n",
+    );
   });
 });

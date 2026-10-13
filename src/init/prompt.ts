@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline";
 
 import { InterruptedError } from "../passes/steps.js";
+import { inertText } from "../util/inert.js";
 import type { OutputStream } from "../util/log.js";
 
 /**
@@ -72,18 +73,26 @@ export function createPrompter(io: {
   });
   const lines = rl[Symbol.asyncIterator]();
 
-  /** Show a question's text: a redrawable readline prompt in a terminal, or a plain write. */
+  /**
+   * Show a question's text: a redrawable readline prompt in a terminal, or a plain write. It is
+   * written as text (inertText), as a line said is. A question carries voicecap's own words and
+   * addresses a URL parser has normalized today; this keeps whatever reaches it later from acting
+   * on the terminal.
+   */
   function show(text: string): void {
+    const shown = inertText(text);
     if (terminal) {
-      rl.setPrompt(text);
+      rl.setPrompt(shown);
       rl.prompt();
     } else {
-      io.output.write(text);
+      io.output.write(shown);
     }
   }
 
+  // What a site answered (a server's reason phrase, a sitemap's address) is said here, so it's
+  // written as text (inertText): it can't act on the terminal.
   function say(text: string): void {
-    io.output.write(`${text}\n`);
+    io.output.write(`${inertText(text)}\n`);
   }
 
   // Ctrl+C can arrive between questions (e.g. during the up-to-15-second site check), when no

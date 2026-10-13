@@ -16,27 +16,36 @@ jobs:
   test:
     name: ${{ matrix.os }} / Node ${{ matrix.node }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         node: [22, 24]
     steps:
+      # Each action is pinned to the commit its tag named when it was last updated, with that tag in
+      # the comment beside it, so a tag that moves can't change what runs here. Dependabot proposes
+      # the updates (.github/dependabot.yml).
+
       # The whole history, not the newest commit alone: test/release-facts.test.ts records the
       # release's facts from this checkout, and a shallow clone can't count the commits behind it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # Reads the pnpm version from package.json's packageManager field.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # Fails on a high or critical advisory in a package that voicecap's own package installs.
+      - run: pnpm audit --prod --audit-level high
 
       # The report's accessibility test runs axe in real Chromium (contrast needs rendering).
       - name: Install Chromium (Linux, with system libraries)
@@ -54,6 +63,7 @@ jobs:
         env:
           VOICECAP_TRANSCRIPTS: never-a-test-home
           VOICECAP_REVIEWER: never-a-test-reviewer
+          VOICECAP_CONFIG: never-a-test-config
       - run: pnpm build
 
       - name: Smoke test the CLI with the replay driver

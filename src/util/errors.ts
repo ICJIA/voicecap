@@ -78,3 +78,13 @@ export function errorMessage(error: unknown): string {
 export function programOf(error: unknown): string | null | undefined {
   return error instanceof ForegroundError ? error.program : undefined;
 }
+
+/**
+ * An error's code ("ENOENT", "EACCES"): the part of a file system's message that names no path,
+ * which a reason a record keeps can say without naming the account whose folder it was. "unknown
+ * error" for an error with none.
+ */
+export function errorCode(error: unknown): string {
+  const code = error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
+  return typeof code === "string" ? code : "unknown error";
+}

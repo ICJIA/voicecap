@@ -1145,7 +1145,7 @@ describe("the Mac live test: when the process exits in the middle", () => {
 describe("the Mac live test: the VoiceOver lock", () => {
   it("fails with the lock's own message when another voicecap holds it, touching nothing else", async () => {
     const message =
-      "Another voicecap (process 999, started 2026-09-28T08:00:00-05:00) is using VoiceOver on this computer, and only one can at a time. Wait for it to finish, or stop it first. If no other voicecap is running, delete its lock: /Users/cschweda/Library/Caches/voicecap/voiceover.lock";
+      "Another voicecap (process 999, started 2026-09-28T08:00:00-05:00) is using VoiceOver on this computer, and only one can at a time. Wait for it to finish, or stop it first. If no other voicecap is running, delete its lock: /Users/jane/Library/Caches/voicecap/voiceover.lock";
     const mac = fakeMac({ lockError: new EnvironmentError(message) });
     expect(await macLiveTest(mac.deps)).toEqual([
       {

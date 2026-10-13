@@ -6,8 +6,10 @@
  * and then the page's full transcript: the read, headings, and Tab transcripts, word for word. That
  * is the one place for a page's words, since the page has no appendix of transcripts. The folds'
  * ids (`axe-…`, `tx-…`) are for an address that points to them, which opens one and the fold of the
- * quiet pages around it. A card's one kind of link is to axe's own page on each rule its fold names
- * (`axeRulePage`), which leaves the page; the section has no link of its own.
+ * quiet pages around it. A card's links are to axe's own page on each rule its fold names
+ * (`axeRulePage`), which leaves the page, and, for a page that has a recording of NVDA's voice, a
+ * line that links to its section of the voice page, a file beside this one (`voiceLine`); the
+ * section has no link of its own.
  *
  * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts), which
  * is plain words, and so does each line worked out from the model (../words.ts), through
@@ -24,6 +26,7 @@
  */
 import { AXE_FILE, PASS_NAMES, SCREENSHOT_FILE, type PassName } from "../../model.js";
 import { esc, idFragment } from "../../report/html.js";
+import { cardAnchor, transcriptAnchor } from "../anchors.js";
 import {
   axeCriteria,
   axeFix,
@@ -36,7 +39,7 @@ import {
   type AxeViewRule,
 } from "../axe-view.js";
 import type { AppendixFile, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, PASS_TITLE } from "../text.js";
+import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, PASS_TITLE, VOICE_TEXT } from "../text.js";
 import {
   axeFingerprint,
   capturedOf,
@@ -97,8 +100,11 @@ function fromLine(card: PageCard): string {
 
 // Every page.
 
-/** The page's path, or the label its page list gave it with its path beside it. */
-function heading(card: PageCard, number: number): string {
+/**
+ * A page's number and its name: its label with its path beside it, or its path alone. The voice page
+ * (../voice-page.ts) heads each section with it too, so a card and its section read alike.
+ */
+export function heading(card: PageCard, number: number): string {
   const named = card.labeled
     ? `${esc(card.name)} <span class="sub">${esc(card.path)}</span>`
     : esc(card.path);
@@ -194,11 +200,27 @@ function heardFirstOf({ heardFirst }: PageCard): string {
 }
 
 /**
+ * A page's line on NVDA's voice, for a page that has a recording to play: its length, and a link to
+ * the page's section of the voice page, which a share writes beside this page ("NVDA's voice: 2 min
+ * 14 s, on the voice page"). The link names the page it's for, for a screen reader alone, so that
+ * the links of a page's cards, which the length can't tell apart, don't read alike and go to
+ * different places. No line for a page with no recording, and none in a copy with no voice page
+ * beside it: the card has no `voice` then.
+ */
+function voiceLine(card: PageCard): string {
+  const { voice } = card;
+  if (voice === null) return "";
+  const words = esc(VOICE_TEXT.card.line(voice.seconds));
+  const ofPage = `<span class="sr"> ${esc(VOICE_TEXT.card.of(card.path))}</span>`;
+  return `<p class="sub"><a href="${esc(voice.href)}">${words}${ofPage}</a></p>`;
+}
+
+/**
  * A page's card, in the spec's order: the picture, then the heading, the title, the chips, the
- * failure, the run its transcripts come from, and the manual sessions; what NVDA said first; what
- * each pass captured, and the strip; then what axe found, folded; and last the page's full
- * transcript, folded. `transcripts` is the page's entry in the model's list of transcripts, and
- * none for a page with none; a part a page has nothing for is left out.
+ * failure, the run its transcripts come from, and the manual sessions; what NVDA said first, and
+ * the line on its recording; what each pass captured, and the strip; then what axe found, folded;
+ * and last the page's full transcript, folded. `transcripts` is the page's entry in the model's
+ * list of transcripts, and none for a page with none; a part a page has nothing for is left out.
  */
 function cardOf(
   card: PageCard,
@@ -217,13 +239,14 @@ function cardOf(
     fromLine(card),
     ...manual,
     heardFirstOf(card),
+    voiceLine(card),
     passesOf(card),
     stripOf(card),
     axeFold(card),
     transcripts === undefined ? "" : transcriptFold(card, transcripts, latest),
   ].filter((part) => part !== "");
   const parts = [picture, `<div class="card-body">\n    ${body.join("\n    ")}\n  </div>`];
-  return `<article class="card" id="pg-${idFragment(card.slug)}">\n  ${parts.filter((part) => part !== "").join("\n  ")}\n</article>`;
+  return `<article class="card" id="${cardAnchor(card.slug)}">\n  ${parts.filter((part) => part !== "").join("\n  ")}\n</article>`;
 }
 
 /** The cards, as the mockup lays them out. */
@@ -467,9 +490,12 @@ function originLine(card: PageCard, latest: string | null): string {
 /**
  * A page's full transcript, folded: the run it is from, and a transcript for each pass the run
  * recorded. The fold's line says which, as many as there are ("The full transcript: read,
- * headings, and Tab transcripts"), and, for a screen reader alone, which page it is of ("The full
- * transcript of /about/: …"): every card's line reads alike on screen. A page whose record lists no
- * transcript files says so inside. The fold's id (`tx-…`) is what an address points to, to open it.
+ * headings, and Tab transcripts"): every card's line reads alike on screen. For a screen reader
+ * alone, the words that say which page it is of follow the line, in the page's visually hidden
+ * class (`sr`) ("The full transcript: read, headings, and Tab transcripts of /about/"), so that
+ * the words everyone sees are whole and first in the fold's name (WCAG 2.5.3, label in name) and
+ * no two folds are named alike. A page whose record lists no transcript files says so inside. The
+ * fold's id (`tx-…`) is what an address points to, to open it.
  */
 function transcriptFold(
   card: PageCard,
@@ -480,13 +506,13 @@ function transcriptFold(
     (pass) => entry.files.some((file) => file.pass === pass) || entry.unreadable.includes(pass),
   );
   const inside = esc(transcriptsInside(passes));
-  const ofPage = `${esc(PAGES_TEXT.fullTranscriptOf)} ${esc(card.path)}`;
-  const summary = `<span class="what">${esc(PAGES_TEXT.fullTranscript)}<span class="sr"> ${ofPage}</span>:</span> <span class="sub">${inside}</span>`;
+  const ofPage = `<span class="sr"> ${esc(PAGES_TEXT.fullTranscriptOf)} ${esc(card.path)}</span>`;
+  const summary = `<span class="what">${esc(PAGES_TEXT.fullTranscript)}:</span> <span class="sub">${inside}</span>${ofPage}`;
   const sections = passes.map((pass) => {
     const file = entry.files.find((each) => each.pass === pass);
     return file === undefined ? unreadableOf(pass, card.path) : transcriptOf(file, card.path);
   });
   const none = passes.length === 0 ? `<p>${esc(APPENDIX_TEXT.noFiles)}</p>` : "";
   const body = `${originLine(card, latest)}${sections.join("")}${none}`;
-  return fold(summary, body, { id: `tx-${idFragment(entry.slug)}`, className: "tx-page" });
+  return fold(summary, body, { id: transcriptAnchor(entry.slug), className: "tx-page" });
 }

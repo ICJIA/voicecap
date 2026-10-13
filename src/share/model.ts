@@ -40,6 +40,7 @@ import { describeChanges, distinctEnvironments } from "../report/compare.js";
 import { pageName } from "../report/model.js";
 import { redactHome } from "../run/failure.js";
 import { extractBody, MAIN_COMMAND, stepLine } from "../transcripts/format.js";
+import { fileNameOf } from "../util/file-name.js";
 import { attentionCards, type AttentionCard, type AttentionPage } from "./attention.js";
 import {
   axeCheckedOf,
@@ -48,6 +49,7 @@ import {
   HEARD,
   noLongerListedOf,
   shownPasses,
+  voiceNoteOf,
   type NoLongerListed,
   type PageCard,
 } from "./cards.js";
@@ -77,7 +79,7 @@ import {
 } from "./run-evidence.js";
 import { runBefore, standingOf, type PageStanding, type Standing } from "./standing.js";
 import { summaryOf, type Summary } from "./summary.js";
-import { TIMELINE_TEXT } from "./text.js";
+import { ownWords, TIMELINE_TEXT } from "./text.js";
 import {
   attemptEvents,
   eventText,
@@ -194,6 +196,16 @@ export interface ShareModel {
     passes: { pass: PassName; lines: { text: string; took: string }[] }[];
   } | null;
   pages: PageCard[];
+  /**
+   * What the details say of the voice page, the companion of the page that plays what NVDA said
+   * aloud on each page (plan 11, from voicecap 0.18.0): where it is (`name`, its file name, beside
+   * the page, when a card has a line that links to it), or why there is none (`why`, a sentence:
+   * no page has a recording to play, with the reason the latest run's pages gave when they gave one,
+   * or the copy is the live one, which has none beside it). Null
+   * for a report that draws on no run from a voicecap that records NVDA's voice and has no
+   * recording, which says nothing of it. See `voiceNoteOf`.
+   */
+  voicePage: { name: string } | { why: string } | null;
   noLongerListed: NoLongerListed[];
   /** What sounds different since the run before; null when there's no run before. */
   changes: Changes | null;
@@ -275,8 +287,12 @@ export function buildShareModel(input: ShareInput): ShareModel {
   const before = latest && runBefore(standing.counted, latest);
   const compared =
     latest && before ? changesOf(before, latest, bodyOf(input.transcripts), nameOf) : null;
-  // What tools differ can name a setting's path, which can hold the home folder.
-  const changes = compared && { ...compared, tools: compared.tools.map(redact) };
+  // What tools differ can name a setting's path, which can hold the home folder, and the library
+  // that drives the screen reader, which the page names no more than its test environment does.
+  const changes = compared && {
+    ...compared,
+    tools: compared.tools.map((line) => ownWords(redact(line))),
+  };
   const pages = cardsOf({
     standing,
     review,
@@ -286,6 +302,8 @@ export function buildShareModel(input: ShareInput): ShareModel {
     name: nameOf,
     screenshots: input.screenshots,
     axeFiles: input.axeFiles,
+    recordings: input.recordings,
+    voiceName: input.voiceName,
     screenReader: (run) => wordsFor(run).screenReader,
     redact,
   });
@@ -331,6 +349,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
     attention,
     heard: heardOf(standing.pages, input.transcripts, nameOf),
     pages,
+    voicePage: voiceNoteOf(standing, pages, input.voiceName, redact),
     noLongerListed: noLongerListedOf(standing, nameOf, shown),
     changes,
     problems,
@@ -617,14 +636,14 @@ function coverageOf(
   }
   return {
     covered: [
-      scopeOf(standing.pages.length, latest.settings.source, redact, shown),
+      scopeOf(standing.pages.length, latest.settings.source, shown),
       passesOf(standing, latest),
       "Every problem during the runs is explained under Problems during the runs.",
     ],
     limits: [
       ...toolsOf(latest),
       "Flags match NVDA's English phrasing, and the person reviewing decides what they mean.",
-      ...toolChanges(standing.drawnOn).map(redact),
+      ...toolChanges(standing.drawnOn).map((line) => ownWords(redact(line))),
     ],
   };
 }
@@ -652,27 +671,24 @@ function passesOf(standing: Standing, latest: RunJson): string {
 }
 
 /** The pages in scope, and the list they came from. */
-function scopeOf(
-  count: number,
-  source: PageSource,
-  redact: (text: string) => string,
-  shown: Shown,
-): string {
-  return `${count === 1 ? "1 page" : `${count} pages`} from ${listOf(source, redact, shown)}.`;
+function scopeOf(count: number, source: PageSource, shown: Shown): string {
+  return `${count === 1 ? "1 page" : `${count} pages`} from ${listOf(source, shown)}.`;
 }
 
 /**
- * The list the pages came from, as the page names it, with the home folder replaced and a sitemap's
- * address as the page shows it.
+ * The list the pages came from, as the page names it: a page list or a walkthrough file by its
+ * file's name alone, whatever path the record holds (a run recorded before voicecap 0.18.0 kept the
+ * whole path of one from outside its folder, which can name an account), and a sitemap's address as
+ * the page shows it.
  */
-function listOf(source: PageSource, redact: (text: string) => string, shown: Shown): string {
+function listOf(source: PageSource, shown: Shown): string {
   switch (source.kind) {
     case "sitemap":
       return `the sitemap ${shown(source.url)}`;
     case "pages":
-      return `the page list ${redact(source.file)}`;
+      return `the page list ${fileNameOf(source.file)}`;
     case "walkthrough":
-      return `the walkthrough ${redact(source.file)} from run ${source.run}`;
+      return `the walkthrough ${fileNameOf(source.file)} from run ${source.run}`;
     case "urls":
       return "the pages given";
     default: {

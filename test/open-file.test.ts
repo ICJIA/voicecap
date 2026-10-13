@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { openFile, openFileCommand, startCommand, type Command } from "../src/drivers/open-file.js";
@@ -11,11 +13,19 @@ describe("openFileCommand", () => {
       file: "open",
       args: ["/Users/pat/report.html"],
     });
-    expect(openFileCommand(REPORT, "win32")).toEqual({ file: "explorer.exe", args: [REPORT] });
+    expect(openFileCommand(REPORT, "win32").args).toEqual([REPORT]);
     expect(openFileCommand("/home/pat/report.html", "linux")).toEqual({
       file: "xdg-open",
       args: ["/home/pat/report.html"],
     });
+  });
+
+  // Started by name, Windows looks in the folder voicecap runs in first: a file named explorer.exe
+  // there would be started in place of Explorer.
+  it("starts Windows' Explorer by its full path, never by its name", () => {
+    const { file } = openFileCommand(REPORT, "win32");
+    expect(path.win32.isAbsolute(file)).toBe(true);
+    expect(file.endsWith("\\explorer.exe")).toBe(true);
   });
 
   it("passes a path with spaces, & and quotes as one argument, as it is", () => {
@@ -36,7 +46,8 @@ describe("openFile", () => {
       },
     });
     expect(opened).toBe(true);
-    expect(started).toEqual([{ file: "explorer.exe", args: [REPORT] }]);
+    expect(started).toEqual([openFileCommand(REPORT, "win32")]);
+    expect(started[0]?.file.endsWith("\\explorer.exe")).toBe(true);
 
     const failed = await openFile("/home/pat/report.html", {
       platform: "linux",

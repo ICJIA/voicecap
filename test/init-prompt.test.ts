@@ -168,6 +168,111 @@ describe("say", () => {
     prompter.close();
     input.end();
   });
+
+  // What a site says (a server's reason phrase in "doesn't answer (…)", a sitemap's address) is
+  // printed through say, and mustn't act on the terminal.
+  it("writes a control character as text", () => {
+    const input = new PassThrough();
+    const output = capture();
+    const prompter = createPrompter({ input, output: output.stream });
+
+    prompter.say("a\u{1b}b");
+    prompter.say("  → https://example.illinois.gov (HTTP 503 Down\u{1b}[2J\u{202e}\r\nfor now)");
+    expect(output.text()).toBe(
+      "a\\u{1b}b\n  → https://example.illinois.gov (HTTP 503 Down\\u{1b}[2J\\u{202e}\nfor now)\n",
+    );
+
+    prompter.close();
+    input.end();
+  });
+
+  it("writes the reason a check gives, and a choice, as text too", async () => {
+    const input = new PassThrough();
+    const output = capture();
+    const prompter = createPrompter({ input, output: output.stream });
+    input.write("wrong\nright\n1\n");
+    const check = (answer: string) => (answer === "right" ? null : "Not that\u{1b}[2J.");
+
+    await expect(prompter.ask("Word", { check })).resolves.toBe("right");
+    await expect(prompter.choose("Where?", ["Sitemap at https://x/\u{202e}y"], 0)).resolves.toBe(0);
+    expect(output.text()).toBe(
+      "Word: Not that\\u{1b}[2J.\nWord: Where?\n  1. Sitemap at https://x/\\u{202e}y\nChoose [1]: ",
+    );
+
+    prompter.close();
+    input.end();
+  });
+
+  it("leaves a line with nothing in it to write as it was", () => {
+    const input = new PassThrough();
+    const output = capture();
+    const prompter = createPrompter({ input, output: output.stream });
+
+    prompter.say("  1. The site's sitemap:\thttps://example.illinois.gov/sitemap.xml …");
+    expect(output.text()).toBe(
+      "  1. The site's sitemap:\thttps://example.illinois.gov/sitemap.xml …\n",
+    );
+
+    prompter.close();
+    input.end();
+  });
+});
+
+// A question's text is shown by the prompter's other terminal sink (show). It carries voicecap's own
+// words and addresses a URL parser has normalized today, but a sink is made safe before whatever
+// can reach it does: a control character in the text is written as text, as it is in a line said.
+describe("a question's text", () => {
+  it("writes a control character in it as text, in a question, a default, a choice, and a yes or no", async () => {
+    const input = new PassThrough();
+    const output = capture();
+    const prompter = createPrompter({ input, output: output.stream });
+    input.write("a\n\n\ny\n");
+
+    await expect(prompter.ask("Sitemap \u{1b}[2J")).resolves.toBe("a");
+    await expect(prompter.ask("Name", { default: "x\u{202e}y" })).resolves.toBe("x\u{202e}y");
+    await expect(prompter.choose("Where?", ["Here"], 0)).resolves.toBe(0);
+    await expect(prompter.confirm("Use \u{7}it?", false)).resolves.toBe(true);
+    expect(output.text()).toBe(
+      "Sitemap \\u{1b}[2J: Name [x\\u{202e}y]: Where?\n  1. Here\nChoose [1]: Use \\u{7}it? [y/N]: ",
+    );
+
+    prompter.close();
+    input.end();
+  });
+
+  it("writes it as text in a terminal too, where readline draws the prompt", async () => {
+    const input = new PassThrough();
+    const output = streamCapture();
+    const prompter = createPrompter({ input, output: output.stream, terminal: true });
+
+    const answer = prompter.ask("Sitemap \u{1b}[2J\u{202e}");
+    const shown = output.text();
+    input.write("a\n");
+    await expect(answer).resolves.toBe("a");
+
+    expect(shown).toContain("Sitemap \\u{1b}[2J\\u{202e}: ");
+    // Not the sequence itself, which clears the screen, nor the override that turns the words around.
+    expect(output.text()).not.toContain("\u{1b}[2J");
+    expect(output.text()).not.toContain("\u{202e}");
+
+    prompter.close();
+    input.end();
+  });
+
+  it("leaves a question with nothing in it to write as it was", async () => {
+    const input = new PassThrough();
+    const output = capture();
+    const prompter = createPrompter({ input, output: output.stream });
+    input.write("a\n");
+
+    await expect(prompter.ask("Where are the pages? (https://x.org/sitemap.xml)")).resolves.toBe(
+      "a",
+    );
+    expect(output.text()).toBe("Where are the pages? (https://x.org/sitemap.xml): ");
+
+    prompter.close();
+    input.end();
+  });
 });
 
 describe("reading answers", () => {

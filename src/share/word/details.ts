@@ -16,10 +16,15 @@
  * already (./top.ts).
  *
  * Where no run counts there is nothing to count, so the five parts that were the summary's panels
- * and bars, which are all counts, are left out, as the page leaves them out. Pure.
+ * and bars, which are all counts, are left out, as the page leaves them out.
+ *
+ * Under the line that says what is here, a report that has NVDA's voice says what it is, in a
+ * paragraph with no heading of its own, as the page does (`voiceDetails`): with a link to the voice
+ * page, a file beside this one, or why there is none. Word doesn't carry the sound. Pure.
  */
 import type { ShareModel } from "../model.js";
 import { DETAILS_TEXT } from "../text.js";
+import { voiceDetails } from "../words.js";
 import { demoted, heading, para, type Block } from "./blocks.js";
 import { wordChanges } from "./changes.js";
 import { wordCoverage, wordEvidence, wordStory } from "./evidence.js";
@@ -40,9 +45,11 @@ import {
 export function wordDetails(model: ShareModel): Block[] {
   const { summary } = model;
   const counted = model.header.tested !== null;
+  const voice = voiceDetails(model);
   return [
     heading(1, DETAILS_TEXT.title),
     para(DETAILS_TEXT.gist),
+    ...(voice === null ? [] : [para(...voice)]),
     ...(counted
       ? [...todoBlocks(summary), ...completeBlocks(summary), ...whenHowBlocks(summary)]
       : []),

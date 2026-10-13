@@ -27,7 +27,13 @@ import { addManualSession } from "../src/manual-add.js";
 import { addReview } from "../src/reviews/review.js";
 import { runAudit } from "../src/run/audit.js";
 import { regenerateLiveFiles, regenerateLiveReport } from "../src/run/live-report.js";
-import { liveReportPath, shareDir, sharePath, shareWordPath } from "../src/run/paths.js";
+import {
+  liveReportPath,
+  shareDir,
+  sharePath,
+  shareWordPath,
+  siteFolder,
+} from "../src/run/paths.js";
 import { readRunJson } from "../src/run/store.js";
 import { renderWordCopy } from "../src/share/docx.js";
 import type * as DocxModule from "../src/share/docx.js";
@@ -44,6 +50,7 @@ import { createMemoryLogger, type Logger, type MemoryLogger } from "../src/util/
 import { footerWords, paragraphsOf, propertyOf, unzipDocx } from "./helpers/docx.js";
 import { config, options, outDir, SITE, setup, sitePages } from "./helpers/run-site.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
+import { speechAndPauses } from "./helpers/voice-signal.js";
 
 // Every write goes through as it did, and is kept, so a test can see what was written how.
 vi.mock("../src/util/atomic-write.js", async (importOriginal) => {
@@ -97,8 +104,8 @@ const WORD_NOT_UPDATED = "The Word copy wasn't updated: ";
  * `report` refuses without `--site`, and in a home that `--out` gave. None of the OS's own words
  * are in it.
  */
-const heldWarning = (code: string, siteDir: string): string =>
-  `${WORD_NOT_UPDATED}current.docx couldn't be replaced (${code}). That happens while it's open in Word. If it is, close it, then run: ${formatCommand(["report", "--site", SITE, "--out", path.dirname(siteDir)])}`;
+const heldWarning = (code: string, siteDir: string, address = SITE): string =>
+  `${WORD_NOT_UPDATED}current.docx couldn't be replaced (${code}). That happens while it's open in Word. If it is, close it, then run: ${formatCommand(["report", "--site", address, "--out", path.dirname(siteDir)])}`;
 
 /** The Word copy's parts, read back by unzipping the file as it is on disk. */
 async function wordCopy(siteDir: string) {
@@ -427,6 +434,36 @@ describe("writeShareFiles", () => {
     expect(vi.mocked(renderWordCopy).mock.calls[0]?.[0]).toBe(built?.value);
   });
 
+  it("writes no voice page beside the live copies, whatever the run recorded, and links to none", async () => {
+    const dir = await setup();
+    try {
+      const voice = { samples: speechAndPauses() };
+      const pages = sitePages({ home: { voice }, about: { voice }, resources: { voice } });
+      const result = await runAudit(options(dir, new ScriptedDriver(pages)));
+      expect(result.outcome).toBe("completed");
+      expect(result.run.pages.every((page) => "sha256" in (page.voice ?? {}))).toBe(true);
+      const site = outDir(dir);
+      await rm(shareDir(site), { recursive: true, force: true });
+
+      const files = await writeShareFiles({
+        siteDir: site,
+        config: DEFAULT_CONFIG,
+        logger: createMemoryLogger(),
+      });
+
+      // The live copies are the page and the Word copy alone: a voice page is written by a share,
+      // beside the dated copies, and a live copy that linked to one would link to nothing.
+      expect(files).toEqual({ page: sharePath(site), word: shareWordPath(site) });
+      expect((await readdir(shareDir(site))).sort()).toEqual(["current.docx", "current.html"]);
+      const page = await readFile(sharePath(site), "utf8");
+      expect(page).not.toContain(".voice.html");
+      expect(page).not.toContain("<audio");
+      expect(page).toContain("how its pages read aloud");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("dates both files from the time it's given", async () => {
     const { site } = await siteWithRun();
 
@@ -654,6 +691,34 @@ describe("writeShareFiles", () => {
 
     expect(logger.entries).toEqual([{ level: "warn", message: heldWarning("EBUSY", site) }]);
     expect(logger.text("warn")).not.toContain("dvfr.illinois.gov");
+  });
+
+  // The address voicecap read can hold a single quote in its host, and the command is one a person
+  // pastes: it's written %27, as in every command voicecap prints, so it reads the same in
+  // PowerShell and in Git Bash.
+  it("writes a single quote in the address voicecap read as %27 in the warning's command", async () => {
+    const origin = "http://o'brien:3000";
+    const dir = await setup();
+    const pages = sitePages().map((page) => ({ ...page, url: page.url.replace(SITE, origin) }));
+    const result = await runAudit(options(dir, new ScriptedDriver(pages), { site: origin }));
+    expect(result.outcome).toBe("completed");
+    const site = path.join(dir, "transcripts", siteFolder(origin));
+    const held = Object.assign(new Error("EBUSY: the file is held by another program"), {
+      code: "EBUSY",
+    });
+    const logger = createMemoryLogger();
+
+    await writeShareFiles({
+      siteDir: site,
+      config: DEFAULT_CONFIG,
+      logger,
+      rename: refusingTheWordCopy(held),
+    });
+
+    expect(logger.entries).toEqual([
+      { level: "warn", message: heldWarning("EBUSY", site, "http://o%27brien:3000") },
+    ]);
+    expect(logger.text("warn")).toContain(" report --site http://o%27brien:3000 --out ");
   });
 
   it.each([

@@ -3,7 +3,7 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { isWebRoot, normalizeCanonical, recordedCanonical } from "../pages/canonical.js";
-import { hasScheme, parseSiteUrl } from "../pages/url.js";
+import { hasScheme, parseSiteUrl, withoutUserInfo } from "../pages/url.js";
 import { newestSealed, readShares } from "../share/shares.js";
 import { UsageError } from "../util/errors.js";
 import { assertNotRewritten } from "../util/git-bash.js";
@@ -257,7 +257,9 @@ function fullPageUrl(page: string): URL | null {
   if (!hasScheme(value)) return null;
   const url = URL.canParse(value) ? new URL(value) : null;
   if (url === null || (url.protocol !== "http:" && url.protocol !== "https:")) {
-    throw new UsageError(`--page "${page}" isn't a page URL or a path like /about.`);
+    throw new UsageError(
+      `--page "${withoutUserInfo(page)}" isn't a page URL or a path like /about.`,
+    );
   }
   return url;
 }

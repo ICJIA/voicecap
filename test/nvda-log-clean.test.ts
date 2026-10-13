@@ -14,6 +14,7 @@ import {
   cleanNvdaLog,
   gestureOf,
   withNvdaLog,
+  withQuietNotifications,
 } from "../src/drivers/guidepup/nvda-log.js";
 import { parseNvdaLog, splitLogEntries } from "../src/manual/nvda-log.js";
 import type { DriverCommand, RunJson, TranscriptJson } from "../src/model.js";
@@ -325,6 +326,60 @@ describe("cleanNvdaLog: the home folder", () => {
   });
 });
 
+// NVDA names the files in its temp folder in its warnings and errors, in the spelling Windows gives
+// the folder: for an account folder longer than eight characters, a short one (JANEDO~1), which is
+// not the home folder's spelling.
+describe("cleanNvdaLog: the temp folder", () => {
+  const TEMP = "C:\\Users\\JANEDO~1\\AppData\\Local\\Temp";
+  const options = { home: "C:\\Users\\jane.doe.smith", platform: "win32", temp: TEMP } as const;
+  const moving = entry(
+    "ERROR",
+    "core.main",
+    "09:00:04.000",
+    MAIN,
+    String.raw`Couldn't move the log to C:\Users\JANEDO~1\AppData\Local\Temp\nvda-old.log`,
+  );
+
+  it("is written as %TEMP%, so no part of the account's name is kept", () => {
+    const body = bodyOf(cleanNvdaLog(nvdaWrites([moving]), options)).join("\n");
+    expect(body).toContain(String.raw`Couldn't move the log to %TEMP%\nvda-old.log`);
+    expect(body).not.toContain("JANEDO");
+  });
+
+  it("is written first, so the home folder's long spelling in it doesn't make it %USERPROFILE%", () => {
+    const long = entry(
+      "ERROR",
+      "core.main",
+      "09:00:04.000",
+      MAIN,
+      String.raw`Couldn't read C:\Users\jane.doe.smith\AppData\Local\Temp\nvda.log`,
+    );
+    const asked = { ...options, temp: String.raw`C:\Users\jane.doe.smith\AppData\Local\Temp` };
+    expect(bodyOf(cleanNvdaLog(nvdaWrites([long]), asked))).toEqual([
+      long[0],
+      String.raw`Couldn't read %TEMP%\nvda.log`,
+    ]);
+  });
+
+  it("is left as NVDA wrote it when the copy is cleaned with no temp folder, as before", () => {
+    const body = bodyOf(
+      cleanNvdaLog(nvdaWrites([moving]), { home: options.home, platform: options.platform }),
+    ).join("\n");
+    expect(body).toContain(String.raw`C:\Users\JANEDO~1\AppData\Local\Temp\nvda-old.log`);
+  });
+
+  it("changes nothing off Windows, where no temp folder is named", () => {
+    const failure = entry("ERROR", "x.y", "09:00:04.000", MAIN, "Couldn't move /tmp/nvda-old.log");
+    const away = { home: "/home/jane", platform: "linux", temp: "/tmp" } as const;
+    expect(bodyOf(cleanNvdaLog(nvdaWrites([failure]), away))).toEqual(failure);
+  });
+
+  it("is not changed by cleaning the copy again", () => {
+    const cleaned = cleanNvdaLog(nvdaWrites([moving, DOWN]), options);
+    expect(cleanNvdaLog(cleaned, options)).toBe(cleaned);
+  });
+});
+
 describe("cleanNvdaLog: the copy", () => {
   it("starts with the line that says what it is", () => {
     expect(clean(...WHOLE_LOG).split("\n")[0]).toBe(HEADER);
@@ -473,6 +528,76 @@ describe("withNvdaLog: the settings NVDA starts with", () => {
   });
 });
 
+// NVDA's notifications ("Report notifications", presentation.reportHelpBalloons) go off as
+// voicecap's NVDA starts, so that a reminder or a message isn't read into a transcript or a
+// recording. A value the config sets itself wins.
+describe("withQuietNotifications: NVDA's notifications, off", () => {
+  it("turns them off, when the config sets nothing", () => {
+    expect(withQuietNotifications({})).toEqual({ presentation: { reportHelpBalloons: false } });
+  });
+
+  it("keeps the config's other presentation settings, and its other sections, beside it", () => {
+    expect(
+      withQuietNotifications({
+        presentation: { reportKeyboardShortcuts: false, reportObjectDescriptions: true },
+        speech: { symbolLevel: 100 },
+      }),
+    ).toEqual({
+      presentation: {
+        reportKeyboardShortcuts: false,
+        reportObjectDescriptions: true,
+        reportHelpBalloons: false,
+      },
+      speech: { symbolLevel: 100 },
+    });
+  });
+
+  it("leaves alone a reportHelpBalloons the config sets itself", () => {
+    for (const reportHelpBalloons of [true, false]) {
+      expect(
+        withQuietNotifications({ presentation: { reportHelpBalloons, reportTooltips: true } }),
+        String(reportHelpBalloons),
+      ).toEqual({ presentation: { reportHelpBalloons, reportTooltips: true } });
+    }
+  });
+
+  it("takes a reportHelpBalloons the config leaves undefined for one it didn't set", () => {
+    expect(withQuietNotifications({ presentation: { reportHelpBalloons: undefined } })).toEqual({
+      presentation: { reportHelpBalloons: false },
+    });
+  });
+
+  it("takes a presentation that isn't a table of settings for none", () => {
+    for (const presentation of ["off", [false], 7, null]) {
+      expect(withQuietNotifications({ presentation }), JSON.stringify(presentation)).toEqual({
+        presentation: { reportHelpBalloons: false },
+      });
+    }
+  });
+
+  it("makes new objects, and never changes the config's own, which the run records", () => {
+    const presentation = { reportTooltips: true };
+    const settings = { presentation, general: { language: "en" } };
+    const made = withQuietNotifications(settings);
+    expect(made).not.toBe(settings);
+    expect(made.presentation).not.toBe(presentation);
+    expect(settings).toEqual({
+      presentation: { reportTooltips: true },
+      general: { language: "en" },
+    });
+    expect(presentation).toEqual({ reportTooltips: true });
+    // What's beside presentation is the config's, as it is.
+    expect(made.general).toBe(settings.general);
+  });
+
+  it("goes with the log's setting, each in its own section, as NVDA starts", () => {
+    expect(withQuietNotifications(withNvdaLog({}))).toEqual({
+      general: { loggingLevel: "IO" },
+      presentation: { reportHelpBalloons: false },
+    });
+  });
+});
+
 /**
  * What NVDA logs, after kb(desktop): or kb(laptop):, when the driver presses each of its keys.
  * Guidepup's key objects don't carry these names, so they're written here. A key added to the
@@ -562,6 +687,13 @@ describe("voicecap's gestures", () => {
 
 const FIXTURE_DIR = fileURLToPath(new URL("../fixture/nvda-io-run/", import.meta.url));
 const readFixtureLog = () => readFileSync(path.join(FIXTURE_DIR, "nvda-log", "1-1.txt"), "utf8");
+
+/**
+ * A path into a Users folder (`C:\Users\<account>`, `/Users/<account>`): where an account's name
+ * would be. A path in a JSON file writes each backslash twice, which this matches as well.
+ */
+const USER_FOLDER = /[\\/]users[\\/]/i;
+
 const fixtureFiles = () =>
   readdirSync(FIXTURE_DIR, { recursive: true, withFileTypes: true })
     .filter((item) => item.isFile())
@@ -576,7 +708,8 @@ describe("the fixture's cleaned copy of a real NVDA log", () => {
   });
 
   it("holds no account name", () => {
-    expect(readFixtureLog().toLowerCase()).not.toContain("cschw");
+    // The home folder is written as %USERPROFILE%, so no path into a Users folder is left.
+    expect(readFixtureLog()).not.toMatch(USER_FOLDER);
   });
 
   it("holds no key but voicecap's", () => {
@@ -625,7 +758,7 @@ describe("the fixture's files", () => {
 
   it("holds no account name, in any file", () => {
     for (const file of fixtureFiles()) {
-      expect(readFileSync(file, "utf8").toLowerCase(), file).not.toContain("cschw");
+      expect(readFileSync(file, "utf8"), file).not.toMatch(USER_FOLDER);
     }
   });
 

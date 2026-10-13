@@ -5,6 +5,31 @@ import path from "node:path";
 /** Profile folders the driver's browsers use (in the temp folder); any left by a crashed run are deleted. */
 export const PROFILE_PREFIX = "voicecap-chrome-";
 
+/** The start of a voice folder's name (see voiceFolder), which the process id follows. */
+const VOICE_FOLDER_PREFIX = "voicecap-voice-";
+
+/**
+ * The folder one voicecap process's recordings of NVDA's voice are written to before they're
+ * encoded (in the temp folder, outside every run's folders), named for the process: its sound is
+ * deleted once the run has read it, and the folder when the recorder is closed. A folder left by a
+ * run that crashed, or that a second Ctrl+C ended, is deleted by the next run's cleanup once its
+ * process is gone (see cleanupOrphans).
+ */
+export function voiceFolder(tmpDir: string, pid: number): string {
+  return path.join(tmpDir, `${VOICE_FOLDER_PREFIX}${pid}`);
+}
+
+/**
+ * The process id a folder's name gives, when it's the name of a voice folder (see voiceFolder), and
+ * null for any other name: one that has more after the id, or none, a zero before it, or an id too
+ * large for a process (Node can't ask after one past 2,147,483,647).
+ */
+export function voiceFolderPid(name: string): number | null {
+  const match = new RegExp(`^${VOICE_FOLDER_PREFIX}([1-9][0-9]*)$`).exec(name);
+  const pid = Number(match?.[1]);
+  return Number.isSafeInteger(pid) && pid <= 2_147_483_647 ? pid : null;
+}
+
 /** The installed @guidepup/guidepup (voicecap's pinned dependency). */
 export interface GuidepupPackage {
   version: string;

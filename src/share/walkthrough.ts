@@ -4,14 +4,18 @@
  * file and no clock.
  *
  * A walkthrough file may come from anyone, so `parseWalkthrough` takes nothing on trust. A text over
- * 8 MB, a key the type doesn't have, a page address that isn't on the file's own site (or is too
- * long, or is written with a space or a control character), a page's label, template, or notes with
- * a control character in it (other than a tab or a line break), a ready selector over 1,024
- * characters or with a control or format character in it, a run id made of anything but a run id's
- * characters, NVDA settings nested too deep, a step limit over 100,000, or a readiness time over
- * ten minutes (600,000 milliseconds) refuses the whole file, saying what's wrong and where, before
- * anything runs. `walkthroughProblem` gives that same reason for a walkthrough in hand, so a writer
- * can say why a file of it couldn't be read back before it writes one.
+ * 8 MB, a key the type doesn't have, a site whose host has an empty part (`http://../`) or that has
+ * a user name or password in its address, a page address that isn't on the file's own site (or is
+ * too long, or is written with a space or a control character, or has a user name or password in
+ * it), a page's label, template, or notes with a control character, an invisible formatting
+ * character, or a line separator in it (a tab, a line break, and the zero-width joiner and
+ * non-joiner are fine), a ready selector over 1,024 characters, with a control or format character
+ * in it, or that isn't plain CSS (Playwright's own selectors: an engine named, such as `text=`,
+ * `xpath=`, `_react=`, or `*css=`, or a chain of them with `>>`), a run id made of anything but a
+ * run id's characters, NVDA settings nested too deep, a step limit over 100,000, or a readiness
+ * time over ten minutes (600,000 milliseconds) refuses the whole file, saying what's wrong and
+ * where, before anything runs. `walkthroughProblem` gives that same reason for a walkthrough in
+ * hand, so a writer can say why a file of it couldn't be read back before it writes one.
  *
  * The file goes to auditors, and into the shareable page, so it holds no folders: the file of a
  * page list, or of a walkthrough, is kept by its name alone, since a path can carry the person's
@@ -34,8 +38,17 @@ import {
   type RunSettings,
   type SourceDetails,
 } from "../model.js";
-import { canonicalKey } from "../pages/url.js";
+import { isNearbyHost } from "../pages/canonical.js";
+import {
+  canonicalKey,
+  CREDENTIALS_REASON,
+  hasCredentials,
+  hasEmptyLabel,
+  withoutUserInfo,
+} from "../pages/url.js";
+import { formatCommand, urlArg } from "../util/command-line.js";
 import { UsageError } from "../util/errors.js";
+import { fileNameOf } from "../util/file-name.js";
 import { canonicalJson } from "../util/hash.js";
 import { names } from "./format.js";
 
@@ -145,6 +158,9 @@ const MAX_RUN_ID_LENGTH = 100;
 /** What a run id is made of, as run-id.ts makes one: letters, digits, ".", "_", and "-". */
 const RUN_ID_CHARACTERS = /^[A-Za-z0-9._-]+$/;
 
+/** A value of only dots, which names a folder (`.`, `..`) and so is never a run id. */
+const ONLY_DOTS = /^\.+$/;
+
 /** The number of the format `walkthroughOf` writes, and the only one `parseWalkthrough` reads. */
 const FORMAT_VERSION = 1;
 
@@ -206,6 +222,27 @@ function copyOfSettings(settings: Record<string, unknown>): Record<string, unkno
 /** As the file holds it: two-space indents and a final newline. */
 export function walkthroughJson(walkthrough: Walkthrough): string {
   return `${JSON.stringify(walkthrough, null, 2)}\n`;
+}
+
+/**
+ * The command that repeats a run from its walkthrough file, `file` being where the person has it:
+ * `--walkthrough <file>`, and, when the file's site is this computer, an IP address, or a name of
+ * one word (see isNearbyHost), `--site <that site>` after it, since a live repeat of such a file is
+ * refused without it (readRepeat, in ../run/audit.ts). The site is the walkthrough's own: the
+ * address voicecap read, never the canonical address a page names the site by, which is a site a
+ * repeat doesn't read. It is the one place a repeat's command is made, so that the terminal's, the
+ * shareable page's, and the Word copy's are the same command. `walkthrough` is one that
+ * `walkthroughProblem` finds nothing wrong with, so its site is a web address, which is written with
+ * a single quote in its host as `%27` (see urlArg): the file's site is a record's, and it reads the
+ * same in PowerShell and in Git Bash.
+ */
+export function repeatCommand(walkthrough: Pick<Walkthrough, "site">, file: string): string {
+  const site = new URL(walkthrough.site);
+  return formatCommand([
+    "--walkthrough",
+    file,
+    ...(isNearbyHost(site.hostname) ? ["--site", urlArg(site.origin)] : []),
+  ]);
 }
 
 /**
@@ -338,18 +375,9 @@ function readinessOf(readiness: RunSettings["readiness"]): WalkthroughSettings["
 }
 
 /**
- * A file's name without its folders: the last part of its path, cut at / or \. A walkthrough keeps
- * the file of a page list or of a walkthrough by this alone, with its SHA-256 as it is. The file
- * goes to auditors and into the shareable page, and a full path could carry the person's user name.
- * A sitemap's address and --page addresses stay whole.
- */
-function fileNameOf(file: string): string {
-  return file.slice(Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\")) + 1);
-}
-
-/**
  * The page source as the run recorded it, with its keys in the type's order, and the file of a page
- * list or of a walkthrough by its name alone.
+ * list or of a walkthrough by its name alone (see fileNameOf): the file goes to auditors and into the
+ * shareable page, and a full path could carry the person's user name.
  */
 function sourceOf(source: PageSource): PageSource {
   switch (source.kind) {
@@ -661,9 +689,7 @@ function wholeNumber(min: number, max: number): z.ZodNumber {
 
 const siteSchema = z.string().superRefine((site, ctx) => {
   // How it's written first, so a very long address is never parsed.
-  const problem =
-    writtenProblem("its site", site) ??
-    (siteOrigin(site) === null ? "its site isn't a web address" : null);
+  const problem = writtenProblem("its site", site) ?? siteProblem(site);
   if (problem !== null) ctx.addIssue({ code: "custom", message: problem });
 });
 
@@ -672,11 +698,15 @@ const siteSchema = z.string().superRefine((site, ctx) => {
  * "_", and "-". An id is printed in a transcript's header, in messages, and in warnings, so a file
  * can't give one that breaks a header's lines or reaches the terminal. It's the one rule for a run
  * id: a walkthrough file's runs are read by it (see runId), and so is the run that a record of what
- * was shared names for a file.
+ * was shared names for a file. A value of only dots (`.`, `..`) is none: it names a folder, not a
+ * run, where an id is made into a path.
  */
 export function isRunId(value: unknown): value is string {
   return (
-    typeof value === "string" && value.length <= MAX_RUN_ID_LENGTH && RUN_ID_CHARACTERS.test(value)
+    typeof value === "string" &&
+    value.length <= MAX_RUN_ID_LENGTH &&
+    RUN_ID_CHARACTERS.test(value) &&
+    !ONLY_DOTS.test(value)
   );
 }
 
@@ -828,10 +858,25 @@ type SchemaReadsEveryWalkthrough =
   Walkthrough extends z.output<typeof walkthroughSchema> ? true : never;
 const _schemaReadsEveryWalkthrough: SchemaReadsEveryWalkthrough = true;
 
-/** The origin of a site that's an http or https address, and null for anything else. */
+/**
+ * The origin of a site that's an http or https address with a host that is a name or an address
+ * (no empty part: `http://../` is not one) and no user name or password; null for anything else.
+ */
 function siteOrigin(site: string): string | null {
   const url = parseAddress(site);
-  return url !== null && isWeb(url) ? url.origin : null;
+  return url !== null && isWeb(url) && !hasEmptyLabel(url.hostname) && !hasCredentials(url)
+    ? url.origin
+    : null;
+}
+
+/**
+ * What's wrong with the site, as a reason that names it; null when nothing is. An address with a
+ * user name or password in it says so, and isn't repeated.
+ */
+function siteProblem(site: string): string | null {
+  const url = parseAddress(site);
+  if (url !== null && isWeb(url) && hasCredentials(url)) return `its site ${CREDENTIALS_REASON}`;
+  return siteOrigin(site) === null ? "its site isn't a web address" : null;
 }
 
 /**
@@ -845,12 +890,38 @@ const UNSAFE_IN_AN_ADDRESS = /[\p{Cc}\p{Cf}\p{Z}]/u;
 
 /**
  * What a page's label, template, and notes may not hold: a control character other than a tab, a
- * carriage return, or a line feed. They're the file's own words, and a repeat copies them, as they
- * are, into the header of every transcript it writes, where an escape sequence could clear or
- * rewrite the screen of whoever reads the transcript with `type` or `cat`. A carriage return or a
- * line feed is a legitimate part of a note from a CSV, and the header folds both into a space.
+ * carriage return, or a line feed, a format character (a zero-width space, a right-to-left
+ * override, a byte-order mark, a soft hyphen) other than the two joiners, or a line or paragraph
+ * separator (U+2028, U+2029). They're the file's own words, and a repeat copies them, as they are,
+ * into the header of every transcript it writes, where an escape sequence could clear or rewrite
+ * the screen of whoever reads the transcript with `type` or `cat`, and a character that can't be
+ * seen could turn the words around or start a line of its own. A carriage return or a line feed is
+ * a legitimate part of a note from a CSV, and the header folds both into a space. The zero-width
+ * joiner (U+200D) and non-joiner (U+200C) are too: an emoji sequence, and words in Persian, Indic
+ * scripts, and Arabic, are written with them, and a file is made of a page list's words as they are,
+ * so a file that voicecap wrote must be one it reads. One character is looked for at a time, so
+ * the time is in proportion to the words.
  */
-const UNSAFE_IN_PAGE_TEXT = /(?![\t\n\r])\p{Cc}/u;
+const UNSAFE_IN_PAGE_TEXT = /(?![\t\n\r\u{200c}\u{200d}])[\p{Cc}\p{Cf}\u{2028}\u{2029}]/u;
+
+/** A control character, which a refusal says apart from the other characters it names. */
+const CONTROL_CHARACTER = /\p{Cc}/u;
+
+/**
+ * The first character of `text` that a page's words may not hold, named for a refusal by what it is
+ * and its code point, which can be said whatever the character is ("an invisible character
+ * (U+200B)"); null when there is none.
+ */
+function unsafeCharacterIn(text: string): string | null {
+  const found = UNSAFE_IN_PAGE_TEXT.exec(text);
+  if (found === null) return null;
+  const code = found[0].codePointAt(0) ?? 0;
+  const point = `U+${code.toString(16).toUpperCase().padStart(4, "0")}`;
+  if (code === 0x2028 || code === 0x2029) return `a line separator (${point})`;
+  return CONTROL_CHARACTER.test(found[0])
+    ? `a control character (${point})`
+    : `an invisible character (${point})`;
+}
 
 /**
  * What the ready selector may not hold: a control character (an escape, a bell, a tab, a line
@@ -858,6 +929,42 @@ const UNSAFE_IN_PAGE_TEXT = /(?![\t\n\r])\p{Cc}/u;
  * selector, as it is, in the message of each attempt that doesn't find it.
  */
 const UNSAFE_IN_A_SELECTOR = /[\p{Cc}\p{Cf}]/u;
+
+/**
+ * What marks a ready selector as one of Playwright's own, which aren't CSS and which a file may not
+ * use, besides an engine named (namesAnEngine): an XPath written as one (`//main`, `../main`), a
+ * group (`(//main)[1]`), a quoted text (`"Ready"`), a chain of selectors (`main >> text=Ready`), or
+ * one of its pseudo-classes (`:has-text()`, `:text()`, `:text-is()`, `:text-matches()`,
+ * `:nth-match()`, `:visible`, `:left-of()`, `:right-of()`, `:above()`, `:below()`, `:near()`).
+ * Real CSS has none of these at its start, and no `>>` anywhere, but a CSS selector that quotes
+ * `>>` or `:text(` in an attribute's value is refused too, which is accepted. It's tried on a
+ * selector of at most MAX_SELECTOR_LENGTH characters, and each part of it that can match many ways
+ * is ended by a character the next part can't start with, so the time it takes is in proportion to
+ * the selector's length.
+ */
+const PLAYWRIGHT_ONLY =
+  /^\s*(?:\/|\.\.|\(|["'])|>>|:(?:has-text|text|text-is|text-matches|nth-match|visible|left-of|right-of|above|below|near)\b/i;
+
+/**
+ * The words before a selector's first `=` that make Playwright read the selector as one of its
+ * engines and what it's given: only letters, digits, `_`, `-`, `+`, `:`, and `*`, once trimmed.
+ * This is Playwright's own rule, `/^[a-zA-Z_0-9-+:*]+$/`, in `parseSelectorString` (Playwright
+ * 1.63, packages/isomorphic/selectorParser.ts; playwright-core's lib/coreBundle.js), which also
+ * drops a leading `*` from the engine's name, as the mark of a capture.
+ */
+const AN_ENGINES_NAME = /^[A-Za-z0-9_+:*-]+$/;
+
+/**
+ * Whether Playwright reads `selector` as an engine, named: `text=Ready`, `xpath=//main`, `css=a`,
+ * `internal:text="x"`, `data-testid=save`, `_react=App`, `_vue=App`, or `*xpath=//main`.
+ * Playwright tries the rule on each part of a selector between `>>` marks, and a ready selector may
+ * have none (PLAYWRIGHT_ONLY), so the whole selector is its one part. In plain CSS an `=` is in an
+ * attribute selector, after its `[` (`[data-ready=true]`, `a[href="x=y"]`), so no CSS names one.
+ */
+function namesAnEngine(selector: string): boolean {
+  const equals = selector.indexOf("=");
+  return equals !== -1 && AN_ENGINES_NAME.test(selector.slice(0, equals).trim());
+}
 
 /**
  * What's wrong with how an address is written, before it's parsed, as a reason that names it
@@ -882,7 +989,10 @@ function selectorProblem(selector: string): string | null {
   if (selector.length > MAX_SELECTOR_LENGTH) {
     return `${subject} is longer than ${MAX_SELECTOR_LENGTH.toLocaleString("en-US")} characters`;
   }
-  return UNSAFE_IN_A_SELECTOR.test(selector) ? `${subject} has a control character in it` : null;
+  if (UNSAFE_IN_A_SELECTOR.test(selector)) return `${subject} has a control character in it`;
+  return namesAnEngine(selector) || PLAYWRIGHT_ONLY.test(selector)
+    ? `${subject} isn't plain CSS: a walkthrough file can't use Playwright's own selectors (text=, xpath=, >>)`
+    : null;
 }
 
 /** The fields of a page that hold the file's own words, which are checked for what's in them. */
@@ -901,9 +1011,8 @@ function pageProblem(
   if (address !== null) return { field: "url", reason: address };
   for (const field of PAGE_TEXT_FIELDS) {
     const text = page[field];
-    if (text !== undefined && UNSAFE_IN_PAGE_TEXT.test(text)) {
-      return { field, reason: `page ${place}'s ${field} has a control character in it` };
-    }
+    const found = text === undefined ? null : unsafeCharacterIn(text);
+    if (found !== null) return { field, reason: `page ${place}'s ${field} has ${found} in it` };
   }
   return null;
 }
@@ -918,13 +1027,22 @@ function pageAddressProblem(place: number, address: string, origin: string): str
   if (written !== null) return written;
   const problem = addressProblem(address, origin);
   if (problem === null) return null;
-  return `${subject}, ${address === "" ? '""' : shown(address)}, ${problem}`;
+  // An address with a user name or password in it is said by its place, as one written with a space
+  // is: it's never repeated, and no address shown without them stands in for it.
+  if (problem === CREDENTIALS_REASON) return `${subject} ${problem}`;
+  // A name and a password with no scheme (`staging:secret@host/a`) are left out of the address shown.
+  return `${subject}, ${address === "" ? '""' : shown(withoutUserInfo(address))}, ${problem}`;
 }
 
-/** What's wrong with a page's address for a site, or null when it's a web address on the site. */
+/**
+ * What's wrong with a page's address for a site, or null when it's a web address on the site with
+ * no user name or password. A user name or password comes first, whatever else the address is, so
+ * that no message repeats it.
+ */
 function addressProblem(address: string, origin: string): string | null {
   const url = parseAddress(address);
   if (url === null) return "isn't a full web address";
+  if (hasCredentials(url)) return CREDENTIALS_REASON;
   return isWeb(url) && url.origin === origin ? null : "isn't on its site";
 }
 

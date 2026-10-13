@@ -7,6 +7,20 @@ import { runDir } from "./paths.js";
 
 const MAX_NAME = 24;
 
+/**
+ * The ids allocateRunId makes, and no other shape: a local date, a time, optionally "_" and a run
+ * name (sanitizeRunName: at most MAX_NAME of letters, digits, ".", "_" and "-"), and optionally
+ * "-" and the number of a run begun in the same minute. A run id is made into a path (runDir), and
+ * latest.txt, --run, --compare and a record's compareTo all give one, so what isn't of this shape
+ * is refused where it's read.
+ */
+const RUN_ID_SHAPE = /^\d{4}-\d{2}-\d{2}_\d{4}(?:_[A-Za-z0-9._-]{1,24})?(?:-\d+)?$/;
+
+/** Whether `id` is of the shape allocateRunId makes. */
+export function isRunIdShape(id: string): boolean {
+  return RUN_ID_SHAPE.test(id);
+}
+
 /** --run-name as a folder-safe suffix: letters, digits, ".", "_" and "-"; spaces become "-". */
 export function sanitizeRunName(name: string): string {
   const safe = name

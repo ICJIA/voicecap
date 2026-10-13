@@ -1,5 +1,5 @@
 import { canonicalRootFrom, recordedCanonical } from "../pages/canonical.js";
-import { isHtmlContentType, withScheme } from "../pages/url.js";
+import { hasCredentials, hasEmptyLabel, isHtmlContentType, withScheme } from "../pages/url.js";
 import { InterruptedError } from "../passes/steps.js";
 import { errorMessage } from "../util/errors.js";
 
@@ -33,7 +33,9 @@ interface NamedRoots {
 /**
  * Normalize `init`'s website answer: trims it, adds `https://` when it has no scheme (see
  * `withScheme`), and allows only `http` and `https`. Returns the site's origin as a URL (no path),
- * or null when the answer isn't a usable address.
+ * or null when the answer isn't a usable address. The command `init` composes is the run's, so it
+ * takes no site that the run refuses (see `parseSiteUrl`): a host with an empty part
+ * (`https://example.org.`), and an address with a user name or password in it.
  */
 export function normalizeSiteAnswer(answer: string): URL | null {
   let url: URL;
@@ -43,6 +45,7 @@ export function normalizeSiteAnswer(answer: string): URL | null {
     return null;
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  if (hasEmptyLabel(url.hostname) || hasCredentials(url)) return null;
   return new URL(`${url.origin}/`);
 }
 

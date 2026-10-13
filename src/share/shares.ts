@@ -1,11 +1,12 @@
 /**
  * <site>/share/shares.json, the record of what `voicecap share` sent: one entry each time it made
- * copies of the shareable page and its Word copy to send, and of each run's walkthrough file, with
- * when, who by, the root of the site the copies name (their file names are made from it), the runs
- * the copies drew on, what the copies say of the site (see shareResultOf), and each file's name,
- * size, and SHA-256 (a walkthrough file's also names its run). Entries are chained and sealed as
- * reviews.json's are (see ../reviews/store.ts), and never edited or deleted once they're recorded.
- * An entry recorded before 0.10.0 has no site, and one recorded before 0.12.3 no result.
+ * copies of the shareable page and its Word copy to send, of the report for AI tools as Markdown and
+ * as JSON, and of each run's walkthrough file, with when, who by, the root of the site the copies
+ * name (their file names are made from it), the runs the copies drew on, what the copies say of the
+ * site (see shareResultOf), and each file's name, size, and SHA-256 (a walkthrough file's also names
+ * its run). Entries are chained and sealed as reviews.json's are (see ../reviews/store.ts), and
+ * never edited or deleted once they're recorded. An entry recorded before 0.10.0 has no site, and
+ * one recorded before 0.12.3 no result.
  */
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";

@@ -2,9 +2,11 @@
  * The website's Technical details page (src/site/technical.ts), drawn from the facts it's given: how
  * voicecap works, for auditors and developers. Its passes, flag rules, and defaults are voicecap's
  * own code's, the version and its tests are the facts', the shares a site keeps are the build's, and
- * the toolchain's licenses are held to the packages voicecap installs. Every command, file, and rule
- * it names exists. And the website's rules for a page: one file, with one style block and one script
- * under its own policy, and no style attribute.
+ * the toolchain's licenses are held to the packages voicecap installs, and the encoder's version to
+ * the one package.json pins. What it says of NVDA's voice, the voice page, and the Windows build the
+ * recording needs is held to the code's own words. Every command, file, and rule it names exists.
+ * And the website's rules for a page: one file, with one style block and one script under its own
+ * policy, and no style attribute.
  *
  * What the page does in a browser is in test/site-page-browser.test.ts.
  */
@@ -12,22 +14,27 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+import { loadLibopus } from "libopus-wasm";
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
+import { RECORDER_SCRIPT } from "../src/drivers/guidepup/voice-recorder.js";
 import { BUILT_IN_RULES } from "../src/flags/evaluate.js";
-import { AXE_FILE, PASS_NAMES, SCREENSHOT_FILE } from "../src/model.js";
+import { AXE_FILE, PASS_NAMES, SCREENSHOT_FILE, VOICE_FILE } from "../src/model.js";
 import { NVDA_LOG_FOLDER } from "../src/run/events.js";
-import { count } from "../src/share/format.js";
+import { count, names } from "../src/share/format.js";
+import { VOICE_TEXT } from "../src/share/text.js";
+import { VOICE_SCRIPT } from "../src/share/voice-page.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import { recordFactsOf, type VoicecapFacts } from "../src/site/facts.js";
 import { backLink, siteBar, siteFooter } from "../src/site/frame.js";
-import { inlineHashes } from "../src/site/headers.js";
+import { contentSecurityPolicy, inlineHashes } from "../src/site/headers.js";
 import { netlifyToml } from "../src/site/netlify.js";
 import type { SiteContent } from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { renderTechnical, type TechnicalInput } from "../src/site/technical.js";
-import { TECHNICAL_TEXT } from "../src/site/technical-text.js";
+import { buildCommand, TECHNICAL_TEXT } from "../src/site/technical-text.js";
+import { SITE_TEXT } from "../src/site/text.js";
 import { packageRoot } from "../src/util/version.js";
 import { decode, rowsOf, tableOf, textOf } from "./helpers/share-html.js";
 import { RECORDS } from "./helpers/trust-facts.js";
@@ -156,6 +163,31 @@ function unknownIn(command: string): string[] {
     return CLI.includes(`.command("${word}"`) ? [] : [`${command}: no command ${word}`];
   });
 }
+
+describe("buildCommand", () => {
+  it("is the command netlify.toml is written with: the exact version, and nothing newer", () => {
+    expect(buildCommand("0.18.0")).toBe(
+      "npx --yes @icjia/voicecap@0.18.0 site --home . --out _site",
+    );
+    expect(buildCommand("1.2.3-beta.1")).toBe(
+      "npx --yes @icjia/voicecap@1.2.3-beta.1 site --home . --out _site",
+    );
+    for (const version of ["0.18.0", "0.18.1", "1.2.3-beta.1", "10.20.30"]) {
+      expect(buildCommand(version), version).toBe(
+        /command = "([^"]+)"/.exec(netlifyToml(version))?.[1],
+      );
+    }
+  });
+
+  it.each(["0.9", "", "v0.9.0", "latest", "0.9.0 --yes", "9.8.7<script>"])(
+    "says <version> in place of %j, which isn't a version",
+    (version) => {
+      expect(buildCommand(version)).toBe(
+        "npx --yes @icjia/voicecap@<version> site --home . --out _site",
+      );
+    },
+  );
+});
 
 describe("renderTechnical", () => {
   const html = pageWith();
@@ -347,6 +379,11 @@ describe("renderTechnical", () => {
     expect(review).toContain("voicecap review");
     expect(review).toContain("voicecap review --replay");
     expect(review).not.toContain("heard NVDA");
+    // Sharing makes what a share holds: the page and its Word copy, the report for AI tools as
+    // Markdown and as JSON, and each run's walkthrough file (src/share/share.ts).
+    expect(textOf(steps[8] ?? "")).toContain(
+      "voicecap share makes a dated copy of the shareable page and its Word copy, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, recorded in a sealed, chained shares.json",
+    );
     // A switch to another window inside a frame is noticed only if it lasts to the step's end.
     expect(textOf(steps[4] ?? "")).toContain(
       "While focus is inside a frame, a switch to another window is noticed only if it lasts until the step ends.",
@@ -383,10 +420,10 @@ describe("renderTechnical", () => {
   it("says what this website shows now, from the records", () => {
     const now = textOf(partOf(html, "this-website"));
 
-    // RECORDS: 3 reports of 2 sites, 11 files published, and 2 left out.
+    // RECORDS: 3 reports of 2 sites, 15 files published, and 2 left out.
     expect(now).toContain("It shows 3 reports of 2 sites.");
     expect(now).toContain(
-      "this website publishes only those that still match the fingerprints recorded when they were shared: 11 today, and 2 left out.",
+      "this website publishes only those that still match the fingerprints recorded when they were shared: 15 today, and 2 left out.",
     );
   });
 
@@ -395,6 +432,27 @@ describe("renderTechnical", () => {
 
     expect(table.match(/guidepup/gi)?.length ?? 0).toBeGreaterThanOrEqual(1);
     expect(html.replace(table, "").match(/guidepup/gi) ?? []).toEqual([]);
+  });
+
+  it("says npx also downloads an ffmpeg program voicecap never runs, unless install scripts are off", () => {
+    // @guidepup/setup lists @guidepup/record as an optional dependency, and that needs
+    // ffmpeg-static, whose install script downloads ffmpeg. The website's build turns install
+    // scripts off with NPM_CONFIG_IGNORE_SCRIPTS (netlify.toml).
+    expect(textOf(partOf(html, "privacy-and-security"), "")).toContain(
+      "voicecap itself comes from npm, through npx. npx also downloads, for the screen reader driver's recorder on a Mac, an ffmpeg program voicecap never runs, unless install scripts are off, as they are in the website's build.",
+    );
+  });
+
+  it("gives the website's build command with the exact version of this voicecap", () => {
+    const built = (page: string): string => textOf(partOf(page, "this-website"), "");
+
+    expect(built(html)).toContain(
+      "The build's command is in the repository's netlify.toml, which voicecap writes once. From this version, it's npx --yes @icjia/voicecap@9.8.7 site --home . --out _site.",
+    );
+    // A version that isn't one is named by no command.
+    expect(built(pageWith({ voicecap: { ...FACTS, version: "latest" } }))).toContain(
+      "From this version, it's npx --yes @icjia/voicecap@<version> site --home . --out _site.",
+    );
   });
 
   it("gives each npm tool the license of the package voicecap installs", () => {
@@ -410,13 +468,22 @@ describe("renderTechnical", () => {
     const shown = bodyOf(tableOf(html, "toolchain"));
 
     expect(rows.length).toBeGreaterThan(10);
+    // The one row that says more than its package's license: libopus-wasm holds libopus, a C library
+    // of Xiph.Org's under a BSD license of its own, which the package's notice gives as it ships it.
+    const NOTES: Record<string, string> = { "libopus-wasm": " (libopus: BSD, Xiph.Org)" };
     for (const { npm = "", license, tool } of rows) {
       const installed = JSON.parse(
         readFileSync(path.join(packageRoot(), "node_modules", npm, "package.json"), "utf8"),
       ) as { license?: unknown };
-      expect(license, npm).toBe(installed.license);
+      expect(license, npm).toBe(`${String(installed.license)}${NOTES[npm] ?? ""}`);
       expect(shown.find(([name]) => name === tool)?.[2], npm).toBe(license);
     }
+    const notice = readFileSync(
+      path.join(packageRoot(), "node_modules", "libopus-wasm", "THIRD_PARTY_NOTICES.md"),
+      "utf8",
+    );
+    expect(notice).toMatch(/Xiph\.Org/);
+    expect(notice).toMatch(/BSD/);
     // Every package voicecap installs to run has its row, and voicecap's own license is its own.
     expect(
       Object.keys(own.dependencies).filter((name) => !rows.some((row) => row.npm === name)),
@@ -447,6 +514,42 @@ describe("renderTechnical", () => {
     // the version that checks the pages is the one voicecap's package.json pins.
     expect(Object.keys(own.devDependencies)).not.toContain("axe-core");
     expect(own.dependencies["axe-core"]).toBe(installed.version);
+  });
+
+  it("names libopus-wasm in the toolchain with its version from package.json, and the libopus in it", async () => {
+    const own = JSON.parse(readFileSync(path.join(packageRoot(), "package.json"), "utf8")) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    const installed = JSON.parse(
+      readFileSync(
+        path.join(packageRoot(), "node_modules", "libopus-wasm", "package.json"),
+        "utf8",
+      ),
+    ) as { version?: unknown };
+    const version = own.dependencies["libopus-wasm"];
+
+    // The encoder is pinned exactly, since the same sound must always give the same bytes (a golden
+    // hash in test/voice-encode.test.ts tells if a version changes them), and a dependency, which an
+    // install of voicecap brings: the version that encodes is the one package.json pins.
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(installed.version).toBe(version);
+    expect(Object.keys(own.devDependencies)).not.toContain("libopus-wasm");
+    // The libopus it holds is the one the package says, so the row names it as the package does.
+    const { version: libopus } = await loadLibopus();
+    expect(libopus).toMatch(/^libopus \d+\.\d+\.\d+$/);
+
+    expect(bodyOf(tableOf(html, "toolchain")).find(([tool]) => tool === "libopus-wasm")).toEqual([
+      "libopus-wasm",
+      `Encodes each page's recording of NVDA's voice as Opus, in a small WebM file: ${libopus} compiled to WebAssembly. This package is pinned at version ${version}, so that the same sound always gives the same file`,
+      "MIT (libopus: BSD, Xiph.Org)",
+      "A run",
+    ]);
+    // It links to its package on npm, as each package's row does, and the row is the one row for it.
+    expect(tableOf(html, "toolchain")).toContain(
+      '<a href="https://www.npmjs.com/package/libopus-wasm">libopus-wasm</a>',
+    );
+    expect(TECHNICAL_TEXT.toolchain.filter(({ tool }) => tool === "libopus-wasm")).toHaveLength(1);
   });
 
   it("links voicecap's own row to its page on npm, as each package's row links its own", () => {
@@ -587,6 +690,11 @@ describe("renderTechnical", () => {
     // the test (Ruling P8).
     expect(text).not.toMatch(/\bthis computer\b/i);
     expect(text).toContain("only on the computer running the test");
+    // NVDA's control port is open on the computer's networks too, and the checks say so: in both
+    // places that name the service.
+    expect(
+      text.match(/voicecap's checks warn when Windows Firewall lets other computers reach it/g),
+    ).toHaveLength(2);
     // Every code span came out as code: no backtick is left in the words.
     expect(text).not.toContain("`");
   });
@@ -597,16 +705,18 @@ describe("renderTechnical", () => {
     const part = (id: string): string => textOf(partOf(html, id), "");
 
     // A run's record holds the fingerprints of the event log, of each copy of NVDA's own log
-    // (RunJson.files), and of each page's transcripts, screenshot, and axe results
-    // (PageRecord.files, .screenshot, and .axe), and nothing else of the run's: not of kept tries,
-    // its report, or its comparisons.
+    // (RunJson.files), and of each page's transcripts, screenshot, axe results, and recording of
+    // NVDA's voice (PageRecord.files, .screenshot, .axe, and .voice), and nothing else of the run's:
+    // not of kept tries, its report, or its comparisons.
     const record = part("what-a-run-records");
     expect(record).toContain(
-      "the fingerprints of the event log, of each copy of NVDA's own log, and of each page's transcripts, screenshot, and axe results",
+      "the fingerprints of the event log, of each copy of NVDA's own log, and of each page's transcripts, screenshot, axe results, and recording of NVDA's voice",
     );
-    // A page's folder holds its screenshot and its axe results, by the names a run gives them.
+    // A page's folder holds its screenshot, its axe results, and its recording, by the names a run
+    // gives them, and the recording is kept only from an attempt that finished with no other window
+    // in front (UNFINISHED_ATTEMPT, src/run/page-runner.ts; ANOTHER_WINDOW, the NVDA driver).
     expect(record).toContain(
-      `(the key, the words, and their timing), ${SCREENSHOT_FILE}, and ${AXE_FILE}, what axe-core found on the page`,
+      `(the key, the words, and their timing), ${SCREENSHOT_FILE}, ${AXE_FILE}, what axe-core found on the page, and ${VOICE_FILE}, what NVDA said aloud while each pass read the page with voicecap's browser in front, kept only from an attempt that finished with no other window in front`,
     );
     // The run's copies of NVDA's own log, in the folder a run gives them.
     expect(record).toContain(
@@ -621,9 +731,15 @@ describe("renderTechnical", () => {
     for (const file of ["session.txt", "session.json", "raw/"]) {
       expect(record, file).toContain(file);
     }
+    // What a site's share/ folder holds: the shareable page and its Word copy, the dated copies of
+    // them, the voice pages, the report for AI tools as Markdown and as JSON, the walkthrough files,
+    // and the record of what was shared (src/run/paths.ts).
+    expect(record).toContain(
+      "share/The shareable page, its Word copy, the dated copies, the voice pages, the report as Markdown and as JSON for AI tools, the walkthrough files, and shares.json",
+    );
     const evidence = part("fingerprints-and-seals");
     expect(evidence).toContain(
-      "A run's record holds the SHA-256 of each page's transcripts, screenshot, and axe results, recorded as each is written, and of the event log and each copy of NVDA's own log, recorded at the end of each session.",
+      "A run's record holds the SHA-256 of each page's transcripts, screenshot, axe results, and recording of NVDA's voice, recorded as each is written, and of the event log and each copy of NVDA's own log, recorded at the end of each session.",
     );
     expect(evidence).toContain(
       "Earlier tries a run kept, its own report, and its comparisons have none.",
@@ -631,7 +747,12 @@ describe("renderTechnical", () => {
     // What verify checks, and what it doesn't: a raw copy that isn't there, which a clone of the
     // home never has, and an incomplete run's files (src/verify.ts).
     expect(evidence).toContain(
-      "voicecap verify checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there. An incomplete run is listed, and its files aren't checked: they can change until it's sealed.",
+      "voicecap verify checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there, and read only under the name voicecap gives it. An incomplete run is listed, and its files aren't checked: they can change until it's sealed.",
+    );
+    // What a share puts in a report: only a regular file with the size and SHA-256 its run recorded,
+    // never a link (readAsRecorded in src/share/load.ts, which reads each file a run's record lists).
+    expect(evidence).toContain(
+      "voicecap share takes a transcript, screenshot, axe result, recording, event log, or copy of NVDA's own log into a report only when its file is a regular file, never a link, with the size and SHA-256 its run recorded. One that isn't is left out, the report says so, and voicecap verify names it.",
     );
     for (const overstated of [
       "fingerprint of every file",
@@ -654,6 +775,12 @@ describe("renderTechnical", () => {
     expect(evidence).toContain(
       "It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",
     );
+    // The report carries no sound, so its check has no recordings. The voice page has a check of its
+    // own, which hashes each recording it plays against its run's record, and recomputes the seal of
+    // each run they are from (src/share/voice-page.ts: its data holds those runs, and no transcript).
+    expect(evidence).toContain(
+      'The voice page has a "Check the fingerprints" of its own, which checks the recordings it plays and the seals of the runs they come from, in the same way.',
+    );
     // Of a card's fold of what axe found, the check compares some lines with the file and not the
     // rest (its version line, each rule's criteria, its links, and the file's size and SHA-256), as
     // the report's own "What the check proves" says, so this page claims nothing of the fold.
@@ -673,10 +800,24 @@ describe("renderTechnical", () => {
       "The demo site's pages have their style sheet beside them, and a policy of their own, which allows it and no script.",
     );
     expect(website).toContain("the transcripts repository, which the README says to keep private");
+    // llms.txt, at the website's top, lists each site's current report as Markdown and as JSON,
+    // which the build writes (src/site/render.ts) beside the website's pages.
+    expect(website).toContain(
+      "llms.txt at the website's top, which lists, for AI tools, each site's current report as Markdown and as JSON, when it has them.",
+    );
 
     // The commands say what their code does.
     const jobs = Object.fromEntries(TECHNICAL_TEXT.commands.map(({ name, job }) => [name, job]));
     expect(Object.keys(jobs)).toContain("voicecap --site <url> …");
+    // What a share makes: the page and its Word copy, a voice page when a page has a recording, the
+    // report for AI tools, and the walkthrough files, which `voicecap report` doesn't make (it writes
+    // the page and its Word copy again).
+    expect(jobs["voicecap share"]).toBe(
+      "Makes a dated copy of the shareable page and its Word copy to send, a voice page when a page has a recording, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, and records them.",
+    );
+    expect(jobs["voicecap report"]).toBe(
+      "Writes a site's report, its shareable page, and its Word copy again.",
+    );
     // "Aloud" goes with "Reads", not with what the pages are named.
     expect(jobs["voicecap review --replay"]).toMatch(
       /^Reads aloud the saved words of the pages "What needs attention" names \(/,
@@ -695,11 +836,53 @@ describe("renderTechnical", () => {
     expect(part("privacy-and-security")).toContain("which the README says to keep private");
     // A window's title is the event log's, never shown, and a run's copies of NVDA's own log can
     // hold more of another window, its text as NVDA read it too (the PC session of 2026-10-10 found
-    // a Notepad document's first line in one), which a page counts and never shows.
+    // a Notepad document's first line in one), which the shareable page counts and never shows. A
+    // voice page plays NVDA's speech within each pass as sound, from its title check to its last
+    // step, and the moments between the passes are silenced (the NVDA driver's stretches); an
+    // attempt during which another window came to the front keeps nothing.
     expect(part("privacy-and-security")).toContain(
-      "A window's title, which can hold private text, is kept in the event log, never on a page or in a Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. A page counts what NVDA said outside voicecap's steps, and never shows it.",
+      "A window's title, which can hold private text, is kept in the event log, never on the shareable page or in its Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. The shareable page counts what NVDA said outside voicecap's steps, and never shows it. A voice page plays some of it: what NVDA said while each pass read the page with voicecap's browser in front, from the pass's title check to its last step. The moments between the passes, while a browser opens or comes to the front, are silenced, because NVDA may read the window behind it then. voicecap keeps no recording of NVDA's voice from an attempt during which another window came to the front, and a window that came and went between two of a pass's steps, which voicecap can't see, can still be heard, though that's rare.",
     );
     expect(part("privacy-and-security")).not.toContain("only in the event log");
+    expect(part("privacy-and-security")).not.toContain("never on a page");
+    expect(part("privacy-and-security")).not.toContain("what it said as each load opened");
+    // voicecap reads NVDA's own log, which has every key pressed, and deletes it once it has read
+    // and cleaned it (the NVDA driver's keepNvdaLog), so the page doesn't say no key is read.
+    expect(part("privacy-and-security")).toContain(
+      "voicecap asks for no account, key, or password, and keeps none. It reads NVDA's own log, which has every key pressed while its NVDA ran, keeps only its own keys, and deletes the log once it has read and cleaned it.",
+    );
+    expect(part("privacy-and-security")).not.toContain("read or stored");
+    // A path from outside the folder voicecap runs in can name the account: a file is recorded by
+    // its name alone, and the account's folders in an error's words by their variables. The home
+    // folder's short name (C:\Users\JANEDO~1) is found from the temp folder's, so the page says it
+    // only for a temp folder in the home folder.
+    expect(part("privacy-and-security")).toContain(
+      "A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone, and the home folder in the words of an error that a run keeps is written as %USERPROFILE% and the temp folder as %TEMP%, in the spellings Windows gives them, the short one too when the temp folder is in the home folder. The shareable page names such a file by its name alone, for runs recorded before too.",
+    );
+    expect(part("privacy-and-security")).not.toContain("in every spelling");
+    // A walkthrough file may come from anyone, so a live repeat of one whose site is on the computer
+    // running the test or on its network (an IP address, a local address, a one-word name) needs the
+    // person to name that site with --site. The page doesn't say "this computer" (Ruling P8).
+    expect(part("privacy-and-security")).toContain(
+      "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser. A live repeat of one whose site is on the computer running the test, or on its network, needs the person to name that site with --site.",
+    );
+    // What a website, a sitemap, a server, or a record says is printed as text, so it can't act on
+    // the terminal, and the warning about the browser not coming forward names a program, never a
+    // window's title.
+    expect(part("privacy-and-security")).toContain(
+      "What a website, a sitemap, a server, or a record says is printed as text: a control character, an invisible formatting character, or a line separator in it is written as an escape such as \\u{1b}, so it can't move the cursor, clear the screen, retitle the window, or turn the words around. The warning when the browser can't come to the front names the program in front, never its window's title.",
+    );
+    // Windows' own programs start by their full path, and Windows is told not to look for any other
+    // program in the folder voicecap runs in, which can be a shared repository's: a file of the
+    // same name there is never started.
+    expect(part("privacy-and-security")).toContain(
+      "voicecap starts Windows' own programs (PowerShell, tasklist, taskkill, reg, Explorer) by their full path in the Windows folder, and Windows never looks for a program in the folder voicecap runs in.",
+    );
+    // The folder voicecap runs in can be a shared repository's, so a config found there is read as
+    // JSON, and one written as code is never run unless the person names it (loadConfig).
+    expect(part("privacy-and-security")).toContain(
+      "A config is read as JSON from the folder voicecap runs in; one written as code runs only when the person names it.",
+    );
 
     // The rules say their thresholds, and nothing they don't count.
     expect(TECHNICAL_TEXT.rules["repeated-phrase"]).not.toContain("twice");
@@ -721,6 +904,109 @@ describe("renderTechnical", () => {
     expect(part("what-voicecap-does")).toContain("VoiceOver runs on a Mac come later.");
     expect(limits).toContain("VoiceOver runs on a Mac come later.");
     expect(text).not.toContain("VoiceOver on a Mac comes later");
+  });
+
+  it("says what the voice page is, and that only NVDA's sound is recorded, as the code says it", () => {
+    const part = (id: string): string => textOf(partOf(html, id), "");
+    const record = part("what-a-run-records");
+    const flow = textOf(/<ol class="flow" role="list">([\s\S]*?)<\/ol>/.exec(html)?.[1] ?? "");
+
+    // Only NVDA's sound: what a run records of it, and how.
+    expect(record).toContain(
+      "Only NVDA's sound is recorded, never the whole computer's and never a microphone's. voicecap uses Windows' process loopback, which takes the sound of one program and of the programs it starts: here the NVDA voicecap started, whose program it checks before it records.",
+    );
+    // The recorder's code does exactly that (RECORDER_SCRIPT): one activation, of Windows' process
+    // loopback device (a C# string, so its backslash is written twice) ...
+    const devices = [...RECORDER_SCRIPT.matchAll(/ActivateAudioInterfaceAsync\("([^"]*)"/g)].map(
+      ([, device]) => device,
+    );
+    expect(devices).toEqual([String.raw`VAD\\Process_Loopback`]);
+    // ... of one process id, and the processes it starts: mode 0 is to include the target's tree ...
+    expect(RECORDER_SCRIPT).toContain("loopback.Type = 1; loopback.Pid = Pid; loopback.Mode = 0;");
+    // ... after checking the program that process runs ...
+    expect(RECORDER_SCRIPT).toContain("QueryFullProcessImageName(process, 0, name, ref size)");
+    // ... and the NVDA voicecap started is the one it's pointed at: the process id the driver found,
+    // and the nvda.exe it installed, which that program must be.
+    expect(
+      readFileSync(path.join(packageRoot(), "src", "drivers", "guidepup-nvda.ts"), "utf8"),
+    ).toContain("recorder.target(pid, this.deps.install.nvdaExe)");
+    // ... and it names no call that picks a device, so no speaker's mix and no microphone is there.
+    for (const call of [
+      "IMMDeviceEnumerator",
+      "MMDeviceEnumerator",
+      "GetDefaultAudioEndpoint",
+      "EnumAudioEndpoints",
+      "eCapture",
+      "eRender",
+      "waveIn",
+    ]) {
+      expect(RECORDER_SCRIPT, call).not.toContain(call);
+    }
+    // Recording needs the Windows build the recorder checks for first, and says so in its own words.
+    const build = /\$build -lt (\d+)/.exec(RECORDER_SCRIPT)?.[1] ?? "";
+    expect(build).toMatch(/^\d+$/);
+    // In the words of the system that has it: Windows 11 or Windows Server 2022. No desktop Windows 10
+    // reaches the build (its builds end at 19045), so "Windows 10 build 20348" would be misread.
+    expect(RECORDER_SCRIPT).toContain(
+      `needs Windows 11 or Windows Server 2022 (Windows build ${build} or later)`,
+    );
+    expect(record).toContain(
+      `Recording needs Windows 11 or Windows Server 2022 (Windows build ${build} or later).`,
+    );
+    expect(RECORDER_SCRIPT).not.toContain("Windows 10 build");
+    expect(record).not.toContain("Windows 10 build");
+    // A page it can't record keeps the reason in its record (PageRecord.voice's `error`), and is read.
+    expect(record).toContain(
+      "A page that can't be recorded keeps the reason in its record, and is read as usual.",
+    );
+    // The file: Opus in a small WebM file, which the run's record fingerprints.
+    expect(record).toContain(
+      `Each recording is kept as ${VOICE_FILE}, Opus sound in a small WebM file made with libopus-wasm: the same sound always gives the same bytes. Its SHA-256 is in the run's record, so the run's seal covers it.`,
+    );
+
+    // The voice page, which a share adds when a page has a recording: it plays each recording at the
+    // speeds its own words give, with the pitch kept as its script sets it, and the recording is
+    // evidence, as the page's lead says, since the transcripts are the record of what was reviewed.
+    const speeds = names(VOICE_TEXT.speed.rates.map((rate) => VOICE_TEXT.speed.label(rate)));
+    expect(speeds).toBe("1×, 0.75×, 0.5×, and 0.25×");
+    expect(flow).toContain(
+      `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${speeds}, with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
+    );
+    expect(VOICE_SCRIPT).toContain("sound.preservesPitch = true;");
+    expect(VOICE_TEXT.lead).toContain("recorded from NVDA alone and sealed with the run");
+    expect(VOICE_TEXT.lead).toContain(
+      "The transcripts on the shareable page are the record of what was reviewed.",
+    );
+  });
+
+  it("says a share holds its voice page wherever the page says what a share holds, and that only its policy lets it play sound", () => {
+    const part = (id: string): string => textOf(partOf(html, id), "");
+    const jobs = Object.fromEntries(TECHNICAL_TEXT.commands.map(({ name, job }) => [name, job]));
+
+    // The share's folder, and the command that makes the share.
+    expect(part("what-a-run-records")).toContain(
+      "The shareable page, its Word copy, the dated copies, the voice pages, the report as Markdown and as JSON for AI tools, the walkthrough files, and shares.json",
+    );
+    expect(jobs["voicecap share"]).toBe(
+      "Makes a dated copy of the shareable page and its Word copy to send, a voice page when a page has a recording, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, and records them.",
+    );
+    // The website publishes it with its report's other files, and lists it as the report's files
+    // list it (SITE_TEXT.files.voice, which the front page's fold uses: see test/site-render.test.ts).
+    expect(SITE_TEXT.files.voice).toBe("NVDA's voice");
+    expect(part("this-website")).toContain(
+      "A share's voice page is published with its report's other files, and listed with them as NVDA's voice.",
+    );
+    // The website's policy for it: the one addition (src/site/headers.ts), made only when asked.
+    expect(part("this-website")).toContain(
+      "A voice page's policy also lets it play audio from the recordings it holds, which are in the page as data: addresses (media-src data:); no other page's does.",
+    );
+    const none = { styles: [], scripts: [] };
+    expect(contentSecurityPolicy(none, { media: true })).toContain("; media-src data:;");
+    expect(contentSecurityPolicy(none)).not.toContain("media-src");
+    // And what the other pages' policy is, said as it was: no connection, one style, one script.
+    expect(part("this-website")).toContain(
+      "Each one's Content Security Policy is made from the SHA-256 of its own style and script, and allows no connection.",
+    );
   });
 
   it("draws every fact as text", () => {

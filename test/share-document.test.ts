@@ -8,6 +8,7 @@
  * The page's own script is tried in Chromium too, on the demo's page opened from a file: the theme,
  * the two buttons it shows, and that each part of the page's one script starts on its own.
  */
+import { createHash } from "node:crypto";
 import type * as FsPromises from "node:fs/promises";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,17 +29,20 @@ import { renderSharePage } from "../src/share/html/document.js";
 import { SHARE_CSS } from "../src/share/html/style.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { STORY } from "../src/share/text.js";
+import { wordOutline } from "../src/share/word/outline.js";
 import { launchBrowser } from "./helpers/axe.js";
 import { paragraphsOf, unzipDocx } from "./helpers/docx.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
 import { rawNode, rawRule } from "./helpers/raw-axe.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
+import { i2iModel } from "./helpers/share-attention.js";
 import { attributes, decode, foldsIn, textOf } from "./helpers/share-html.js";
 import {
   AXE_RAN_AT,
   axeFilesOf,
   demoModel,
   downloadOf,
+  heldRecordings,
   inputOf,
   keptAxe,
   LINES,
@@ -46,6 +50,8 @@ import {
   picturesOf,
   storeOf,
   TRANSCRIPTS,
+  VOICE_PAGE,
+  voiceRecord,
   withNestedSettings,
 } from "./helpers/share-model.js";
 
@@ -62,6 +68,12 @@ const LINKS_OUT = [
 
 /** Where axe's pages on its rules are: a card's fold links to the page on each rule it names. */
 const AXE_RULES = "https://dequeuniversity.com/rules/axe/";
+
+/**
+ * A link to the voice page, which a share writes beside the page, in the same folder: a file's name,
+ * by itself, ending `.voice.html`, and at most the id of a section of it (`#voice-…`).
+ */
+const VOICE_LINK = /^[A-Za-z0-9._-]+\.voice\.html(#voice-[A-Za-z0-9_-]+)?$/;
 
 /**
  * The sections' headings, in the spec's order. What needs attention is there only when a card
@@ -106,6 +118,14 @@ const FACES = [
   ["IBM Plex Mono", "normal", "400", "ibm-plex-mono-latin-400-normal.woff2"],
   ["IBM Plex Mono", "normal", "500", "ibm-plex-mono-latin-500-normal.woff2"],
 ] as const;
+
+/**
+ * The fonts' copyright and license, as the comment their rules begin with says it: each family's
+ * copyright line as the license file (fonts/OFL.txt) has it, with its year, and then the license's
+ * name and address.
+ */
+const PLEX_LINE =
+  "/* IBM Plex Sans: Copyright 2019 IBM Corp. All rights reserved. IBM Plex Sans Condensed: Copyright 2019 IBM Corp. All rights reserved. IBM Plex Mono: Copyright 2017 IBM Corp. All rights reserved. SIL Open Font License 1.1: https://openfontlicense.org */";
 
 const LINK_FLAG: FlagResult = {
   rule: "generic-link-text",
@@ -214,6 +234,42 @@ function shotsModel(): ShareModel {
   });
   return buildShareModel(
     inputOf([run], { transcripts: storeOf(), screenshots: picturesOf([run]) }),
+  );
+}
+
+/**
+ * A run of voicecap 0.18.0 whose three pages NVDA's voice was recorded on, beside the page a share
+ * writes (VOICE_PAGE): each card links to its page's section of the voice page, and the details
+ * link to the voice page itself. The third page failed after it was recorded, so its card has no
+ * transcripts and a line all the same.
+ */
+function voiceModel(): ShareModel {
+  const run = shareRun({
+    id: "2026-10-09_0900",
+    voicecapVersion: "0.18.0",
+    pages: [
+      { path: "/", files: TRANSCRIPTS, passes: LINES, voice: voiceRecord(134.2) },
+      {
+        path: "/grants/",
+        label: "Grants",
+        files: TRANSCRIPTS,
+        passes: LINES,
+        voice: voiceRecord(61),
+      },
+      {
+        path: "/apply/",
+        status: "failed",
+        failedAttempts: [failedAttempt({ n: 1 })],
+        voice: voiceRecord(7),
+      },
+    ],
+  });
+  return buildShareModel(
+    inputOf([run], {
+      transcripts: storeOf(),
+      recordings: heldRecordings([run]),
+      voiceName: VOICE_PAGE,
+    }),
   );
 }
 
@@ -400,6 +456,28 @@ function sharedSite(withAxe: boolean): { model: ShareModel; axeBytes: number } {
   return { model, axeBytes };
 }
 
+/**
+ * A run of voicecap 0.18.0 of 32 pages, each read in full, as a share makes its model: the voice
+ * page beside it (VOICE_PAGE), and, `withVoice`, each page recorded, with its file held. Without,
+ * no page has a record of a recording, as for a run whose driver doesn't record.
+ */
+function voicedSite(withVoice: boolean): ShareModel {
+  const pages = Array.from({ length: 32 }, (_, at): SharePageSpec => ({
+    path: `/page-${at + 1}/`,
+    files: TRANSCRIPTS,
+    passes: LINES,
+    ...(withVoice ? { voice: voiceRecord(60 + at) } : {}),
+  }));
+  const run = shareRun({ id: "2026-10-09_0900", voicecapVersion: "0.18.0", pages });
+  return buildShareModel(
+    inputOf([run], {
+      transcripts: storeOf(),
+      recordings: heldRecordings([run]),
+      voiceName: VOICE_PAGE,
+    }),
+  );
+}
+
 /** A site whose only run was a replay, so no run counts yet. */
 function noRunModel(): ShareModel {
   return buildShareModel(
@@ -452,6 +530,7 @@ function unlistedLinks(markup: string): string[] {
       .filter((href) => {
         if (href.startsWith("#") || LINKS_OUT.includes(href)) return false;
         if (link && href.startsWith(AXE_RULES)) return false;
+        if (link && VOICE_LINK.test(href)) return false;
         const file = link && DOWNLOAD_ADDRESS.test(href);
         return !(file && download.endsWith("_walkthrough.json"));
       })
@@ -549,6 +628,7 @@ describe("renderSharePage", () => {
       ["a run with its event log", loggedModel()],
       ["a run with its screenshots", shotsModel()],
       ["a run with its axe results", axeModel()],
+      ["a run with its recordings", voiceModel()],
     ];
     pages = models.map(([name, model]) => ({
       name,
@@ -790,6 +870,135 @@ describe("renderSharePage", () => {
     expect(page).toBeLessThan(1_750_000);
   });
 
+  it("adds no line, and no change, for a run from before 0.18.0", async () => {
+    // The shareable page and the Word copy's blocks for three models of runs from before voicecap
+    // recorded NVDA's voice: i2i's 32 pages, the demo's two runs, and a run with its log. Each is
+    // its length and SHA-256: the page as renderSharePage(model, { fontCss: "" }) gives it, without
+    // its fonts, and the blocks as JSON.stringify(wordOutline(model)) gives them. They were made
+    // with voicecap's last change before the voice page was linked (the voice page's own commit). The
+    // merge of main (0.16.1 and the fixes after it) re-pinned them from the merged code, since main's
+    // TIMELINE gained the rows of 0.15.0 and 0.16.0, which the story on every page and in every Word
+    // copy shows: each page grew by 564 characters, and each copy's blocks by 567. With those two
+    // rows taken out, the merged code gives the values pinned before it, exactly. A change to either,
+    // for such a run, fails here: plan 11 adds to a report only where a run recorded. A change meant
+    // for every report, such as a release's row of the timeline, re-pins them, and says so here.
+    // To re-pin one, log what the loop below computes ([page.length, sha(page)] and [word.length,
+    // sha(word)] of each model, the page without its fonts) and paste the new values in: a pin
+    // that changes for a reason that isn't such a change is the failure this test is for.
+    // The merge into 0.18.0 re-pinned them again, since 0.17.0 changed every report: its style (the
+    // rules for the check of NVDA's own log) and its timeline (0.17.0's row, and the next one). From
+    // plan 11's last commit to the merge, those are each page's only changes, and each Word copy's
+    // are the timeline's. And with 0.17.0's own code (main at 4a48f11), the same three models give
+    // these Word copies' blocks exactly, and these pages but for the fingerprint check's script,
+    // which plan 11 widened to check the recordings the voice page plays: each page here is 2,023
+    // characters longer than 0.17.0's, all of them in that script.
+    // Task 6 of the security fixes re-pinned the demo's page and Word copy once more, 58 characters
+    // longer each: the command that repeats a run read at an IP address names that address
+    // (`--site http://127.0.0.1:4848`, 29 characters), as the program asks of a repeat of such a file,
+    // and the demo's two runs each have one. The other two models are of sites people visit.
+    // Task 10 of the security fixes re-pinned all three, since the test environment's rows now say
+    // "the screen reader driver" where a run's record names the library that drives the screen
+    // reader (8 characters). Each page and each Word copy grew by 16 characters for every place it
+    // does so: one for i2i and for the logged run (their Driver row), and four for the demo (its two
+    // runs' Driver rows and their lines on NVDA's settings). The fonts are left out of the page here,
+    // so the comment they begin with changes none of these.
+    // Task 15 of the security fixes re-pinned the three pages' SHA-256 once more, and nothing else:
+    // a card's fold of its page's transcripts names its page after the words it shows (WCAG 2.5.3,
+    // label in name), so the hidden words that name the page (` of /about/`) now follow the line's
+    // two visible parts and no longer sit inside the first. The same characters are in another
+    // order, so each page is as long as before, and the Word copies' blocks are as they were.
+    // Prepare 0.18.0 re-pinned all three for the timeline, which every report shows: its 0.18.0
+    // row came in (its day, and one line across both tracks), and the Next row's Windows PC entry,
+    // NVDA's voice, which the new row announces, went out. Each page grew by 166 characters, and
+    // each Word copy's blocks by 89, the same for all three, as a change to the timeline gives.
+    const before = {
+      i2i: {
+        page: [218_492, "6d8693267ba6b1ea93f597b36e085e0d6f79e899d9ab755797cd765e6f4a69d3"],
+        word: [60_004, "fc828a9b6ef3ec3acc3c79ea1a16143df011d5c5af12b0954298f2d466111ac6"],
+      },
+      demo: {
+        page: [253_034, "13ecf31bef5523993e10f8cdaf43a7474fa4d8adb8b34d2c6e53012b206d53eb"],
+        word: [82_842, "ab85cf93ccdbe03f2f063de5838ddcdbc392ad235729bc5560cbe65e130094ca"],
+      },
+      logged: {
+        page: [135_422, "ca3f44eca63d6768adcdc4f58a02ab8e567f048c795927fac8e3018edd3aaff5"],
+        word: [41_506, "7e893b30827c4e4616f6d93edeeef1089c07c75c0e6ae2e1623d8dc7210cdeaa"],
+      },
+    };
+    const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };
+    const sha = (text: string): string => createHash("sha256").update(text).digest("hex");
+
+    for (const [name, model] of Object.entries(models) as [keyof typeof models, ShareModel][]) {
+      const page = renderSharePage(model, { fontCss: "" });
+      const word = JSON.stringify(wordOutline(model));
+
+      expect([page.length, sha(page)], `${name}'s page`).toEqual(before[name].page);
+      expect([word.length, sha(word)], `${name}'s Word copy`).toEqual(before[name].word);
+      expect(model.voicePage, name).toBeNull();
+      expect(
+        model.pages.every((card) => card.voice === null),
+        name,
+      ).toBe(true);
+    }
+  });
+
+  it("keeps the shareable page's size: a 32-page share with recordings is no larger than without them, but for the lines", () => {
+    const withVoice = voicedSite(true);
+    const without = voicedSite(false);
+    const page = renderSharePage(withVoice, { fontCss: "" });
+    const bare = renderSharePage(without, { fontCss: "" });
+
+    // The recordings themselves are on the voice page: none is on this one, and the check's data has
+    // no recordings in it. It holds the runs' records as they were recorded, each page's `voice`
+    // among them (a fingerprint, a length, and the stretches kept: about 210 bytes a page here, with
+    // one stretch, and some 60 more for a real page's three passes), and that is all it gains.
+    expect(page).not.toContain("<audio");
+    expect(page).not.toMatch(/data:audio\/webm;base64,[A-Za-z0-9+/]/);
+    const data = /<script type="application\/json" id="fp-data">([\s\S]*?)<\/script>/;
+    const dataOf = (html: string): string => data.exec(html)?.[1] ?? "";
+    expect(JSON.parse(dataOf(page))).not.toHaveProperty("recordings");
+    expect(dataOf(page).length - dataOf(bare).length).toBeLessThan(32 * 250);
+    // What else it adds is a line on each of the 32 cards, a row for each recording among the run's
+    // fingerprints, and the details' paragraph, which says where the voice page is: take those out,
+    // and the data, and the page is the page it was.
+    const line =
+      /<p class="sub"><a href="[^"]*\.voice\.html#[^"]*">[^<]*<span class="sr">[^<]*<\/span><\/a><\/p>\s*/g;
+    const row =
+      /<tr><td>[^<]*<\/td><td>voice\.webm<\/td><td>[^<]*<\/td><td><code>[0-9a-f]{64}<\/code><\/td><\/tr>/g;
+    const paragraph = /<p class="gist">NVDA&#39;s voice:.*?<\/p>\s*/s;
+    expect(page.match(line)).toHaveLength(32);
+    expect(page.match(row)).toHaveLength(32);
+    expect(bare.match(line)).toBeNull();
+    expect(bare.match(row)).toBeNull();
+    // (The run's walkthrough file, which the page carries, holds its seal, which its records change.)
+    const plain = (html: string): string =>
+      withoutBase64Data(html)
+        .replace(line, "")
+        .replace(row, "")
+        .replace(paragraph, "")
+        .replace(data, "<script></script>");
+    expect(plain(page)).toBe(plain(bare));
+    // So it's a few hundred bytes a page: its line, its row, and its record, and nothing of the sound.
+    expect(Buffer.byteLength(page) - Buffer.byteLength(bare)).toBeLessThan(32 * 800 + 700);
+  });
+
+  it("allows a link to the voice page, beside the page, and no other file", () => {
+    const own = `<a href="${VOICE_PAGE}#voice-home">x</a><a href="${VOICE_PAGE}">y</a>`;
+
+    expect(unlistedLinks(own)).toEqual([]);
+    const refused: [why: string, link: string][] = [
+      ["a page that isn't the voice page", '<a href="report.html#voice-home">x</a>'],
+      ["a folder above", '<a href="../report.voice.html">x</a>'],
+      ["a folder below", '<a href="more/report.voice.html">x</a>'],
+      ["a path from the root", '<a href="/report.voice.html">x</a>'],
+      ["another site", '<a href="https://example.com/report.voice.html">x</a>'],
+      ["a query", '<a href="report.voice.html?a=b">x</a>'],
+      ["a section that isn't a page's", '<a href="report.voice.html#elsewhere">x</a>'],
+      ["a tag that isn't an <a>", '<area href="report.voice.html#voice-home">'],
+    ];
+    for (const [why, link] of refused) expect(unlistedLinks(link), why).toHaveLength(1);
+  });
+
   it("puts the sections in the spec's order, each h2 outside every fold, and What needs attention only with a card", () => {
     // Both kinds are among the pages: the demo's five cards, and a run whose pages need nothing.
     expect(new Set(pages.map(({ cards }) => cards === 0)).size).toBe(2);
@@ -844,8 +1053,12 @@ describe("renderSharePage", () => {
     // the check holds each card's fold of what axe found to its file: its counts, its chip, and each
     // rule's heading, impact, number of elements not listed, elements, and words on how to fix
     // them. That took it to about 30,400 characters, so its budget went from 30,000 to 32,000: room
-    // for a fix, and a script that grows past it is a choice to make here, on purpose.
-    expect((SHARE_SCRIPT + CHECK_SCRIPT).length).toBeLessThan(32_000);
+    // for a fix, and a script that grows past it is a choice to make here, on purpose. From 0.18.0
+    // the voice page's check holds each recording to its record in the same script (the page's
+    // players are `audio` elements as a screenshot's are `img`s, and a change caught can be one
+    // byte of a recording): about 2,000 characters more, 32,500 in all, so its budget is 34,000,
+    // the same room as before.
+    expect((SHARE_SCRIPT + CHECK_SCRIPT).length).toBeLessThan(34_000);
   });
 
   it("has a head with its language, its character set, the viewport, and the site's name", async () => {
@@ -866,6 +1079,17 @@ describe("renderSharePage", () => {
     expect(named).toContain(
       "<title>&lt;Agency&gt; &amp; &quot;Co&quot;: how its pages read aloud with NVDA</title>",
     );
+  });
+
+  it("carries the IBM Plex fonts' copyright lines and license once, at the top of its style", () => {
+    for (const { name, html } of pages) {
+      const style = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? "";
+
+      expect(style.startsWith(`\n${PLEX_LINE}\n@font-face`), name).toBe(true);
+      expect(style.split(PLEX_LINE), name).toHaveLength(2);
+      // Nowhere else in the page.
+      expect(html.split(PLEX_LINE), name).toHaveLength(2);
+    }
   });
 
   it("opens with the skip link to the main content, and ends with the one script", () => {
@@ -1008,6 +1232,38 @@ describe("fontFaceCss", () => {
     for (const family of new Set(FACES.map(([family]) => family))) {
       expect(SHARE_CSS).toContain(`"${family}"`);
     }
+  });
+
+  it("begins with one comment that carries the IBM Plex copyright lines and license", async () => {
+    const css = await fontFaceCss();
+
+    expect(css.startsWith(`${PLEX_LINE}\n@font-face`)).toBe(true);
+    expect(css.split(PLEX_LINE)).toHaveLength(2);
+    // The comment can't end itself early, or the page's style, or open an HTML comment in it.
+    expect(PLEX_LINE.slice(2, -2)).not.toMatch(/\*\/|<\/style|<!--/i);
+  });
+
+  it("gives each family's copyright line as the license file has it, in its words and with its year", async () => {
+    const licence = await readFile(path.join(FONTS, "OFL.txt"), "utf8");
+    // The file begins each family's notice with its name and package, and its copyright line next.
+    const lines = [
+      ...licence.matchAll(
+        /^(IBM Plex [^\n(]+) \(@fontsource\/[^)\n]+\):\n(Copyright \d{4} IBM Corp\. All rights reserved\.)/gm,
+      ),
+    ].map(([, family, copyright]) => ({ family, line: `${family}: ${copyright}` }));
+    const css = await fontFaceCss();
+    const comment = `/* ${lines.map(({ line }) => line).join(" ")} SIL Open Font License 1.1: https://openfontlicense.org */`;
+
+    // One for each family the page embeds, in the order the file gives them.
+    expect(lines.map(({ family }) => family)).toEqual([
+      ...new Set(FACES.map(([family]) => family)),
+    ]);
+    expect(css.startsWith(`${comment}\n@font-face`)).toBe(true);
+    expect(PLEX_LINE).toBe(comment);
+    // The file names no Reserved Font Name for the fonts (its text only defines the term), so the
+    // comment names none.
+    expect(licence).not.toMatch(/with Reserved Font Name/i);
+    expect(css).not.toMatch(/Reserved Font Name/i);
   });
 
   it("reads the files once", () => {

@@ -17,7 +17,7 @@ import type { RunEvent } from "../model.js";
 import { errorMessage } from "../util/errors.js";
 import type { Logger } from "../util/log.js";
 import { isoLocalMs } from "../util/time.js";
-import { homeFolder, redactHome } from "./failure.js";
+import { redactAccount } from "./failure.js";
 
 /**
  * A run's event log, in the run's folder: one JSON object a line, each an event and when it was
@@ -156,17 +156,21 @@ export function openEventLog(
       let reason: string | null = null;
       try {
         mkdirSync(path.dirname(copy), { recursive: true });
-        writeFileSync(copy, cleaned, { flush: true });
+        // Never over a file that's there: a copy is a new file, and the name is the session's own.
+        writeFileSync(copy, cleaned, { flag: "wx", flush: true });
         kept.push(name);
       } catch (error) {
         reason = reasonOf(error);
         // A write that failed partway (a disk that filled) may have left part of the copy. It isn't
         // one: no copy is kept, so none should be there for `voicecap verify` to call unrecorded. Not
-        // being able to take it away changes nothing, and the reason stays the write's.
-        try {
-          rmSync(copy, { force: true });
-        } catch {
-          // Left where it is.
+        // being able to take it away changes nothing, and the reason stays the write's. A name that
+        // was taken (EEXIST) wrote nothing: the file there is not this copy's, and stays as it is.
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+          try {
+            rmSync(copy, { force: true });
+          } catch {
+            // Left where it is.
+          }
         }
       }
       // After the copy, so the log never names a file that isn't there.
@@ -180,14 +184,12 @@ export function openEventLog(
 }
 
 /**
- * Why something failed, as the log keeps it: the error's message, with the home folder written as
- * redactHome writes it. The log is kept with the run, in the transcripts' Git history, and mustn't
- * name the account that ran voicecap, as a path in an error's message does.
+ * Why something failed, as the log keeps it: the error's message, with the home and temp folders
+ * written as redactAccount writes them. The log is kept with the run, in the transcripts' Git
+ * history, and mustn't name the account that ran voicecap, as a path in an error's message does.
  */
 function reasonOf(error: unknown): string {
-  const message = errorMessage(error);
-  const home = homeFolder();
-  return home === null ? message : redactHome(message, home, process.platform);
+  return redactAccount(errorMessage(error));
 }
 
 /** Whether the file is there, has something in it, and doesn't end with a newline. */

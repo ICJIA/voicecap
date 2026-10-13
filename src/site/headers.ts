@@ -7,7 +7,9 @@
  * Each page was written by the voicecap version that shared it, so each is hashed from its own
  * bytes. A page holds one style block and one script, and no inline style attribute (see
  * src/share/html/document.ts), so its hashes are all its policy needs, with its fonts: a shared
- * report embeds them, and the website's own pages embed none.
+ * report embeds them, and the website's own pages embed none. A share's voice page (see
+ * src/share/voice-page.ts) keeps those rules too, and its policy adds the media it plays: its
+ * recordings, which it holds as data: addresses.
  */
 import { createHash } from "node:crypto";
 
@@ -72,10 +74,15 @@ export function inlineHashes(html: string): { styles: string[]; scripts: string[
  *
  * Fonts are allowed as data: URIs, as a shared report embeds its own, unless `fonts` is false: the
  * website's own pages are in the system's fonts and embed none, so theirs allows no font at all.
+ *
+ * Audio and video are allowed as nothing, unless `media` is true, which adds `media-src data:`: a
+ * share's voice page holds each recording of NVDA's voice in its player's address, as a data: URI,
+ * and plays it from there, and it is the one page that does. With `default-src 'none'`, a page that
+ * plays sound, as the policy stands for every other page, would have each recording refused.
  */
 export function contentSecurityPolicy(
   hashes: { styles: string[]; scripts: string[] },
-  options: { fonts?: boolean } = {},
+  options: { fonts?: boolean; media?: boolean } = {},
 ): string {
   const sources = (list: string[]) => (list.length === 0 ? "'none'" : list.join(" "));
   return [
@@ -83,6 +90,7 @@ export function contentSecurityPolicy(
     `script-src ${sources(hashes.scripts)}`,
     `style-src ${sources(hashes.styles)}`,
     "img-src data:",
+    ...(options.media === true ? ["media-src data:"] : []),
     options.fonts === false ? "font-src 'none'" : "font-src data:",
     "connect-src 'none'",
     "base-uri 'none'",
@@ -100,6 +108,28 @@ export interface HeaderRule {
 
 /** The header that carries a Content Security Policy. */
 export const POLICY_HEADER = "Content-Security-Policy";
+
+/** The header that says what a file is. */
+export const TYPE_HEADER = "Content-Type";
+
+/**
+ * What a share's report for AI tools is served as: the Markdown as text/markdown and the JSON as
+ * application/json, each in UTF-8. Both are read in the browser, so neither is sent as an
+ * attachment (that's a Word copy's and a walkthrough file's, see rulesFor in ./build.ts); the link to
+ * each carries `download`, which saves it instead.
+ */
+export const MARKDOWN_TYPE = "text/markdown; charset=utf-8";
+export const JSON_TYPE = "application/json; charset=utf-8";
+
+/**
+ * The Content Security Policy of a share's Markdown and JSON, beside their types. Each is text a
+ * browser shows, with no code of its own, so it is told to load nothing (`default-src 'none'`) and,
+ * by `sandbox`, to run nothing in it: no script, no form, no plug-in, and no origin to speak of,
+ * whatever the file holds. It is defense in depth: each is already sent with an explicit type that
+ * no browser takes for HTML, and the home's netlify.toml sends `X-Content-Type-Options: nosniff`
+ * with every file.
+ */
+export const AI_FILE_POLICY = "default-src 'none'; sandbox";
 
 /**
  * The Content Security Policy of the demo's own pages, which the build publishes in demo-site/ (see

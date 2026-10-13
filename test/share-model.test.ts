@@ -1172,6 +1172,45 @@ describe("buildShareModel", () => {
     );
   });
 
+  it("names no library that drives the screen reader in the changes of tools, only the driver", () => {
+    const driver = (version: string): Partial<EnvironmentRecord> => ({
+      driver: { name: "guidepup", version },
+    });
+    const earlier = shareRun({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      sessions: [{ environment: driver("0.34.0") }],
+      pages: [{ path: "/" }],
+    });
+    const latest = shareRun({
+      id: "r2",
+      sessions: [{ environment: driver("0.35.0") }],
+      pages: [{ path: "/" }],
+    });
+    const change =
+      "Driver differs: the screen reader driver 0.34.0 → the screen reader driver 0.35.0";
+    const model = buildShareModel(inputOf([earlier, latest]));
+
+    // What changed since the last run, and the results' technical limits.
+    expect(model.changes?.tools).toEqual([`${change} (run r1 → run r2).`]);
+    expect(model.coverage.limits).toContain(`${change} (run r1 → run r2).`);
+
+    // A run resumed with another driver says so too.
+    const resumed = shareRun({
+      id: "r3",
+      sessions: [{ environment: driver("0.34.0") }, { environment: driver("0.35.0") }],
+      pages: [{ path: "/" }],
+    });
+    expect(buildShareModel(inputOf([resumed])).coverage.limits).toContain(
+      `${change} (during run r3).`,
+    );
+    // The records keep the library's name.
+    expect(model.evidence.map(({ run }) => run.sessions[0]?.environment?.driver.name)).toEqual([
+      "guidepup",
+      "guidepup",
+    ]);
+  });
+
   it("lists every run it left out, with what each did", async () => {
     expect((await demoModel()).leftOut).toEqual([
       { id: "2026-09-29_1415", text: "2026-09-29_1415: interrupted after 1 of 7 pages" },
@@ -1283,7 +1322,8 @@ describe("buildShareModel", () => {
     await addReview(siteDir, run, "/", "issue", { note: `As noted in ${notes}` });
     const model = buildShareModel(await loadShareInput({ siteDir, config }));
 
-    expect(model.coverage.covered[0]).toBe(`1 page from the page list ${redact(list)}.`);
+    // A page list is named by its file's name alone, whatever path the record holds.
+    expect(model.coverage.covered[0]).toBe("1 page from the page list pages.csv.");
     expect(model.pages[0]?.flags.map((flag) => flag.message)).toEqual([
       `Text noted in ${redact(notes)} (1 match in the read pass).`,
     ]);
@@ -1309,6 +1349,72 @@ describe("buildShareModel", () => {
     expect(Object.values(model.check.reviews ?? {}).flat()).toMatchObject([
       { note: `As noted in ${notes}` },
     ]);
+  });
+
+  // Before 0.18.0 a run recorded a page list from outside the working folder by its whole path,
+  // which can name an account: a redirected Documents folder on a file server, a file dragged in
+  // from Downloads. The page names such a file by its name alone, for those runs too, and carries
+  // their records as they were written.
+  describe("a run recorded before 0.18.0 from a file outside the working folder", () => {
+    const SHA = "a".repeat(64);
+    const rowsOf = (model: ShareModel) =>
+      new Map(latestEvidence(model).environment.map((row) => [row.label, row.value]));
+
+    it.each<[name: string, file: string]>([
+      ["a network share's path", "\\\\fs01\\users$\\jane.doe\\Documents\\pages.csv"],
+      ["a path under another account's home", "C:\\Users\\jane.doe\\Downloads\\pages.csv"],
+      ["a path in Git Bash's spelling", "/c/Users/jane.doe/Downloads/pages.csv"],
+      ["a path on another system", "/home/jane.doe/pages.csv"],
+    ])("names a page list recorded by %s by its file's name alone", (_name, file) => {
+      const run = shareRun({
+        id: "2026-09-26_1405",
+        source: { kind: "pages", file, sha256: SHA },
+        pages: [{ path: "/" }],
+      });
+      const model = buildShareModel(inputOf([run]));
+
+      expect(model.coverage.covered[0]).toBe("1 page from the page list pages.csv.");
+      expect(rowsOf(model).get("Page source")).toBe(`page list pages.csv (sha256 ${SHA})`);
+      // Nothing the page shows holds the account's name, the walkthrough file it offers included.
+      expect(stringsIn(shown(model)).filter((text) => text.includes("jane.doe"))).toEqual([]);
+      // The record it carries for the fingerprint check is as it was written: its seal covers it.
+      expect(model.check.runs[0]?.settings.source).toEqual({ kind: "pages", file, sha256: SHA });
+    });
+
+    it("names a walkthrough file recorded by its whole path by its file's name alone, too", () => {
+      const file = "\\\\fs01\\users$\\jane.doe\\Downloads\\w.json";
+      const run = shareRun({
+        id: "2026-09-30_0900",
+        source: { kind: "walkthrough", file, sha256: SHA, run: "2026-09-29_1402", from: "sitemap" },
+        pages: [{ path: "/" }],
+      });
+      const model = buildShareModel(inputOf([run]));
+
+      expect(model.coverage.covered[0]).toBe(
+        "1 page from the walkthrough w.json from run 2026-09-29_1402.",
+      );
+      expect(rowsOf(model).get("Page source")).toBe(
+        `walkthrough w.json from run 2026-09-29_1402 (sha256 ${SHA})`,
+      );
+      expect(stringsIn(shown(model)).filter((text) => text.includes("jane.doe"))).toEqual([]);
+    });
+
+    // A record from the working folder holds a path from it (page-lists/pages.csv), which names no
+    // account; the page names the file by its name alone all the same, as the walkthrough file it
+    // offers does.
+    it("names a file by its name alone whether the record holds its name, or a path from the working folder", () => {
+      for (const file of ["pages.csv", "page-lists/pages.csv"]) {
+        const run = shareRun({
+          id: "2026-09-26_1405",
+          source: { kind: "pages", file, sha256: SHA },
+          pages: [{ path: "/" }],
+        });
+        const model = buildShareModel(inputOf([run]));
+
+        expect(model.coverage.covered[0], file).toBe("1 page from the page list pages.csv.");
+        expect(rowsOf(model).get("Page source"), file).toBe(`page list pages.csv (sha256 ${SHA})`);
+      }
+    });
   });
 
   it("replaces the home folder in the name of a custom rule's card, on a page flagged with no issue", () => {
@@ -1821,7 +1927,7 @@ describe("buildShareModel", () => {
     );
   });
 
-  it("replaces the home folder in a walkthrough's file, as in a page list's", () => {
+  it("names a walkthrough's file by its name alone, as a page list's, so the home folder isn't shown", () => {
     const home = os.homedir();
     const file = path.join(home, "walks", "w.json");
     const run = shareRun({
@@ -1838,9 +1944,7 @@ describe("buildShareModel", () => {
 
     const covered = buildShareModel(inputOf([run])).coverage.covered[0];
 
-    expect(covered).toBe(
-      `1 page from the walkthrough ${redactHome(file, home, process.platform)} from run 2026-09-29_1402.`,
-    );
+    expect(covered).toBe("1 page from the walkthrough w.json from run 2026-09-29_1402.");
     expect(mentionsHome(covered ?? "")).toBe(false);
   });
 
@@ -2195,7 +2299,8 @@ describe("buildShareModel", () => {
       "Browser window": "1280 × 960",
       "Time zone": "America/Chicago (UTC-05:00 as the session started)",
       "Display language": "en-US",
-      Software: "Node.js 24.19.0, voicecap 0.6.0, Guidepup 0.34.0, Playwright 1.63.0",
+      Software:
+        "Node.js 24.19.0, voicecap 0.6.0, the screen reader driver 0.34.0, Playwright 1.63.0",
     });
     expect(rows.get("Screen reader")).toBe("NVDA 2026.2 (build 0.2.1-2026.2, language en)");
     expect(evidence?.fingerprints).toEqual([
@@ -3209,7 +3314,8 @@ describe("the walkthrough file each run's evidence offers", () => {
         base64: Buffer.from(text, "utf8").toString("base64"),
         bytes: Buffer.byteLength(text, "utf8"),
         get: `npx @icjia/voicecap walkthrough --site http://127.0.0.1:4848 --run ${each.run.id} ${fileName}`,
-        repeat: `npx @icjia/voicecap --walkthrough ${fileName}`,
+        // The demo was read at an IP address, so a repeat of its file needs --site: the command names it.
+        repeat: `npx @icjia/voicecap --walkthrough ${fileName} --site http://127.0.0.1:4848`,
       });
     }
   });
@@ -3250,10 +3356,11 @@ describe("the walkthrough file each run's evidence offers", () => {
   });
 
   it.each([
-    ["https://example.illinois.gov/", "example.illinois.gov"],
-    ["http://127.0.0.1:4848", "127.0.0.1_4848"],
-    ["http://Localhost:3000/some/path", "localhost_3000"],
-  ])("names the file for the site's folder, as siteFolder does: %s", (site, folder) => {
+    ["https://example.illinois.gov/", "example.illinois.gov", ""],
+    ["http://127.0.0.1:4848", "127.0.0.1_4848", " --site http://127.0.0.1:4848"],
+    // The command names the site's origin, as the program reads it, whatever the record wrote.
+    ["http://Localhost:3000/some/path", "localhost_3000", " --site http://localhost:3000"],
+  ])("names the file for the site's folder, as siteFolder does: %s", (site, folder, siteOption) => {
     // A run of that site, whose page is on it, as a walkthrough file needs.
     const home = new URL("/", site).href;
     const run = { ...shareRun({ id: "2026-09-26_1405", pages: [{ path: home }] }), site };
@@ -3264,7 +3371,7 @@ describe("the walkthrough file each run's evidence offers", () => {
     expect(file.get).toBe(
       `npx @icjia/voicecap walkthrough --site ${site} --run 2026-09-26_1405 ${name}`,
     );
-    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}`);
+    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}${siteOption}`);
   });
 
   // The commands are for pasting into a shell, so a value that a shell would read is quoted, as the
@@ -3287,7 +3394,44 @@ describe("the walkthrough file each run's evidence offers", () => {
       `npx @icjia/voicecap walkthrough --site 'http://[::1]:4848' --run 2026-09-26_1405 ${name}`,
     );
     expect(evidence.verify).toBe("npx @icjia/voicecap verify");
-    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}`);
+    // The command that repeats the run names the address too, quoted the same way.
+    expect(file.repeat).toBe(
+      `npx @icjia/voicecap --walkthrough ${name} --site 'http://[::1]:4848'`,
+    );
+  });
+
+  // The canonical address comes from the site's own pages, so it is the site's words in a command
+  // that a person pastes. A single quote in it is written %27, as in any address voicecap prints:
+  // the command reads the same in PowerShell and in Git Bash, and the address can't end its quotes.
+  it("writes a single quote in the site's canonical address as %27 in the command that writes the file", () => {
+    const canonical = "https://x.org/o'brien/";
+    const run = shareRun({ id: "2026-09-26_1405", canonical, pages: [{ path: "/" }] });
+    const file = downloadOf(latestEvidence(buildShareModel(inputOf([run], { canonical }))));
+
+    expect(file.fileName).toBe("x.org_2026-09-26_1405_walkthrough.json");
+    expect(file.get).toBe(
+      `npx @icjia/voicecap walkthrough --site https://x.org/o%27brien/ --run 2026-09-26_1405 ${file.fileName}`,
+    );
+    expect(file.get).not.toContain("'");
+    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${file.fileName}`);
+  });
+
+  it("writes a single quote in the address voicecap read as %27 in the commands that name it", () => {
+    const site = "http://o'brien:3000";
+    const run = {
+      ...shareRun({ id: "2026-09-26_1405", pages: [{ path: new URL("/", site).href }] }),
+      site,
+    };
+    const file = downloadOf(latestEvidence(buildShareModel(inputOf([run], { readOrigin: site }))));
+
+    expect(file.get).toBe(
+      `npx @icjia/voicecap walkthrough --site http://o%27brien:3000 --run 2026-09-26_1405 ${file.fileName}`,
+    );
+    expect(file.repeat).toBe(
+      `npx @icjia/voicecap --walkthrough ${file.fileName} --site http://o%27brien:3000`,
+    );
+    expect(file.get).not.toContain("'");
+    expect(file.repeat).not.toContain("'");
   });
 
   it("says why there is no file for a run beyond what a walkthrough file can hold, a step limit of 100,001", () => {

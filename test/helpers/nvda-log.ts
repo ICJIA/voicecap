@@ -2,8 +2,9 @@
  * What the tests of NVDA's own log on the page are made from: cleaned copies of NVDA's log written
  * as NVDA writes one (`copyOf`, `pageEntries`), a run of three NVDA sessions that keeps them as
  * voicecap 0.17.0 does (`keptLogsRun`), its model with warnings and errors in a copy
- * (`keptLogsModel`, `problemEntry`), and the real run of 6 October 2026 in fixture/nvda-io-run
- * laid out as a site folder (`nvdaFixtureSite`).
+ * (`keptLogsModel`, `problemEntry`), that model as voicecap 0.18.0 makes it, with NVDA's voice
+ * recorded on each page (`keptLogsAndVoiceModel`), and the real run of 6 October 2026 in
+ * fixture/nvda-io-run laid out as a site folder (`nvdaFixtureSite`).
  */
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -17,7 +18,18 @@ import { MAIN_COMMAND } from "../../src/transcripts/format.js";
 import { fileHash } from "../../src/transcripts/write.js";
 import { sealOf } from "../../src/util/hash.js";
 import { tempOutDir } from "./report-data.js";
-import { inputOf, LINES, LOG_HASH, loggedRun, storeOf, withOwnFiles } from "./share-model.js";
+import {
+  inputOf,
+  LINES,
+  LOG_HASH,
+  loggedRun,
+  recordedVoice,
+  recordingsOf,
+  storeOf,
+  VOICE_PAGE,
+  withOwnFiles,
+} from "./share-model.js";
+import { busySound, speechAndPauses } from "./voice-signal.js";
 
 const DAY = 86_400_000;
 
@@ -77,7 +89,8 @@ export const PAGE_PASSES: PassWords[] = (["read", "headings", "tab"] as const).m
  * NVDA's entries for a page read in one attempt that began at `from` (milliseconds since midnight):
  * its passes one after another, each opened as voicecap opens a page (NVDA+T, with what NVDA says of
  * the window; Escape; Ctrl+Home, with the page's first line), then a key for each step and what NVDA
- * said after it. A step takes 1.2 s (storeOf's steps do), its key 0.27 s in and NVDA's words 40 ms
+ * said after it. A Tab pass's first Tab has no key, as on the real run: it goes to the browser, not
+ * through NVDA. A step takes 1.2 s (storeOf's steps do), its key 0.27 s in and NVDA's words 40 ms
  * after that, as on the real run.
  */
 export function pageEntries(from: number, passes: PassWords[] = PAGE_PASSES): string[][] {
@@ -94,7 +107,9 @@ export function pageEntries(from: number, passes: PassWords[] = PAGE_PASSES): st
     const begin = start + 2300;
     pass.spoken.forEach((line, step) => {
       const pressed = begin + step * 1200 + 270;
-      entries.push(keyAt(pressed, gestureOf(pass.command)!));
+      if (step > 0 || pass.command !== "nextFocusable") {
+        entries.push(keyAt(pressed, gestureOf(pass.command)!));
+      }
       entries.push(saidAt(pressed + 40, ...line.split(", ")));
     });
   });
@@ -197,6 +212,34 @@ export function keptLogsModel(entries: string[][]): ShareModel {
       transcripts: kept.transcripts,
       events: new Map([[kept.run.id, kept.log]]),
       nvdaLogs: new Map([[kept.run.id, copies]]),
+    }),
+  );
+}
+
+/**
+ * The model of `keptLogsRun` as voicecap 0.18.0 keeps a run, which keeps NVDA's log (from 0.17.0)
+ * and records NVDA's voice: each of its three pages has a recording, its file held as the loader
+ * holds one, and the voice page is beside the page (VOICE_PAGE). Its first NVDA session's copy
+ * holds `entries` and no speech, as in `keptLogsModel`.
+ */
+export async function keptLogsAndVoiceModel(entries: string[][]): Promise<ShareModel> {
+  const kept = keptLogsRun();
+  const sounds = [speechAndPauses(), busySound(3.4, 7), busySound(2.5, 8)];
+  const voices = await Promise.all(
+    sounds.map(async (sound) => (await recordedVoice(sound)).record),
+  );
+  const run = usingVersion(
+    { ...kept.run, pages: kept.run.pages.map((page, at) => ({ ...page, voice: voices[at] })) },
+    "0.18.0",
+  );
+  const copies = new Map(kept.copies).set(FIRST_COPY, copyOf(...entries));
+  return buildShareModel(
+    inputOf([run], {
+      transcripts: kept.transcripts,
+      events: new Map([[run.id, kept.log]]),
+      nvdaLogs: new Map([[run.id, copies]]),
+      recordings: recordingsOf([run]),
+      voiceName: VOICE_PAGE,
     }),
   );
 }

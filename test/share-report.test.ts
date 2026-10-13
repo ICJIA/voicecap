@@ -1,13 +1,24 @@
 /**
  * shareReport, which `voicecap share` runs: the dated pair of copies it makes to send (the page and
- * its Word copy), each run's walkthrough file beside them, the record it keeps of them in
- * shares.json, and the line it gives for the email that sends the pair. Each home is made with real
- * scripted runs (a replay doesn't count), or is a copy of the demo runs voicecap 0.4.1 recorded. No
- * real screen reader starts here, and no Word: a Word copy is read by unzipping it.
+ * its Word copy), the report for AI tools as Markdown and as JSON, each run's walkthrough file beside
+ * them, the record it keeps of them in shares.json, and the line it gives for the email that sends
+ * the pair. Each home is made with real scripted runs (a replay doesn't count), or is a copy of the
+ * demo runs voicecap 0.4.1 recorded. No real screen reader starts here, and no Word: a Word copy is
+ * read by unzipping it.
  */
 import { existsSync, readFileSync } from "node:fs";
 import type * as FsPromises from "node:fs/promises";
-import { cp, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  cp,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,10 +31,23 @@ import { esc } from "../src/report/html.js";
 import { runAudit } from "../src/run/audit.js";
 import { ensureGitFiles } from "../src/run/git-files.js";
 import type * as GitFilesModule from "../src/run/git-files.js";
-import { runJsonPath, shareDir, sharePath, sharesPath, shareWordPath } from "../src/run/paths.js";
+import {
+  pageDir,
+  runJsonPath,
+  shareDir,
+  sharePath,
+  sharesPath,
+  shareWordPath,
+} from "../src/run/paths.js";
+import { renderAiJson } from "../src/share/ai/json.js";
+import type * as AiJsonModule from "../src/share/ai/json.js";
+import { renderAiMarkdown } from "../src/share/ai/markdown.js";
+import type * as AiMarkdownModule from "../src/share/ai/markdown.js";
 import { renderWordCopy } from "../src/share/docx.js";
 import type * as DocxModule from "../src/share/docx.js";
 import { sizeLine } from "../src/share/format.js";
+import { renderSharePage } from "../src/share/html/document.js";
+import type * as DocumentModule from "../src/share/html/document.js";
 import { lineText } from "../src/share/line.js";
 import { loadShareInput } from "../src/share/load.js";
 import type * as LoadModule from "../src/share/load.js";
@@ -37,14 +61,22 @@ import {
 } from "../src/share/share.js";
 import { appendShare, readShares } from "../src/share/shares.js";
 import type * as SharesModule from "../src/share/shares.js";
-import { EVIDENCE_TEXT, MAC_HASH, POWERSHELL_HASH, WORD_TEXT } from "../src/share/text.js";
+import {
+  EVIDENCE_TEXT,
+  MAC_HASH,
+  POWERSHELL_HASH,
+  VOICE_TEXT,
+  WORD_TEXT,
+} from "../src/share/text.js";
+import { renderVoicePage } from "../src/share/voice-page.js";
+import type * as VoicePageModule from "../src/share/voice-page.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { UsageError } from "../src/util/errors.js";
 import { sealOf, sha256 } from "../src/util/hash.js";
 import { createMemoryLogger, type Logger, type MemoryLogger } from "../src/util/log.js";
 import { isoLocal } from "../src/util/time.js";
 import { verifyHome } from "../src/verify.js";
-import { paragraphsOf, unzipDocx } from "./helpers/docx.js";
+import { linksOf, paragraphsOf, tablesOf, unzipDocx } from "./helpers/docx.js";
 import {
   homeWithCountedRun,
   options as runOptions,
@@ -52,14 +84,16 @@ import {
   SITE,
   sitePages,
 } from "./helpers/run-site.js";
-import { ScriptedDriver } from "./helpers/scripted-driver.js";
+import { ScriptedDriver, type ScriptedVoice } from "./helpers/scripted-driver.js";
 import { demoRun } from "./helpers/share-fixture.js";
+import { textOf } from "./helpers/share-html.js";
 import { DEMO_ROOT } from "./helpers/share-model.js";
+import { busySound, speechAndPauses } from "./helpers/voice-signal.js";
 
 // Every call goes through as it did, and is kept, so a test can count the calls, make one fail, or
 // have something happen in the middle of it: the site's records are read, the model is built, the
-// Word copy is made, the Git files are made, the entry is recorded, and a copy's file is opened or
-// removed.
+// Word copy, the voice page, and the report for AI tools are made, the Git files are made, the entry
+// is recorded, and a copy's file is opened or removed.
 vi.mock("../src/share/load.js", async (importOriginal) => {
   const actual = await importOriginal<typeof LoadModule>();
   return { ...actual, loadShareInput: vi.fn(actual.loadShareInput) };
@@ -71,6 +105,22 @@ vi.mock("../src/share/model.js", async (importOriginal) => {
 vi.mock("../src/share/docx.js", async (importOriginal) => {
   const actual = await importOriginal<typeof DocxModule>();
   return { ...actual, renderWordCopy: vi.fn(actual.renderWordCopy) };
+});
+vi.mock("../src/share/html/document.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof DocumentModule>();
+  return { ...actual, renderSharePage: vi.fn(actual.renderSharePage) };
+});
+vi.mock("../src/share/ai/markdown.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof AiMarkdownModule>();
+  return { ...actual, renderAiMarkdown: vi.fn(actual.renderAiMarkdown) };
+});
+vi.mock("../src/share/ai/json.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof AiJsonModule>();
+  return { ...actual, renderAiJson: vi.fn(actual.renderAiJson) };
+});
+vi.mock("../src/share/voice-page.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof VoicePageModule>();
+  return { ...actual, renderVoicePage: vi.fn(actual.renderVoicePage) };
 });
 vi.mock("../src/share/shares.js", async (importOriginal) => {
   const actual = await importOriginal<typeof SharesModule>();
@@ -93,7 +143,11 @@ afterEach(async () => {
   for (const made of [
     loadShareInput,
     buildShareModel,
+    renderSharePage,
     renderWordCopy,
+    renderAiMarkdown,
+    renderAiJson,
+    renderVoicePage,
     appendShare,
     ensureGitFiles,
   ]) {
@@ -135,6 +189,21 @@ const RUN_1402 = "2026-09-29_1402";
 /** A walkthrough file's name beside the copies of `stem`: the stem, the run's id, and what it is. */
 function walkthroughName(stem: string, run: string): string {
   return `${stem}_${run}_walkthrough.json`;
+}
+
+/**
+ * The names of the files a share of `stem` makes, in the order it lists them: the page, its Word
+ * copy, the report for AI tools as Markdown and as JSON, then the walkthrough file of each run in
+ * `runs`.
+ */
+function copyNames(stem: string, ...runs: string[]): string[] {
+  return [
+    `${stem}.html`,
+    `${stem}.docx`,
+    `${stem}.md`,
+    `${stem}.json`,
+    ...runs.map((run) => walkthroughName(stem, run)),
+  ];
 }
 
 /**
@@ -247,11 +316,7 @@ describe("shareReport", () => {
 
     const { files, entry, pasteLine } = await shareReport(options);
 
-    expect(files.map(({ name }) => name)).toEqual([
-      `${FIRST}.html`,
-      `${FIRST}.docx`,
-      walkthroughName(FIRST, run.runId),
-    ]);
+    expect(files.map(({ name }) => name)).toEqual(copyNames(FIRST, run.runId));
     for (const file of files) {
       const bytes = await readFile(file.path);
       expect({ bytes: bytes.length, sha256: sha256(bytes) }).toEqual({
@@ -281,11 +346,9 @@ describe("shareReport", () => {
     const { files, entry, siteDir: gave } = await shareReport(options);
 
     expect(gave).toBe(siteDir);
-    expect(files.map(({ path: file }) => file)).toEqual([
-      path.join(shareDir(siteDir), `${FIRST}.html`),
-      path.join(shareDir(siteDir), `${FIRST}.docx`),
-      path.join(shareDir(siteDir), walkthroughName(FIRST, run.runId)),
-    ]);
+    expect(files.map(({ path: file }) => file)).toEqual(
+      copyNames(FIRST, run.runId).map((name) => path.join(shareDir(siteDir), name)),
+    );
     expect(files.map(({ path: _path, ...recorded }) => recorded)).toEqual(entry.files);
   });
 
@@ -311,11 +374,7 @@ describe("shareReport", () => {
     const before = await Promise.all(first.files.map(({ path: file }) => readFile(file)));
     const second = await shareReport(options);
 
-    expect(second.files.map(({ name }) => name)).toEqual([
-      `${FIRST}-2.html`,
-      `${FIRST}-2.docx`,
-      walkthroughName(`${FIRST}-2`, run.runId),
-    ]);
+    expect(second.files.map(({ name }) => name)).toEqual(copyNames(`${FIRST}-2`, run.runId));
     expect(await Promise.all(first.files.map(({ path: file }) => readFile(file)))).toEqual(before);
     expect(second.entry).toMatchObject({ seq: 2, prev: first.entry.seal });
   });
@@ -361,11 +420,7 @@ describe("shareReport", () => {
 
     const { files } = await shareReport(options);
 
-    expect(files.map(({ name }) => name)).toEqual([
-      `${FIRST}-4.html`,
-      `${FIRST}-4.docx`,
-      walkthroughName(`${FIRST}-4`, run.runId),
-    ]);
+    expect(files.map(({ name }) => name)).toEqual(copyNames(`${FIRST}-4`, run.runId));
     // A pair that's taken from the start is passed over: no copy is made for it.
     expect(
       vi
@@ -379,10 +434,17 @@ describe("shareReport", () => {
     const { options } = await homeWithRun();
     const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
     const steps: string[] = [];
+    // What a copy is, by its name: the report's JSON is told from a walkthrough file by its ending.
+    const kindOf = (file: string): string => {
+      const name = path.basename(file);
+      return name.endsWith("_walkthrough.json") ? "walkthrough" : path.extname(name).slice(1);
+    };
     vi.mocked(open).mockImplementation(async (file, flags, mode) => {
       const handle = await real.open(file, flags, mode);
-      const kind = path.extname(String(file)).slice(1);
-      if (flags !== "wx" || !["html", "docx", "json"].includes(kind)) return handle;
+      const kind = kindOf(String(file));
+      if (flags !== "wx" || !["html", "docx", "md", "json", "walkthrough"].includes(kind)) {
+        return handle;
+      }
       steps.push(`open ${kind}`);
       // The same handle, which says each step it's asked to take.
       return new Proxy(handle, {
@@ -401,6 +463,8 @@ describe("shareReport", () => {
 
     await shareReport(options);
 
+    // In the order the share lists them: the page, its Word copy, the Markdown, the JSON, and the
+    // run's walkthrough file, each whole before the next is opened.
     expect(steps).toEqual([
       "open html",
       "writeFile html",
@@ -410,10 +474,18 @@ describe("shareReport", () => {
       "writeFile docx",
       "sync docx",
       "close docx",
+      "open md",
+      "writeFile md",
+      "sync md",
+      "close md",
       "open json",
       "writeFile json",
       "sync json",
       "close json",
+      "open walkthrough",
+      "writeFile walkthrough",
+      "sync walkthrough",
+      "close walkthrough",
     ]);
   });
 
@@ -433,12 +505,9 @@ describe("shareReport", () => {
 
     await shareReport(options);
 
-    expect(await names(shareDir(siteDir))).toEqual([
-      `${FIRST}.docx`,
-      `${FIRST}.html`,
-      walkthroughName(FIRST, run.runId),
-      "shares.json",
-    ]);
+    expect(await names(shareDir(siteDir))).toEqual(
+      [...copyNames(FIRST, run.runId), "shares.json"].sort(),
+    );
   });
 
   it.each([
@@ -449,11 +518,7 @@ describe("shareReport", () => {
 
     const { files } = await shareReport({ ...options, now });
 
-    expect(files.map(({ name }) => name)).toEqual([
-      `${FIRST}.html`,
-      `${FIRST}.docx`,
-      walkthroughName(FIRST, run.runId),
-    ]);
+    expect(files.map(({ name }) => name)).toEqual(copyNames(FIRST, run.runId));
   });
 
   it("records the runs the copies draw on, oldest first", async () => {
@@ -513,25 +578,23 @@ describe("shareReport", () => {
 
     const { files, pasteLine } = await shareReport(options);
 
-    const page = files[0]!;
-    const word = files[1]!;
-    const walkthrough = files[2]!;
+    // The page, its Word copy, the report for AI tools as Markdown and as JSON, then the run's
+    // walkthrough file.
+    expect(files).toHaveLength(5);
     expect(logger.entries.filter(({ level }) => level !== "info")).toEqual([]);
     expect(logger.text("info").split("\n")).toEqual([
       `Shared ${FOLDER}, as of 15 January 2027: entry 1 in ${sharesPath(siteDir)}.`,
-      `  ${page.path}`,
-      `    ${sizeLine(page.bytes)}, SHA-256 ${page.sha256}`,
-      `  ${word.path}`,
-      `    ${sizeLine(word.bytes)}, SHA-256 ${word.sha256}`,
-      `  ${walkthrough.path}`,
-      `    ${sizeLine(walkthrough.bytes)}, SHA-256 ${walkthrough.sha256}`,
+      ...files.flatMap((file) => [
+        `  ${file.path}`,
+        `    ${sizeLine(file.bytes)}, SHA-256 ${file.sha256}`,
+      ]),
       "To paste into the email that sends the page and its Word copy:",
       `  ${pasteLine}`,
     ]);
     // Each size is in KB or MB, with its bytes.
-    expect(sizeLine(page.bytes)).toMatch(/^([\d,]+ KB|\d+\.\d MB) \([\d,]+ bytes\)$/);
-    expect(sizeLine(word.bytes)).toMatch(/^([\d,]+ KB|\d+\.\d MB) \([\d,]+ bytes\)$/);
-    expect(sizeLine(walkthrough.bytes)).toMatch(/^([\d,]+ KB|\d+\.\d MB) \([\d,]+ bytes\)$/);
+    for (const file of files) {
+      expect(sizeLine(file.bytes)).toMatch(/^([\d,]+ KB|\d+\.\d MB) \([\d,]+ bytes\)$/);
+    }
   });
 
   describe("the line for the email", () => {
@@ -568,7 +631,8 @@ describe("shareReport", () => {
       expect(pasteLine.endsWith(`${check}. PowerShell shows the same letters in capitals.`)).toBe(
         true,
       );
-      // The page and its Word copy are what the line names: not the walkthrough file after them.
+      // The page and its Word copy are what the line names: not the Markdown, the JSON, or the
+      // walkthrough file after them.
       for (const { sha256: fingerprint } of files.slice(0, 2)) {
         expect(fingerprint).toMatch(/^[0-9a-f]{64}$/);
         expect(pasteLine).toContain(fingerprint);
@@ -577,31 +641,319 @@ describe("shareReport", () => {
     });
   });
 
-  // The runs the copies draw on are the demo's 1315 and 1402, so each share has two walkthrough files.
-  describe("each run's walkthrough file", () => {
-    it("writes each run's walkthrough file beside the page and its Word copy, and records it", async () => {
+  // Beside the pair, the report as Markdown and as JSON, for AI tools: drawn from the model the page
+  // and the Word copy are drawn from, whatever version made the runs, and never in the email's line.
+  describe("the report for AI tools", () => {
+    it("writes the Markdown and JSON beside the pair, and lists them", async () => {
+      const { siteDir, run, options } = await homeWithRun();
+
+      const { files, entry } = await shareReport(options);
+
+      // The page, its Word copy, the Markdown, the JSON, then the run's walkthrough file.
+      expect(files.map(({ name }) => name)).toEqual(copyNames(FIRST, run.runId));
+      // The record lists each with its size and SHA-256, and a run only for the walkthrough file...
+      expect(entry.files.map((file) => Object.keys(file))).toEqual([
+        ["name", "bytes", "sha256"],
+        ["name", "bytes", "sha256"],
+        ["name", "bytes", "sha256"],
+        ["name", "bytes", "sha256"],
+        ["name", "bytes", "sha256", "run"],
+      ]);
+      expect(files.map(({ path: _path, ...recorded }) => recorded)).toEqual(entry.files);
+      expect((await readShares(siteDir)).shares).toEqual([entry]);
+      // ...as each is on disk, whole.
+      for (const file of files) {
+        const bytes = await readFile(file.path);
+        expect({ bytes: bytes.length, sha256: sha256(bytes) }).toEqual({
+          bytes: file.bytes,
+          sha256: file.sha256,
+        });
+      }
+      expect(await names(shareDir(siteDir))).toEqual(
+        ["current.docx", "current.html", ...copyNames(FIRST, run.runId), "shares.json"].sort(),
+      );
+    });
+
+    it("draws both from the model the page and the Word copy are drawn from, and writes exactly what is rendered of it", async () => {
+      const { options } = await homeWithRun();
+      // The run that made the home wrote the live Word copy too: only the share's calls are counted.
+      vi.mocked(renderWordCopy).mockClear();
+
+      const { files } = await shareReport(options);
+
+      // One attempt, one model: the Word copy was made from it, and so were both of these.
+      const wordModels = vi.mocked(renderWordCopy).mock.calls.map(([drawn]) => drawn);
+      expect(wordModels).toHaveLength(1);
+      expect(vi.mocked(renderAiMarkdown)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(renderAiJson)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(renderAiMarkdown).mock.calls[0]![0]).toBe(wordModels[0]);
+      expect(vi.mocked(renderAiJson).mock.calls[0]![0]).toBe(wordModels[0]);
+      // The same model gives the same bytes, so each file is its renderer's, to the byte.
+      const [model] = wordModels;
+      const markdown = await readFile(files[2]!.path, "utf8");
+      const json = await readFile(files[3]!.path, "utf8");
+      expect(markdown).toBe(renderAiMarkdown(model!));
+      expect(json).toBe(renderAiJson(model!));
+      expect(markdown.length).toBeGreaterThan(0);
+      expect(JSON.parse(json)).toMatchObject({ schemaVersion: 1, kind: "voicecap-report" });
+    });
+
+    // The demo's runs were recorded by voicecap 0.4.1, long before either file: no version gates them.
+    it("writes both for runs an older voicecap recorded, with no gate on the version", async () => {
       const { siteDir, options } = await demoHome();
 
       const { entry } = await shareReport(options);
 
-      expect(entry.files.map(({ name }) => name)).toEqual([
+      expect(entry.files.map(({ name }) => name).slice(0, 4)).toEqual([
         `${DEMO_FIRST}.html`,
         `${DEMO_FIRST}.docx`,
+        `${DEMO_FIRST}.md`,
+        `${DEMO_FIRST}.json`,
+      ]);
+      const json = await readFile(path.join(shareDir(siteDir), `${DEMO_FIRST}.json`), "utf8");
+      expect(JSON.parse(json)).toMatchObject({ schemaVersion: 1, kind: "voicecap-report" });
+      expect(
+        (await readFile(path.join(shareDir(siteDir), `${DEMO_FIRST}.md`), "utf8")).length,
+      ).toBeGreaterThan(0);
+    });
+
+    // Told apart by the `_walkthrough.json` ending: the JSON is named for the share alone, with no run.
+    it("has no run on the JSON, so only a walkthrough file is one", async () => {
+      const { options } = await demoHome();
+
+      const { entry } = await shareReport(options);
+
+      const ending = (name: string) => name.endsWith("_walkthrough.json");
+      expect(entry.files.filter(({ name }) => ending(name)).map(({ name }) => name)).toEqual([
         walkthroughName(DEMO_FIRST, RUN_1315),
         walkthroughName(DEMO_FIRST, RUN_1402),
       ]);
-      // Only a walkthrough file has a run, and as its last key: the other two have no such key.
+      expect(entry.files.filter(({ run }) => run !== undefined).map(({ name }) => name)).toEqual(
+        entry.files.filter(({ name }) => ending(name)).map(({ name }) => name),
+      );
+      const json = entry.files.find(({ name }) => name === `${DEMO_FIRST}.json`);
+      expect(json).toBeDefined();
+      expect(json).not.toHaveProperty("run");
+    });
+
+    it("the email's line still names only the pair", async () => {
+      const { logger, options } = await homeWithRun();
+
+      const { files, pasteLine } = await shareReport(options);
+
+      const [page, word, ...others] = files;
+      expect(others.map(({ name }) => name)).toHaveLength(3);
+      expect(pasteLine).toBe(
+        `Fingerprints (SHA-256): ${page!.name} ${page!.sha256}; ${word!.name} ${word!.sha256}. To check a file you received: ${POWERSHELL_HASH} in PowerShell, or ${MAC_HASH} on a Mac. PowerShell shows the same letters in capitals.`,
+      );
+      // Not the Markdown, the JSON, or the walkthrough file: neither by name nor by fingerprint.
+      for (const other of others) {
+        expect(pasteLine).not.toContain(other.name);
+        expect(pasteLine).not.toContain(other.sha256);
+      }
+      expect(pasteLine).not.toContain(".md");
+      expect(pasteLine).not.toContain(".json");
+      // What's printed says the same, and names the pair in its words.
+      expect(logger.text("info").split("\n").slice(-2)).toEqual([
+        "To paste into the email that sends the page and its Word copy:",
+        `  ${pasteLine}`,
+      ]);
+    });
+
+    it("lists the Markdown and JSON with their sizes and fingerprints in what it prints", async () => {
+      const { logger, options } = await homeWithRun();
+
+      const { files } = await shareReport(options);
+
+      const lines = logger.text("info").split("\n");
+      const listed = files.filter(({ name }) => [`${FIRST}.md`, `${FIRST}.json`].includes(name));
+      expect(listed.map(({ name }) => name)).toEqual([`${FIRST}.md`, `${FIRST}.json`]);
+      for (const file of listed) {
+        const at = lines.indexOf(`  ${file.path}`);
+        expect(at).toBeGreaterThan(-1);
+        expect(lines[at + 1]).toBe(`    ${sizeLine(file.bytes)}, SHA-256 ${file.sha256}`);
+      }
+      // After the Word copy's, and before the walkthrough file's.
+      expect(lines.indexOf(`  ${listed[0]!.path}`)).toBeGreaterThan(
+        lines.indexOf(`  ${files[1]!.path}`),
+      );
+      expect(lines.indexOf(`  ${listed[1]!.path}`)).toBeLessThan(
+        lines.indexOf(`  ${files[4]!.path}`),
+      );
+    });
+
+    it("leaves a home that verify finds whole, and checks the Markdown and JSON as it does the pair", async () => {
+      const { siteDir, options } = await homeWithRun();
+      const home = path.dirname(siteDir);
+
+      const { entry } = await shareReport(options);
+
+      expect(entry.files.map(({ name }) => name)).toContain(`${FIRST}.md`);
+      expect(entry.files.map(({ name }) => name)).toContain(`${FIRST}.json`);
+      const whole = await verifyHome({ home, logger: createMemoryLogger() });
+      expect(whole.problems).toBe(0);
+      expect(whole.sites[0]).toMatchObject({ shares: 1, problems: [] });
+      // A copy that changed after it was recorded is named, each of the two included.
+      for (const extension of [".md", ".json"]) {
+        await appendFile(path.join(shareDir(siteDir), `${FIRST}${extension}`), " ");
+      }
+      const changed = await verifyHome({ home, logger: createMemoryLogger() });
+      expect(changed.sites[0]!.problems).toEqual([
+        expect.stringContaining(`${FIRST}.md: changed since it was recorded`),
+        expect.stringContaining(`${FIRST}.json: changed since it was recorded`),
+      ]);
+    });
+
+    const BOTH = [
+      ["Markdown", ".md"],
+      ["JSON", ".json"],
+    ];
+
+    // The same rule as for the pair: any name a share would use that's taken means the next number
+    // for every file of it, and what the first number wrote is taken away.
+    describe("chooses the next number when either name is taken", () => {
+      it.each(BOTH)(
+        "the %s's name is taken before the share starts, and the file that has it is left as it was",
+        async (_what, extension) => {
+          const { siteDir, run, options } = await homeWithRun();
+          const taken = path.join(shareDir(siteDir), `${FIRST}${extension}`);
+          await mkdir(shareDir(siteDir), { recursive: true });
+          await writeFile(taken, "someone's own file");
+          vi.mocked(buildShareModel).mockClear();
+
+          const { files } = await shareReport(options);
+
+          expect(files.map(({ name }) => name)).toEqual(copyNames(`${FIRST}-2`, run.runId));
+          expect(await readFile(taken, "utf8")).toBe("someone's own file");
+          // The first number is passed over from the start: no copy is made for it, and none is left.
+          expect(
+            vi
+              .mocked(buildShareModel)
+              .mock.calls.map(([input]) => input.fileName)
+              .filter((name) => name !== "current.html"),
+          ).toEqual([`${FIRST}-2.html`]);
+          expect(await names(shareDir(siteDir))).toEqual(
+            [
+              "current.docx",
+              "current.html",
+              ...copyNames(`${FIRST}-2`, run.runId),
+              `${FIRST}${extension}`,
+              "shares.json",
+            ].sort(),
+          );
+        },
+      );
+
+      it("both names are taken", async () => {
+        const { siteDir, run, options } = await homeWithRun();
+        await mkdir(shareDir(siteDir), { recursive: true });
+        for (const extension of [".md", ".json"]) {
+          await writeFile(path.join(shareDir(siteDir), `${FIRST}${extension}`), "someone's file");
+        }
+
+        const { files } = await shareReport(options);
+
+        expect(files.map(({ name }) => name)).toEqual(copyNames(`${FIRST}-2`, run.runId));
+      });
+
+      it.each(BOTH)(
+        "the record has the %s's name, though its file is gone",
+        async (_what, extension) => {
+          const { siteDir, run, options } = await homeWithRun();
+          await plantRecord(siteDir, [
+            {
+              seq: 1,
+              prev: null,
+              at: isoLocal(NOW),
+              by: "Sam Tester",
+              runs: [],
+              files: [{ name: `${FIRST}${extension}`, bytes: 1, sha256: "a".repeat(64) }],
+              seal: "b".repeat(64),
+            },
+          ]);
+
+          const { files } = await shareReport(options);
+
+          expect(files.map(({ name }) => name)).toEqual(copyNames(`${FIRST}-2`, run.runId));
+        },
+      );
+
+      it.each(BOTH)(
+        "the %s's name is taken while the copies are made, and what the first number had written is taken away",
+        async (_what, extension) => {
+          const { siteDir, run, options } = await homeWithRun();
+          const raced = path.join(shareDir(siteDir), `${FIRST}${extension}`);
+          await takenMeanwhile(raced);
+
+          const { files, entry } = await shareReport(options);
+
+          expect(files.map(({ name }) => name)).toEqual(copyNames(`${FIRST}-2`, run.runId));
+          expect(await readFile(raced, "utf8")).toBe("someone else's file");
+          // What the first number wrote before it found the name taken (the page, the Word copy, and
+          // for the JSON's name the Markdown as well) is gone; the file that took the name is not.
+          expect(await names(shareDir(siteDir))).toEqual(
+            [
+              "current.docx",
+              "current.html",
+              ...copyNames(`${FIRST}-2`, run.runId),
+              `${FIRST}${extension}`,
+              "shares.json",
+            ].sort(),
+          );
+          expect(entry.files.map(({ name }) => name)).toEqual(copyNames(`${FIRST}-2`, run.runId));
+          expect((await readShares(siteDir)).shares).toEqual([entry]);
+        },
+      );
+    });
+
+    it.each(BOTH)(
+      "takes its copies away, and gives the error, when the %s can't be written",
+      async (_what, extension) => {
+        const { siteDir, options } = await homeWithRun();
+        const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
+        vi.mocked(open).mockImplementation((file, flags, mode) =>
+          String(file).endsWith(`${FIRST}${extension}`) && flags === "wx"
+            ? Promise.reject(
+                Object.assign(new Error("ENOSPC: no space left on device, open"), {
+                  code: "ENOSPC",
+                }),
+              )
+            : real.open(file, flags, mode),
+        );
+
+        await expect(shareReport(options)).rejects.toThrow("ENOSPC: no space left on device");
+
+        // Nothing the failed share wrote is left, and nothing was recorded.
+        expect(await names(shareDir(siteDir))).toEqual(["current.docx", "current.html"]);
+        expect(existsSync(sharesPath(siteDir))).toBe(false);
+      },
+    );
+  });
+
+  // The runs the copies draw on are the demo's 1315 and 1402, so each share has two walkthrough files.
+  describe("each run's walkthrough file", () => {
+    it("writes each run's walkthrough file beside the page, its Word copy, and the report for AI tools, and records it", async () => {
+      const { siteDir, options } = await demoHome();
+
+      const { entry } = await shareReport(options);
+
+      expect(entry.files.map(({ name }) => name)).toEqual(
+        copyNames(DEMO_FIRST, RUN_1315, RUN_1402),
+      );
+      // Only a walkthrough file has a run, and as its last key: the other four have no such key.
       expect(entry.files.map((file) => Object.keys(file))).toEqual([
+        ["name", "bytes", "sha256"],
+        ["name", "bytes", "sha256"],
         ["name", "bytes", "sha256"],
         ["name", "bytes", "sha256"],
         ["name", "bytes", "sha256", "run"],
         ["name", "bytes", "sha256", "run"],
       ]);
-      expect(entry.files.slice(2).map(({ run }) => run)).toEqual([RUN_1315, RUN_1402]);
+      expect(entry.files.slice(4).map(({ run }) => run)).toEqual([RUN_1315, RUN_1402]);
       // Each is the file `voicecap walkthrough` writes of its run, whole on disk and as recorded.
       for (const [file, time] of [
-        [entry.files[2]!, "1315"],
-        [entry.files[3]!, "1402"],
+        [entry.files[4]!, "1315"],
+        [entry.files[5]!, "1402"],
       ] as const) {
         const bytes = await readFile(path.join(shareDir(siteDir), file.name));
         expect(bytes.toString("utf8")).toBe(walkthroughJson(walkthroughOf(demoRun(time))));
@@ -620,12 +972,7 @@ describe("shareReport", () => {
       const { entry } = await shareReport(options);
 
       const second = `${DEMO_FIRST}-2`;
-      expect(entry.files.map(({ name }) => name)).toEqual([
-        `${second}.html`,
-        `${second}.docx`,
-        walkthroughName(second, RUN_1315),
-        walkthroughName(second, RUN_1402),
-      ]);
+      expect(entry.files.map(({ name }) => name)).toEqual(copyNames(second, RUN_1315, RUN_1402));
     });
 
     it("takes the next number when a walkthrough file's name is taken", async () => {
@@ -638,12 +985,7 @@ describe("shareReport", () => {
       const { entry } = await shareReport(options);
 
       const second = `${DEMO_FIRST}-2`;
-      expect(entry.files.map(({ name }) => name)).toEqual([
-        `${second}.html`,
-        `${second}.docx`,
-        walkthroughName(second, RUN_1315),
-        walkthroughName(second, RUN_1402),
-      ]);
+      expect(entry.files.map(({ name }) => name)).toEqual(copyNames(second, RUN_1315, RUN_1402));
       expect(await readFile(taken, "utf8")).toBe("someone's own file");
       // The first number is passed over from the start: no copy is made for it.
       expect(
@@ -666,18 +1008,15 @@ describe("shareReport", () => {
 
       const { entry } = await shareReport(options);
 
-      expect(entry.files.map(({ name }) => name)).toEqual([
-        `${DEMO_FIRST}.html`,
-        `${DEMO_FIRST}.docx`,
-        walkthroughName(DEMO_FIRST, RUN_1402),
-      ]);
+      // The report for AI tools is made all the same: it's of the site, not of a run's file.
+      expect(entry.files.map(({ name }) => name)).toEqual(copyNames(DEMO_FIRST, RUN_1402));
       // The run still counts, so it's still one the copies draw on.
       expect(entry.runs).toEqual([RUN_1315, RUN_1402]);
       expect(logger.entries.filter(({ level }) => level === "warn")).toEqual([
         {
           level: "warn",
           message:
-            "Run 2026-09-29_1315's walkthrough file can't be made, so it isn't shared: page 1's label has a control character in it.",
+            "Run 2026-09-29_1315's walkthrough file can't be made, so it isn't shared: page 1's label has a control character (U+001B) in it.",
         },
       ]);
     });
@@ -690,6 +1029,9 @@ describe("shareReport", () => {
       // The walkthrough files are written all the same.
       expect(files.map(({ name }) => name)).toContain(walkthroughName(DEMO_FIRST, RUN_1402));
       expect(pasteLine).not.toContain("_walkthrough.json");
+      // Nor does it name the report for AI tools, whose files have no run either.
+      expect(pasteLine).not.toContain(`${DEMO_FIRST}.md`);
+      expect(pasteLine).not.toContain(`${DEMO_FIRST}.json`);
       const [page, word] = files;
       expect(pasteLine).toContain(
         `Fingerprints (SHA-256): ${page!.name} ${page!.sha256}; ${word!.name} ${word!.sha256}. To check a file you received:`,
@@ -701,8 +1043,9 @@ describe("shareReport", () => {
 
       const { entry } = await shareReport(options);
 
-      // What verify checks includes the walkthrough files, each as recorded.
-      expect(entry.files).toHaveLength(4);
+      // What verify checks includes the report for AI tools and the walkthrough files, each as
+      // recorded: the pair, the Markdown, the JSON, and two walkthrough files.
+      expect(entry.files).toHaveLength(6);
       const result = await verifyHome({ home, logger: createMemoryLogger() });
       expect(result.problems).toBe(0);
       expect(result.sites[0]).toMatchObject({ shares: 1, problems: [] });
@@ -722,12 +1065,8 @@ describe("shareReport", () => {
 
       const { files } = await shareReport({ ...options, now: ON, config: configNaming(DEMO_ROOT) });
 
-      expect(files.map(({ name }) => name)).toEqual([
-        `${STEM}.html`,
-        `${STEM}.docx`,
-        walkthroughName(STEM, RUN_1315),
-        walkthroughName(STEM, RUN_1402),
-      ]);
+      // Every file of the share, the report for AI tools included, has the canonical name.
+      expect(files.map(({ name }) => name)).toEqual(copyNames(STEM, RUN_1315, RUN_1402));
       // The folder is named for the address voicecap read, as it always is: only the copies' names
       // change, and none of them leads with that address.
       expect(files.map(({ path: file }) => path.dirname(file))).toEqual(
@@ -764,12 +1103,7 @@ describe("shareReport", () => {
       const { files, entry } = await shareReport(canonical);
 
       const second = `${STEM}-2`;
-      expect(files.map(({ name }) => name)).toEqual([
-        `${second}.html`,
-        `${second}.docx`,
-        walkthroughName(second, RUN_1315),
-        walkthroughName(second, RUN_1402),
-      ]);
+      expect(files.map(({ name }) => name)).toEqual(copyNames(second, RUN_1315, RUN_1402));
       expect(entry.seq).toBe(2);
       expect(await readFile(files[0]!.path, "utf8")).toContain(
         `This file: <span class="mono">${second}.html</span>. Its Word copy: <span class="mono">${second}.docx</span>.`,
@@ -854,11 +1188,7 @@ describe("shareReport", () => {
 
       const stem = "dvfr.illinois.gov_2027-01-15";
       expect(entry.site).toBe("https://dvfr.illinois.gov/");
-      expect(files.map(({ name }) => name)).toEqual([
-        `${stem}.html`,
-        `${stem}.docx`,
-        walkthroughName(stem, run.runId),
-      ]);
+      expect(files.map(({ name }) => name)).toEqual(copyNames(stem, run.runId));
     });
 
     it.each([
@@ -885,11 +1215,7 @@ describe("shareReport", () => {
         // The entry has the whole root, and the copies only its host and port.
         expect(entry.site).toBe(site);
         const stem = `${prefix}_2027-01-15`;
-        expect(files.map(({ name }) => name)).toEqual([
-          `${stem}.html`,
-          `${stem}.docx`,
-          walkthroughName(stem, run.runId),
-        ]);
+        expect(files.map(({ name }) => name)).toEqual(copyNames(stem, run.runId));
       },
     );
 
@@ -1080,11 +1406,7 @@ describe("shareReport", () => {
 
       const { files, entry } = await shareReport(options);
 
-      expect(files.map(({ name }) => name)).toEqual([
-        `${FIRST}.html`,
-        `${FIRST}.docx`,
-        walkthroughName(FIRST, run.runId),
-      ]);
+      expect(files.map(({ name }) => name)).toEqual(copyNames(FIRST, run.runId));
       expect(entry.seq).toBe(5);
       // What was there is as it was, and the new entry follows.
       const { shares } = await readShares(siteDir);
@@ -1100,11 +1422,7 @@ describe("shareReport", () => {
 
       const { files } = await shareReport(options);
 
-      expect(files.map(({ name }) => name)).toEqual([
-        `${FIRST}-2.html`,
-        `${FIRST}-2.docx`,
-        walkthroughName(`${FIRST}-2`, run.runId),
-      ]);
+      expect(files.map(({ name }) => name)).toEqual(copyNames(`${FIRST}-2`, run.runId));
     });
 
     it("reads the site's records once, and builds the model for each pair of names it tries", async () => {
@@ -1117,11 +1435,7 @@ describe("shareReport", () => {
 
       const { files } = await shareReport(options);
 
-      expect(files.map(({ name }) => name)).toEqual([
-        `${FIRST}-2.html`,
-        `${FIRST}-2.docx`,
-        walkthroughName(`${FIRST}-2`, run.runId),
-      ]);
+      expect(files.map(({ name }) => name)).toEqual(copyNames(`${FIRST}-2`, run.runId));
       expect(loadShareInput).toHaveBeenCalledTimes(1);
       // The first build, with the names a current copy has, is to see that a run counts, and it
       // also gives each run's walkthrough bytes.
@@ -1144,23 +1458,13 @@ describe("shareReport", () => {
 
       const { files, entry } = await shareReport(options);
 
-      const second = [
-        `${FIRST}-2.html`,
-        `${FIRST}-2.docx`,
-        walkthroughName(`${FIRST}-2`, run.runId),
-      ];
+      const second = copyNames(`${FIRST}-2`, run.runId);
       expect(files.map(({ name }) => name)).toEqual(second);
       expect(await readFile(raced, "utf8")).toBe("someone else's file");
       // The page this attempt wrote of the first pair is taken away: only what it wrote.
-      expect(await names(shareDir(siteDir))).toEqual([
-        "current.docx",
-        "current.html",
-        `${FIRST}-2.docx`,
-        `${FIRST}-2.html`,
-        walkthroughName(`${FIRST}-2`, run.runId),
-        `${FIRST}.docx`,
-        "shares.json",
-      ]);
+      expect(await names(shareDir(siteDir))).toEqual(
+        ["current.docx", "current.html", ...second, `${FIRST}.docx`, "shares.json"].sort(),
+      );
       expect(entry.files.map(({ name }) => name)).toEqual(second);
       expect((await readShares(siteDir)).shares).toEqual([entry]);
       // The copies are made again for the new names, not the first pair's renamed.
@@ -1180,46 +1484,35 @@ describe("shareReport", () => {
 
       const { files } = await shareReport(options);
 
-      expect(files.map(({ name }) => name)).toEqual([
-        `${FIRST}-2.html`,
-        `${FIRST}-2.docx`,
-        walkthroughName(`${FIRST}-2`, run.runId),
-      ]);
+      const second = copyNames(`${FIRST}-2`, run.runId);
+      expect(files.map(({ name }) => name)).toEqual(second);
       expect(await readFile(raced, "utf8")).toBe("someone else's file");
-      expect(await names(shareDir(siteDir))).toEqual([
-        "current.docx",
-        "current.html",
-        `${FIRST}-2.docx`,
-        `${FIRST}-2.html`,
-        walkthroughName(`${FIRST}-2`, run.runId),
-        `${FIRST}.html`,
-        "shares.json",
-      ]);
+      expect(await names(shareDir(siteDir))).toEqual(
+        ["current.docx", "current.html", ...second, `${FIRST}.html`, "shares.json"].sort(),
+      );
     });
 
-    it("takes the next number when a walkthrough file's name is taken, and takes away the page and Word copy it had written", async () => {
+    it("takes the next number when a walkthrough file's name is taken, and takes away the page, Word copy, Markdown, and JSON it had written", async () => {
       const { siteDir, run, options } = await homeWithRun();
       const raced = path.join(shareDir(siteDir), walkthroughName(FIRST, run.runId));
       await takenMeanwhile(raced);
 
       const { files } = await shareReport(options);
 
-      expect(files.map(({ name }) => name)).toEqual([
-        `${FIRST}-2.html`,
-        `${FIRST}-2.docx`,
-        walkthroughName(`${FIRST}-2`, run.runId),
-      ]);
+      const second = copyNames(`${FIRST}-2`, run.runId);
+      expect(files.map(({ name }) => name)).toEqual(second);
       expect(await readFile(raced, "utf8")).toBe("someone else's file");
-      // The first attempt wrote the page and the Word copy before it found the name taken: both gone.
-      expect(await names(shareDir(siteDir))).toEqual([
-        "current.docx",
-        "current.html",
-        `${FIRST}-2.docx`,
-        `${FIRST}-2.html`,
-        walkthroughName(`${FIRST}-2`, run.runId),
-        walkthroughName(FIRST, run.runId),
-        "shares.json",
-      ]);
+      // The first attempt wrote the page, the Word copy, the Markdown, and the JSON before it found
+      // the name taken: all four gone.
+      expect(await names(shareDir(siteDir))).toEqual(
+        [
+          "current.docx",
+          "current.html",
+          ...second,
+          walkthroughName(FIRST, run.runId),
+          "shares.json",
+        ].sort(),
+      );
     });
   });
 
@@ -1351,6 +1644,43 @@ describe("shareReport", () => {
 
       expect(await names(shareDir(siteDir))).toEqual(NOTHING_SHARED);
     });
+
+    // Every share this release makes has the report for AI tools, whatever its runs' versions, so a
+    // share that couldn't draw one would read as a share from before it, and the site would say
+    // nothing of the report. The share stops instead: the pair isn't written either.
+    it.each([
+      ["Markdown", renderAiMarkdown],
+      ["JSON", renderAiJson],
+    ] as const)(
+      "stops the whole share, the pair included, and gives the error, when the %s for AI tools can't be drawn",
+      async (_what, render) => {
+        const { siteDir, run, options } = await homeWithRun();
+        vi.mocked(render).mockImplementationOnce(() => {
+          throw new Error("The report for AI tools can't be drawn.");
+        });
+        vi.mocked(open).mockClear();
+
+        await expect(shareReport(options)).rejects.toThrow(
+          "The report for AI tools can't be drawn.",
+        );
+
+        // Nothing of the share is there: no page, no Word copy, no Markdown, no JSON, no walkthrough
+        // file, and no entry. Not one of its files was even begun.
+        expect(await names(shareDir(siteDir))).toEqual(NOTHING_SHARED);
+        expect(existsSync(sharesPath(siteDir))).toBe(false);
+        const begun = vi
+          .mocked(open)
+          .mock.calls.filter(
+            ([file, flags]) => flags === "wx" && String(file).startsWith(shareDir(siteDir)),
+          );
+        expect(begun).toEqual([]);
+        expect(vi.mocked(appendShare)).not.toHaveBeenCalled();
+
+        // It used up no number: the next share, whose renderers work, is the first of the day.
+        const { files } = await shareReport(options);
+        expect(files.map(({ name }) => name)).toEqual(copyNames(FIRST, run.runId));
+      },
+    );
   });
 
   describe("a copy too big for most email", () => {
@@ -1391,6 +1721,427 @@ describe("shareReport", () => {
 
       expect(logger.text("warn")).toBe("");
     });
+
+    it("is warned of for the page and for its Word copy, the pair that is emailed, each in turn", async () => {
+      const { logger, options } = await homeWithRun();
+      const big = 21 * 1024 * 1024;
+      vi.mocked(renderSharePage).mockReturnValueOnce("p".repeat(big));
+      vi.mocked(renderWordCopy).mockResolvedValueOnce(new Uint8Array(big));
+
+      await shareReport(options);
+
+      expect(
+        logger.entries.filter(({ level }) => level === "warn").map(({ message }) => message),
+      ).toEqual([
+        `${FIRST}.html is 21.0 MB, over 20 MB: too big for most email.`,
+        `${FIRST}.docx is 21.0 MB, over 20 MB: too big for most email.`,
+      ]);
+    });
+
+    it("isn't warned of for the Markdown or the JSON, which aren't emailed, however big they are", async () => {
+      const { logger, options } = await homeWithRun();
+      const big = 21 * 1024 * 1024;
+      vi.mocked(renderAiMarkdown).mockReturnValueOnce("m".repeat(big));
+      vi.mocked(renderAiJson).mockReturnValueOnce("j".repeat(big));
+
+      const { files } = await shareReport(options);
+
+      // Both were written, each over the limit, and are listed with their sizes all the same.
+      expect(
+        files.filter(({ bytes }) => bytes > EMAIL_LIMIT_BYTES).map(({ name }) => name),
+      ).toEqual([`${FIRST}.md`, `${FIRST}.json`]);
+      expect(logger.text("info")).toContain("21.0 MB (22,020,096 bytes), SHA-256 ");
+      expect(logger.text("warn")).toBe("");
+    });
+
+    it("isn't warned of for the voice page, which isn't emailed, however big it is", async () => {
+      const { logger, options } = await homeWithRun();
+      const big = 21 * 1024 * 1024;
+      // A voice page over the limit, as a site of many recorded pages has: it holds every recording.
+      vi.mocked(renderVoicePage).mockReturnValueOnce("v".repeat(big));
+
+      const { files, pasteLine } = await shareReport(options);
+
+      // It was written after the Word copy, over the limit, and listed with its size all the same,
+      // but the line for the email doesn't name it, and nothing warns of it.
+      expect(files[2]).toMatchObject({ name: `${FIRST}.voice.html`, bytes: big });
+      expect(pasteLine).not.toContain(".voice.html");
+      expect(logger.text("info")).toContain("21.0 MB (22,020,096 bytes), SHA-256 ");
+      expect(logger.text("warn")).toBe("");
+    });
+
+    it("warns of the Word copy alone, when it, the voice page, the Markdown, and the JSON are all over 20 MB, and the page is under", async () => {
+      const { logger, options } = await homeWithRun();
+      const big = 21 * 1024 * 1024;
+      vi.mocked(renderAiMarkdown).mockReturnValueOnce("m".repeat(big));
+      vi.mocked(renderWordCopy).mockResolvedValueOnce(new Uint8Array(big));
+      vi.mocked(renderVoicePage).mockReturnValueOnce("v".repeat(big));
+      vi.mocked(renderAiJson).mockReturnValueOnce("j".repeat(big));
+
+      await shareReport(options);
+
+      expect(
+        logger.entries.filter(({ level }) => level === "warn").map(({ message }) => message),
+      ).toEqual([`${FIRST}.docx is 21.0 MB, over 20 MB: too big for most email.`]);
+    });
+  });
+});
+
+// A recording is read whole and hashed, which only a copy with a voice page beside it needs. The
+// copy a run writes at its end (share/current.html) has none, so its loader is asked for none; a
+// share, which writes one, reads them.
+describe("which copies read the recordings of NVDA's voice", () => {
+  it("asks for none when a run writes the live copy, and for them when a share writes the voice page", async () => {
+    vi.mocked(loadShareInput).mockClear();
+    const { options } = await homeWithRun();
+
+    // The run wrote the live copy as it completed: every load it made asked for no recording.
+    const ofRun = vi.mocked(loadShareInput).mock.calls.map(([asked]) => asked.recordings);
+    expect(ofRun.length).toBeGreaterThan(0);
+    expect(ofRun.every((recordings) => recordings === false)).toBe(true);
+
+    // A share, whose copies may link to a voice page, leaves the loader to read them.
+    vi.mocked(loadShareInput).mockClear();
+    await shareReport(options);
+    const ofShare = vi.mocked(loadShareInput).mock.calls.map(([asked]) => asked.recordings);
+    expect(ofShare).toHaveLength(1);
+    expect(ofShare[0]).not.toBe(false);
+  });
+});
+
+describe("shareReport, with a recording of NVDA's voice on each page", () => {
+  /** What the scripted driver gives for a page: speech and pauses, or other sounds. */
+  const SPEECH: ScriptedVoice = { samples: speechAndPauses() };
+  const BUSY: ScriptedVoice = { samples: busySound(1.5, 3) };
+  const OTHER: ScriptedVoice = { samples: busySound(1.5, 4) };
+
+  /**
+   * A home with one completed, sealed, live run of the scripted site's three pages, each of which
+   * was recorded as `voices` say (the scripted driver gives each its sound; the run encodes it and
+   * keeps voice.webm), and what shares it.
+   */
+  async function homeWithVoice(
+    voices: [ScriptedVoice, ScriptedVoice, ScriptedVoice] = [SPEECH, BUSY, OTHER],
+  ) {
+    const dir = await newHome();
+    const [home, about, resources] = voices;
+    const pages = sitePages({
+      home: { voice: home },
+      about: { voice: about },
+      resources: { voice: resources },
+    });
+    const run = await runAudit(runOptions(dir, new ScriptedDriver(pages)));
+    expect(run.outcome).toBe("completed");
+    return { dir, siteDir: run.siteDir, run, ...sharing(dir) };
+  }
+
+  /** The voice page's name beside a pair whose name starts with `stem`. */
+  const voiceName = (stem: string): string => `${stem}.voice.html`;
+
+  it("writes the voice page beside the pair when a run has a recording, and lists it with its size and SHA-256", async () => {
+    const { siteDir, run, logger, options } = await homeWithVoice();
+
+    const { files, entry } = await shareReport(options);
+
+    // The page, its Word copy, the voice page, the report for AI tools as Markdown and as JSON,
+    // then the walkthrough file.
+    expect(files.map(({ name }) => name)).toEqual([
+      `${FIRST}.html`,
+      `${FIRST}.docx`,
+      voiceName(FIRST),
+      `${FIRST}.md`,
+      `${FIRST}.json`,
+      walkthroughName(FIRST, run.runId),
+    ]);
+    for (const file of files) {
+      const bytes = await readFile(file.path);
+      expect({ bytes: bytes.length, sha256: sha256(bytes) }, file.name).toEqual({
+        bytes: file.bytes,
+        sha256: file.sha256,
+      });
+    }
+    // The record of what was sent has it too, with its size and SHA-256, and no run: it's no
+    // walkthrough file.
+    const voice = files[2];
+    expect(entry.files).toEqual(files.map(({ path: _path, ...recorded }) => recorded));
+    expect(entry.files[2]).toEqual({
+      name: voiceName(FIRST),
+      bytes: voice?.bytes,
+      sha256: voice?.sha256,
+    });
+    expect(entry.files[2]).not.toHaveProperty("run");
+    expect(voice?.path).toBe(path.join(shareDir(siteDir), voiceName(FIRST)));
+    expect((await readShares(siteDir)).shares).toEqual([entry]);
+    // And said among the files, as the others are.
+    expect(logger.text("info")).toContain(
+      `  ${voice?.path}\n    ${sizeLine(voice?.bytes ?? 0)}, SHA-256 ${voice?.sha256}`,
+    );
+  });
+
+  it("makes the voice page of the run's recordings, with the fonts, and has its footer name the pair", async () => {
+    const { siteDir, run, options } = await homeWithVoice();
+
+    const { files } = await shareReport(options);
+    const html = await readFile(files[2]!.path, "utf8");
+
+    // Each page's recording as the run kept it, in its own player.
+    expect(html.match(/<audio\b/g)).toHaveLength(3);
+    for (const [index, page] of run.run.pages.entries()) {
+      const kept = await readFile(path.join(pageDir(siteDir, run.runId, page.slug), "voice.webm"));
+      expect(html, `page ${index + 1}`).toContain(
+        `src="data:audio/webm;base64,${kept.toString("base64")}"`,
+      );
+    }
+    // Passed the fonts, as the page is: the same nine faces in its one style block.
+    expect(html.match(/@font-face/g)).toHaveLength(9);
+    expect(html.match(/<style\b/g)).toHaveLength(1);
+    // Named for the site and the day, never an address; and the footer names the pair beside it.
+    expect(html).toContain("<title>NVDA&#39;s voice: example.illinois.gov, ");
+    expect(textOf(/<footer>([\s\S]*?)<\/footer>/.exec(html)?.[1] ?? "", "")).toContain(
+      `The shareable page: ${FIRST}.html. Its Word copy: ${FIRST}.docx.`,
+    );
+  });
+
+  it("has the shareable page and its Word copy point to it", async () => {
+    const { run, options } = await homeWithVoice();
+
+    const { files } = await shareReport(options);
+    const page = await readFile(files[0]!.path, "utf8");
+    const parts = await unzipDocx(await readFile(files[1]!.path));
+
+    // Each card links to its page's section, and the details link to the voice page itself.
+    const links = [...page.matchAll(/<a href="([^"]*\.voice\.html[^"]*)">/g)].map(
+      ([, href]) => href,
+    );
+    expect(links).toEqual([
+      ...run.run.pages.map(({ slug }) => `${voiceName(FIRST)}#voice-${slug}`),
+      voiceName(FIRST),
+    ]);
+    expect(page).toContain(
+      `<a href="${voiceName(FIRST)}">Open the voice page</a> (<code>${voiceName(FIRST)}</code>).`,
+    );
+    // The Word copy says it in the details, linked, and lists each recording among its fingerprints.
+    const said = paragraphsOf(parts.document).find(({ text }) => text.startsWith("NVDA's voice:"));
+    expect(said?.text).toBe(
+      `${VOICE_TEXT.details.lead} Open the voice page (${voiceName(FIRST)}).`,
+    );
+    expect(linksOf(parts)).toContain(voiceName(FIRST));
+    const recordings = tablesOf(parts.document)
+      .flatMap(({ rows }) => rows)
+      .filter((cells) => cells[1] === "voice.webm");
+    expect(recordings).toHaveLength(3);
+    // The copies carry no sound: no player, and no recording's address.
+    expect(page).not.toContain("<audio");
+    expect(page).not.toMatch(/data:audio\/webm;base64,[A-Za-z0-9+/]/);
+  });
+
+  it("has the voice page link to the transcripts of the shareable page the share wrote beside it, at the folds that page has", async () => {
+    const { run, options } = await homeWithVoice();
+
+    const { files } = await shareReport(options);
+    const sharePage = await readFile(files[0]!.path, "utf8");
+    const voicePage = await readFile(files[2]!.path, "utf8");
+
+    // The folds of the written page, by id: where an address to a page's transcripts leads.
+    const folds = [...sharePage.matchAll(/<details class="fold tx-page" id="([^"]*)"/g)].map(
+      ([, id = ""]) => id,
+    );
+    expect(folds).toEqual(run.run.pages.map(({ slug }) => `tx-${slug}`));
+    // Each section's link, and the footer's, are to that file by name, in the same folder.
+    const away = [...voicePage.matchAll(/<a href="([^"#]*)(#[^"]*)?"/g)]
+      .map(([, file = "", fragment = ""]) => ({ file, fragment }))
+      .filter(({ file }) => !file.startsWith("https://"));
+    expect(away).toHaveLength(run.run.pages.length + 1);
+    for (const { file } of away) expect(file).toBe(files[0]!.name);
+    expect(away.map(({ fragment }) => fragment).filter((fragment) => fragment !== "")).toEqual(
+      folds.map((id) => `#${id}`),
+    );
+    // Beside it: the same folder, so the relative name is where the file is.
+    expect(path.dirname(files[0]!.path)).toBe(path.dirname(files[2]!.path));
+    // And each fold is where the page's script finds it: an element with that id, once.
+    for (const id of folds) expect(sharePage.split(`id="${id}"`)).toHaveLength(2);
+  });
+
+  it("leaves a home that verify finds whole: the voice page is recorded, as it was written, and each recording is as its run sealed it", async () => {
+    const { dir, siteDir, options } = await homeWithVoice();
+
+    const { files } = await shareReport(options);
+
+    expect(files.map(({ name }) => name)).toContain(voiceName(FIRST));
+    const result = await verifyHome({
+      home: path.join(dir, "transcripts"),
+      logger: createMemoryLogger(),
+    });
+    expect(result.problems).toBe(0);
+    expect(result.sites[0]).toMatchObject({ shares: 1, problems: [] });
+    // And a voice page changed afterwards is named, as any copy is.
+    await appendFile(path.join(shareDir(siteDir), voiceName(FIRST)), " ");
+    const changed = await verifyHome({
+      home: path.join(dir, "transcripts"),
+      logger: createMemoryLogger(),
+    });
+    expect(changed.problems).toBeGreaterThan(0);
+  });
+
+  it("names only the pair in the line for the email, as before", async () => {
+    const { options } = await homeWithVoice();
+
+    const { files, pasteLine } = await shareReport(options);
+
+    expect(pasteLine).toBe(
+      `Fingerprints (SHA-256): ${files[0]!.name} ${files[0]!.sha256}; ${files[1]!.name} ${files[1]!.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.`,
+    );
+    expect(pasteLine).not.toContain(".voice.html");
+  });
+
+  it("writes no voice page when no run has one", async () => {
+    // The scripted driver records nothing here, so the runs have no record of a recording.
+    const { siteDir, run, options } = await homeWithRun();
+
+    const { files, entry } = await shareReport(options);
+
+    expect(files.map(({ name }) => name)).toEqual(copyNames(FIRST, run.runId));
+    expect(entry.files.map(({ name }) => name)).not.toContain(voiceName(FIRST));
+    expect((await names(shareDir(siteDir))).filter((name) => name.includes("voice"))).toEqual([]);
+    // Nor does the page link to one.
+    expect(await readFile(files[0]!.path, "utf8")).not.toContain(".voice.html");
+  });
+
+  it("writes no voice page when every page's recording failed: a reason isn't a recording", async () => {
+    const reasons: ScriptedVoice = { error: "the recorder couldn't start" };
+    const { siteDir, run, options } = await homeWithVoice([reasons, reasons, reasons]);
+
+    const { files } = await shareReport(options);
+
+    // Each page's record is the reason, and lists no file.
+    expect(
+      run.run.pages.map(({ voice }) =>
+        voice !== undefined && "error" in voice ? voice.error : "",
+      ),
+    ).toEqual(Array.from({ length: 3 }, () => "the recorder couldn't start"));
+    expect(files.map(({ name }) => name)).toEqual(copyNames(FIRST, run.runId));
+    expect((await names(shareDir(siteDir))).filter((name) => name.includes("voice"))).toEqual([]);
+    expect(await readFile(files[0]!.path, "utf8")).not.toContain(".voice.html");
+  });
+
+  it("writes a voice page for the pages that have a recording, and leaves the others to say why", async () => {
+    const reasons: ScriptedVoice = { error: "the recording is silent" };
+    const { options } = await homeWithVoice([SPEECH, reasons, BUSY]);
+
+    const { files } = await shareReport(options);
+    const html = await readFile(files[2]!.path, "utf8");
+
+    expect(files[2]?.name).toBe(voiceName(FIRST));
+    expect(html.match(/<audio\b/g)).toHaveLength(2);
+    expect(html).toContain("Not recorded: the recording is silent.");
+    // Only the pages with a recording have a line on their cards.
+    expect((await readFile(files[0]!.path, "utf8")).match(/on the voice page/g)).toHaveLength(2);
+  });
+
+  it("takes the next number when the voice page's name is taken, recorded or not, and never writes over it", async () => {
+    const { siteDir, options } = await homeWithVoice();
+    await mkdir(shareDir(siteDir), { recursive: true });
+    await writeFile(path.join(shareDir(siteDir), voiceName(FIRST)), "someone's own file");
+
+    const { files } = await shareReport(options);
+
+    expect(files.map(({ name }) => name).slice(0, 3)).toEqual([
+      `${FIRST}-2.html`,
+      `${FIRST}-2.docx`,
+      voiceName(`${FIRST}-2`),
+    ]);
+    expect(await readFile(path.join(shareDir(siteDir), voiceName(FIRST)), "utf8")).toBe(
+      "someone's own file",
+    );
+    // And a name the record has, whose file is gone (the second share's files are there, so -2 is
+    // taken as well).
+    await rm(path.join(shareDir(siteDir), voiceName(FIRST)));
+    await plantRecord(siteDir, [
+      {
+        seq: 1,
+        prev: null,
+        at: isoLocal(NOW),
+        by: "Sam Tester",
+        runs: [],
+        files: [{ name: voiceName(FIRST), bytes: 1, sha256: "a".repeat(64) }],
+        seal: "b".repeat(64),
+      },
+    ]);
+    const third = await shareReport(options);
+    expect(third.files[0]?.name).toBe(`${FIRST}-3.html`);
+  });
+
+  it("writes the voice page with the others, each synced to disk and closed, and takes it away with them when the entry can't be recorded", async () => {
+    const { siteDir, options } = await homeWithVoice();
+    const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
+    const steps: string[] = [];
+    // What a copy is, by its name: the voice page by its ending, and a walkthrough file by its own,
+    // which the report's JSON doesn't have.
+    const KINDS = ["html", "docx", "voice", "md", "json", "walkthrough"];
+    vi.mocked(open).mockImplementation(async (file, flags, mode) => {
+      const handle = await real.open(file, flags, mode);
+      const name = path.basename(String(file));
+      const kind = name.endsWith(".voice.html")
+        ? "voice"
+        : name.endsWith("_walkthrough.json")
+          ? "walkthrough"
+          : path.extname(name).slice(1);
+      if (flags !== "wx" || !KINDS.includes(kind)) return handle;
+      steps.push(`open ${kind}`);
+      return new Proxy(handle, {
+        get(target, property) {
+          const value: unknown = Reflect.get(target, property, target);
+          if (typeof value !== "function") return value;
+          return (...args: unknown[]): unknown => {
+            if (["writeFile", "sync", "close"].includes(String(property))) {
+              steps.push(`${String(property)} ${kind}`);
+            }
+            return (value as (...called: unknown[]) => unknown).apply(target, args);
+          };
+        },
+      });
+    });
+    vi.mocked(appendShare).mockRejectedValueOnce(new Error("The record is held."));
+
+    await expect(shareReport(options)).rejects.toThrow("The record is held.");
+
+    // In the order the share lists them: the page, its Word copy, the voice page, the Markdown, the
+    // JSON, and the run's walkthrough file, each whole before the next is opened.
+    expect(steps).toEqual(
+      KINDS.flatMap((kind) => [
+        `open ${kind}`,
+        `writeFile ${kind}`,
+        `sync ${kind}`,
+        `close ${kind}`,
+      ]),
+    );
+    // Taken away with the rest: nothing records it.
+    expect(await names(shareDir(siteDir))).toEqual(["current.docx", "current.html"]);
+  });
+
+  it("builds the pair's model with the voice page's name, as it does the Word copy's", async () => {
+    const { options } = await homeWithVoice();
+    vi.mocked(buildShareModel).mockClear();
+
+    await shareReport(options);
+
+    const named = vi
+      .mocked(buildShareModel)
+      .mock.calls.map(([input]) => input)
+      .filter((input) => input.fileName !== "current.html");
+    expect(
+      named.map(({ fileName, wordName, voiceName: voice }) => [fileName, wordName, voice]),
+    ).toEqual([[`${FIRST}.html`, `${FIRST}.docx`, voiceName(FIRST)]]);
+  });
+
+  it("leaves current.html and current.docx without a voice page or a link to one", async () => {
+    const { siteDir, options } = await homeWithVoice();
+
+    await shareReport(options);
+
+    // The live copies are as they were when the run ended: no voice page beside them.
+    expect(await names(shareDir(siteDir))).not.toContain("current.voice.html");
+    expect(await readFile(sharePath(siteDir), "utf8")).not.toContain(".voice.html");
   });
 });
 

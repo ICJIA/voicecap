@@ -25,7 +25,8 @@
  *      screen reader hears the list; then the commands, in a table;
  *   3. NVDA's passes, in a table, why a pass stops, how NVDA's words are caught, and the
  *      defaults, in a table;
- *   4. what a run records: the transcripts home, as a tree, and what a run keeps of the computer;
+ *   4. what a run records: the transcripts home, as a tree, what a run keeps of the computer, and
+ *      how NVDA's sound is recorded, and kept, as one file for each page;
  *   5. the flags: the built-in rules, in a table;
  *   6. fingerprints, seals, and `voicecap verify`;
  *   7. how this website is built and protected, and what it shows now;
@@ -296,7 +297,10 @@ function passes(): string {
   ]);
 }
 
-/** 4. What a run records: the transcripts home, then what a run keeps of the computer. */
+/**
+ * 4. What a run records: the transcripts home, then what a run keeps of the computer, and how NVDA's
+ * sound is recorded, in a list.
+ */
 function record(): string {
   const words = TECHNICAL_TEXT.parts.record;
   return part(words, [paragraph(words.lead), tree(words.tree), list(words.points)]);

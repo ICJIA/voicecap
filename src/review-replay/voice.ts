@@ -6,7 +6,9 @@
  * No transcript's words ever reach a command line or a shell. On Windows, one Windows PowerShell
  * runs SPEAK_SCRIPT for the whole session and reads each line as a line of JSON on its standard
  * input, as data it never evaluates. On a Mac, `say` reads each line on its standard input. Every
- * program starts through `spawn(file, args, VOICE_SPAWN_OPTIONS)`, with no shell.
+ * program starts through `spawn(file, args, VOICE_SPAWN_OPTIONS)`, with no shell, and Windows
+ * PowerShell by its full path in the Windows folder (systemTool), so no file called powershell.exe
+ * in the folder voicecap runs in can be started in its place.
  *
  * The voices' error messages are here, beside what goes wrong. The other words a person sees during
  * a replay are in text.ts, but for the usage errors, which sit where they're thrown.
@@ -17,6 +19,7 @@ import type { Readable, Writable } from "node:stream";
 
 import { powershellCommand } from "../drivers/guidepup/windows.js";
 import { EnvironmentError } from "../util/errors.js";
+import { systemTool } from "../util/system-tools.js";
 
 /** The computer's voice, saying one line at a time. */
 export interface Voice {
@@ -171,7 +174,7 @@ export async function windowsVoice(
   const spawnVoice: SpawnVoice = options.spawnVoice ?? spawn;
   const { script = SPEAK_SCRIPT, readyMs = 20_000, closeMs = 2_000 } = options;
   const child = spawnVoice(
-    "powershell.exe",
+    systemTool("powershell"),
     ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(script)],
     VOICE_SPAWN_OPTIONS,
   );
@@ -277,6 +280,17 @@ export async function windowsVoice(
 }
 
 /**
+ * `text` as macOS's `say` can be given it as words alone. `say` follows `[[ … ]]` in its input as a
+ * speech command: `[[slnc 5000]]` is five seconds of silence, `[[rate 400]]` a faster voice. A
+ * transcript holds what a website made NVDA say, so it could hold one. A space goes after each `[`
+ * that another `[` follows, so no `[[` is left to begin a command (`[[[` is `[ [ [`, not `[ [[`),
+ * and the rest of `text` is as it was.
+ */
+function withoutSpeechCommands(text: string): string {
+  return text.replace(/\[(?=\[)/g, "[ ");
+}
+
+/**
  * macOS's own voice: `say`, started for each line with the words on its input. It resolves once
  * `say -v ?` has listed a voice, and rejects with an EnvironmentError that says why when it
  * hasn't. `stop()` and `close()` kill the `say` that's speaking, and the line it was saying
@@ -321,7 +335,7 @@ export async function macVoice(options: { spawnVoice?: SpawnVoice } = {}): Promi
       const current = { child, stopped: false };
       speaking = current;
       child.stdin.on("error", () => {});
-      child.stdin.write(`${text}\n`);
+      child.stdin.write(`${withoutSpeechCommands(text)}\n`);
       child.stdin.end();
       return watch(child, () => {}).then((ending) => {
         speaking = null;
@@ -354,16 +368,16 @@ export async function startSystemVoice(
 }
 
 /** How a voice's program ended: with its exit code (null when a signal ended it), or unstarted. */
-type Ending = { code: number | null } | { error: Error };
+export type Ending = { code: number | null } | { error: Error };
 
 /**
  * Reads `child`'s output a line at a time, in UTF-8, and its error output too, when it has one
  * (`onComplaint`), and settles once the program has ended: once it has exited and both have been
  * read to the end (Node can report the exit before the last of them), or once it couldn't start.
  * The error output is read as it comes, even with no one to hear it, so it never fills and stalls
- * the program.
+ * the program. The recorder (src/drivers/guidepup/voice-recorder.ts) watches its helper with it too.
  */
-function watch(
+export function watch(
   child: VoiceChild,
   onLine: (line: string) => void,
   onComplaint: (line: string) => void = () => {},
@@ -425,7 +439,7 @@ export async function settlesWithin(promise: Promise<unknown>, ms: number): Prom
 }
 
 /** A line the script printed, as the JSON object it is; {} for any other line. */
-function answerOf(text: string): Record<string, unknown> {
+export function answerOf(text: string): Record<string, unknown> {
   try {
     const value: unknown = JSON.parse(text);
     return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
@@ -438,7 +452,7 @@ function answerOf(text: string): Record<string, unknown> {
  * Another program's message as part of a sentence: on one line, without its own full stop. An
  * ellipsis ("..."), as PowerShell ends a line of the script it quotes, is kept.
  */
-function clause(message: string): string {
+export function clause(message: string): string {
   return message
     .replace(/\s+/g, " ")
     .trim()
@@ -446,6 +460,6 @@ function clause(message: string): string {
 }
 
 /** "PowerShell ended with exit code 1", or "PowerShell ended" when a signal ended it. */
-function endedWith(program: string, code: number | null): string {
+export function endedWith(program: string, code: number | null): string {
   return code === null ? `${program} ended` : `${program} ended with exit code ${code}`;
 }

@@ -13,7 +13,7 @@ const TIP = "Tip: turn on Do Not Disturb, so notifications don't interrupt Voice
 
 const MACHINE_INFO: MachineInfo = {
   lines: [
-    { label: "Computer", value: "cschweda's Mac mini, user cschweda" },
+    { label: "Computer", value: "Jane's Mac mini, user jane" },
     { label: "Model", value: "Mac mini (Mac16,10), Apple M4, 16 GB memory, 72 GB free of 228 GB" },
     { label: "System", value: "macOS 26.6.2 (25G83), Apple silicon" },
     { label: "Terminal app", value: "Visual Studio Code (macOS gives permissions to this app)" },
@@ -22,8 +22,8 @@ const MACHINE_INFO: MachineInfo = {
     { label: "Screen reader", value: "VoiceOver 10 (build 993)" },
     { label: "Browser", value: "Chrome for Testing 153.0.8010.12 (Playwright's)" },
     { label: "Language", value: "English (United States)" },
-    { label: "Transcripts", value: "/Users/cschweda/webdev/voicecap-transcripts" },
-    { label: "Guidepup files", value: "/Users/cschweda/Library/Caches/guidepup" },
+    { label: "Transcripts", value: "/Users/jane/webdev/voicecap-transcripts" },
+    { label: "Guidepup files", value: "/Users/jane/Library/Caches/guidepup" },
     { label: "Browser path", value: "~/Library/Caches/ms-playwright/chromium-1243/…" },
   ],
   screenReader: "VoiceOver 10",
@@ -68,11 +68,12 @@ const RESULT: PreflightResult = { info: MACHINE_INFO, checks: CHECKS, ready: fal
 
 // This is the spec's "What someone sees" block, copied character for character from
 // docs/superpowers/specs/2026-09-28-readiness-design.md (the fenced example under "## What
-// someone sees"), minus its "$ npx @icjia/voicecap init" line and the blank line after it.
+// someone sees"), minus its "$ npx @icjia/voicecap init" line and the blank line after it, and
+// with a made-up account and Mac name (jane, Jane's Mac mini) in place of the spec's own.
 const EXPECTED_PREFLIGHT = `voicecap preflight, 2026-09-28 11:10
 
 This computer
-  Computer        cschweda's Mac mini, user cschweda
+  Computer        Jane's Mac mini, user jane
   Model           Mac mini (Mac16,10), Apple M4, 16 GB memory, 72 GB free of 228 GB
   System          macOS 26.6.2 (25G83), Apple silicon
   Terminal app    Visual Studio Code (macOS gives permissions to this app)
@@ -81,8 +82,8 @@ This computer
   Screen reader   VoiceOver 10 (build 993)
   Browser         Chrome for Testing 153.0.8010.12 (Playwright's)
   Language        English (United States)
-  Transcripts     /Users/cschweda/webdev/voicecap-transcripts
-  Guidepup files  /Users/cschweda/Library/Caches/guidepup
+  Transcripts     /Users/jane/webdev/voicecap-transcripts
+  Guidepup files  /Users/jane/Library/Caches/guidepup
   Browser path    ~/Library/Caches/ms-playwright/chromium-1243/…
 
 Checks

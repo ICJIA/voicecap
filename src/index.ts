@@ -23,6 +23,37 @@ export type { ShareReportOptions, ShareReportResult } from "./share/share.js";
 // makes copies that say they were made without them unless it's given them as `gestureOf`; runAudit,
 // generateReport, addReview, and addManualSession pass them themselves.
 export { nvdaGestureOf } from "./drivers/index.js";
+// The shape of the report for AI tools as JSON (a share's `.json` file, `schemaVersion: 1`), for a
+// program that reads one: `AiReport` is the whole file, and the rest are the parts it is made of.
+// `AiStep` is a step of a transcript (`AiTranscript.steps`).
+export type {
+  AiAxeElement,
+  AiAxeResults,
+  AiAxeRule,
+  AiCard,
+  AiCardPage,
+  AiChangedPage,
+  AiChanges,
+  AiCounts,
+  AiDiffLine,
+  AiFingerprint,
+  AiFix,
+  AiFlag,
+  AiGone,
+  AiNotRecorded,
+  AiOutOf,
+  AiPage,
+  AiPlace,
+  AiProblem,
+  AiReport,
+  AiRow,
+  AiRun,
+  AiTranscript,
+  AiUnreadablePass,
+  AiVerdict,
+  AiVerdictKind,
+} from "./share/ai/json.js";
+export type { Step as AiStep } from "./share/ai/shared.js";
 // What `voicecap share` recorded in a site's share/shares.json, and the type readShares gives it
 // back as: each entry an object whose fields are unknown, since only that is checked.
 export { readShares } from "./share/shares.js";
@@ -76,6 +107,8 @@ export type {
   PageScreenshot,
   ScreenReaderDriver,
   Speech,
+  VoiceCapture,
+  VoiceRecording,
 } from "./drivers/types.js";
 // What a page's record keeps of axe's check of it (`PageRecord.axe`), and what a driver's check
 // gives beside the file's text (`AxeCapture`).

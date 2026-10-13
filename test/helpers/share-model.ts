@@ -2,11 +2,12 @@
  * What the shareable page's tests build models from: the input of runs built in memory
  * (`inputOf`), the demo runs of 29 September 2026 as a model (`demoModel`), transcripts held in
  * memory (`storeOf`), screenshots held in memory (`picturesOf`), axe's results kept as a run keeps
- * them, with their files held in memory (`keptAxe`, `axeFilesOf`), a run with its event log held in
- * memory (`loggedRun`), and a site of many pages read in full (`manyPages`). `inputOf` has the
- * keys NVDA's driver gives (`gestureOf`), as the commands that make the page give them, and no copy
- * of NVDA's log. The tests that render the page, and the one that builds its model, share them, so
- * each file says only what it adds.
+ * them, with their files held in memory (`keptAxe`, `axeFilesOf`), NVDA's voice kept as a run keeps
+ * it, with its recordings held in memory (`recordedVoice`, `recordingsOf`), a run with its event log
+ * held in memory (`loggedRun`), and a site of many pages read in full (`manyPages`). `inputOf` has
+ * the keys NVDA's driver gives (`gestureOf`), as the commands that make the page give them, and no
+ * copy of NVDA's log. The tests that render the page, and the one that builds its model, share them,
+ * so each file says only what it adds.
  */
 import os from "node:os";
 import path from "node:path";
@@ -23,6 +24,7 @@ import type {
   ReviewsFile,
   RunEvent,
   RunJson,
+  VoiceRecord,
 } from "../../src/model.js";
 import { loadShareInput, type ShareInput, type TranscriptStore } from "../../src/share/load.js";
 import {
@@ -34,6 +36,7 @@ import {
 import { MAIN_COMMAND } from "../../src/transcripts/format.js";
 import { fileHash } from "../../src/transcripts/write.js";
 import { sealOf } from "../../src/util/hash.js";
+import { encodeVoice } from "../../src/voice/encode.js";
 import { TINY_JPEG } from "./jpeg.js";
 import { rawAxe } from "./raw-axe.js";
 import { SITE } from "./report-data.js";
@@ -145,6 +148,7 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     gestureOf,
     screenshots: new Map(),
     axeFiles: new Map(),
+    recordings: new Map(),
     flagsAsRecorded: [],
     unreadableRuns: [],
     siteName: null,
@@ -155,9 +159,17 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     platform: process.platform,
     fileName: "current.html",
     wordName: "current.docx",
+    voiceName: null,
     ...overrides,
   };
 }
+
+/**
+ * The voice page's file name beside a share's page (`example.illinois.gov_2026-09-30.html`), for
+ * the models whose cards and details link to it. A model that sets none (`voiceName: null`) is the
+ * live copy's, which has no voice page beside it.
+ */
+export const VOICE_PAGE = "example.illinois.gov_2026-09-30.voice.html";
 
 /** A flag a run records for a page whose read pass says generic link text. */
 export const LINK_FLAG: FlagResult = {
@@ -250,6 +262,83 @@ export function axeFilesOf(runs: RunJson[]): Map<string, string> {
             : undefined;
         const text = typeof sha256 === "string" ? axeTexts.get(sha256) : undefined;
         return text === undefined ? [] : [[`${run.id}/${page.slug}`, text]];
+      }),
+    ),
+  );
+}
+
+/** When the runs built here recorded each page's voice. */
+export const VOICE_RECORDED_AT = "2026-09-26T14:05:41.220-05:00";
+
+/** Each recording `recordedVoice` made, by its fingerprint, so `recordingsOf` can give a record its file. */
+const voiceFiles = new Map<string, Uint8Array>();
+
+/**
+ * NVDA's voice for a page, kept as a run keeps it: the WebM Opus file voicecap encodes of `sound`
+ * (16 kHz samples: test/helpers/voice-signal.ts makes them), and the page's record of it, its
+ * fingerprint and length, and the sound lost, which is none unless a test says. No file is written;
+ * `recordingsOf` gives the voice page the bytes of each record made here.
+ */
+export async function recordedVoice(
+  sound: Int16Array,
+  lostMs = 0,
+): Promise<{ webm: Uint8Array; record: Exclude<VoiceRecord, { error: string }> }> {
+  const { webm, seconds } = await encodeVoice(sound);
+  const hash = fileHash(webm);
+  voiceFiles.set(hash.sha256, webm);
+  const stretches = [{ startMs: 0, endMs: Math.round(seconds * 1000) }];
+  return { webm, record: { ...hash, seconds, lostMs, stretches, recordedAt: VOICE_RECORDED_AT } };
+}
+
+/**
+ * The recordings of some runs as the loader holds them: the file `recordedVoice` made of each page's
+ * record that has a fingerprint, by run id and slug (`renderVoicePage`'s `recordings`). A record
+ * made some other way has no file.
+ */
+export function recordingsOf(runs: RunJson[]): Map<string, Uint8Array> {
+  return new Map(
+    runs.flatMap((run) =>
+      run.pages.flatMap((page): [string, Uint8Array][] => {
+        const record: unknown = page.voice;
+        const sha256 =
+          typeof record === "object" && record !== null && "sha256" in record
+            ? record.sha256
+            : undefined;
+        const webm = typeof sha256 === "string" ? voiceFiles.get(sha256) : undefined;
+        return webm === undefined ? [] : [[`${run.id}/${page.slug}`, webm]];
+      }),
+    ),
+  );
+}
+
+/**
+ * A kept recording's record, of a file `seconds` long, with a made-up fingerprint: no file is made,
+ * for the tests that read what a page says of a recording and never play it (`recordedVoice` makes a
+ * real one). `heldRecordings` gives the model a placeholder file for each such record.
+ */
+export function voiceRecord(seconds: number, lostMs = 0): Exclude<VoiceRecord, { error: string }> {
+  return {
+    sha256: "b".repeat(64),
+    bytes: 4_096,
+    seconds,
+    lostMs,
+    stretches: [{ startMs: 0, endMs: Math.round(seconds * 1000) }],
+    recordedAt: VOICE_RECORDED_AT,
+  };
+}
+
+/**
+ * The recordings of some runs as the loader would hold them if every kept record had its file, by
+ * run id and slug: a few placeholder bytes for each, the file of a record `voiceRecord` made.
+ */
+export function heldRecordings(runs: RunJson[]): Map<string, Uint8Array> {
+  return new Map(
+    runs.flatMap((run) =>
+      run.pages.flatMap((page): [string, Uint8Array][] => {
+        const record: unknown = page.voice;
+        return typeof record === "object" && record !== null && "sha256" in record
+          ? [[`${run.id}/${page.slug}`, new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])]]
+          : [];
       }),
     ),
   );

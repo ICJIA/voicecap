@@ -916,6 +916,34 @@ describe("the path forward", () => {
     ).toEqual(["Run voicecap again on these pages, starting with --page /b/."]);
   });
 
+  // A page's path is the site's own words, and the hint is pasted into PowerShell or Git Bash: a
+  // path that holds anything a shell reads is quoted, and a single quote in it is written %27.
+  /** The pages of a card whose first page is at `path`. */
+  const firstAt = (path: string): AttentionCard["pages"] => [{ ...cardPage("a"), path }];
+
+  it("quotes a first page's path that holds what a shell reads, so nothing in it runs", () => {
+    expect(attentionWords(cardOf("skip-link", { pages: firstAt("/x?$(calc)") })).path).toContain(
+      "Run voicecap again on one page (--page '/x?$(calc)'), then on every page.",
+    );
+    expect(
+      attentionWords(cardOf("recorded", { subject: "x", pages: firstAt("/a;b") })).path,
+    ).toEqual(["Run voicecap again on the page (--page '/a;b')."]);
+    // A query's "?" is quoted too, since Git Bash would read it as a wildcard.
+    expect(
+      attentionWords(cardOf("recorded", { subject: "x", pages: firstAt("/a/?p=2") })).path,
+    ).toEqual(["Run voicecap again on the page (--page '/a/?p=2')."]);
+  });
+
+  it("writes a single quote in a first page's path as %27, which needs no quotes", () => {
+    const pages = [...firstAt("/o'brien/"), cardPage("b")];
+    expect(attentionWords(cardOf("recorded", { subject: "x", pages })).path).toEqual([
+      "Run voicecap again on these pages, starting with --page /o%27brien/.",
+    ]);
+    expect(attentionWords(cardOf("skip-link", { pages: firstAt("/it's/") })).path).toContain(
+      "Run voicecap again on one page (--page /it%27s/), then on every page.",
+    );
+  });
+
   it("has two steps for a read that stopped, for each page when there are more", () => {
     expect(attentionWords(cardOf("read-stopped", { pages: pagesOf(1) })).path).toEqual([
       "Run the page again with --page.",

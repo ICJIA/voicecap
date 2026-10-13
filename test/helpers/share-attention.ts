@@ -132,6 +132,8 @@ export function pageFrom(
     strip: [],
     heardFirst: [],
     screenshot: { notRecorded: "Not recorded." },
+    speaksFor: null,
+    voice: null,
     from: null,
     failure: null,
     flags,

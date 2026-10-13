@@ -1,0 +1,155 @@
+{
+  "pass": "headings",
+  "page": {
+    "url": "https://r3.illinois.gov/eligibility/"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextHeading",
+      "spoken": "main landmark, clickable, Eligibility, heading, level 1",
+      "durationMs": 1277,
+      "offsetMs": 1277
+    },
+    {
+      "n": 2,
+      "command": "nextHeading",
+      "spoken": "Eligible Applicants, heading, level 2",
+      "durationMs": 1275,
+      "offsetMs": 2551
+    },
+    {
+      "n": 3,
+      "command": "nextHeading",
+      "spoken": "Eligible Service Areas, heading, level 2",
+      "durationMs": 1285,
+      "offsetMs": 3836
+    },
+    {
+      "n": 4,
+      "command": "nextHeading",
+      "spoken": "Using the R 3 Map to Determine Eligibility and Funding Level, heading, level 2",
+      "durationMs": 1279,
+      "offsetMs": 5116
+    },
+    {
+      "n": 5,
+      "command": "nextHeading",
+      "spoken": "R 3 Eligibility and Service Area Map, frame, clickable, main landmark, Use the tool below to select the geographic area in which your organization proposes to provide services for the R 3 Cohort 4 grant program. Please note your service area must be located entirely within the R 3 funding region that corresponds with the region in your application. Your service area must contain at least one R 3 Area to be eligible for funding. See detailed instructions below the tool., heading, level 4. R 3 Eligibility and Service Area Selector",
+      "durationMs": 2196,
+      "offsetMs": 7312
+    },
+    {
+      "n": 6,
+      "command": "nextHeading",
+      "spoken": "Video Tutorial, heading, level 2",
+      "durationMs": 3354,
+      "offsetMs": 10665
+    },
+    {
+      "n": 7,
+      "command": "nextHeading",
+      "spoken": "1. Locate Areas, heading, level 2",
+      "durationMs": 1279,
+      "offsetMs": 11945
+    },
+    {
+      "n": 8,
+      "command": "nextHeading",
+      "spoken": "2. Select Areas, heading, level 2",
+      "durationMs": 1285,
+      "offsetMs": 13230
+    },
+    {
+      "n": 9,
+      "command": "nextHeading",
+      "spoken": "2a. Select by lasso, heading, level 3",
+      "durationMs": 1288,
+      "offsetMs": 14518
+    },
+    {
+      "n": 10,
+      "command": "nextHeading",
+      "spoken": "2b. Select by circle, heading, level 3",
+      "durationMs": 1282,
+      "offsetMs": 15799
+    },
+    {
+      "n": 11,
+      "command": "nextHeading",
+      "spoken": "2c. Select by point, heading, level 3",
+      "durationMs": 1285,
+      "offsetMs": 17084
+    },
+    {
+      "n": 12,
+      "command": "nextHeading",
+      "spoken": "3. Export plus Upload, heading, level 2",
+      "durationMs": 1290,
+      "offsetMs": 18375
+    },
+    {
+      "n": 13,
+      "command": "nextHeading",
+      "spoken": "Analysis, heading, level 2",
+      "durationMs": 1290,
+      "offsetMs": 19665
+    },
+    {
+      "n": 14,
+      "command": "nextHeading",
+      "spoken": "Part I Criteria, heading, level 3",
+      "durationMs": 1286,
+      "offsetMs": 20951
+    },
+    {
+      "n": 15,
+      "command": "nextHeading",
+      "spoken": "1. Highest rates of gun injury, heading, level 4",
+      "durationMs": 1274,
+      "offsetMs": 22225
+    },
+    {
+      "n": 16,
+      "command": "nextHeading",
+      "spoken": "2. Highest rates of unemployment, heading, level 4",
+      "durationMs": 1288,
+      "offsetMs": 23513
+    },
+    {
+      "n": 17,
+      "command": "nextHeading",
+      "spoken": "3. Highest child poverty rates, heading, level 4",
+      "durationMs": 1275,
+      "offsetMs": 24788
+    },
+    {
+      "n": 18,
+      "command": "nextHeading",
+      "spoken": "4. Highest rates of commitments to and returns from the Illinois Department of Corrections, heading, level 4",
+      "durationMs": 1281,
+      "offsetMs": 26069
+    },
+    {
+      "n": 19,
+      "command": "nextHeading",
+      "spoken": "Part II Criterion, heading, level 3",
+      "durationMs": 1287,
+      "offsetMs": 27356
+    },
+    {
+      "n": 20,
+      "command": "nextHeading",
+      "spoken": "1. High need, underserved, disproportionately impacted by historical economic disinvestment, heading, level 4",
+      "durationMs": 1273,
+      "offsetMs": 28629
+    },
+    {
+      "n": 21,
+      "command": "nextHeading",
+      "spoken": "no next heading",
+      "durationMs": 1275,
+      "offsetMs": 29904
+    }
+  ]
+}

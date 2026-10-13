@@ -1,6 +1,7 @@
 /**
  * Windows details for the Guidepup driver: processes, the window in front, the OS version, NVDA's
- * language and its own log file, and this computer's details for a run's record.
+ * language and its own log file, what Windows Firewall does with NVDA's control port, and this
+ * computer's details for a run's record.
  */
 import { execFile, spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
@@ -12,8 +13,9 @@ import { promisify } from "node:util";
 import { decodeManualInput } from "../../manual/detect.js";
 import type { MachineRecord } from "../../model.js";
 import type { MachineProbe } from "../../run/machine-record.js";
+import { systemTool } from "../../util/system-tools.js";
 import { NVDA_LOG_FILE } from "./nvda-log.js";
-import { PROFILE_PREFIX, type GuidepupInstall } from "./paths.js";
+import { PROFILE_PREFIX, voiceFolderPid, type GuidepupInstall } from "./paths.js";
 
 const run = promisify(execFile);
 
@@ -33,7 +35,7 @@ export function powershellCommand(script: string): string {
 /** Runs a PowerShell script, hidden, for up to 20 seconds; resolves to what it printed. */
 async function powershell(script: string): Promise<string> {
   const { stdout } = await run(
-    "powershell.exe",
+    systemTool("powershell"),
     ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(script)],
     { windowsHide: true, timeout: 20_000 },
   );
@@ -50,10 +52,143 @@ export function powershellString(text: string): string {
 
 /** Process ids of running programs with this image name, e.g. "nvda.exe". */
 export async function listProcesses(image: string): Promise<number[]> {
-  const { stdout } = await run("tasklist", ["/FI", `IMAGENAME eq ${image}`, "/FO", "CSV", "/NH"], {
-    windowsHide: true,
-  });
+  const { stdout } = await run(
+    systemTool("tasklist"),
+    ["/FI", `IMAGENAME eq ${image}`, "/FO", "CSV", "/NH"],
+    { windowsHide: true },
+  );
   return parseTasklist(stdout);
+}
+
+/**
+ * The port of NVDA's Remote Access control server, where Guidepup connects. Guidepup's nvda.ini
+ * sets it: `[remote]`, `[[controlServer]]`, `port`. The server listens on every network the
+ * computer is on, behind a key Guidepup publishes, so a Windows Firewall rule that lets it in
+ * makes it reachable from other computers.
+ */
+export const NVDA_CONTROL_PORT = 6837;
+
+/** What a Windows Firewall rule does with a connection it matches. */
+export type FirewallAction = "Allow" | "Block";
+
+/**
+ * A network type Windows Firewall keeps rules for (a rule's profile): a network with a domain, as
+ * at work, one set as private, as at home, or one set as public, as at an airport.
+ */
+export type FirewallProfile = "Domain" | "Private" | "Public";
+
+/** Windows Firewall's network types, in the order Windows lists them. */
+export const FIREWALL_PROFILES: readonly FirewallProfile[] = ["Domain", "Private", "Public"];
+
+/** An enabled inbound firewall rule: what it does, and the network types it applies to. */
+export interface FirewallRule {
+  action: FirewallAction;
+  profiles: ReadonlySet<FirewallProfile>;
+}
+
+/**
+ * `strict` and then `bestEffort`, statements of one PowerShell script. An error in `strict` ends
+ * the script at once with exit code 1, which powershell() turns into a rejection, and `bestEffort`
+ * never runs. An error in `bestEffort` is dropped, and the script ends with exit code 0, keeping
+ * what either statement printed. The firewall cmdlets report a refusal as an error the script goes
+ * on after, and `-Command` takes its exit code from the last statement alone, so without this the
+ * second statement's success would hide the first's failure (an empty answer reads as a closed
+ * port), and the second's failure would throw away the first's answer. The closing `exit 0` is
+ * needed too: after a caught error the exit code is still 1.
+ */
+export function strictThenBestEffort(strict: string, bestEffort: string): string {
+  return `$ErrorActionPreference = 'Stop'; ${strict}; try { ${bestEffort} } catch { }; exit 0`;
+}
+
+/**
+ * The PowerShell that lists what Windows Firewall does with NVDA's control port, one rule per line:
+ * its action, then the network types it applies to, as `<action>|<profile>` (`Allow|Private`, or
+ * `Block|Any`). A rule's profile is written as Windows' own type for it writes it: `Any`, a network
+ * type, a list of them (`Private, Public`), or `NotApplicable`. It only reads. Its first statement,
+ * which must succeed, lists each enabled inbound rule of the active store that names `nvdaExe` (a
+ * rule may write the path with environment variables), which a normal account can read. Its second,
+ * which may fail, lists a `Block` line for each enabled inbound block rule on local port 6837,
+ * whatever program it names. Windows can refuse that to an account that isn't an administrator (a
+ * normal PowerShell got "Access is denied" at the PC), and the answer is then the first statement's
+ * alone, which can only err toward a warning, since a `Block` line is what quiets one.
+ */
+export function nvdaFirewallScript(nvdaExe: string): string {
+  const enabledInbound = "$_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound'";
+  const programRules = [
+    `$exe = ${powershellString(nvdaExe)};`,
+    "Get-NetFirewallApplicationFilter -PolicyStore ActiveStore",
+    "| Where-Object { [Environment]::ExpandEnvironmentVariables($_.Program) -eq $exe }",
+    `| Get-NetFirewallRule | Where-Object { ${enabledInbound} }`,
+    "| ForEach-Object { [string]$_.Action + '|' + [string]$_.Profile }",
+  ].join(" ");
+  const portBlocks = [
+    "Get-NetFirewallPortFilter -PolicyStore ActiveStore",
+    `| Where-Object { $_.LocalPort -contains '${NVDA_CONTROL_PORT}' }`,
+    `| Get-NetFirewallRule | Where-Object { ${enabledInbound} -and [string]$_.Action -eq 'Block' }`,
+    "| ForEach-Object { 'Block|' + [string]$_.Profile }",
+  ].join(" ");
+  return strictThenBestEffort(programRules, portBlocks);
+}
+
+/**
+ * A line of nvdaFirewallScript's answer, trimmed: an action, then one or more words separated by
+ * commas. Each part ends where the next can't start, so it's tried in time in proportion to the
+ * line's length.
+ */
+const RULE_LINE = /^(Allow|Block)\|([A-Za-z]+(?: *, *[A-Za-z]+)*)$/;
+
+/** Why nvdaFirewallRules can't use PowerShell's answer: a line of it isn't a rule. */
+const NOT_A_RULE = "PowerShell's answer has a line that isn't a rule";
+
+/**
+ * nvdaFirewallScript's answer as rules, one a line, an empty line skipped. `Any` is every network
+ * type. A word the reader can't place (`NotApplicable`, which only a rule made by hand has, or a
+ * word it doesn't know) errs toward a warning: an Allow rule with one covers every network type,
+ * and a Block rule with one covers none. Throws when a line isn't a rule (a warning, another
+ * action, or a number Windows' type has no name for), since a rule read wrong could hide one that
+ * lets other computers in.
+ */
+export function parseFirewallRules(stdout: string): FirewallRule[] {
+  const rules: FirewallRule[] = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    const text = line.trim();
+    if (text === "") continue;
+    const match = RULE_LINE.exec(text);
+    if (match === null) throw new Error(NOT_A_RULE);
+    const action = match[1] === "Allow" ? "Allow" : "Block";
+    const profiles = new Set<FirewallProfile>();
+    let unplaced = false;
+    for (const word of (match[2] ?? "").split(",")) {
+      const name = word.trim();
+      if (name === "Any") FIREWALL_PROFILES.forEach((profile) => profiles.add(profile));
+      const known = FIREWALL_PROFILES.find((profile) => profile === name);
+      if (known !== undefined) profiles.add(known);
+      else if (name !== "Any") unplaced = true;
+    }
+    if (unplaced) {
+      profiles.clear();
+      if (action === "Allow") FIREWALL_PROFILES.forEach((profile) => profiles.add(profile));
+    }
+    rules.push({ action, profiles });
+  }
+  return rules;
+}
+
+/**
+ * What Windows Firewall does with NVDA's control port: each enabled inbound rule that names
+ * `nvdaExe`, and each enabled inbound block rule on port 6837 when Windows lets this account read
+ * the rules of a port, with the network types each applies to. `answer` runs the script
+ * (PowerShell, hidden, unless a test gives another). Throws "PowerShell didn't answer" when it
+ * can't read the rules that name `nvdaExe`, and NOT_A_RULE when a line of the answer isn't a rule.
+ */
+export async function nvdaFirewallRules(
+  nvdaExe: string,
+  answer: (script: string) => Promise<string> = powershell,
+): Promise<FirewallRule[]> {
+  const found = await answer(nvdaFirewallScript(nvdaExe)).catch((error: unknown) => {
+    throw new Error("PowerShell didn't answer", { cause: error });
+  });
+  return parseFirewallRules(found);
 }
 
 /** A running nvda.exe. */
@@ -181,7 +316,7 @@ export function restartAfterScript(exe: string, after: string, waitSeconds: numb
  */
 export function restartNvdaDetached(exe: string, after: string): void {
   const helper = spawn(
-    "powershell.exe",
+    systemTool("powershell"),
     [
       "-NoProfile",
       "-NonInteractive",
@@ -208,6 +343,21 @@ export async function readNvdaLog(tmpDir: string): Promise<string | null> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
+  }
+}
+
+/**
+ * Delete NVDA's own log, nvda.log in the temp folder `tmpDir`, once the run has its cleaned copy:
+ * at the input/output level it holds every key pressed while that NVDA ran, typing in other windows
+ * included. Only that file: the older log, nvda-old.log, is never touched. A few tries, as Windows
+ * refuses for a moment while a scanner has the file open. A file another program holds stays, and
+ * NVDA's next start moves it aside. It never rejects: a log that stays changes nothing for a run.
+ */
+export async function removeNvdaLog(tmpDir: string): Promise<void> {
+  try {
+    await rm(path.join(tmpDir, NVDA_LOG_FILE), { force: true, maxRetries: 3 });
+  } catch {
+    // Held by another program, or not a file at all: it stays as it is.
   }
 }
 
@@ -240,7 +390,7 @@ const SESSION_STATE = [
  */
 export async function sessionLocked(): Promise<boolean | null> {
   const answer = await run(
-    "powershell.exe",
+    systemTool("powershell"),
     ["-NoProfile", "-NonInteractive", "-Command", SESSION_STATE],
     { windowsHide: true, timeout: 30_000 },
   ).then(
@@ -426,7 +576,7 @@ export interface AwakeRequest {
  */
 export function keepAwake(): AwakeRequest {
   const helper = spawn(
-    "powershell.exe",
+    systemTool("powershell"),
     ["-NoProfile", "-NonInteractive", "-Command", KEEP_AWAKE],
     { stdio: ["pipe", "pipe", "ignore"], windowsHide: true },
   );
@@ -456,13 +606,13 @@ export function keepAwake(): AwakeRequest {
 /** This Windows ("Windows 11 Pro 25H2 (10.0.26200)") and its display language ("en-US"). */
 export function windowsSystemInfo(): { os: string; uiLocale: string | null } {
   const query = spawnSync(
-    "reg",
+    systemTool("reg"),
     ["query", "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", "/v", "DisplayVersion"],
     { encoding: "utf8", windowsHide: true },
   );
   const displayVersion = /DisplayVersion\s+REG_SZ\s+(\S+)/.exec(query.stdout ?? "")?.[1] ?? null;
   const culture = spawnSync(
-    "powershell.exe",
+    systemTool("powershell"),
     ["-NoProfile", "-NonInteractive", "-Command", "(Get-UICulture).Name"],
     { encoding: "utf8", windowsHide: true, timeout: 20_000 },
   );
@@ -537,8 +687,12 @@ export function windowsMachineProbe(
 /**
  * Clean up after a voicecap run that crashed or was killed: shut down Guidepup's NVDA (found by
  * its exact executable path, so another NVDA is never touched), close browsers whose profile is a
- * voicecap-chrome-* folder in `tmpDir`, and delete those profiles. Only called when no voicecap
- * holds the NVDA lock, so none of them is in use. Returns what was done, for the console.
+ * voicecap-chrome-* folder in `tmpDir`, and delete those profiles. Also delete the sound a run
+ * left in its voice folder, voicecap-voice-<process id> (see voiceFolder), when that process isn't
+ * running: a run that crashed, or was ended by a second Ctrl+C while its recorder still held the
+ * file, can't delete it, and each minute of NVDA's voice is about 1.9 MB of it. A folder whose
+ * process is running is left alone, whoever's it is. Only called when no voicecap holds the NVDA
+ * lock, so none of them is in use. Returns what was done, for the console.
  */
 export async function cleanupOrphans(tmpDir: string, nvdaExe: string): Promise<string[]> {
   const notes: string[] = [];
@@ -550,10 +704,11 @@ export async function cleanupOrphans(tmpDir: string, nvdaExe: string): Promise<s
     `  elseif ($_.CommandLine -and $_.CommandLine.Contains(${powershellString(marker)})) { "browser,$($_.ProcessId),$($_.ParentProcessId)" }`,
     "}",
   ].join(" ");
-  const found = await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
-    windowsHide: true,
-    timeout: 60_000,
-  }).then(
+  const found = await run(
+    systemTool("powershell"),
+    ["-NoProfile", "-NonInteractive", "-Command", script],
+    { windowsHide: true, timeout: 60_000 },
+  ).then(
     ({ stdout }) => stdout,
     () => null,
   );
@@ -575,28 +730,47 @@ export async function cleanupOrphans(tmpDir: string, nvdaExe: string): Promise<s
     // Kill each browser's main process with its tree; its helpers are its children.
     const roots = browsers.filter(([, parent]) => !pids.has(parent)).map(([pid]) => pid);
     for (const pid of roots) {
-      await run("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }).catch(
-        () => {},
-      );
+      await run(systemTool("taskkill"), ["/PID", String(pid), "/T", "/F"], {
+        windowsHide: true,
+      }).catch(() => {});
     }
     if (roots.length > 0) {
       notes.push(`Closed ${plural(roots.length, "browser")} left by an earlier run.`);
     }
   }
 
-  let deleted = 0;
-  const leftovers = existsSync(tmpDir)
-    ? readdirSync(tmpDir).filter((name) => name.startsWith(PROFILE_PREFIX))
-    : [];
-  for (const name of leftovers) {
-    const dir = path.join(tmpDir, name);
-    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(
-      () => {},
-    );
-    if (!existsSync(dir)) deleted++;
+  const entries = existsSync(tmpDir) ? readdirSync(tmpDir, { withFileTypes: true }) : [];
+  const deleteAll = async (names: string[]): Promise<number> => {
+    let deleted = 0;
+    for (const name of names) {
+      const dir = path.join(tmpDir, name);
+      await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(
+        () => {},
+      );
+      if (!existsSync(dir)) deleted++;
+    }
+    return deleted;
+  };
+
+  const profiles = await deleteAll(
+    entries.filter((entry) => entry.name.startsWith(PROFILE_PREFIX)).map((entry) => entry.name),
+  );
+  if (profiles > 0) {
+    notes.push(`Deleted ${plural(profiles, "browser profile")} left by an earlier run.`);
   }
-  if (deleted > 0)
-    notes.push(`Deleted ${plural(deleted, "browser profile")} left by an earlier run.`);
+  // Only a folder: a file with such a name isn't one voicecap made. A folder whose file the
+  // recorder's helper still holds stays, as the delete fails, and is deleted by a later run.
+  const sounds = await deleteAll(
+    entries
+      .filter((entry) => {
+        const pid = voiceFolderPid(entry.name);
+        return entry.isDirectory() && pid !== null && !isRunning(pid);
+      })
+      .map((entry) => entry.name),
+  );
+  if (sounds > 0) {
+    notes.push(`Deleted ${plural(sounds, "folder")} of recorded sound left by an earlier run.`);
+  }
   return notes;
 }
 
@@ -623,7 +797,9 @@ export async function closeBrowsersUsing(profileDir: string): Promise<number> {
   // Kill each browser's main process with its tree; its helpers are its children.
   const roots = browsers.filter(([, parent]) => !pids.has(parent)).map(([pid]) => pid);
   for (const pid of roots) {
-    await run("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }).catch(() => {});
+    await run(systemTool("taskkill"), ["/PID", String(pid), "/T", "/F"], {
+      windowsHide: true,
+    }).catch(() => {});
   }
   return roots.length;
 }
@@ -635,7 +811,9 @@ async function quitNvda(nvdaExe: string, pids: number[]): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   for (const pid of pids.filter(isRunning)) {
-    await run("taskkill", ["/PID", String(pid), "/F"], { windowsHide: true }).catch(() => {});
+    await run(systemTool("taskkill"), ["/PID", String(pid), "/F"], { windowsHide: true }).catch(
+      () => {},
+    );
   }
 }
 

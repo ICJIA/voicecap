@@ -54,6 +54,37 @@ const NO_TEMPLATE = "(none)";
 
 const DASH = `<span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span>`;
 
+/**
+ * A number a record gives, as text that can only be one: made a number first, written with its
+ * thousands separators, and escaped. A record is data, so a value that isn't a number shows as
+ * digits or as "NaN", never as what it says.
+ */
+function count(n: unknown): string {
+  return esc(Number(n).toLocaleString("en-US"));
+}
+
+/**
+ * An address a record gives, escaped for an href, when it is an http or https address; null for
+ * anything else (another scheme, a path, text that isn't an address, a value that isn't text), which
+ * the report shows as text, with no link.
+ */
+export function webHref(url: unknown): string | null {
+  if (typeof url !== "string" || !URL.canParse(url)) return null;
+  const { protocol } = new URL(url);
+  return protocol === "http:" || protocol === "https:" ? esc(url) : null;
+}
+
+/**
+ * `inner` (HTML) as a link to `url` when it is a web address (`webHref`), and as a span with the same
+ * class otherwise, so an address of another kind is shown and never followed.
+ */
+function webAnchor(url: unknown, inner: string, className?: string): string {
+  const href = webHref(url);
+  const classes = className === undefined ? "" : ` class="${className}"`;
+  if (href !== null) return `<a${classes} href="${href}">${inner}</a>`;
+  return className === undefined ? inner : `<span${classes}>${inner}</span>`;
+}
+
 /** Render the report as one self-contained HTML document. Pure: no file access. */
 export function renderReport(model: ReportModel, paths: RenderPaths): string {
   const { input } = model;
@@ -94,7 +125,7 @@ export function renderReport(model: ReportModel, paths: RenderPaths): string {
 function siteLink(run: ReportInput["run"]): string {
   const root = recordedCanonical(run.canonical);
   return root === null
-    ? `<a href="${esc(run.site)}">${esc(run.site)}</a>`
+    ? webAnchor(run.site, esc(run.site))
     : `<a href="${esc(root)}">${esc(canonicalName(root))}</a>`;
 }
 
@@ -138,7 +169,6 @@ function summarySection(model: ReportModel): string {
   const { run } = model.input;
   const s = model.summary;
   const item = (term: string, value: string) => `<div><dt>${term}</dt><dd>${value}</dd></div>`;
-  const count = (n: number) => n.toLocaleString("en-US");
   const items = [
     item("Page source", pageSourceText(run.settings.source)),
     item("Driver and capture mode", esc(driverText(model))),
@@ -170,7 +200,7 @@ function summarySection(model: ReportModel): string {
 function pageSourceText(source: PageSource): string {
   switch (source.kind) {
     case "sitemap":
-      return `Full sitemap: <a href="${esc(source.url)}">${esc(source.url)}</a>`;
+      return `Full sitemap: ${webAnchor(source.url, esc(source.url))}`;
     case "pages":
       return `Curated page list: <span class="mono">${esc(source.file)}</span> <span class="meta">SHA-256 <span class="mono">${esc(source.sha256.slice(0, 12))}…</span></span>`;
     case "walkthrough":
@@ -228,10 +258,10 @@ function sourceDetails(model: ReportModel): string {
   const { source } = model.input.run;
   const rows: string[] = [
     ...pageSourceRows(model.input.run.settings.source),
-    `<dt>Entries listed</dt><dd>${source.listed.toLocaleString("en-US")}</dd>`,
-    `<dt>Duplicates merged</dt><dd>${source.duplicates.toLocaleString("en-US")}</dd>`,
-    `<dt>Excluded by --include / --exclude</dt><dd>${source.excludedByFilter.toLocaleString("en-US")}</dd>`,
-    `<dt>Excluded by --limit</dt><dd>${source.excludedByLimit.toLocaleString("en-US")}</dd>`,
+    `<dt>Entries listed</dt><dd>${count(source.listed)}</dd>`,
+    `<dt>Duplicates merged</dt><dd>${count(source.duplicates)}</dd>`,
+    `<dt>Excluded by --include / --exclude</dt><dd>${count(source.excludedByFilter)}</dd>`,
+    `<dt>Excluded by --limit</dt><dd>${count(source.excludedByLimit)}</dd>`,
   ];
   if (source.encoding) rows.push(`<dt>File encoding</dt><dd>${esc(source.encoding)}</dd>`);
   if (source.sitemaps && source.sitemaps.length > 0) {
@@ -246,7 +276,7 @@ function sourceDetails(model: ReportModel): string {
       ? `<h3>Invalid entries in the page source</h3>\n<ul>${source.invalid
           .map(
             (entry) =>
-              `<li>${entry.line !== null ? `Line ${entry.line}: ` : ""}<span class="mono">${esc(entry.value || "(empty)")}</span> <span class="meta">${esc(entry.reason)}</span></li>`,
+              `<li>${entry.line !== null ? `Line ${esc(entry.line)}: ` : ""}<span class="mono">${esc(entry.value || "(empty)")}</span> <span class="meta">${esc(entry.reason)}</span></li>`,
           )
           .join("")}</ul>\n`
       : "";
@@ -311,7 +341,7 @@ function pageRow(row: ReportRow, model: ReportModel, paths: RenderPaths): string
   const name = pageName(page);
   const data = [
     `data-flagged="${page.flags.length > 0 ? "yes" : "no"}"`,
-    `data-review="${row.reviewStatus}"`,
+    `data-review="${esc(row.reviewStatus)}"`,
     `data-changed="${row.changed === true ? "yes" : "no"}"`,
     `data-manual="${row.manual.length > 0 ? "yes" : "no"}"`,
     `data-template="${esc(page.template || NO_TEMPLATE)}"`,
@@ -354,11 +384,12 @@ function pageCell(page: PageRecord, name: string): string {
       ? `<span class="url">Final URL: ${esc(page.finalUrl)}</span>`
       : "";
   const notes = page.notes?.trim() ? `<span class="meta">Notes: ${esc(page.notes)}</span>` : "";
-  return `<th scope="row"><a class="page-name url-wrap" href="${esc(page.url)}">${esc(name)}</a>${url}${final}${notes}</th>`;
+  return `<th scope="row">${webAnchor(page.url, esc(name), "page-name url-wrap")}${url}${final}${notes}</th>`;
 }
 
 function statusCell(page: PageRecord): string {
-  const attempts = page.attempts > 1 ? `<span class="meta">${page.attempts} attempts</span>` : "";
+  const attempts =
+    page.attempts > 1 ? `<span class="meta">${esc(page.attempts)} attempts</span>` : "";
   const errors =
     page.errors.length > 0
       ? `<ul class="links">${page.errors.map((error) => `<li>${esc(error)}</li>`).join("")}</ul>`
@@ -464,7 +495,7 @@ function comparisonSection(model: ReportModel, paths: RenderPaths): string {
   const compare = model.input.compare;
   if (!compare) return "";
   const pageItem = (page: { url: string; label?: string }) =>
-    `<li><a class="url-wrap" href="${esc(page.url)}">${esc(pageName(page))}</a></li>`;
+    `<li>${webAnchor(page.url, esc(pageName(page)), "url-wrap")}</li>`;
   const list = (items: { url: string; label?: string }[], empty: string) =>
     items.length > 0 ? `<ul>${items.map(pageItem).join("")}</ul>` : `<p>${empty}</p>`;
   const changed =
@@ -510,8 +541,8 @@ function skippedSection(skipped: SkippedRecord[]): string {
       const details = [
         record.finalUrl ? `Final URL: ${esc(record.finalUrl)}` : "",
         record.contentType ? `Content type: ${esc(record.contentType)}` : "",
-        record.status !== undefined && record.status !== null ? `HTTP ${record.status}` : "",
-        record.line !== undefined ? `Line ${record.line}` : "",
+        record.status !== undefined && record.status !== null ? `HTTP ${esc(record.status)}` : "",
+        record.line !== undefined ? `Line ${esc(record.line)}` : "",
       ].filter((detail) => detail !== "");
       return `<tr><td class="url-wrap">${esc(record.url)}</td><td>${esc(SKIP_REASON[record.reason])}</td><td>${details.length > 0 ? details.join("<br>") : DASH}</td></tr>`;
     })
@@ -597,7 +628,7 @@ function environmentSection(model: ReportModel): string {
   const sessions = model.sessions
     .map(
       (session) =>
-        `<tr><td>${session.n}</td><td>${esc(reviewerCell(session.reviewer))}</td><td>${esc(session.startedAt)}</td><td>${session.endedAt ? esc(session.endedAt) : DASH}</td><td>${esc(session.endReason ?? "did not end cleanly")}</td><td>${session.pagesDone.toLocaleString("en-US")}</td></tr>`,
+        `<tr><td>${count(session.n)}</td><td>${esc(reviewerCell(session.reviewer))}</td><td>${esc(session.startedAt)}</td><td>${session.endedAt ? esc(session.endedAt) : DASH}</td><td>${esc(session.endReason ?? "did not end cleanly")}</td><td>${count(session.pagesDone)}</td></tr>`,
     )
     .join("\n");
   const sessionTable =

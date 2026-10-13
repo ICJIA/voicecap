@@ -7,6 +7,7 @@
 import {
   AXE_FILE,
   SCREENSHOT_FILE,
+  VOICE_FILE,
   type EnvironmentRecord,
   type ListenerAnswer,
   type MachineRecord,
@@ -23,15 +24,16 @@ import { describeChanges, distinctEnvironments } from "../report/compare.js";
 import { EVENT_LOG, isCopyPath } from "../run/events.js";
 import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
-import { formatCommand } from "../util/command-line.js";
+import { formatCommand, urlArg } from "../util/command-line.js";
+import { fileNameOf } from "../util/file-name.js";
 import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
 import type { LogCheck } from "./log-check.js";
 import { nothingCheckedLine } from "./log-words.js";
 import { keepsEventLog, keepsNvdaLog } from "./problems.js";
-import { axeRecordOf, isFileHash, screenshotRecordOf } from "./records.js";
+import { axeRecordOf, isFileHash, screenshotRecordOf, voiceRecordOf } from "./records.js";
 import { checkRunAgainstLog, type GestureOf, type NotChecked } from "./run-log-check.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
-import { EVIDENCE_TEXT, NVDA_LOG_TEXT, TIMELINE_TEXT } from "./text.js";
+import { EVIDENCE_TEXT, NVDA_LOG_TEXT, ownWords, TIMELINE_TEXT } from "./text.js";
 import {
   isEventTime,
   restartsOf,
@@ -41,7 +43,12 @@ import {
   type SessionTimeline,
   type UnloggedSession,
 } from "./timeline.js";
-import { walkthroughJson, walkthroughOf, walkthroughProblem } from "./walkthrough.js";
+import {
+  repeatCommand,
+  walkthroughJson,
+  walkthroughOf,
+  walkthroughProblem,
+} from "./walkthrough.js";
 
 /** A line of a run's evidence: what it is, and what the record says. */
 export interface EvidenceRow {
@@ -59,7 +66,11 @@ export interface WalkthroughDownload {
   bytes: number;
   /** The command that writes the file from the run's record: "npx @icjia/voicecap walkthrough …". */
   get: string;
-  /** The command that repeats the run from the file: "npx @icjia/voicecap --walkthrough <file>". */
+  /**
+   * The command that repeats the run from the file: "npx @icjia/voicecap --walkthrough <file>", and,
+   * for a run read on the computer or the network it ran on, "--site <the address it read>" after
+   * the file (see repeatCommand), which a live repeat of such a file is refused without.
+   */
   repeat: string;
 }
 
@@ -118,7 +129,8 @@ export interface RunEvidence {
    * Every file the run's record lists, with its size and SHA-256: first the run's own, beside its
    * pages (its event log, from voicecap 0.11.0), whose page is "The run" (EVIDENCE_TEXT.theRun);
    * then page by page, a page's transcripts, then its screenshot, then its axe results (from
-   * voicecap 0.16.0), each where its record has the file's fingerprint.
+   * voicecap 0.16.0), then its recording of NVDA's voice (from voicecap 0.18.0), each where its
+   * record has the file's fingerprint.
    */
   fingerprints: { page: string; file: string; bytes: number; sha256: string }[];
   /**
@@ -160,6 +172,49 @@ export function keepsScreenshots(version: string | null): boolean {
 export function keepsAxe(version: string | null): boolean {
   const match = version === null ? null : /^(\d+)\.(\d+)\./.exec(version);
   return match !== null && (Number(match[1]) > 0 || Number(match[2]) >= 16);
+}
+
+/**
+ * The first version of voicecap whose runs record what NVDA says on each page (plan 11): the one
+ * constant the reasons a page has no recording go by. It is 0.18.0, not 0.17.0, since plan 6c ships
+ * first, as 0.17.0. Change it here, and nowhere else, if the release order changes.
+ */
+export const KEEPS_VOICE_FROM = "0.18.0";
+
+/** A version's three numbers: "0.18.1" is [0, 18, 1], and a pre-release's suffix is left off. */
+function numbersOf(version: string): [number, number, number] | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  return match === null ? null : [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+/**
+ * Whether a run's voicecap records what NVDA says on each page, when its driver can: KEEPS_VOICE_FROM
+ * and later. A page of such a run with no recording says why (VOICE_TEXT), and a page of an earlier
+ * run says that run's voicecap didn't (`notRecordedBy`). An unknown version counts as an earlier
+ * one.
+ */
+export function keepsVoice(version: string | null): boolean {
+  const have = version === null ? null : numbersOf(version);
+  const need = numbersOf(KEEPS_VOICE_FROM);
+  if (have === null || need === null) return false;
+  for (const [index, wanted] of need.entries()) {
+    const found = have[index] ?? 0;
+    if (found !== wanted) return found > wanted;
+  }
+  return true;
+}
+
+/**
+ * Whether a run's driver records what NVDA says, by the name its settings give it: the Guidepup
+ * driver does, and the replay driver (which opens nothing) and the AT Driver stub (a stub) don't.
+ * Null for a name this version doesn't know (a later voicecap's driver, or a record that was edited),
+ * of which nothing is said: a page with no record of a recording goes by whether the run's other
+ * pages have one. A page of a run whose driver records, that has none, wasn't read.
+ */
+export function driverRecordsVoice(driver: unknown): boolean | null {
+  if (driver === "guidepup") return true;
+  if (driver === "replay" || driver === "at-driver") return false;
+  return null;
 }
 
 /** The voicecap version a session recorded, or null when it recorded no environment. */
@@ -258,6 +313,7 @@ export function evidenceOf(input: {
           })),
           ...screenshotFile(page),
           ...axeFile(page),
+          ...voiceFile(page),
         ]),
       ],
       verify: formatCommand(["verify"]),
@@ -383,6 +439,18 @@ function axeFile(page: PageRecord): RunEvidence["fingerprints"] {
   return [{ page: pagePath(page.url), file: AXE_FILE, bytes: axe.bytes, sha256: axe.sha256 }];
 }
 
+/**
+ * A page's recording of NVDA's voice as one of its run's files, as its axe results are: when the
+ * page's record has the file's fingerprint (a record of why there's none lists no file, and neither
+ * does one of no kind voicecap writes). The record keeps it apart from the page's transcripts, so
+ * it's added to them here, after the axe results.
+ */
+function voiceFile(page: PageRecord): RunEvidence["fingerprints"] {
+  const voice = voiceRecordOf(page);
+  if (voice === undefined || voice === "unreadable" || "error" in voice) return [];
+  return [{ page: pagePath(page.url), file: VOICE_FILE, bytes: voice.bytes, sha256: voice.sha256 }];
+}
+
 /** Why the page can't show the event log of a run whose voicecap keeps one (TIMELINE_TEXT.gaps). */
 export type EventLogGap = keyof typeof TIMELINE_TEXT.gaps;
 
@@ -422,7 +490,10 @@ function timelineOf(
  * named for the run and the site as the page names it: its host, made safe for a file name as a
  * site's folder is (`siteFolder`). voicecap never offers a file it would refuse to read back, so a
  * run beyond what the format holds (see `walkthroughProblem`) gets its reason instead, which is a
- * sentence already.
+ * sentence already. The command that repeats the run names the address voicecap read, which the file
+ * has as its site, never `site`, which can be the canonical address (see repeatCommand). The command
+ * that writes the file names `site`, and a canonical address is the site's own words: a single quote
+ * in it is written `%27` (see urlArg), so the command reads the same in PowerShell and in Git Bash.
  *
  * It never throws: the file is an extra, and a run whose record can't be made into one (a completed
  * run with no time of completion, or a value JSON can't write) must not stop the page or its Word
@@ -440,8 +511,8 @@ function walkthroughFor(record: RunJson, site: string): RunWalkthrough {
       fileName,
       base64: file.toString("base64"),
       bytes: file.length,
-      get: formatCommand(["walkthrough", "--site", site, "--run", record.id, fileName]),
-      repeat: formatCommand(["--walkthrough", fileName]),
+      get: formatCommand(["walkthrough", "--site", urlArg(site), "--run", record.id, fileName]),
+      repeat: repeatCommand(walkthrough, fileName),
     };
   } catch {
     return { problem: EVIDENCE_TEXT.walkthrough.unreadable };
@@ -546,7 +617,9 @@ function statementOf(session: SessionRecord): string {
 /**
  * A page source with the addresses it names as the page shows them: the sitemap's, or each page
  * given with --page. A page list and a walkthrough file are named by their files, which hold no
- * address of the site.
+ * address of the site, and by each file's name alone, whatever path the record holds (a run
+ * recorded before voicecap 0.18.0 kept the whole path of one from outside its folder, which can
+ * name an account).
  */
 function sourceShown(source: PageSource, shown: Shown): PageSource {
   switch (source.kind) {
@@ -556,7 +629,7 @@ function sourceShown(source: PageSource, shown: Shown): PageSource {
       return { ...source, urls: source.urls.map(shown) };
     case "pages":
     case "walkthrough":
-      return source;
+      return { ...source, file: fileNameOf(source.file) };
     default: {
       // A kind this version doesn't know, from a later voicecap: shown as it was recorded.
       const _exhaustive: never = source;
@@ -568,7 +641,10 @@ function sourceShown(source: PageSource, shown: Shown): PageSource {
 /**
  * The test environment, from the run's latest session with one: who ran it, the computer, then the
  * screen reader, browser, driver, voicecap, and page source as a transcript's header lists them,
- * with the page source's addresses as the page shows them.
+ * with the page source's addresses as the page shows them. A row's value names no library that
+ * drives the screen reader (`ownWords`): where the record does, in the software, the driver, the
+ * line on NVDA's settings, and what changed during the run, the row says `DRIVER_WORDS`. The record
+ * keeps the name.
  */
 function environmentOf(
   run: RunJson,
@@ -604,7 +680,7 @@ function environmentOf(
       value: redact(`${describeChanges(first, last).join("; ")}.`),
     });
   }
-  return rows;
+  return rows.map((row) => ({ ...row, value: ownWords(row.value) }));
 }
 
 /** Said of a part of the computer the system wouldn't report. */

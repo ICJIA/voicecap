@@ -15,15 +15,23 @@ import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "playwright";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { unsafePathMessage, unsafePathProblem } from "../src/drivers/guidepup/paths.js";
+import {
+  unsafePathMessage,
+  unsafePathProblem,
+  voiceFolder,
+} from "../src/drivers/guidepup/paths.js";
 import {
   cleanupOrphans,
   foregroundWindow,
   keepAwake,
   listProcesses,
+  NVDA_CONTROL_PORT,
+  nvdaFirewallRules,
+  nvdaFirewallScript,
   nvdaProcesses,
   ownNvdaPaths,
   parseComputerModel,
+  parseFirewallRules,
   parseForegroundWindow,
   parseNvdaProcesses,
   parseWindowsMachine,
@@ -31,15 +39,26 @@ import {
   powershellCommand,
   powershellString,
   readNvdaLog,
+  removeNvdaLog,
   restartAfterScript,
   restartNvda,
   sessionLocked,
   startedNvda,
   startProcessScript,
+  strictThenBestEffort,
   windowsMachineProbe,
   windowsSystemInfo,
+  type FirewallAction,
+  type FirewallProfile,
+  type FirewallRule,
 } from "../src/drivers/guidepup/windows.js";
 import { collectMachineRecord, nodeMachineFacts } from "../src/run/machine-record.js";
+import { systemTool } from "../src/util/system-tools.js";
+
+/** A rule as parseFirewallRules reads it: its action, and the network types it applies to. */
+function rule(action: FirewallAction, ...profiles: FirewallProfile[]): FirewallRule {
+  return { action, profiles: new Set(profiles) };
+}
 
 const temps: string[] = [];
 const orphans: number[] = [];
@@ -108,6 +127,28 @@ function runPowershell(script: string): Promise<{ stdout: string; stderr: string
       },
     );
   });
+}
+
+/**
+ * Runs a script as powershell() in windows.ts does: Windows' own PowerShell, by its full path, with
+ * an argument list and no shell. Gives its exit code (null when it didn't finish), what it printed,
+ * and its errors (or why it didn't start).
+ */
+function runSystemPowershell(script: string): {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+} {
+  const done = spawnSync(
+    systemTool("powershell"),
+    ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(script)],
+    { encoding: "utf8", windowsHide: true, timeout: 60_000 },
+  );
+  return {
+    status: done.status,
+    stdout: done.stdout ?? "",
+    stderr: done.error ? String(done.error) : (done.stderr ?? ""),
+  };
 }
 
 /** The script foregroundWindow() has PowerShell run, which nothing here runs against the desktop. */
@@ -197,6 +238,106 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
     expect(await listProcesses("node.exe")).toContain(process.pid);
     expect(await listProcesses("no-such-program-for-voicecap.exe")).toEqual([]);
   });
+
+  // What a failure in each of the firewall script's two statements does, on stand-ins that fail as
+  // the firewall cmdlets do: they report a refusal as a non-terminating error, and a script that
+  // goes on after one takes its exit code from its last statement alone. The script itself is never
+  // run here, since it reads the computer's firewall rules.
+  it("fail the firewall script, printing nothing, when its first statement fails", () => {
+    // Without the strict first statement, the second would print a Block and the exit would be 0:
+    // the script would answer "closed" having read none of the rules that name the program.
+    for (const first of ["Write-Error 'first failed'", "throw 'first failed'"]) {
+      const answer = runSystemPowershell(strictThenBestEffort(first, "'Block|Any'"));
+      expect(answer.status, `${first}: ${answer.stderr}`).toBe(1);
+      expect(answer.stdout, first).toBe("");
+    }
+  });
+
+  it("keep the firewall script's first lines, and exit 0, when only its second statement fails", () => {
+    // Without the closing exit 0, the exit stays 1 after a caught error, and the first statement's
+    // Allow would be thrown away with the failure.
+    for (const second of ["Write-Error 'second failed'", "throw 'second failed'"]) {
+      const answer = runSystemPowershell(strictThenBestEffort("'Allow|Private'", second));
+      expect(answer.status, `${second}: ${answer.stderr}`).toBe(0);
+      expect(parseFirewallRules(answer.stdout), second).toEqual([rule("Allow", "Private")]);
+    }
+    // What the second statement printed before it failed is real, so it is kept too.
+    const late = runSystemPowershell(
+      strictThenBestEffort("'Allow|Private'", "'Block|Any'; Write-Error 'late'"),
+    );
+    expect(late.status, late.stderr).toBe(0);
+    expect(parseFirewallRules(late.stdout)).toEqual([
+      rule("Allow", "Private"),
+      rule("Block", "Domain", "Private", "Public"),
+    ]);
+  });
+
+  it("print both of the firewall script's statements' lines, and exit 0, when neither fails", () => {
+    const both = runSystemPowershell(
+      strictThenBestEffort("'Allow|Private'; 'Allow|Private, Public'", "'Block|Public'"),
+    );
+    expect(both.status, both.stderr).toBe(0);
+    expect(parseFirewallRules(both.stdout)).toEqual([
+      rule("Allow", "Private"),
+      rule("Allow", "Private", "Public"),
+      rule("Block", "Public"),
+    ]);
+    // Nothing to print is an answer too: no rule names the program, and none blocks the port.
+    const none = runSystemPowershell(
+      strictThenBestEffort(
+        "@() | ForEach-Object { 'Allow|Any' }",
+        "@() | ForEach-Object { 'Block|Any' }",
+      ),
+    );
+    expect(none.status, none.stderr).toBe(0);
+    expect(none.stdout).toBe("");
+  });
+
+  // The script names each rule's network types as Windows' own type for them writes them, which is
+  // checked here on that type alone: no rule is read.
+  it("write a rule's network types in the words the firewall script's answer is read in", () => {
+    const answer = runSystemPowershell(
+      [
+        "Import-Module NetSecurity;",
+        "foreach ($value in 0, 1, 2, 4, 6, 7, 65535) {",
+        "'Allow|' + [string][Microsoft.PowerShell.Cmdletization.GeneratedTypes.NetSecurity.Profile]$value }",
+      ].join(" "),
+    );
+    expect(answer.status, answer.stderr).toBe(0);
+    expect(answer.stdout.split(/\r?\n/).filter((line) => line !== "")).toEqual([
+      "Allow|Any",
+      "Allow|Domain",
+      "Allow|Private",
+      "Allow|Public",
+      "Allow|Private, Public",
+      "Allow|Domain, Private, Public",
+      "Allow|NotApplicable",
+    ]);
+    expect(parseFirewallRules(answer.stdout)).toEqual([
+      rule("Allow", "Domain", "Private", "Public"),
+      rule("Allow", "Domain"),
+      rule("Allow", "Private"),
+      rule("Allow", "Public"),
+      rule("Allow", "Private", "Public"),
+      rule("Allow", "Domain", "Private", "Public"),
+      // NotApplicable can't be placed, so an Allow rule with it covers every network type.
+      rule("Allow", "Domain", "Private", "Public"),
+    ]);
+  }, 60_000);
+
+  it("parse the firewall script as PowerShell, and run none of it", () => {
+    const script = nvdaFirewallScript(
+      "C:\\Users\\jane\\AppData\\Local\\guidepup\\nvda\\all\\0.2.1-2026.2\\extracted\\nvda.exe",
+    );
+    const answer = runSystemPowershell(
+      [
+        "$errors = $null;",
+        `[void][System.Management.Automation.Language.Parser]::ParseInput(${powershellString(script)}, [ref]$null, [ref]$errors);`,
+        "$errors | ForEach-Object { $_.Message }; 'parsed'",
+      ].join(" "),
+    );
+    expect(answer.stdout.trim(), answer.stderr).toBe("parsed");
+  }, 60_000);
 
   // The lookup of the window in front is checked for real only at the PC, and a typo in it would
   // fail every lookup: each lost foreground would read as one voicecap couldn't name the program of.
@@ -303,6 +444,55 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
     expect(alive(leftover.pid ?? -1)).toBe(false);
   }, 30_000);
 
+  // A run that crashed, or was ended by a second Ctrl+C, leaves the sound it was recording in a
+  // folder named for its process (about 1.9 MB a minute), and no one else deletes it.
+  it("delete the recorded sound a run that's gone left in its folder, and no other folder", async () => {
+    const tmp = mkdtempSync(path.join(os.tmpdir(), "voicecap-orphan-test-"));
+    temps.push(tmp);
+    // Process ids no process has: far past any Windows hands out, so none can be reused meanwhile.
+    const gone = [2_000_000_000, 2_000_000_001];
+    for (const pid of gone) expect(alive(pid)).toBe(false);
+    const sound = Buffer.alloc(64_000);
+    const goneDir = voiceFolder(tmp, gone[0]!);
+    mkdirSync(goneDir);
+    writeFileSync(path.join(goneDir, "1.pcm"), sound);
+    writeFileSync(path.join(goneDir, "2.pcm"), sound);
+    // This process is running, as a voicecap that's recording is: its folder is in use.
+    const liveDir = voiceFolder(tmp, process.pid);
+    mkdirSync(liveDir);
+    writeFileSync(path.join(liveDir, "1.pcm"), sound);
+    // Folders that aren't a voice folder's name, and a file that has one.
+    const others = [path.join(tmp, "voicecap-voice-backup"), path.join(tmp, "voicecap-voice-12x")];
+    for (const other of others) mkdirSync(other);
+    const aFile = voiceFolder(tmp, gone[1]!);
+    writeFileSync(aFile, "not a folder");
+
+    const notes = await cleanupOrphans(tmp, path.join(tmp, "no-nvda", "nvda.exe"));
+
+    expect(notes).toEqual(["Deleted 1 folder of recorded sound left by an earlier run."]);
+    expect(existsSync(goneDir)).toBe(false);
+    expect(existsSync(liveDir)).toBe(true);
+    expect(existsSync(path.join(liveDir, "1.pcm"))).toBe(true);
+    for (const other of others) expect(existsSync(other)).toBe(true);
+    expect(existsSync(aFile)).toBe(true);
+
+    // Said once: nothing is left to delete the next time.
+    expect(await cleanupOrphans(tmp, path.join(tmp, "no-nvda", "nvda.exe"))).toEqual([]);
+  }, 30_000);
+
+  it("delete the recorded sound of several runs that are gone, and say how many folders", async () => {
+    const tmp = mkdtempSync(path.join(os.tmpdir(), "voicecap-orphan-test-"));
+    temps.push(tmp);
+    const dirs = [2_000_000_002, 2_000_000_003, 2_000_000_004].map((pid) => voiceFolder(tmp, pid));
+    for (const dir of dirs) {
+      mkdirSync(dir);
+      writeFileSync(path.join(dir, "1.pcm"), "sound");
+    }
+    const notes = await cleanupOrphans(tmp, path.join(tmp, "no-nvda", "nvda.exe"));
+    expect(notes).toEqual(["Deleted 3 folders of recorded sound left by an earlier run."]);
+    for (const dir of dirs) expect(existsSync(dir)).toBe(false);
+  }, 30_000);
+
   it("leave everything alone when nothing was left behind", async () => {
     const tmp = mkdtempSync(path.join(os.tmpdir(), "voicecap-orphan-test-"));
     temps.push(tmp);
@@ -356,6 +546,104 @@ describe("Windows helpers (what PowerShell says)", () => {
     expect(parseNvdaProcesses("WARNING: something else\r\n\r\n42|C:\\nvda\\nvda.exe\r\n")).toEqual([
       { pid: 42, path: "C:\\nvda\\nvda.exe" },
     ]);
+  });
+
+  it("read each firewall rule's action and the network types it applies to", () => {
+    expect(
+      parseFirewallRules("Allow|Private\r\nBlock|Public\r\nAllow|Domain, Private\r\n"),
+    ).toEqual([
+      rule("Allow", "Private"),
+      rule("Block", "Public"),
+      rule("Allow", "Domain", "Private"),
+    ]);
+    // Any is every network type.
+    expect(parseFirewallRules("Block|Any\r\nAllow|Any\r\n")).toEqual([
+      rule("Block", "Domain", "Private", "Public"),
+      rule("Allow", "Domain", "Private", "Public"),
+    ]);
+    // A word the reader can't place (NotApplicable, a word it doesn't know, or one in another
+    // letter case) errs toward a warning: an Allow rule with one covers every network type, beside
+    // any it names, and a Block rule with one covers none, not even those it names.
+    const unplaced = ["NotApplicable", "Satellite", "Private, Satellite", "private"];
+    for (const words of unplaced) {
+      expect(parseFirewallRules(`Allow|${words}\r\nBlock|${words}\r\n`), words).toEqual([
+        rule("Allow", "Domain", "Private", "Public"),
+        rule("Block"),
+      ]);
+    }
+    // Each line is trimmed, as is each word, and an empty line is no rule.
+    expect(parseFirewallRules("  Allow|Private ,  Public \r\n\r\n\tBlock|Domain\n")).toEqual([
+      rule("Allow", "Private", "Public"),
+      rule("Block", "Domain"),
+    ]);
+    expect(parseFirewallRules("")).toEqual([]);
+    expect(parseFirewallRules("\r\n \r\n")).toEqual([]);
+  });
+
+  it("refuse the whole answer when a line of it isn't a rule", () => {
+    // A warning, an action with no network types, another action or its letters in another case, a
+    // number for the network types (one Windows' type has no name for), or an empty word.
+    for (const line of [
+      "WARNING: slow",
+      "Allow",
+      "Allow|",
+      "Allowed|Any",
+      "allow|Any",
+      "NotConfigured|Any",
+      "Allow|8",
+      "Allow|Private,",
+      "Allow|Private,,Public",
+      "Allow|Private|Public",
+    ]) {
+      expect(() => parseFirewallRules(`Block|Any\r\n${line}\r\n`), line).toThrow(
+        "PowerShell's answer has a line that isn't a rule",
+      );
+    }
+  });
+
+  it("read the firewall rules PowerShell gives, and reject when a line isn't a rule", async () => {
+    const exe =
+      "C:\\Users\\jane\\AppData\\Local\\guidepup\\nvda\\all\\0.2.1-2026.2\\extracted\\nvda.exe";
+    const asked: string[] = [];
+    const answer = (stdout: string) => (script: string) => {
+      asked.push(script);
+      return Promise.resolve(stdout);
+    };
+    await expect(
+      nvdaFirewallRules(exe, answer("Allow|Private\r\nBlock|Public\r\n")),
+    ).resolves.toEqual([rule("Allow", "Private"), rule("Block", "Public")]);
+    expect(asked).toEqual([nvdaFirewallScript(exe)]);
+    await expect(nvdaFirewallRules(exe, answer("Block|Any\r\nWARNING: slow\r\n"))).rejects.toThrow(
+      "PowerShell's answer has a line that isn't a rule",
+    );
+    await expect(
+      nvdaFirewallRules(exe, () => Promise.reject(new Error("exit code 1"))),
+    ).rejects.toThrow("PowerShell didn't answer");
+  });
+
+  it("read the firewall with one read-only script that names the NVDA program and port 6837", () => {
+    expect(NVDA_CONTROL_PORT).toBe(6837);
+    const exe =
+      "C:\\Users\\jane\\AppData\\Local\\guidepup\\nvda\\all\\0.2.1-2026.2\\extracted\\nvda.exe";
+    const script = nvdaFirewallScript(exe);
+    expect(script).toBe(
+      [
+        "$ErrorActionPreference = 'Stop';",
+        `$exe = '${exe}';`,
+        "Get-NetFirewallApplicationFilter -PolicyStore ActiveStore | Where-Object { [Environment]::ExpandEnvironmentVariables($_.Program) -eq $exe } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' } | ForEach-Object { [string]$_.Action + '|' + [string]$_.Profile };",
+        "try { Get-NetFirewallPortFilter -PolicyStore ActiveStore | Where-Object { $_.LocalPort -contains '6837' } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and [string]$_.Action -eq 'Block' } | ForEach-Object { 'Block|' + [string]$_.Profile } } catch { };",
+        "exit 0",
+      ].join(" "),
+    );
+    // It only reads: no cmdlet that adds, changes, removes, or turns anything on or off.
+    expect(script).not.toMatch(/\b(?:Add|Disable|Enable|New|Remove|Rename|Set|Start|Stop)-/);
+  });
+
+  it("quote the NVDA program's path in the firewall script, so a quote in it stays text", () => {
+    const script = nvdaFirewallScript("C:\\jane's folder\\nvda.exe'; Remove-NetFirewallRule *; '");
+    expect(script.split(" Get-NetFirewallApplicationFilter ")[0]).toBe(
+      "$ErrorActionPreference = 'Stop'; $exe = 'C:\\jane''s folder\\nvda.exe''; Remove-NetFirewallRule *; ''';",
+    );
   });
 
   const install = {
@@ -969,5 +1257,39 @@ describe("reading NVDA's own log", () => {
     // A folder where the file goes: nothing can be read from it.
     mkdirSync(path.join(dir, "nvda.log"));
     await expect(readNvdaLog(dir)).rejects.toThrow(/EISDIR/);
+  });
+});
+
+// Once the run has its cleaned copy, voicecap deletes nvda.log, which holds every key pressed while
+// its NVDA ran. These use a folder of their own, never the real temp folder's log.
+describe("deleting NVDA's own log", () => {
+  function tempFolder(): string {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "voicecap-nvda-log-"));
+    temps.push(dir);
+    return dir;
+  }
+
+  it("deletes nvda.log in the folder, and no other file", async () => {
+    const dir = tempFolder();
+    writeFileSync(path.join(dir, "nvda.log"), "IO - inputCore:\nInput: kb(desktop):x\n");
+    writeFileSync(path.join(dir, "nvda-old.log"), "The log of the NVDA before.\n");
+    await removeNvdaLog(dir);
+    expect(existsSync(path.join(dir, "nvda.log"))).toBe(false);
+    expect(existsSync(path.join(dir, "nvda-old.log"))).toBe(true);
+  });
+
+  it("does nothing, and doesn't fail, when there's no log, or no folder", async () => {
+    const dir = tempFolder();
+    await expect(removeNvdaLog(dir)).resolves.toBeUndefined();
+    await expect(removeNvdaLog(path.join(dir, "missing"))).resolves.toBeUndefined();
+  });
+
+  it("never fails when the log can't be deleted, and leaves it as it is", async () => {
+    const dir = tempFolder();
+    // A folder where the file goes, with something in it: it isn't a log, and isn't deleted.
+    mkdirSync(path.join(dir, "nvda.log"));
+    writeFileSync(path.join(dir, "nvda.log", "kept"), "x");
+    await expect(removeNvdaLog(dir)).resolves.toBeUndefined();
+    expect(existsSync(path.join(dir, "nvda.log", "kept"))).toBe(true);
   });
 });

@@ -4,10 +4,13 @@
  * The wording is voicecap's, as on the shareable page and in the README: voicecap is a human
  * review, sped up; a person hears NVDA at work, reads the transcripts, and decides.
  *
- * Every number about voicecap in these words is taken, and none is typed here:
+ * Every number about voicecap in these words is taken, and none is typed here, but three that the
+ * test of the page holds to where they come from (see below):
  * - from voicecap's own code, which this module imports: its passes (PASS_NAMES), its built-in flag
  *   rules (BUILT_IN_RULES) and their thresholds, its defaults (DEFAULT_CONFIG), the exit codes of
- *   `voicecap verify` (ExitCode), and what a silent step is written as (NO_SPEECH);
+ *   `voicecap verify` (ExitCode), what a silent step is written as (NO_SPEECH), the name of the
+ *   file a page's recording is kept in (VOICE_FILE), and the speeds the voice page plays at
+ *   (VOICE_TEXT);
  * - from what the page is given, through a function for each line that holds one: the version and
  *   its day, what its release recorded of its tests, how many shares a site keeps, and what the
  *   records count. A fact that isn't there is said not to be ("not recorded in this build of
@@ -16,8 +19,15 @@
  * What's typed is words, and the test of the page holds the names they use to the code: every
  * command it names is one voicecap's command line declares, with its options, every file is in the
  * repository, every rule is a built-in one, and every npm package's license is the one of the
- * package voicecap installs. The stop reasons are typed against the model's (`StopReason`), so a
- * reason added there and not here doesn't compile.
+ * package voicecap installs (libopus-wasm's row adds the license of the libopus inside it, which
+ * its own notice gives). The three numbers typed are the version of the encoder in the
+ * toolchain (0.4.1), which is the one package.json pins and the installed package is; the version of
+ * libopus inside it (1.6.1), which the test holds to what the library itself says
+ * (`loadLibopus()`); and the Windows build that recording needs (20348), which is the one the
+ * recorder checks for (WINDOWS_BUILD). The same test holds what the page says of NVDA's voice to
+ * the recorder's own code: that it records one program's sound, and picks no device, so no
+ * microphone and no speaker's mix is in it. The stop reasons are typed against the model's
+ * (`StopReason`), so a reason added there and not here doesn't compile.
  *
  * Guidepup is named only in the toolchain's rows, as the owner chose: everywhere else, it's
  * voicecap's NVDA driver.
@@ -29,13 +39,14 @@
  */
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { BUILT_IN_RULES, type BuiltInRule } from "../flags/evaluate.js";
-import { PASS_NAMES, type PassName, type StopReason } from "../model.js";
+import { PASS_NAMES, type PassName, type StopReason, VOICE_FILE } from "../model.js";
 import { plural } from "../report/html.js";
 import { count, names } from "../share/format.js";
-import { HOW_TEXT, MAC_HASH, POWERSHELL_HASH } from "../share/text.js";
+import { HOW_TEXT, MAC_HASH, POWERSHELL_HASH, VOICE_TEXT } from "../share/text.js";
 import { NO_SPEECH } from "../transcripts/format.js";
 import { ExitCode } from "../util/errors.js";
 import type { RecordFacts, ReleaseFacts } from "./facts.js";
+import { EXACT_VERSION } from "./netlify.js";
 import { SITE_TEXT, type Sentence } from "./text.js";
 import { TRUST_TEXT } from "./trust-text.js";
 
@@ -111,6 +122,20 @@ const STOP_REASONS = Object.keys({
 
 /** How many ways NVDA goes through a page: one for each pass, in words. */
 const WAYS = inWords(PASS_NAMES.length);
+
+/**
+ * The speeds a share's voice page plays a recording at, as its own words give them: "1×, 0.75×, 0.5×,
+ * and 0.25×".
+ */
+const VOICE_SPEEDS = names(VOICE_TEXT.speed.rates.map((rate) => VOICE_TEXT.speed.label(rate)));
+
+/**
+ * The Windows build that recording one program's sound needs, which Windows' process loopback came
+ * with: Windows 11 or Windows Server 2022. The recorder checks for it before anything else, and gives
+ * it in its own words (RECORDER_SCRIPT in src/drivers/guidepup/voice-recorder.ts, which the website's
+ * code never imports): typed here, and held to that check by the test of the page.
+ */
+const WINDOWS_BUILD = 20348;
 
 /** What NVDA says after the last heading, from the pattern voicecap matches it by. */
 const NO_NEXT_HEADING = DEFAULT_CONFIG.phrasing.noNextHeading.replace(/^\^|\$$/g, "");
@@ -285,9 +310,12 @@ export const TECHNICAL_TEXT = {
           words: [
             [
               { code: "voicecap share" },
-              " makes a dated copy of the shareable page and its Word copy, with each run's walkthrough file, recorded in a sealed, chained ",
+              " makes a dated copy of the shareable page and its Word copy, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, recorded in a sealed, chained ",
               { code: "shares.json" },
               ".",
+            ],
+            [
+              `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${VOICE_SPEEDS}, with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
             ],
           ],
         },
@@ -338,7 +366,7 @@ export const TECHNICAL_TEXT = {
         heading: "How NVDA's words are caught",
         points: [
           [
-            "voicecap's NVDA driver connects to NVDA's Remote Access service, only on the computer running the test, sends each key, and receives what NVDA speaks.",
+            "voicecap's NVDA driver connects to NVDA's Remote Access service on the computer running the test, sends each key, and receives what NVDA speaks. The service is open on the computer's networks too, so voicecap's checks warn when Windows Firewall lets other computers reach it.",
           ],
           [
             "It silences NVDA before each key, and waits until a second passes with no more speech.",
@@ -388,7 +416,7 @@ export const TECHNICAL_TEXT = {
                     {
                       name: "run.json",
                       words: [
-                        "The run's record: its settings, each page and every failed try at it, the fingerprints of the event log, of each copy of NVDA's own log, and of each page's transcripts, screenshot, and axe results, and, once it completes, its seal",
+                        "The run's record: its settings, each page and every failed try at it, the fingerprints of the event log, of each copy of NVDA's own log, and of each page's transcripts, screenshot, axe results, and recording of NVDA's voice, and, once it completes, its seal",
                       ],
                     },
                     {
@@ -409,9 +437,11 @@ export const TECHNICAL_TEXT = {
                         { code: ".json" },
                         " of every step (the key, the words, and their timing), ",
                         { code: "screenshot.jpg" },
-                        ", and ",
+                        ", ",
                         { code: "axe.json" },
-                        ", what axe-core found on the page",
+                        ", what axe-core found on the page, and ",
+                        { code: VOICE_FILE },
+                        ", what NVDA said aloud while each pass read the page with voicecap's browser in front, kept only from an attempt that finished with no other window in front",
                       ],
                     },
                     { name: "attempts/", words: ["The earlier tries at a page, kept"] },
@@ -443,7 +473,7 @@ export const TECHNICAL_TEXT = {
                 {
                   name: "share/",
                   words: [
-                    "The shareable page, its Word copy, the dated copies, the walkthrough files, and ",
+                    "The shareable page, its Word copy, the dated copies, the voice pages, the report as Markdown and as JSON for AI tools, the walkthrough files, and ",
                     { code: "shares.json" },
                   ],
                 },
@@ -457,6 +487,17 @@ export const TECHNICAL_TEXT = {
           "What a run's record of the computer keeps: the system, processor, memory, display, browser window, time zone, language, and versions.",
         ],
         ["What it never keeps: the computer's maker, model, or name, or the account."],
+        [
+          "Only NVDA's sound is recorded, never the whole computer's and never a microphone's. voicecap uses Windows' process loopback, which takes the sound of one program and of the programs it starts: here the NVDA voicecap started, whose program it checks before it records.",
+        ],
+        [
+          `Recording needs Windows 11 or Windows Server 2022 (Windows build ${WINDOWS_BUILD} or later). A page that can't be recorded keeps the reason in its record, and is read as usual.`,
+        ],
+        [
+          "Each recording is kept as ",
+          { code: VOICE_FILE },
+          ", Opus sound in a small WebM file made with libopus-wasm: the same sound always gives the same bytes. Its SHA-256 is in the run's record, so the run's seal covers it.",
+        ],
       ] satisfies Sentence[],
     },
     flags: {
@@ -484,7 +525,7 @@ export const TECHNICAL_TEXT = {
       heading: ["Fingerprints, seals, and ", { code: "voicecap verify" }] satisfies Sentence,
       points: [
         [
-          "A run's record holds the SHA-256 of each page's transcripts, screenshot, and axe results, recorded as each is written, and of the event log and each copy of NVDA's own log, recorded at the end of each session. Earlier tries a run kept, its own report, and its comparisons have none. A run also records the SHA-256 of its page list, or of each sitemap it read, and of its config, and ",
+          "A run's record holds the SHA-256 of each page's transcripts, screenshot, axe results, and recording of NVDA's voice, recorded as each is written, and of the event log and each copy of NVDA's own log, recorded at the end of each session. Earlier tries a run kept, its own report, and its comparisons have none. A run also records the SHA-256 of its page list, or of each sitemap it read, and of its config, and ",
           { code: "shares.json" },
           " records each shared copy's.",
         ],
@@ -496,10 +537,19 @@ export const TECHNICAL_TEXT = {
         ],
         [
           { code: "voicecap verify" },
-          ` checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there. An incomplete run is listed, and its files aren't checked: they can change until it's sealed. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
+          ` checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there, and read only under the name voicecap gives it. An incomplete run is listed, and its files aren't checked: they can change until it's sealed. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
+        ],
+        [
+          { code: "voicecap share" },
+          " takes a transcript, screenshot, axe result, recording, event log, or copy of NVDA's own log into a report only when its file is a regular file, never a link, with the size and SHA-256 its run recorded. One that isn't is left out, the report says so, and ",
+          { code: "voicecap verify" },
+          " names it.",
         ],
         [
           "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, axe results, run seals, and review chain the report carries. It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",
+        ],
+        [
+          'The voice page has a "Check the fingerprints" of its own, which checks the recordings it plays and the seals of the runs they come from, in the same way.',
         ],
         [
           "What no check can catch: someone who edits a record and seals it, and every record after it, again; and someone who deletes the newest records, or a whole run. The Git history, pushed to a protected branch, shows both.",
@@ -521,9 +571,16 @@ export const TECHNICAL_TEXT = {
           ],
           ["A file only when its size and SHA-256 are the ones recorded when it was shared."],
           [
+            `A share's voice page is published with its report's other files, and listed with them as ${SITE_TEXT.files.voice}.`,
+          ],
+          [
             "The pages of voicecap's own demo site, in ",
             { code: "demo-site/" },
             ", from voicecap itself.",
+          ],
+          [
+            { code: "llms.txt" },
+            " at the website's top, which lists, for AI tools, each site's current report as Markdown and as JSON, when it has them.",
           ],
           ["Anything else is left out, and the build names it."],
         ],
@@ -536,6 +593,11 @@ export const TECHNICAL_TEXT = {
           ],
           [
             "Each one's Content Security Policy is made from the SHA-256 of its own style and script, and allows no connection.",
+          ],
+          [
+            "A voice page's policy also lets it play audio from the recordings it holds, which are in the page as data: addresses (",
+            { code: "media-src data:" },
+            "); no other page's does.",
           ],
           [
             "The demo site's pages have their style sheet beside them, and a policy of their own, which allows it and no script.",
@@ -603,7 +665,9 @@ export const TECHNICAL_TEXT = {
           [
             "Everything a run makes stays there: transcripts, records, screenshots, and reports. voicecap never commits or pushes them: the person does.",
           ],
-          ["voicecap talks to NVDA and to Chrome only on the computer running the test."],
+          [
+            "voicecap talks to NVDA and to Chrome only on the computer running the test. NVDA's Remote Access service is open on the computer's networks too, so voicecap's checks warn when Windows Firewall lets other computers reach it.",
+          ],
         ] satisfies Sentence[],
       },
       goes: {
@@ -625,7 +689,11 @@ export const TECHNICAL_TEXT = {
             { code: "voicecap setup" },
             " downloads NVDA's build from GitHub, checked by its SHA-256 (on a Mac, the files VoiceOver needs), and Chromium where Chrome isn't installed.",
           ],
-          ["voicecap itself comes from npm, through ", { code: "npx" }, "."],
+          [
+            "voicecap itself comes from npm, through ",
+            { code: "npx" },
+            ". npx also downloads, for the screen reader driver's recorder on a Mac, an ffmpeg program voicecap never runs, unless install scripts are off, as they are in the website's build.",
+          ],
           ["Nothing else."],
         ] satisfies Sentence[],
       },
@@ -635,18 +703,40 @@ export const TECHNICAL_TEXT = {
           [
             "No telemetry, analytics, or cookies. A voicecap page stores only the reader's choice of theme, in their browser.",
           ],
-          ["No accounts, keys, or passwords, read or stored."],
+          [
+            "voicecap asks for no account, key, or password, and keeps none. It reads NVDA's own log, which has every key pressed while its NVDA ran, keeps only its own keys, and deletes the log once it has read and cleaned it.",
+          ],
           [
             "The browser gets a new profile for each page load, deleted after, with sync, background networking, and extensions off, and downloads refused.",
           ],
           [
-            "A window's title, which can hold private text, is kept in the event log, never on a page or in a Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. A page counts what NVDA said outside voicecap's steps, and never shows it.",
+            "A window's title, which can hold private text, is kept in the event log, never on the shareable page or in its Word copy. A run's copies of NVDA's own log can hold more: whatever NVDA read aloud from another window, its title and its text, when NVDA started or as that window came in front. The shareable page counts what NVDA said outside voicecap's steps, and never shows it. A voice page plays some of it: what NVDA said while each pass read the page with voicecap's browser in front, from the pass's title check to its last step. The moments between the passes, while a browser opens or comes to the front, are silenced, because NVDA may read the window behind it then. voicecap keeps no recording of NVDA's voice from an attempt during which another window came to the front, and a window that came and went between two of a pass's steps, which voicecap can't see, can still be heard, though that's rare.",
           ],
           [
             "An NVDA log from a manual session can hold every keystroke, so voicecap warns, can take typed text out, and keeps the raw copy out of Git.",
           ],
           [
-            "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser.",
+            "A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone, and the home folder in the words of an error that a run keeps is written as ",
+            { code: "%USERPROFILE%" },
+            " and the temp folder as ",
+            { code: "%TEMP%" },
+            ", in the spellings Windows gives them, the short one too when the temp folder is in the home folder. The shareable page names such a file by its name alone, for runs recorded before too.",
+          ],
+          [
+            "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser. A live repeat of one whose site is on the computer running the test, or on its network, needs the person to name that site with ",
+            { code: "--site" },
+            ".",
+          ],
+          [
+            "A config is read as JSON from the folder voicecap runs in; one written as code runs only when the person names it.",
+          ],
+          [
+            "What a website, a sitemap, a server, or a record says is printed as text: a control character, an invisible formatting character, or a line separator in it is written as an escape such as ",
+            { code: "\\u{1b}" },
+            ", so it can't move the cursor, clear the screen, retitle the window, or turn the words around. The warning when the browser can't come to the front names the program in front, never its window's title.",
+          ],
+          [
+            "voicecap starts Windows' own programs (PowerShell, tasklist, taskkill, reg, Explorer) by their full path in the Windows folder, and Windows never looks for a program in the folder voicecap runs in.",
           ],
           [
             "Where it lives: the transcripts repository, which the README says to keep private, and this website, which is public to anyone with its address.",
@@ -797,7 +887,7 @@ export const TECHNICAL_TEXT = {
     },
     {
       name: "voicecap share",
-      job: "Makes a dated copy of the shareable page, its Word copy, and each run's walkthrough file, to send, and records them.",
+      job: "Makes a dated copy of the shareable page and its Word copy to send, a voice page when a page has a recording, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, and records them.",
     },
     { name: "voicecap site", job: "Builds this website from the shares." },
     { name: "voicecap verify", job: "Checks the records against their fingerprints and seals." },
@@ -883,9 +973,9 @@ export const TECHNICAL_TEXT = {
     },
     {
       tool: "jiti",
-      job: "Loads a config written in TypeScript or JavaScript",
+      job: "Loads a config written in TypeScript or JavaScript when `VOICECAP_CONFIG` names it",
       license: "MIT",
-      where: "`voicecap.config.ts`",
+      where: "A config written as code, such as `voicecap.config.ts`",
       npm: "jiti",
     },
     {
@@ -915,6 +1005,13 @@ export const TECHNICAL_TEXT = {
       license: "MPL-2.0",
       where: "A run, and voicecap's tests",
       npm: "axe-core",
+    },
+    {
+      tool: "libopus-wasm",
+      job: "Encodes each page's recording of NVDA's voice as Opus, in a small WebM file: libopus 1.6.1 compiled to WebAssembly. This package is pinned at version 0.4.1, so that the same sound always gives the same file",
+      license: "MIT (libopus: BSD, Xiph.Org)",
+      where: "A run",
+      npm: "libopus-wasm",
     },
     {
       tool: "Vitest",
@@ -989,11 +1086,11 @@ export function toolHref({ npm, source }: Tool): string | null {
 }
 
 /**
- * The command voicecap writes into netlify.toml to build the website, for `version`: npm reads its
- * minor version (`@0.15`) as the newest release of it. A version that doesn't start with two numbers
- * names none, and the command says `<version>` in its place.
+ * The command voicecap writes into netlify.toml to build the website, for `version`: it names that
+ * exact release (`@0.18.0`), so the build installs it and nothing newer. A version that isn't one
+ * (see EXACT_VERSION) names none, and the command says `<version>` in its place.
  */
 export function buildCommand(version: string): string {
-  const minor = /^\d+\.\d+/.exec(version)?.[0] ?? "<version>";
-  return `npx --yes @icjia/voicecap@${minor} site --home . --out _site`;
+  const exact = EXACT_VERSION.test(version) ? version : "<version>";
+  return `npx --yes @icjia/voicecap@${exact} site --home . --out _site`;
 }

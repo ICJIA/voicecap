@@ -27,7 +27,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import type { Browser, BrowserContext, Page } from "playwright";
+import type { Browser, BrowserContext, Locator, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { keptAxeResults } from "../src/axe/results.js";
@@ -41,6 +41,7 @@ import { fontFaceCss } from "../src/share/fonts.js";
 import { renderSharePage } from "../src/share/html/document.js";
 import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
+import { renderVoicePage } from "../src/share/voice-page.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { writeShareFiles } from "../src/share/write.js";
 import { fileHash } from "../src/transcripts/write.js";
@@ -53,17 +54,24 @@ import { rawAxe, rawNode, rawRule } from "./helpers/raw-axe.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
 import { i2iModel, linkModel } from "./helpers/share-attention.js";
-import { shareRun } from "./helpers/share-data.js";
+import { failedAttempt, shareRun } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
 import {
   DEMO_SITE,
+  heldRecordings,
   inputOf,
   LINES,
   loggedModel,
   manyPages,
+  recordedVoice,
+  recordingsOf,
   storeOf,
   TRANSCRIPTS,
+  VOICE_PAGE,
+  VOICE_RECORDED_AT,
+  voiceRecord,
 } from "./helpers/share-model.js";
+import { busySound, speechAndPauses } from "./helpers/voice-signal.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
@@ -351,6 +359,45 @@ async function nvdaLogModel(differing: boolean): Promise<ShareModel> {
   return { ...model, evidence: [{ ...first, nvdaLog: { ...first.nvdaLog, notChecked } }, ...rest] };
 }
 
+/**
+ * A run of voicecap 0.18.0 whose pages NVDA's voice was recorded on, as a share makes the page, with
+ * the voice page beside it: the home page, a page with a label of a dozen words and an hour's
+ * recording, a page at a long address, and a page that failed after it was recorded, so its card has
+ * a line and no transcripts. A fifth page has no recording, and no line. The details link to the
+ * voice page.
+ */
+function voiceCardsModel(): ShareModel {
+  const read = { files: TRANSCRIPTS, passes: LINES };
+  const run = shareRun({
+    id: "2026-10-09_0900",
+    voicecapVersion: "0.18.0",
+    pages: [
+      { path: "/", label: "Home", ...read, voice: voiceRecord(134.2) },
+      {
+        path: "/grants/",
+        label: "A grant program with a label of a dozen words that can't fit one line of a phone",
+        ...read,
+        voice: voiceRecord(3_725),
+      },
+      { path: LONG_PATH, ...read, voice: voiceRecord(61) },
+      {
+        path: "/apply/",
+        status: "failed",
+        failedAttempts: [failedAttempt({ n: 1 })],
+        voice: voiceRecord(7),
+      },
+      { path: "/about/", ...read },
+    ],
+  });
+  return buildShareModel(
+    inputOf([run], {
+      transcripts: storeOf(),
+      recordings: heldRecordings([run]),
+      voiceName: VOICE_PAGE,
+    }),
+  );
+}
+
 /** A word as long as an element's HTML can be in an axe.json (300 code units), less its markup. */
 const LONG_WORD = "x".repeat(280);
 
@@ -461,6 +508,8 @@ let pages: {
   many: string;
   /** A run whose driver checked each page with axe: each card holds what axe found, in a fold. */
   axe: string;
+  /** A run whose pages NVDA's voice was recorded on: each card links to its place on the voice page. */
+  voice: string;
 };
 /** Where the site with markup in its transcripts kept its run, and the id of the replayed run. */
 let hostileRun: { siteDir: string; runId: string };
@@ -509,6 +558,7 @@ beforeAll(async () => {
   // each holds a fold of its own transcript.
   const many = await modelPage(manyPages(13, 2), "many");
   const axe = await axePage();
+  const voice = await modelPage(voiceCardsModel(), "voice");
   pages = {
     demo,
     rich,
@@ -527,6 +577,7 @@ beforeAll(async () => {
     skipped,
     many,
     axe,
+    voice,
   };
   hostileRun = hostile;
   replayRunId = replay.runId;
@@ -767,23 +818,23 @@ const chartContrasts = (page: Page): Promise<{ words: string; ratio: number }[]>
     });
   });
 
+/** Four runs of axe over a page 20,000 pixels tall take a while, more on a slow computer. */
+const AXE_TIMEOUT = 120_000;
+
+/**
+ * What axe finds with the window as tall as the page. A line of text that runs past the window's
+ * bottom edge has no known background there, which axe reports as contrast it couldn't check,
+ * so the result would depend on where the window ends.
+ */
+async function axeFindings(page: Page, width = 1280): Promise<string[]> {
+  // The page's height depends on its width, so the width is set first.
+  await page.setViewportSize({ width, height: 900 });
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  await page.setViewportSize({ width, height });
+  return violations(page);
+}
+
 describe("axe, in Chromium", () => {
-  /** Four runs of axe over a page 20,000 pixels tall take a while, more on a slow computer. */
-  const AXE_TIMEOUT = 120_000;
-
-  /**
-   * What axe finds with the window as tall as the page. A line of text that runs past the window's
-   * bottom edge has no known background there, which axe reports as contrast it couldn't check,
-   * so the result would depend on where the window ends.
-   */
-  async function axeFindings(page: Page, width = 1280): Promise<string[]> {
-    // The page's height depends on its width, so the width is set first.
-    await page.setViewportSize({ width, height: 900 });
-    const height = await page.evaluate(() => document.documentElement.scrollHeight);
-    await page.setViewportSize({ width, height });
-    return violations(page);
-  }
-
   it.each([
     ["the demo's page", "demo"],
     ["a page with reviews, flags, a changed page, and a failed page", "rich"],
@@ -1128,6 +1179,35 @@ describe("axe, in Chromium", () => {
       expect(await axeFindings(page, width), "light, every fold open").toEqual([]);
       await page.locator("#open-all").click();
       expect(await axeFindings(page, width), "light, folds as written").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it.each([1280, 390, 320])(
+    "has no axe violations at %i px on the cards' lines that link to the voice page, and the details' link to it, dark and light, with nothing wider than 320",
+    async (width) => {
+      const page = await open(pages.voice);
+
+      // A line on each of the four recorded pages' cards, a link to the voice page in the details,
+      // and no line on the fifth card, which has no recording.
+      expect(await page.locator("#pages article.card a[href*='.voice.html#voice-']").count()).toBe(
+        4,
+      );
+      expect(await page.locator("#pages article.card").count()).toBe(5);
+      expect(await page.locator("#details a[href$='.voice.html']").count()).toBe(1);
+      expect(await axeFindings(page, width), "dark, folds closed").toEqual([]);
+      // The links read apart: each card's names its page, so no two read alike.
+      expect(await identicalLinks(page), "links that read alike").toEqual([]);
+      const wide = await overflowOf(page);
+      expect(wide.beyondTheWindow).toBeLessThanOrEqual(0);
+      expect(wide.boxes).toEqual([]);
+      await page.locator("#open-all").click();
+      expect(await axeFindings(page, width), "dark, folds open").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await axeFindings(page, width), "light, folds open").toEqual([]);
+      await page.locator("#open-all").click();
+      expect(await axeFindings(page, width), "light, folds closed").toEqual([]);
+      expect((await overflowOf(page)).beyondTheWindow).toBeLessThanOrEqual(0);
     },
     AXE_TIMEOUT,
   );
@@ -2292,32 +2372,49 @@ describe("a link into a fold", () => {
 });
 
 describe("a card's fold of its page's transcripts", () => {
-  it("is named by its page for a screen reader, each fold apart from the rest", async () => {
+  it("is named by the words it shows, then its page for a screen reader, each fold apart from the rest", async () => {
     // 13 pages: each card has a fold of its own, and every fold's line reads the same on screen.
     const model = manyPages(13, 2);
     const page = await open(pages.many);
     // The folds of the 11 quiet cards are in the accessibility tree once their own fold is open.
     await page.locator("#open-all").click();
+    // The words each fold shows, as everyone sees them: its line less the words set apart for a
+    // screen reader alone (sr).
+    const shown = await page.locator("details.tx-page > summary").evaluateAll((lines) =>
+      lines.map((line) => {
+        const seen = line.cloneNode(true) as HTMLElement;
+        for (const hidden of seen.querySelectorAll(".sr")) hidden.remove();
+        return (seen.textContent ?? "").replace(/\s+/g, " ").trim();
+      }),
+    );
     const client = await page.context().newCDPSession(page);
     try {
       const { nodes } = await client.send("Accessibility.getFullAXTree");
       // What Chromium gives a screen reader of each fold: the triangle that opens it, named by its
-      // line, the words set apart for a screen reader among them. Chromium puts a space where those
-      // end ("/page-5 :"), which is taken out here.
+      // line, the words set apart for a screen reader among them. Chromium puts a space around
+      // those, which is taken out here, as any run of spaces is.
       const names = nodes
         .filter((node) => node.role?.value === "DisclosureTriangle")
         .map((node): unknown => node.name?.value)
         .filter((name): name is string => typeof name === "string")
         .filter((name) => name.startsWith("The full transcript"))
-        .map((name) => name.replace(" :", ":"));
+        .map((name) => name.replace(/\s+/g, " ").trim());
       const expected = model.pages.map(
-        ({ path: where }) => `The full transcript of ${where}: read, headings, and Tab transcripts`,
+        ({ path: where }) => `The full transcript: read, headings, and Tab transcripts of ${where}`,
       );
 
       // Each page's own, compared sorted: the cards in the open come first in the page, which is
       // the page's order only when the pages with flags are its first.
       expect([...names].sort()).toEqual([...expected].sort());
       expect(new Set(names).size).toBe(13);
+      // Every fold shows the same line, and each name starts with it, whole (WCAG 2.5.3, label in
+      // name), so a voice command that says the words on the screen finds the fold. The page's
+      // words come after.
+      expect(shown).toHaveLength(13);
+      expect(new Set(shown)).toEqual(
+        new Set(["The full transcript: read, headings, and Tab transcripts"]),
+      );
+      for (const name of names) expect(name.startsWith(shown[0] ?? "\0"), name).toBe(true);
     } finally {
       await client.detach();
     }
@@ -2327,23 +2424,38 @@ describe("a card's fold of its page's transcripts", () => {
     const page = await open(pages.many);
     await page.locator("#open-all").click();
 
-    // How wide each fold's line is with those words, then without them: a sighted reader sees the
-    // same line, as the words are clipped to a point.
-    const widths = await page.locator("details.tx-page > summary .what").evaluateAll((lines) =>
-      lines.map((line) => {
+    // Where each fold's line and its two parts are with those words, then without them: a sighted
+    // reader sees the same line, as the words are clipped to a point.
+    const boxes = await page.locator("details.tx-page > summary").evaluateAll((lines) => {
+      const rectOf = (element: Element | null): number[] => {
+        const { x, y, width, height } = element?.getBoundingClientRect() ?? new DOMRect();
+        return [x, y, width, height];
+      };
+      return lines.map((line) => {
         const sr = line.querySelector(".sr");
-        const box = sr?.getBoundingClientRect();
-        const withWords = line.getBoundingClientRect().width;
+        const measured = () => [
+          rectOf(line),
+          rectOf(line.querySelector(".what")),
+          rectOf(line.querySelector(".sub")),
+        ];
+        const hidden = rectOf(sr);
+        const withWords = measured();
         sr?.remove();
-        return { withWords, without: line.getBoundingClientRect().width, hidden: box?.width };
-      }),
-    );
+        return { withWords, without: measured(), hidden };
+      });
+    });
 
-    expect(widths).toHaveLength(13);
-    for (const { withWords, without, hidden } of widths) {
-      expect(withWords).toBeGreaterThan(0);
-      expect(withWords).toBeCloseTo(without, 0);
-      expect(hidden).toBe(1);
+    expect(boxes).toHaveLength(13);
+    for (const { withWords, without, hidden } of boxes) {
+      expect(withWords[1]?.[2]).toBeGreaterThan(0);
+      expect(withWords[2]?.[2]).toBeGreaterThan(0);
+      for (const [at, box] of withWords.entries()) {
+        for (const [edge, value] of (box ?? []).entries()) {
+          expect(value).toBeCloseTo(without[at]?.[edge] ?? NaN, 0);
+        }
+      }
+      // They are clipped to a point: one pixel by one.
+      expect(hidden?.slice(2)).toEqual([1, 1]);
     }
   });
 });
@@ -2881,5 +2993,553 @@ describe("a site whose only run was a replay", () => {
     expect(Object.values(await foldStates(page)).every(Boolean)).toBe(true);
     await page.locator("#theme-toggle").click();
     expect(await page.getAttribute("html", "data-theme")).toBe("light");
+  });
+});
+
+/**
+ * The voice page (src/share/voice-page.ts) as a reader gets it: written to a folder from a model of
+ * pages with real recordings (the encoder's own files), and opened from a file in Chromium. Nothing
+ * here plays a sound: no test calls `play()`, and the players have no autoplay. What's measured is
+ * what an element that's never played can say: its `playbackRate` and `preservesPitch`, and the
+ * length it reports once its file is loaded.
+ */
+describe("the voice page", () => {
+  /** What the page's speed choice offers, in its order. */
+  const SPEEDS = [1, 0.75, 0.5, 0.25];
+
+  /** The page's file, and the slug of each of its pages in order. */
+  let voice: { file: string; slugs: string[] };
+  /** The record of each recording the page plays, by the page's slug. */
+  const kept = new Map<string, Awaited<ReturnType<typeof recordedVoice>>["record"]>();
+
+  beforeAll(async () => {
+    const speech = await recordedVoice(speechAndPauses());
+    const busy = await recordedVoice(busySound(3.4, 7), 250);
+    const long = await recordedVoice(busySound(2.6, 8));
+    const read = { files: TRANSCRIPTS, passes: LINES };
+    const run = shareRun({
+      id: "2026-09-29_1402",
+      createdAt: "2026-09-29T14:02:51-05:00",
+      voicecapVersion: "0.18.0",
+      pages: [
+        { path: "/", label: "Home", ...read, voice: speech.record },
+        { path: "/about/", ...read, voice: busy.record },
+        {
+          path: "/apply/",
+          ...read,
+          voice: { error: `the recorder said ${"y".repeat(240)}`, recordedAt: VOICE_RECORDED_AT },
+        },
+        { path: LONG_PATH, ...read, voice: long.record },
+        { path: "/report.pdf", status: "skipped" },
+      ],
+    });
+    // A site named by its canonical address, with a long name set for it: the longest top.
+    const model = buildShareModel(
+      inputOf([run], { transcripts: storeOf(), canonical: CANONICAL, siteName: SITE_NAME }),
+    );
+    const html = renderVoicePage(model, recordingsOf([run]), { fontCss: await fontFaceCss() });
+    if (html === null) throw new Error("The voice page wasn't made.");
+    const folder = await mkdtemp(path.join(tmpdir(), "voicecap-share-voice-"));
+    folders.push(folder);
+    const file = path.join(folder, "voice.html");
+    await writeFile(file, html);
+    voice = { file, slugs: model.pages.map(({ slug }) => slug) };
+    for (const [at, recorded] of [speech, busy, undefined, long].entries()) {
+      const slug = voice.slugs[at];
+      if (slug !== undefined && recorded !== undefined) kept.set(slug, recorded.record);
+    }
+  });
+
+  /** Presses Tab until the focus is on an element `selector` finds, in at most `limit` presses. */
+  async function tabTo(page: Page, selector: string, limit = 30): Promise<void> {
+    for (let presses = 0; presses < limit; presses++) {
+      await page.keyboard.press("Tab");
+      if (await page.evaluate((wanted) => document.activeElement?.matches(wanted), selector))
+        return;
+    }
+    throw new Error(`Tab didn't reach ${selector} in ${limit} presses.`);
+  }
+
+  /** Each player's rate and pitch, and whether it has played: all a never-played player can say. */
+  const players = (page: Page) =>
+    page.evaluate(() =>
+      [...document.querySelectorAll("audio")].map((sound) => ({
+        rate: sound.playbackRate,
+        pitch: sound.preservesPitch,
+        paused: sound.paused,
+        at: sound.currentTime,
+      })),
+    );
+
+  /** The value of each speed chosen in a group of them: one, or none. */
+  const chosenIn = (group: Locator) =>
+    group
+      .locator("input:checked")
+      .evaluateAll((all) => all.map((one) => one.getAttribute("value")));
+
+  it("has a player and a speed choice for each recorded page, and says why for each other", async () => {
+    const page = await open(voice.file);
+
+    expect(await page.locator("h1").textContent()).toBe("dvfr.illinois.gov");
+    expect(await page.title()).toBe("NVDA's voice: dvfr.illinois.gov, 29 September 2026, 14:02");
+    expect(await page.locator("article.card").count()).toBe(5);
+    expect(await page.locator("audio").count()).toBe(3);
+    expect(await page.locator("fieldset.speeds").count()).toBe(3);
+    // The script shows each speed choice, which starts hidden, with 1× chosen.
+    for (const group of await page.locator("fieldset.speeds").all()) {
+      expect(await group.isVisible()).toBe(true);
+      expect(await chosenIn(group)).toEqual(["1"]);
+      expect(
+        await group
+          .locator("input")
+          .evaluateAll((all) => all.map((one) => one.getAttribute("value"))),
+      ).toEqual(SPEEDS.map(String));
+    }
+    expect(await page.locator("p.not-recorded").allTextContents()).toEqual([
+      `Not recorded: the recorder said ${"y".repeat(240)}.`,
+      "Not recorded: no recording was made, since the page wasn't read.",
+    ]);
+    // Each page's controls are named for it: its player, and its group of speeds.
+    expect(await page.getByRole("group", { name: "Speed on /about/" }).count()).toBe(1);
+    expect(await page.getByRole("radio", { name: "0.5×" }).count()).toBe(3);
+    expect(await page.getByLabel("NVDA's voice on /about/").count()).toBe(1);
+  });
+
+  // WCAG 2.5.3, Label in Name, as the browser works a name out (text that is only visually hidden is
+  // in it, and Chromium sets it apart from the words before it with a space): each link to a page's
+  // transcripts begins with the words it shows, whole, and goes on to its page, so no two links are
+  // alike.
+  it("names each link to a page's transcripts by the words it shows, whole and first, and then by its page", async () => {
+    const page = await open(voice.file);
+    const shown = "The full transcript, on the shareable page";
+    const links = page.locator("article.card p.sub a[href*='#tx-']");
+
+    // The four pages read in full each have one; the file the run skipped has none.
+    expect(await links.count()).toBe(4);
+    for (const link of await links.all()) {
+      // What the eye reads is the link's own text, not what is there for a screen reader alone.
+      expect(
+        await link.evaluate((anchor) =>
+          [...anchor.childNodes]
+            .filter((node) => node.nodeType === Node.TEXT_NODE)
+            .map((node) => node.textContent)
+            .join(""),
+        ),
+      ).toBe(shown);
+    }
+    // Every name begins with those words; the name of each ends with its own page.
+    expect(await page.getByRole("link", { name: new RegExp(`^${shown}\\s*:`) }).count()).toBe(4);
+    for (const path of ["/", "/about/", "/apply/", LONG_PATH]) {
+      const ending = path.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+      expect(
+        await page.getByRole("link", { name: new RegExp(`^${shown}\\s*:\\s*${ending}$`) }).count(),
+        path,
+      ).toBe(1);
+    }
+  });
+
+  it("the speed choice sets playbackRate and keeps the pitch", async () => {
+    const page = await open(voice.file);
+    const groups = page.locator("fieldset.speeds");
+
+    // Nothing has played, and every player starts at 1×, with the pitch kept.
+    expect(await players(page)).toEqual(
+      Array.from({ length: 3 }, () => ({ rate: 1, pitch: true, paused: true, at: 0 })),
+    );
+
+    // A browser's pitch may be off: the choice sets it, and touches only its own player.
+    await page.evaluate(() => {
+      for (const sound of document.querySelectorAll("audio")) sound.preservesPitch = false;
+    });
+    await groups.nth(0).getByRole("radio", { name: "0.25×" }).check();
+    expect(await players(page)).toEqual([
+      { rate: 0.25, pitch: true, paused: true, at: 0 },
+      { rate: 1, pitch: false, paused: true, at: 0 },
+      { rate: 1, pitch: false, paused: true, at: 0 },
+    ]);
+
+    // Every speed it offers, in any order, and back to 1×.
+    for (const speed of [0.75, 0.5, 0.25, 1, 0.5]) {
+      await groups
+        .nth(1)
+        .getByRole("radio", { name: `${speed}×` })
+        .check();
+      expect((await players(page))[1]).toEqual({ rate: speed, pitch: true, paused: true, at: 0 });
+    }
+    expect((await players(page))[0]?.rate).toBe(0.25);
+    // The speed is the player's default too, so it keeps when the browser loads the file again.
+    await page.evaluate(() => {
+      document.querySelectorAll("audio")[1]?.load();
+    });
+    expect((await players(page))[1]?.rate).toBe(0.5);
+  });
+
+  it("catches the error a browser throws for a speed it won't play at, and keeps showing the speed it's at", async () => {
+    const context = await newContext();
+    // As Chromium refuses a rate outside 0.0625 to 16, here one under 0.5 is refused.
+    await context.addInitScript(() => {
+      const own = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "playbackRate");
+      Object.defineProperty(HTMLMediaElement.prototype, "playbackRate", {
+        ...own,
+        set(this: HTMLMediaElement, value: number) {
+          if (value < 0.5) {
+            throw new DOMException(
+              `The provided playback rate (${value}) is not in the supported playback range.`,
+              "NotSupportedError",
+            );
+          }
+          own?.set?.call(this, value);
+        },
+      });
+    });
+    const page = await context.newPage();
+    await page.goto(addressOf(voice.file));
+    const group = page.locator("fieldset.speeds").first();
+
+    await group.getByRole("radio", { name: "0.5×" }).check();
+    // Clicked, not checked: a check asks that the button's state change, and here it won't.
+    await group.getByRole("radio", { name: "0.25×" }).click();
+
+    // The page reported nothing (the test ends by checking that), the player is where it was, and
+    // the choice shows it: the browser's refusal isn't left looking like a speed it's at.
+    expect((await players(page))[0]?.rate).toBe(0.5);
+    expect(await chosenIn(group)).toEqual(["0.5"]);
+    // The other speeds still work.
+    await group.getByRole("radio", { name: "0.75×" }).check();
+    expect((await players(page))[0]?.rate).toBe(0.75);
+  });
+
+  it("shows the speed a player is at when something else changes it", async () => {
+    const page = await open(voice.file);
+    const group = page.locator("fieldset.speeds").first();
+    const setRate = (rate: number) =>
+      page.evaluate((to) => {
+        const sound = document.querySelector("audio");
+        if (sound !== null) sound.playbackRate = to;
+      }, rate);
+
+    // The browser's own controls have a speed menu: its choice is the one shown.
+    await setRate(0.75);
+    await expect.poll(() => chosenIn(group)).toEqual(["0.75"]);
+    // A speed this page doesn't offer is no choice it has: none is shown as chosen.
+    await setRate(1.5);
+    await expect.poll(() => chosenIn(group)).toEqual([]);
+    await setRate(0.25);
+    await expect.poll(() => chosenIn(group)).toEqual(["0.25"]);
+  });
+
+  it("shows the speed its player starts at, whatever the browser kept of an earlier choice", async () => {
+    // A browser that loads a page again can bring back the button that was chosen (here, 0.25× in
+    // the first player's group), while the player starts at 1× as it always does: the page's markup
+    // as such a browser has it. The choice shows the player's speed, not the browser's memory.
+    const kept = (await readFile(voice.file, "utf8"))
+      .replace('value="1" checked>', 'value="1">')
+      .replace('value="0.25">', 'value="0.25" checked>');
+    const page = await (await newContext()).newPage();
+    await page.setContent(kept, { waitUntil: "load" });
+
+    expect((await players(page))[0]?.rate).toBe(1);
+    expect(await chosenIn(page.locator("fieldset.speeds").first())).toEqual(["1"]);
+  });
+
+  it("keeps the pitch from the start, in a browser that doesn't unless the page says so", async () => {
+    const context = await newContext();
+    // A browser that lets the pitch follow the speed until the page says otherwise.
+    await context.addInitScript(() => {
+      const pitch = new WeakMap<object, boolean>();
+      Object.defineProperty(HTMLMediaElement.prototype, "preservesPitch", {
+        configurable: true,
+        get(this: HTMLMediaElement) {
+          return pitch.get(this) ?? false;
+        },
+        set(this: HTMLMediaElement, value: boolean) {
+          pitch.set(this, value);
+        },
+      });
+    });
+    const page = await context.newPage();
+    await page.goto(addressOf(voice.file));
+
+    // Every player has it on before anything is chosen, and still has it on at a slower speed.
+    expect((await players(page)).map(({ pitch }) => pitch)).toEqual([true, true, true]);
+    await page.locator("fieldset.speeds").first().getByRole("radio", { name: "0.25×" }).check();
+    expect((await players(page))[0]).toEqual({ rate: 0.25, pitch: true, paused: true, at: 0 });
+  });
+
+  it("plays each recording as a file the browser loads, as long as its record says", async () => {
+    const page = await open(voice.file);
+    // Loaded, not played: a player says how long its file is once it knows.
+    const lengths = await page.evaluate(() =>
+      Promise.all(
+        [...document.querySelectorAll("audio")].map(
+          (sound) =>
+            new Promise<{ slug: string | null; seconds: number }>((resolve, reject) => {
+              const timer = setTimeout(() => reject(new Error("No length in 10 s.")), 10_000);
+              sound.addEventListener(
+                "loadedmetadata",
+                () => {
+                  clearTimeout(timer);
+                  resolve({ slug: sound.getAttribute("data-slug"), seconds: sound.duration });
+                },
+                { once: true },
+              );
+              sound.addEventListener("error", () => reject(new Error(sound.error?.message)), {
+                once: true,
+              });
+              sound.preload = "metadata";
+              sound.load();
+            }),
+        ),
+      ),
+    );
+
+    expect(lengths.map(({ slug }) => slug)).toEqual(
+      [voice.slugs[0], voice.slugs[1], voice.slugs[3]].map((slug) => slug ?? ""),
+    );
+    for (const { slug, seconds } of lengths) {
+      expect(seconds).toBeCloseTo(kept.get(slug ?? "")?.seconds ?? Number.NaN, 2);
+    }
+    expect((await players(page)).every((player) => player.paused && player.at === 0)).toBe(true);
+  });
+
+  it("Check the fingerprints passes, and catches a recording changed by one byte", async () => {
+    const page = await open(voice.file);
+    await page.locator("#fp-run").click();
+
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toBe(
+        "Checked just now, in this browser. " +
+          "3 of 3 recordings match their fingerprints, and the run's seal checks out.",
+      );
+    expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result good");
+    expect(await page.locator("#fp-count").textContent()).toBe("4 checked, 0 not matching");
+    const rows = await page.locator("#fp-rows tr td:first-child").allTextContents();
+    expect(rows).toEqual([
+      "Run 1402 · / · voice.webm",
+      "Run 1402 · /about/ · voice.webm",
+      `Run 1402 · ${LONG_PATH} · voice.webm`,
+      "Run 1402 · its record's seal",
+    ]);
+
+    // One byte of /about/'s recording changed in the page, as someone could change it: the check
+    // that passed now names it.
+    const about = voice.slugs[1] ?? "";
+    await page.evaluate((slug) => {
+      const sound = document.querySelector(`audio[data-slug="${slug}"]`);
+      if (sound === null) throw new Error("No player.");
+      const prefix = "data:audio/webm;base64,";
+      const binary = atob((sound.getAttribute("src") ?? "").slice(prefix.length));
+      let changed = "";
+      for (let at = 0; at < binary.length; at++) {
+        const code = binary.charCodeAt(at);
+        changed += String.fromCharCode(at === 300 ? code ^ 1 : code);
+      }
+      sound.setAttribute("src", prefix + btoa(changed));
+    }, about);
+    await page.locator("#fp-run").click();
+
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toBe(
+        "Checked just now, in this browser. " +
+          "Run 1402 · /about/ · voice.webm doesn't match its fingerprint. " +
+          "2 of 3 recordings match their fingerprints, and the run's seal checks out.",
+      );
+    expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+    expect(await page.locator("#fp-count").textContent()).toBe("4 checked, 1 not matching");
+  });
+
+  it("shows a change being caught in a recording, in memory only", async () => {
+    const page = await open(voice.file);
+    const before = await page.locator("#fp-data").textContent();
+    const sources = () =>
+      page.locator("audio").evaluateAll((all) => all.map((one) => one.getAttribute("src")));
+    const addresses = await sources();
+    await page.locator("#fp-demo").click();
+
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toBe(
+        "Demonstration, on a copy with one byte changed (the first byte of Run 1402 · / · voice.webm); " +
+          "the page itself is unchanged. " +
+          "Run 1402 · / · voice.webm doesn't match its fingerprint. " +
+          "2 of 3 recordings match their fingerprints, and the run's seal checks out.",
+      );
+    expect(await page.locator("#fp-data").textContent()).toBe(before);
+    expect(await sources()).toEqual(addresses);
+
+    await page.locator("#fp-run").click();
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toContain("3 of 3 recordings match their fingerprints");
+  });
+
+  it.each([1280, 390, 320])(
+    "is axe-clean in both themes at %i px, and nothing is wider than 320",
+    async (width) => {
+      const page = await open(voice.file);
+      const fits = { beyondTheWindow: 0, boxes: [] };
+
+      expect(await axeFindings(page, width), "dark").toEqual([]);
+      expect(await overflowOf(page), "dark").toEqual(fits);
+      // With the check's result showing, which is more of the page.
+      await page.locator("#fp-run").click();
+      await expect.poll(() => result(page), { timeout: 10_000 }).toMatch(/^Checked just now/);
+      expect(await axeFindings(page, width), "dark, checked").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await page.getAttribute("html", "data-theme")).toBe("light");
+      expect(await axeFindings(page, width), "light, checked").toEqual([]);
+      expect(await overflowOf(page), "light").toEqual(fits);
+      await page.locator("#fp-demo").click();
+      await expect.poll(() => result(page), { timeout: 10_000 }).toMatch(/^Demonstration/);
+      expect(await axeFindings(page, width), "light, a change caught").toEqual([]);
+      // And its list of every file checked, open, at every width. Its file cells wrap (the voice
+      // page's own rule, as a recording's name holds a page's long address), so no cell is scrolled
+      // out of view at 390 or 320 and axe can tell the background of each.
+      await page.locator("#fp-list > summary").click();
+      // Its file cells wrap, so a page's long address never holds the table wide: it was about 460
+      // px beyond its box at 390, and 530 at 320, before they did. It fits from 390 up; at 320 the
+      // fingerprint column, which doesn't wrap, can need a little of the box's scroll, which is
+      // labelled and reachable by keyboard, as every wide table's is.
+      const scrolled = await page
+        .locator("#fp-list .scroll")
+        .evaluate((box) => box.scrollWidth - box.clientWidth);
+      expect(scrolled, "the list open, how far its table scrolls").toBeLessThanOrEqual(
+        width >= 390 ? 1 : 64,
+      );
+      expect(
+        await page
+          .locator("#fp-list tbody td:first-child")
+          .evaluateAll((cells) => cells.map((cell) => getComputedStyle(cell).overflowWrap)),
+        "the list open, its file cells",
+      ).toEqual(Array.from({ length: 4 }, () => "anywhere"));
+      expect(await axeFindings(page, width), "light, the list open").toEqual([]);
+      expect(await overflowOf(page), "light, the list open").toEqual(fits);
+      await page.locator("#theme-toggle").click();
+      expect(await axeFindings(page, width), "dark, the list open").toEqual([]);
+      expect(await overflowOf(page), "dark, the list open").toEqual(fits);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it("is axe-clean with no script, as a browser without scripts shows it, in both themes", async () => {
+    // axe can't run in a context with JavaScript disabled (it hangs), so the page is loaded without
+    // its script: the same markup, as a browser that runs none has it.
+    const html = (await readFile(voice.file, "utf8")).replace(/<script>[\s\S]*?<\/script>/, "");
+    expect(html).not.toContain("<script>");
+    const page = await (await newContext()).newPage();
+    await page.setContent(html, { waitUntil: "load" });
+
+    expect(await axeFindings(page, 1280), "dark").toEqual([]);
+    await page.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
+    expect(await axeFindings(page, 320), "light, 320 px").toEqual([]);
+  });
+
+  it("works by keyboard alone", async () => {
+    const page = await open(voice.file);
+    const rate = async () => (await players(page))[0]?.rate;
+
+    // The skip link comes first, then the page's button for the theme, then voicecap's link in the
+    // top, and then the first player, whose controls take a few presses of Tab.
+    await tabTo(page, "a.skip", 1);
+    await tabTo(page, "#theme-toggle", 1);
+    await tabTo(page, "audio", 3);
+    // The first player's speed choice: Tab reaches it, past the player's own controls, and the
+    // arrow keys choose the next speed or the one before, as they do in any group of radios.
+    await tabTo(page, 'input[name^="speed-"]', 10);
+    expect(await rate()).toBe(1);
+    expect(
+      await page.evaluate(() => {
+        const focused = document.activeElement;
+        if (focused === null) return false;
+        const style = getComputedStyle(focused);
+        return (
+          focused.matches(":focus-visible") &&
+          style.outlineStyle !== "none" &&
+          parseFloat(style.outlineWidth) >= 2
+        );
+      }),
+    ).toBe(true);
+    for (const [key, speed] of [
+      ["ArrowDown", 0.75],
+      ["ArrowRight", 0.5],
+      ["ArrowDown", 0.25],
+      ["ArrowUp", 0.5],
+    ] as const) {
+      await page.keyboard.press(key);
+      expect(await rate(), key).toBe(speed);
+    }
+    // Past every player, to the check: Enter runs it, and Space on its other button shows a change
+    // being caught.
+    await tabTo(page, "#fp-run", 60);
+    await page.keyboard.press("Enter");
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toMatch(/^Checked just now.*3 of 3 recordings/);
+    await tabTo(page, "#fp-demo", 3);
+    await page.keyboard.press("Space");
+    await expect.poll(() => result(page), { timeout: 10_000 }).toMatch(/^Demonstration/);
+    // The list of every file checked opens with Enter on its line.
+    const opened = () =>
+      page.locator("#fp-list").evaluate((fold) => (fold as HTMLDetailsElement).open);
+    await tabTo(page, "#fp-list > summary", 3);
+    expect(await opened()).toBe(false);
+    await page.keyboard.press("Enter");
+    expect(await opened()).toBe(true);
+    // The theme's button, as a keyboard reaches it.
+    await page.locator("#theme-toggle").focus();
+    await page.keyboard.press("Enter");
+    expect(await page.getAttribute("html", "data-theme")).toBe("light");
+    // Nothing has played.
+    expect((await players(page)).every((player) => player.paused && player.at === 0)).toBe(true);
+  });
+
+  it("plays with scripts off: the players still work, and only the speed choice and the check need the script", async () => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    contexts.push(context);
+    const page = await context.newPage();
+    await page.goto(addressOf(voice.file));
+
+    // Each player is there, with its controls, from its own address, and has a box to play in.
+    const sounds = page.locator("audio");
+    expect(await sounds.count()).toBe(3);
+    for (const sound of await sounds.all()) {
+      expect(await sound.isVisible()).toBe(true);
+      expect(await sound.getAttribute("controls")).not.toBeNull();
+      expect(await sound.getAttribute("src")).toMatch(/^data:audio\/webm;base64,[A-Za-z0-9+/]+=*$/);
+      expect((await sound.boundingBox())?.width).toBeGreaterThan(150);
+    }
+    // What needs the script isn't offered, so no control is a dead one: no speeds, no theme or check
+    // button; the line that says how to check without scripts is shown instead.
+    for (const group of await page.locator("fieldset.speeds").all()) {
+      expect(await group.isVisible()).toBe(false);
+    }
+    for (const selector of ["#theme-toggle", "#fp-run", "#fp-demo", "#fp-list"]) {
+      expect(await page.locator(selector).isVisible(), selector).toBe(false);
+    }
+    expect(await page.locator(".fp-noscript").isVisible()).toBe(true);
+    // The rest of the page is there to read: each page's section, and why a page has no player.
+    expect(await page.locator("article.card").count()).toBe(5);
+    expect(await page.locator("p.not-recorded").count()).toBe(2);
+  });
+
+  it("loads nothing from outside the file", async () => {
+    const context = await newContext();
+    const requested: string[] = [];
+    await context.route("**/*", (route) => {
+      const url = route.request().url();
+      requested.push(url);
+      return url.startsWith("file:") ? route.continue() : route.abort();
+    });
+    const page = await context.newPage();
+    await page.goto(addressOf(voice.file));
+    await page.waitForLoadState("networkidle");
+    await page.locator("#fp-run").click();
+    await expect.poll(() => result(page), { timeout: 10_000 }).toMatch(/^Checked just now/);
+
+    expect(
+      requested.map((url) => (url.startsWith("file:") ? path.resolve(fileURLToPath(url)) : url)),
+    ).toEqual([path.resolve(voice.file)]);
   });
 });

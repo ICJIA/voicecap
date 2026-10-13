@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import os from "node:os";
+import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   axeErrorReason,
@@ -330,6 +332,43 @@ describe("why a page has no result from axe", () => {
     expect(axeErrorReason(new Error(`${"x".repeat(298)}\u{1F600}y`))).toBe(
       `${"x".repeat(298)}\u{1F600}`,
     );
+  });
+
+  // It goes into the sealed record and onto the shareable page, which never name the account.
+  describe("and the account's folders", () => {
+    const windows = process.platform === "win32";
+    const mark = windows ? "%USERPROFILE%" : "~";
+    // An account named "jane.doe.smith", whose home is where Windows or another system puts it.
+    const home = windows ? "C:\\Users\\jane.doe.smith" : "/home/jane.doe.smith";
+    const file = path.join(home, "secret.txt");
+
+    const withHome = <T>(read: () => T): T => {
+      const homedir = vi.spyOn(os, "homedir").mockReturnValue(home);
+      try {
+        return read();
+      } finally {
+        homedir.mockRestore();
+      }
+    };
+
+    it("writes the home folder in it as %USERPROFILE%, or ~ away from Windows", () => {
+      const error = new Error(`page.evaluate: can't read ${file}\n    at x (y.js:1:2)`);
+      expect(withHome(() => axeErrorReason(error))).toBe(
+        `page.evaluate: can't read ${mark}${path.sep}secret.txt`,
+      );
+    });
+
+    // The home folder is replaced before the cut, not after it: a path that the limit falls in the
+    // middle of would leave the start of the account's name ("C:\Users\ja").
+    it("leaves no part of the account's name when the limit falls in a path", () => {
+      for (let before = 270; before <= 300; before += 1) {
+        const reason = withHome(() =>
+          axeErrorReason(new Error(`${"word ".repeat(60).slice(0, before)}${file}`)),
+        );
+        expect(reason.length, `${before}`).toBeLessThanOrEqual(300);
+        expect(reason, `${before}`).not.toContain("ja");
+      }
+    });
   });
 });
 

@@ -1,8 +1,9 @@
 /**
  * The two files Netlify needs at the top of the transcripts home, which `voicecap site` writes
  * there the first time and never again, as it does .gitattributes: netlify.toml, with the build
- * command and the headers that every file gets, and .nvmrc, with the Node version of the build.
- * They belong to the home's owner after that, and an edit of theirs stays.
+ * command, the setting that turns npm's install scripts off in the build, and the headers that
+ * every file gets, and .nvmrc, with the Node version of the build. They belong to the home's owner
+ * after that, and an edit of theirs stays.
  */
 import { writeEachIfMissing } from "../run/git-files.js";
 
@@ -10,23 +11,35 @@ import { writeEachIfMissing } from "../run/git-files.js";
 export const NVMRC = "24\n";
 
 /**
- * netlify.toml, building with the minor version of `version`: "0.9.0" builds with
- * @icjia/voicecap@0.9, which npm reads as the latest 0.9 release. So a patch release is used by the
- * next build, and a new minor only when the owner changes the command. `version` is voicecap's own,
- * so one that doesn't start with two numbers is a mistake, and throws.
+ * A version that names one release of voicecap: three numbers, and, for a pre-release, a hyphen and
+ * its name. It's all a build command may name, so no range, no tag such as `latest`, and no space,
+ * quote, or other character that Netlify's shell could read can reach the command.
+ */
+export const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
+/**
+ * netlify.toml, building with exactly `version`: "0.18.0" builds with @icjia/voicecap@0.18.0, so the
+ * build installs that release and nothing newer, whatever is published later. The owner changes the
+ * version in the command after each release, a patch included. Its `[build.environment]` turns
+ * npm's install scripts off, so no package's install script runs in the build, which holds a
+ * checkout of the records. `version` is voicecap's own, so one that isn't a version (see
+ * EXACT_VERSION) is a mistake, and throws.
  */
 export function netlifyToml(version: string): string {
-  const minor = /^\d+\.\d+/.exec(version);
-  if (minor === null) {
+  if (!EXACT_VERSION.test(version)) {
     throw new Error(
-      `voicecap's version, ${JSON.stringify(version)}, doesn't start with two numbers, so netlify.toml can't name the version that builds the website.`,
+      `voicecap's version, ${JSON.stringify(version)}, isn't three numbers like 1.2.3 (a pre-release adds a hyphen and its name), so netlify.toml can't name the exact version that builds the website.`,
     );
   }
   return `# Written by voicecap site, once: voicecap never changes it. Netlify builds the website with it on every push.
-# To build with a newer voicecap, change the version in the command.
+# Change the version in the command after each release, a patch included.
 [build]
-  command = "npx --yes @icjia/voicecap@${minor[0]} site --home . --out _site"
+  command = "npx --yes @icjia/voicecap@${version} site --home . --out _site"
   publish = "_site"
+
+[build.environment]
+  # No package's install script runs in the build.
+  NPM_CONFIG_IGNORE_SCRIPTS = "true"
 
 [[headers]]
   for = "/*"

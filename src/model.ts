@@ -237,6 +237,45 @@ export const AXE_FILE = "axe.json";
 export type AxeRecord =
   (FileHash & AxeSummary & { ranAt: string }) | { error: string; ranAt: string };
 
+/** A page's recording of what NVDA said aloud, in the page's folder (pages/<slug>/). */
+export const VOICE_FILE = "voice.webm";
+
+/**
+ * A stretch of a recording of NVDA's voice that's kept, in whole milliseconds from the recording's
+ * first sample: from `startMs` up to `endMs`. Everything outside a recording's stretches is silent.
+ */
+export interface VoiceStretch {
+  startMs: number;
+  endMs: number;
+}
+
+/**
+ * A page's recording of NVDA's voice, as the page's record keeps it, beside its screenshot's and
+ * axe's. A recording that was kept has the file's SHA-256 and size, its length in seconds (to the
+ * sample, so a fraction), the sound the recorder lost by falling behind, in milliseconds, which is
+ * normally 0, and when its first sample was (`startedAt`, a local ISO time to the millisecond, as
+ * `recordedAt` is, which the recorder's own UTC time is turned into). `startedAt` is optional: a
+ * record without it is whole, and never fails verify, and a driver's time that isn't a time is left
+ * out. It has the stretches of the sound that were kept (`stretches`, in order): each pass of the
+ * page, from its title check to its last step. Every sample outside them was silenced before the
+ * sound was encoded, so the file is as long as the recording. One that couldn't be kept has the
+ * first line of the reason, at most 300 characters, with the account's home folder in it replaced,
+ * and no file: the recorder couldn't run, NVDA's process wasn't found or ended during the
+ * recording, the recording is empty or silent, or it couldn't be encoded; the attempt didn't
+ * finish, or another window came to the front during it, and NVDA may have read that aloud; or no
+ * pass was confirmed to be read with voicecap's browser in front. Both have when the run recorded
+ * it (a local ISO time to the millisecond), a moment after the recording ended.
+ */
+export type VoiceRecord =
+  | (FileHash & {
+      seconds: number;
+      lostMs: number;
+      startedAt?: string;
+      stretches: VoiceStretch[];
+      recordedAt: string;
+    })
+  | { error: string; recordedAt: string };
+
 export interface PassSummary {
   steps: number;
   stopReason: StopReason;
@@ -404,6 +443,16 @@ export interface PageRecord extends PageRef {
    * is from before voicecap 0.16.0.
    */
   axe?: AxeRecord;
+  /**
+   * What NVDA said aloud while each pass read the page, recorded from the start of its last attempt
+   * to its end with only each pass's stretch kept (see VoiceRecord), and kept only when that
+   * attempt finished with no other window coming to the front; otherwise the reason. Kept apart
+   * from `files` for the screenshot's reason: a review copies those to find a page that changed
+   * since it was reviewed, and the sound isn't what the transcripts say. Absent when the page has
+   * none: the driver can't record, the page wasn't read (it was skipped, the site answered with an
+   * HTTP error, or the page wouldn't open), it's pending, or its run is from before 0.18.0.
+   */
+  voice?: VoiceRecord;
   flags: FlagResult[];
   errors: string[];
 }
@@ -656,7 +705,12 @@ export interface ShareEntry {
    * website's card shows. Sealed with the rest. Absent on entries recorded before 0.12.3.
    */
   result?: ShareResult;
-  /** The page, then its Word copy, then each run's walkthrough file, oldest run first. */
+  /**
+   * The page, then its Word copy, then the voice page when there is one, then the report for AI
+   * tools as Markdown and as JSON, then each run's walkthrough file, oldest run first. An entry
+   * recorded before voicecap wrote the report for AI tools has neither of those two, and one
+   * recorded before it wrote voice pages has none.
+   */
   files: SharedFile[];
   /** sealOf this entry. */
   seal: string;

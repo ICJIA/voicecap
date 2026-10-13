@@ -6,4 +6,5 @@ voicecap-demo/
 transcripts/
 docs/
 pnpm-lock.yaml
+npm-shrinkwrap.json
 *.md

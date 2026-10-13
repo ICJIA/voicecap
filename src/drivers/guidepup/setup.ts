@@ -12,7 +12,7 @@
  * shares the installer and browser parts.
  */
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -28,6 +28,7 @@ import type { Logger } from "../../util/log.js";
 import { loadPlatformReadiness } from "../readiness.js";
 import { resolveBrowser, type BrowserExecutable } from "./chrome.js";
 import {
+  envValue,
   guidepupInstall,
   readGuidepupPackage,
   unsafePathMessage,
@@ -44,6 +45,10 @@ export interface SetupDeps {
   playwrightCli: string;
   install: GuidepupInstall;
   exists: (file: string) => boolean;
+  /** Whether GUIDEPUP_SCREEN_READERS_PATH is set, so Guidepup's folder is one the person chose. */
+  cacheFromEnv: boolean;
+  /** The names in a folder, or null when it isn't there. */
+  folderEntries: (dir: string) => string[] | null;
   /** Run a Node.js script with its output on the console; resolves to its exit code. */
   runNode: (script: string, args: string[], cwd: string) => Promise<number>;
   /** The browser to use; throws EnvironmentError when none is installed. */
@@ -80,6 +85,8 @@ export async function runSetup(
   }
   const unsafePath = unsafePathMessage(install);
   if (unsafePath) throw new EnvironmentError(unsafePath);
+  const sharedFolder = sharedFolderMessage(install, deps);
+  if (sharedFolder) throw new EnvironmentError(sharedFolder);
 
   logger.info(
     `Installing NVDA for voicecap: Guidepup's NVDA build ${install.build}, which @guidepup/guidepup ${guidepup.version} expects, with @guidepup/setup ${deps.setupCli.version}.`,
@@ -102,8 +109,7 @@ export async function runSetup(
   logger.info(
     [
       "",
-      "The first time voicecap starts NVDA, Windows may ask whether NVDA can communicate on networks.",
-      "voicecap talks to NVDA only on this computer (127.0.0.1); it doesn't need network access.",
+      "When voicecap first starts NVDA, Windows may ask whether NVDA can communicate on networks. Click Cancel, and leave every box unticked. voicecap reaches NVDA on this computer alone (127.0.0.1), which Windows Firewall never blocks, while NVDA's control port is open on every network the computer is on, behind a password Guidepup publishes.",
       "",
     ].join("\n"),
   );
@@ -112,6 +118,25 @@ export async function runSetup(
   const notice = renderCheckingNotice(platform.checkingNotice);
   if (notice) logger.info(notice);
   return finishSetup(platform, await runPreflight(platform), options);
+}
+
+/**
+ * Why setup won't install into a folder GUIDEPUP_SCREEN_READERS_PATH names, or null when it will.
+ * After it installs, Guidepup's installer deletes whatever is three folders down in its folder
+ * (<screen reader>/<platform version>/<version>) and isn't one of its own builds. It keeps a
+ * record of its own, a `.links` folder, in a folder it uses, so a folder with other files in it and
+ * no `.links` is the person's, and a folder that is empty, isn't there yet, or has `.links` is safe
+ * to install into. Guidepup's default folder is its own, so it isn't looked at.
+ */
+function sharedFolderMessage(
+  install: GuidepupInstall,
+  deps: Pick<SetupDeps, "cacheFromEnv" | "folderEntries">,
+): string | null {
+  if (!deps.cacheFromEnv) return null;
+  const entries = deps.folderEntries(install.cacheDir);
+  if (entries === null || entries.length === 0) return null;
+  if (entries.some((name) => name.toLowerCase() === ".links")) return null;
+  return `GUIDEPUP_SCREEN_READERS_PATH names ${install.cacheDir}, which already holds other files, and Guidepup's installer deletes what isn't its own, three folders down. Choose a new, empty folder for it, or empty this one, then run voicecap setup again.`;
 }
 
 /**
@@ -182,6 +207,15 @@ export function runNodeScript(script: string, args: string[], cwd: string): Prom
   });
 }
 
+/** The names in `dir`, or null when it isn't there (or can't be read). */
+function folderEntries(dir: string): string[] | null {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return null;
+  }
+}
+
 export function realSetupDeps(options: SetupOptions): SetupDeps {
   const guidepup = readGuidepupPackage();
   return {
@@ -191,6 +225,8 @@ export function realSetupDeps(options: SetupOptions): SetupDeps {
     playwrightCli: playwrightCli(),
     install: guidepupInstall(guidepup.nvdaBuild, process.env, os.homedir()),
     exists: existsSync,
+    cacheFromEnv: envValue(process.env, "GUIDEPUP_SCREEN_READERS_PATH") !== undefined,
+    folderEntries,
     runNode: runNodeScript,
     resolveBrowser: () => resolveBrowser(options.config.browser, process.env),
     platformReadiness: () =>

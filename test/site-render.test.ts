@@ -4,6 +4,8 @@
  * line each, every report's files in a fold, what isn't there, and every report by date when two
  * sites or more have reports. The content is small (test/helpers/site-content.ts): a demo, two
  * sites with three reports, a Word copy that isn't published, and a report with no walkthrough file.
+ * A share's voice page, which plays NVDA's recordings, is a file of its report that is never taken
+ * for the report's page: its tests make their own content from those reports.
  *
  * The frame that every page of the website shares (src/site/frame.ts) is here too: the top bar, with
  * the website's name, its three pages, and the theme button; the bottom bar, with GitHub, the
@@ -21,12 +23,15 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { DEMO_CANONICAL } from "../src/demo/server.js";
 import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { SHARE_CSS, THEME_CSS } from "../src/share/html/style.js";
+import { VOICE_TEXT } from "../src/share/text.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import { backLink, siteBar, siteFooter, sitePage, type SitePage } from "../src/site/frame.js";
 import { inlineHashes } from "../src/site/headers.js";
 import {
   fileKind,
+  type PublishedFile,
   type PublishedReport,
+  renderLlmsTxt,
   renderSiteIndex,
   type SiteContent,
 } from "../src/site/render.js";
@@ -412,15 +417,18 @@ describe("renderSiteIndex", () => {
     for (const anchor of anchors) expect(html, anchor).toContain(`id="${anchor.slice(1)}"`);
     const offered = links.map((link) => link.href);
     for (const { href } of files) expect(offered, href).toContain(href);
-    // The page opens in the browser. The Word copy, a walkthrough file, and any other are
-    // downloaded.
+    // The page opens in the browser. The Word copy, the report for AI tools, a walkthrough file, and
+    // any other are downloaded.
     for (const { href, kind } of files) {
       for (const link of links.filter((each) => each.href === href)) {
         expect(link.download, href).toBe(kind !== "page");
       }
     }
-    for (const extension of [".docx", ".json", ".html"]) {
-      const these = links.filter(({ href }) => href.endsWith(extension));
+    for (const extension of [".docx", ".md", ".json", ".html"]) {
+      // The files', not voicecap's CHANGELOG.md on GitHub.
+      const these = links.filter(
+        ({ href }) => href.endsWith(extension) && !href.startsWith("https://"),
+      );
       expect(these.length, extension).toBeGreaterThan(0);
       for (const link of these) expect(link.download, link.href).toBe(extension !== ".html");
     }
@@ -616,6 +624,8 @@ describe("renderSiteIndex", () => {
     expect(filesIn(demo ?? "")).toEqual([
       item("The report, to open", "127.0.0.1_4848_2026-09-29.html", "311 KB"),
       item("The Word copy", "127.0.0.1_4848_2026-09-29.docx", "47 KB"),
+      item("For AI tools (Markdown)", "127.0.0.1_4848_2026-09-29.md", "83 KB"),
+      item("For AI tools (JSON)", "127.0.0.1_4848_2026-09-29.json", "167 KB"),
       item(
         "The walkthrough file of run 2026-09-29_1315",
         "127.0.0.1_4848_2026-09-29_2026-09-29_1315_walkthrough.json",
@@ -625,6 +635,8 @@ describe("renderSiteIndex", () => {
     expect(filesIn(newest ?? "")).toEqual([
       item("The report, to open", `${DVFR}_2026-10-03.html`, "324 KB"),
       item("The Word copy", `${DVFR}_2026-10-03.docx`, "51 KB"),
+      item("For AI tools (Markdown)", `${DVFR}_2026-10-03.md`, "262 KB"),
+      item("For AI tools (JSON)", `${DVFR}_2026-10-03.json`, "521 KB"),
       item(
         "The walkthrough file of run 2026-10-03_1330",
         `${DVFR}_2026-10-03_2026-10-03_1330_walkthrough.json`,
@@ -689,12 +701,15 @@ describe("renderSiteIndex", () => {
     expect(textsOf(article, "p")).toEqual([
       "Prepared by Pat Lee",
       `Open the report${of} Download the Word copy${of}`,
+      `For AI tools such as Claude or ChatGPT: the report as Markdown${of}, or as JSON${of}`,
     ]);
-    // The page opens in the browser, and the Word copy is downloaded. The walkthrough files are
-    // only in the fold.
+    // The page opens in the browser, and the Word copy and the report for AI tools are downloaded.
+    // The walkthrough files are only in the fold.
     expect(linksOf(article)).toEqual([
       { href: `${DVFR}/${DVFR}_2026-10-03.html`, download: false },
       { href: `${DVFR}/${DVFR}_2026-10-03.docx`, download: true },
+      { href: `${DVFR}/${DVFR}_2026-10-03.md`, download: true },
+      { href: `${DVFR}/${DVFR}_2026-10-03.json`, download: true },
     ]);
     expect(article).toContain('<p class="actions"><a class="action" href=');
     // What a reader sees of each link is its words. A screen reader hears the site and the date
@@ -702,6 +717,8 @@ describe("renderSiteIndex", () => {
     expect(textsOf(withoutHidden(article), "a")).toEqual([
       "Open the report",
       "Download the Word copy",
+      "Markdown",
+      "JSON",
     ]);
     expect(article).toContain(`Open the report<span class="sr">${of}</span></a>`);
 
@@ -711,6 +728,8 @@ describe("renderSiteIndex", () => {
     expect(textsOf(demo, "a")).toEqual([
       "Open the report of the demo, 29 September 2026, 15:40",
       "Download the Word copy of the demo, 29 September 2026, 15:40",
+      "Markdown of the demo, 29 September 2026, 15:40",
+      "JSON of the demo, 29 September 2026, 15:40",
     ]);
   });
 
@@ -859,12 +878,14 @@ describe("renderSiteIndex", () => {
 
       expect(verdictOf(card)).toBe('<p class="verdict ok">Nothing needs attention</p>');
       expect(readingOf(card)?.words).toBe("NVDA read all 9 pages.");
-      // Under the report's date, and above who prepared it and its links.
+      // Under the report's date, and above who prepared it and its links, and the line for AI
+      // tools, which ends the card.
       expect(textsOf(card, "p")).toEqual([
         "Nothing needs attention",
         "NVDA read all 9 pages.",
         "Prepared by Pat Lee",
         `Open the report of ${DVFR}, 3 October 2026, 14:05 Download the Word copy of ${DVFR}, 3 October 2026, 14:05`,
+        `For AI tools such as Claude or ChatGPT: the report as Markdown of ${DVFR}, 3 October 2026, 14:05, or as JSON of ${DVFR}, 3 October 2026, 14:05`,
       ]);
     });
 
@@ -959,6 +980,201 @@ describe("renderSiteIndex", () => {
     });
   });
 
+  // The report for AI tools, as Markdown and as JSON, which a share now has beside its page and its
+  // Word copy: one line under a current report's buttons, and two of the files in the fold.
+  describe("the report for AI tools", () => {
+    const MARKDOWN = `${DVFR}_2026-10-03.md`;
+    const JSON_FILE = `${DVFR}_2026-10-03.json`;
+    /** What a screen reader hears after each of the newest report's links, and a reader doesn't see. */
+    const of = ` of ${DVFR}, 3 October 2026, 14:05`;
+    /** The card's line, as a reader sees it. */
+    const LINE = "For AI tools such as Claude or ChatGPT: the report as Markdown, or as JSON";
+
+    /** The card of a site whose only report is `report`. */
+    const cardOf = (report: PublishedReport): string =>
+      articleOf(
+        frontPage({ demo: null, sites: [{ name: DVFR, folders: [DVFR], reports: [report] }] }),
+        report.id,
+      );
+    /** The newest report without its files of these kinds. */
+    const without = (...kinds: PublishedFile["kind"][]): PublishedReport => ({
+      ...DVFR_NEWEST,
+      files: DVFR_NEWEST.files.filter(({ kind }) => !kinds.includes(kind)),
+    });
+
+    it("gives a card the line 'For AI tools such as Claude or ChatGPT: the report as Markdown, or as JSON', linked with download, only when its share has them", () => {
+      const card = articleOf(html, DVFR_NEWEST.id);
+
+      // A paragraph of its own: the words, then each file as a link, which downloads it, with the
+      // site and the date after its words for a screen reader, so no two links read alike.
+      expect(card).toContain(
+        `<p class="ai">For AI tools such as Claude or ChatGPT: the report as <a href="${DVFR}/${MARKDOWN}" download>Markdown<span class="sr">${of}</span></a>, or as <a href="${DVFR}/${JSON_FILE}" download>JSON<span class="sr">${of}</span></a></p>`,
+      );
+      expect(textOf(withoutHidden(/<p class="ai">[\s\S]*?<\/p>/.exec(card)?.[0] ?? ""), "")).toBe(
+        LINE,
+      );
+      // Under the buttons: after them, and the card's last paragraph.
+      expect(card.indexOf('class="ai"')).toBeGreaterThan(card.indexOf('class="actions"'));
+      expect([...card.matchAll(/<p\b[^>]*>/g)].at(-1)?.[0]).toBe('<p class="ai">');
+      // The demo's card says it too, named for the demo.
+      expect(textsOf(articleOf(html, DEMO_REPORT.id), "p").at(-1)).toBe(
+        "For AI tools such as Claude or ChatGPT: the report as Markdown of the demo, 29 September 2026, 15:40, or as JSON of the demo, 29 September 2026, 15:40",
+      );
+
+      // A share from before the report for AI tools has none of it, and its card has no line.
+      expect(articleOf(html, EXAMPLE_REPORT.id)).not.toContain('class="ai"');
+      expect(cardOf(DVFR_OLDEST)).not.toContain('class="ai"');
+      expect(cardOf(without("markdown", "data"))).not.toContain('class="ai"');
+      expect(html.match(/<p class="ai">/g)).toHaveLength(2);
+      expect(html.match(/For AI tools such as Claude or ChatGPT/g)).toHaveLength(2);
+    });
+
+    it("says the line of the one that's published when only one is", () => {
+      const jsonOnly = cardOf(without("markdown"));
+      const markdownOnly = cardOf(without("data"));
+
+      expect(jsonOnly).toContain(
+        `<p class="ai">For AI tools such as Claude or ChatGPT: the report as <a href="${DVFR}/${JSON_FILE}" download>JSON<span class="sr">${of}</span></a></p>`,
+      );
+      expect(markdownOnly).toContain(
+        `<p class="ai">For AI tools such as Claude or ChatGPT: the report as <a href="${DVFR}/${MARKDOWN}" download>Markdown<span class="sr">${of}</span></a></p>`,
+      );
+      expect(linksOf(jsonOnly).map(({ href }) => href)).not.toContain(`${DVFR}/${MARKDOWN}`);
+      expect(linksOf(markdownOnly).map(({ href }) => href)).not.toContain(`${DVFR}/${JSON_FILE}`);
+    });
+
+    it("says in the fold, not on the card, what of it isn't here, and offers no link to it", () => {
+      const report: PublishedReport = {
+        ...without("markdown"),
+        notPublished: [{ name: MARKDOWN, reason: "changed" }],
+      };
+      const page = frontPage({
+        demo: null,
+        sites: [{ name: DVFR, folders: [DVFR], reports: [report] }],
+      });
+
+      const card = articleOf(page, report.id);
+      expect(card).not.toContain(MARKDOWN);
+      expect(textsOf(card, "p").at(-1)).toBe(
+        `For AI tools such as Claude or ChatGPT: the report as JSON${of}`,
+      );
+      expect(textsOf(sharedBlocksOf(page)[0] ?? "", "p")).toEqual([
+        "3 October 2026, 14:05, prepared by Pat Lee",
+        `${MARKDOWN} isn't here: it no longer matches the fingerprint recorded when it was shared.`,
+      ]);
+      // And no link to a file that isn't here.
+      expect(page).not.toContain(`href="${DVFR}/${MARKDOWN}"`);
+    });
+
+    it("names them in the files fold, each for what it is", () => {
+      const [newest] = sharedBlocksOf(sectionOf(html, `site-${DVFR}`));
+      const [demo] = sharedBlocksOf(sectionOf(html, "demo"));
+
+      for (const [block, markdown, json] of [
+        [newest, MARKDOWN, JSON_FILE],
+        [demo, "127.0.0.1_4848_2026-09-29.md", "127.0.0.1_4848_2026-09-29.json"],
+      ] as const) {
+        const items = [
+          ...(block ?? "").matchAll(
+            /<li><span class="kind">([^<]*)<\/span> <a href="[^"]*"( download)?>([^<]*)<\/a>/g,
+          ),
+        ];
+        const mine = items.filter(([, , , name]) => name === markdown || name === json);
+        // Each file has its label, its link downloads it, and the link is named by the file's name.
+        expect(mine.map(([, label, download, name]) => [label, download, name])).toEqual([
+          ["For AI tools (Markdown)", " download", markdown],
+          ["For AI tools (JSON)", " download", json],
+        ]);
+      }
+      // The words are the page's own, one for each kind, and neither is a walkthrough file's or "A file".
+      expect(SITE_TEXT.files.markdown).toBe("For AI tools (Markdown)");
+      expect(SITE_TEXT.files.data).toBe("For AI tools (JSON)");
+      expect(newest).not.toContain("A file");
+    });
+
+    it("doesn't take the JSON for a walkthrough file: a report with it and no walkthrough file says none was shared", () => {
+      const page = frontPage({
+        demo: null,
+        sites: [{ name: DVFR, folders: [DVFR], reports: [without("walkthrough")] }],
+      });
+
+      expect(textsOf(sharedBlocksOf(page)[0] ?? "", "p")).toEqual([
+        "3 October 2026, 14:05, prepared by Pat Lee",
+        "No walkthrough file was shared with this report.",
+      ]);
+      expect(filesIn(sharedBlocksOf(page)[0] ?? "")).toHaveLength(4);
+    });
+
+    it("leaves an earlier report's line alone: its links are to its page and its Word copy, and its fold names the rest", () => {
+      const earlier: PublishedReport = {
+        ...DVFR_NEWEST,
+        id: `report-${DVFR}-1`,
+        at: "2026-09-28T10:00:00-05:00",
+        files: DVFR_NEWEST.files.map((file) => ({
+          ...file,
+          name: file.name.replace("2026-10-03", "2026-09-28"),
+          href: file.href.replace("2026-10-03", "2026-09-28"),
+        })),
+      };
+      const page = frontPage({
+        demo: null,
+        sites: [{ name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST, earlier] }],
+      });
+      const site = sectionOf(page, `site-${DVFR}`);
+
+      // Only the current report is a card with the line, and the earlier ones are a line each.
+      expect(site.match(/<p class="ai">/g)).toHaveLength(1);
+      const [item] = earlierItemsOf(site);
+      expect(linksOf(item ?? "").map(({ href }) => href)).toEqual([
+        `${DVFR}/${DVFR}_2026-09-28.html`,
+        `${DVFR}/${DVFR}_2026-09-28.docx`,
+      ]);
+      // The fold has every report's files, the earlier one's report for AI tools too.
+      const [, folded] = sharedBlocksOf(site);
+      expect(linksOf(folded ?? "").map(({ href }) => href)).toContain(
+        `${DVFR}/${DVFR}_2026-09-28.md`,
+      );
+    });
+
+    it("escapes what a record holds in the line and in the fold", () => {
+      const hostile = "<img src=x onerror=alert(1)>";
+      const report: PublishedReport = {
+        ...DVFR_NEWEST,
+        files: [
+          published("page", DVFR, `${DVFR}_page.html`, 10),
+          {
+            kind: "markdown",
+            name: `a&b<i>${hostile}.md`,
+            href: `a&b/a&b"${hostile}.md`,
+            bytes: 2048,
+            sha256: "<b>0</b>",
+            run: null,
+          },
+          {
+            kind: "data",
+            name: "a&b<u>.json",
+            href: 'a&b/a&b".json',
+            bytes: 2048,
+            sha256: "<b>1</b>",
+            run: null,
+          },
+        ],
+      };
+
+      const markup = markupOf(
+        frontPage({ demo: null, sites: [{ name: DVFR, folders: [DVFR], reports: [report] }] }),
+      );
+
+      expect(markup).not.toContain("<img");
+      expect(markup).toContain('href="a&amp;b/a&amp;b&quot;&lt;img src=x onerror=alert(1)&gt;.md"');
+      expect(markup).toContain('href="a&amp;b/a&amp;b&quot;.json"');
+      expect(markup).toContain(">a&amp;b&lt;i&gt;&lt;img src=x onerror=alert(1)&gt;.md</a>");
+      expect(markup).toContain("<code>&lt;b&gt;1&lt;/b&gt;</code>");
+      const { elements } = namesIn(markup);
+      expect(elements.filter((element) => ["img", "i", "u"].includes(element))).toEqual([]);
+    });
+  });
+
   it("says in the current report when its page or its Word copy isn't here, in place of its link", () => {
     // The example site's Word copy is missing: its page has its link, and the Word copy a line.
     const example = articleOf(html, EXAMPLE_REPORT.id);
@@ -987,6 +1203,8 @@ describe("renderSiteIndex", () => {
       "Prepared by Pat Lee",
       `Download the Word copy of ${DVFR}, 3 October 2026, 14:05`,
       `${DVFR}_2026-10-03.html isn't here: it no longer matches the fingerprint recorded when it was shared.`,
+      // The line for AI tools ends the card, after what isn't here: the report for AI tools stays.
+      `For AI tools such as Claude or ChatGPT: the report as Markdown of ${DVFR}, 3 October 2026, 14:05, or as JSON of ${DVFR}, 3 October 2026, 14:05`,
     ]);
     // Neither: no paragraph of links with nothing in it. A walkthrough file that isn't here is said
     // only in the fold.
@@ -1110,6 +1328,33 @@ describe("renderSiteIndex", () => {
     expect(lines("changed")).toEqual([
       "3 October 2026, 14:05, prepared by Pat Lee",
       `${DVFR}_2026-10-03_walkthrough.json isn't here: it no longer matches the fingerprint recorded when it was shared.`,
+    ]);
+  });
+
+  // The report for AI tools' JSON is named for its share alone: it's no walkthrough file, so a copy
+  // of it that isn't here doesn't mean a walkthrough file was shared.
+  it("still says no walkthrough file was shared when the only JSON that isn't here is the report for AI tools'", () => {
+    const page = frontPage({
+      demo: null,
+      sites: [
+        {
+          name: DVFR,
+          folders: [DVFR],
+          reports: [
+            {
+              ...DVFR_NEWEST,
+              files: DVFR_NEWEST.files.filter(({ kind }) => kind !== "walkthrough"),
+              notPublished: [{ name: `${DVFR}_2026-10-03.json`, reason: "missing" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(textsOf(sharedBlocksOf(page)[0] ?? "", "p")).toEqual([
+      "3 October 2026, 14:05, prepared by Pat Lee",
+      `${DVFR}_2026-10-03.json isn't here: the file is missing.`,
+      "No walkthrough file was shared with this report.",
     ]);
   });
 
@@ -1241,6 +1486,189 @@ describe("renderSiteIndex", () => {
       `<time datetime="2026-10-03T14:05:00-05:00">3 October 2026, 14:05</time>, ${DVFR}, prepared by Pat Lee: its page isn&#39;t here`,
     );
     expect(textOf(item?.[1] ?? "")).toContain("its page isn't here");
+  });
+
+  // From 0.18.0 a share has a voice page beside its page, when a page has a recording of NVDA's
+  // voice: the pair's name with ".voice.html". It's a page that plays sound, not the report's page.
+  describe("a share's voice page", () => {
+    const VOICE = `${DVFR}_2026-10-03.voice.html`;
+    const [PAGE, WORD] = [`${DVFR}/${DVFR}_2026-10-03.html`, `${DVFR}/${DVFR}_2026-10-03.docx`];
+    /** DVFR_NEWEST with its voice page between its Word copy and its walkthrough file, as a share lists them. */
+    const withVoice: PublishedReport = {
+      ...DVFR_NEWEST,
+      files: [
+        ...DVFR_NEWEST.files.slice(0, 2),
+        published("voice", DVFR, VOICE, 900),
+        ...DVFR_NEWEST.files.slice(2),
+      ],
+    };
+    /** The front page of one site that has these reports, the first its current one. */
+    const pageOf = (...reports: PublishedReport[]): string =>
+      frontPage({ demo: null, sites: [{ name: DVFR, folders: [DVFR], reports }] });
+    const of = ` of ${DVFR}, 3 October 2026, 14:05`;
+
+    it("is NVDA's voice in the report's files, with its size and fingerprint, where the share lists it", () => {
+      const [block] = sharedBlocksOf(pageOf(withVoice));
+      const item = (label: string, name: string, size: string) =>
+        `${label} ${name} ${size}, SHA-256 ${fingerprintOf(name)}`;
+
+      expect(SITE_TEXT.files.voice).toBe("NVDA's voice");
+      // It's what the voice page calls itself, above the site's name, from one place.
+      expect(SITE_TEXT.files.voice).toBe(VOICE_TEXT.eyebrow);
+      expect(filesIn(block ?? "")).toEqual([
+        item("The report, to open", `${DVFR}_2026-10-03.html`, "324 KB"),
+        item("The Word copy", `${DVFR}_2026-10-03.docx`, "51 KB"),
+        item("NVDA's voice", VOICE, "900 KB"),
+        item("For AI tools (Markdown)", `${DVFR}_2026-10-03.md`, "262 KB"),
+        item("For AI tools (JSON)", `${DVFR}_2026-10-03.json`, "521 KB"),
+        item(
+          "The walkthrough file of run 2026-10-03_1330",
+          `${DVFR}_2026-10-03_2026-10-03_1330_walkthrough.json`,
+          "5 KB",
+        ),
+      ]);
+      // Linked by its name, as every file is, to its address in its site's folder.
+      expect(textsOf(block ?? "", "a")).toEqual(withVoice.files.map(({ name }) => name));
+      expect([...(block ?? "").matchAll(/<code>(.*?)<\/code>/g)].map(([, code]) => code)).toEqual(
+        withVoice.files.map(({ sha256 }) => sha256),
+      );
+    });
+
+    it("opens in the browser, as the report's page does, and is never a download", () => {
+      const links = linksOf(sectionOf(pageOf(withVoice), `site-${DVFR}`));
+
+      // Linked once, in the fold: the report's own links are to its page and its Word copy.
+      expect(links.filter(({ href }) => href === `${DVFR}/${VOICE}`)).toEqual([
+        { href: `${DVFR}/${VOICE}`, download: false },
+      ]);
+      expect(
+        links.filter(({ href }) => href.endsWith(".html")).map(({ download }) => download),
+      ).toEqual([false, false, false]);
+      expect(
+        links.filter(({ href }) => href.endsWith(".docx")).map(({ download }) => download),
+      ).toEqual([true, true]);
+    });
+
+    it("leads no report with it: the current report's links, an earlier report's line, and the list by date are of its page", () => {
+      const older: PublishedReport = {
+        ...DVFR_OLDEST,
+        files: [
+          published("page", DVFR, `${DVFR}_2026-09-29.html`, 296),
+          published("voice", DVFR, `${DVFR}_2026-09-29.voice.html`, 400),
+        ],
+        notPublished: [],
+      };
+      const page = frontPage({
+        demo: null,
+        // Two sites, so that there's a list by date.
+        sites: [
+          { name: DVFR, folders: [DVFR], reports: [withVoice, older] },
+          ...CONTENT.sites.slice(1),
+        ],
+      });
+
+      // The current report: its page and its Word copy, then its line for AI tools, with the
+      // Markdown and the JSON, and not the voice page.
+      const article = articleOf(page, withVoice.id);
+      expect(linksOf(article)).toEqual([
+        { href: PAGE, download: false },
+        { href: WORD, download: true },
+        { href: `${DVFR}/${DVFR}_2026-10-03.md`, download: true },
+        { href: `${DVFR}/${DVFR}_2026-10-03.json`, download: true },
+      ]);
+      expect(article).not.toContain(".voice.html");
+      expect(textsOf(withoutHidden(article), "a")).toEqual([
+        "Open the report",
+        "Download the Word copy",
+        "Markdown",
+        "JSON",
+      ]);
+      // An earlier report's line: its page, and not its voice page.
+      const [line = ""] = earlierItemsOf(sectionOf(page, `site-${DVFR}`));
+      expect(line).toContain(`<a href="${DVFR}/${DVFR}_2026-09-29.html">Open the report`);
+      expect(line).not.toContain(".voice.html");
+      // The list by date: each report's page, never its voice page.
+      const dated = sectionOf(page, "by-date");
+      expect(dated).not.toContain(".voice.html");
+      expect(linksOf(dated).map(({ href }) => href)).toEqual([
+        PAGE,
+        `${EXAMPLE}/${EXAMPLE}_2026-10-02.html`,
+        `${DVFR}/${DVFR}_2026-09-29.html`,
+      ]);
+    });
+
+    it("is never taken for the report's page: a report whose page isn't here says so, and the voice page doesn't take its place", () => {
+      const voiceOnly: PublishedReport = {
+        ...withVoice,
+        files: withVoice.files.filter(({ kind }) => kind === "voice" || kind === "word"),
+        notPublished: [{ name: `${DVFR}_2026-10-03.html`, reason: "missing" }],
+      };
+      const page = frontPage({
+        demo: null,
+        sites: [{ name: DVFR, folders: [DVFR], reports: [voiceOnly] }, ...CONTENT.sites.slice(1)],
+      });
+
+      // The current report says its page isn't here, and links its Word copy alone.
+      const article = articleOf(page, voiceOnly.id);
+      expect(textsOf(article, "p")).toEqual([
+        "Prepared by Pat Lee",
+        `Download the Word copy${of}`,
+        `${DVFR}_2026-10-03.html isn't here: the file is missing.`,
+      ]);
+      expect(linksOf(article)).toEqual([{ href: WORD, download: true }]);
+      // In its place by date too.
+      const [item] = [...sectionOf(page, "by-date").matchAll(/<li>([\s\S]*?)<\/li>/g)];
+      expect(item?.[1]).toBe(
+        `<time datetime="2026-10-03T14:05:00-05:00">3 October 2026, 14:05</time>, ${DVFR}, prepared by Pat Lee: its page isn&#39;t here`,
+      );
+      // And as an earlier report: no page's link, and no voice page's.
+      const earlier = pageOf(DVFR_NEWEST, {
+        ...voiceOnly,
+        id: `report-${DVFR}-1`,
+        at: "2026-09-29T16:20:00-05:00",
+      });
+      const [line = ""] = earlierItemsOf(sectionOf(earlier, `site-${DVFR}`));
+      expect(textOf(withoutHidden(line), "")).toBe(
+        "29 September 2026, 16:20, prepared by Pat Lee: its page isn't here · Word copy",
+      );
+      expect(line).not.toContain(".voice.html");
+    });
+
+    it("says a voice page that isn't here in the fold alone: it's no part of what the report's card says", () => {
+      const missing: PublishedReport = {
+        ...DVFR_NEWEST,
+        notPublished: [{ name: VOICE, reason: "changed" }],
+      };
+      const page = pageOf(missing);
+
+      // The card has its two links, and its line for AI tools, and nothing of the missing file.
+      expect(textsOf(articleOf(page, missing.id), "p")).toEqual([
+        "Prepared by Pat Lee",
+        `Open the report${of} Download the Word copy${of}`,
+        `For AI tools such as Claude or ChatGPT: the report as Markdown${of}, or as JSON${of}`,
+      ]);
+      // The fold says which file isn't here, and why.
+      expect(textsOf(sharedBlocksOf(page)[0] ?? "", "p")).toEqual([
+        "3 October 2026, 14:05, prepared by Pat Lee",
+        `${VOICE} isn't here: it no longer matches the fingerprint recorded when it was shared.`,
+      ]);
+    });
+
+    it("gives a share whose only published file is its voice page no link in its card, and lists the voice page in its fold", () => {
+      const alone: PublishedReport = {
+        ...DVFR_NEWEST,
+        files: [published("voice", DVFR, VOICE, 900)],
+        notPublished: [],
+      };
+      const page = pageOf(alone);
+
+      expect(filesIn(sharedBlocksOf(page)[0] ?? "")).toEqual([
+        `NVDA's voice ${VOICE} 900 KB, SHA-256 ${fingerprintOf(VOICE)}`,
+      ]);
+      // No link of the report's own, and no paragraph of them with nothing in it.
+      expect(articleOf(page, alone.id)).not.toContain('class="actions"');
+      expect(articleOf(page, alone.id)).not.toContain("<a ");
+    });
   });
 
   it("links the demo view to the demo's own pages, with a relative link named by their address", () => {
@@ -1693,6 +2121,264 @@ describe("renderSiteIndex", () => {
   });
 });
 
+// llms.txt, at the website's top, for AI tools: after the llms.txt convention, a title, a line that
+// sums the website up, and sections of links.
+describe("renderLlmsTxt", () => {
+  /** The summary line, as one line. */
+  const SUMMARY =
+    "Each site's current report from a person's review of the site with a real screen reader, sped up by voicecap, as Markdown and as JSON, for AI tools such as Claude or ChatGPT.";
+  /** The section that ends the file: the website's other two pages, which a short context can skip. */
+  const OPTIONAL = [
+    "## Optional",
+    "",
+    "- [Can I trust this?](trust.html): Who built voicecap, how what it records can be checked, and how it tests itself.",
+    "- [Technical details](technical-details.html): How a review runs, what it records, and how this website is built and protected.",
+  ];
+  /** Where the newest report of the first site is, without its extension. */
+  const NEWEST = `${DVFR}/${DVFR}_2026-10-03`;
+
+  /** A content of these sites, each with its reports, the newest first. */
+  const sites = (...each: [name: string, reports: PublishedReport[]][]): SiteContent => ({
+    demo: DEMO_REPORT,
+    sites: each.map(([name, reports]) => ({ name, folders: [name], reports })),
+  });
+  /** The newest report without its files of these kinds. */
+  const without = (...kinds: PublishedFile["kind"][]): PublishedReport => ({
+    ...DVFR_NEWEST,
+    files: DVFR_NEWEST.files.filter(({ kind }) => !kinds.includes(kind)),
+  });
+
+  it("is the website's name, a one-line summary, each site's current report as Markdown and as JSON, and links to the trust page and Technical details", () => {
+    expect(renderLlmsTxt(CONTENT)).toBe(
+      [
+        "# ICJIA Screen Reader Tests",
+        "",
+        `> ${SUMMARY}`,
+        "",
+        `## ${DVFR}`,
+        "",
+        `- [Markdown](${NEWEST}.md): The current report, 3 October 2026, 14:05.`,
+        `- [JSON](${NEWEST}.json): The current report, 3 October 2026, 14:05.`,
+        "",
+        ...OPTIONAL,
+        "",
+      ].join("\n"),
+    );
+    // The title is the website's name, its bar's; the summary is one line.
+    const lines = renderLlmsTxt(CONTENT).split("\n");
+    expect(lines[0]).toBe(`# ${SITE_TEXT.siteName}`);
+    expect(lines[2]?.startsWith("> ")).toBe(true);
+    expect(lines[2]).not.toContain("\n");
+  });
+
+  it("says each report's date and its verdict, as its card says it, and none for a report that records no result", () => {
+    const line = (result: PublishedReport["result"]): string =>
+      renderLlmsTxt(sites([DVFR, [{ ...DVFR_NEWEST, result }]])).split("\n")[6] ?? "";
+
+    expect(line({ pages: 9, read: 9, problems: 0, problemPages: 0 })).toBe(
+      `- [Markdown](${NEWEST}.md): The current report, 3 October 2026, 14:05. Nothing needs attention.`,
+    );
+    expect(line({ pages: 32, read: 32, problems: 1, problemPages: 32 })).toBe(
+      `- [Markdown](${NEWEST}.md): The current report, 3 October 2026, 14:05. 1 problem needs attention, on 32 pages.`,
+    );
+    expect(line({ pages: 9, read: 7, problems: 2, problemPages: 2 })).toBe(
+      `- [Markdown](${NEWEST}.md): The current report, 3 October 2026, 14:05. 2 problems need attention, on 2 pages.`,
+    );
+    expect(line({ pages: 9, read: 7, problems: 0, problemPages: 0 })).toBe(
+      `- [Markdown](${NEWEST}.md): The current report, 3 October 2026, 14:05. Nothing needs attention on the pages read.`,
+    );
+    // A report from before 0.12.3 records none, and one of no page has nothing to say.
+    expect(line(undefined)).toBe(
+      `- [Markdown](${NEWEST}.md): The current report, 3 October 2026, 14:05.`,
+    );
+    expect(line({ pages: 0, read: 0, problems: 0, problemPages: 0 })).toBe(
+      `- [Markdown](${NEWEST}.md): The current report, 3 October 2026, 14:05.`,
+    );
+    // The JSON's line says the same of the same report.
+    const both = renderLlmsTxt(
+      sites([
+        DVFR,
+        [{ ...DVFR_NEWEST, result: { pages: 9, read: 9, problems: 0, problemPages: 0 } }],
+      ]),
+    ).split("\n");
+    expect(both[7]).toBe(
+      `- [JSON](${NEWEST}.json): The current report, 3 October 2026, 14:05. Nothing needs attention.`,
+    );
+  });
+
+  it("lists a site's current report only, never an earlier one's, and leaves out a site whose current report has no report for AI tools", () => {
+    const earlier: PublishedReport = {
+      ...DVFR_NEWEST,
+      id: `report-${DVFR}-1`,
+      at: "2026-09-28T10:00:00-05:00",
+      files: DVFR_NEWEST.files.map((file) => ({
+        ...file,
+        name: file.name.replace("2026-10-03", "2026-09-28"),
+        href: file.href.replace("2026-10-03", "2026-09-28"),
+      })),
+    };
+
+    const current = renderLlmsTxt(sites([DVFR, [DVFR_NEWEST, earlier]]));
+    expect(current).toContain(`(${NEWEST}.md)`);
+    expect(current).not.toContain("2026-09-28");
+    // The current report is a share from before: the site has none to point to, though an earlier
+    // report has them.
+    const before = renderLlmsTxt(sites([DVFR, [without("markdown", "data"), earlier]]));
+    expect(before).not.toContain(`## ${DVFR}`);
+    expect(before).not.toContain(".md)");
+    expect(before).not.toContain(".json)");
+    expect(before).toContain("No report for AI tools has been shared yet.");
+  });
+
+  it("lists what the current report has when it has only one of the two", () => {
+    expect(renderLlmsTxt(sites([DVFR, [without("data")]]))).toContain(
+      [
+        `## ${DVFR}`,
+        "",
+        `- [Markdown](${NEWEST}.md): The current report, 3 October 2026, 14:05.`,
+        "",
+        "## Optional",
+      ].join("\n"),
+    );
+    expect(renderLlmsTxt(sites([DVFR, [without("markdown")]]))).toContain(
+      [
+        `## ${DVFR}`,
+        "",
+        `- [JSON](${NEWEST}.json): The current report, 3 October 2026, 14:05.`,
+        "",
+        "## Optional",
+      ].join("\n"),
+    );
+  });
+
+  it("lists each site that has them, in the page's order, and never the demo's", () => {
+    const other: PublishedReport = {
+      ...DVFR_NEWEST,
+      folder: EXAMPLE,
+      id: `report-${EXAMPLE}-1`,
+      files: DVFR_NEWEST.files.map((file) => ({
+        ...file,
+        name: file.name.replaceAll(DVFR, EXAMPLE),
+        href: file.href.replaceAll(DVFR, EXAMPLE),
+      })),
+    };
+    const text = renderLlmsTxt(sites([DVFR, [DVFR_NEWEST]], [EXAMPLE, [other]]));
+
+    expect(text.split("\n").filter((line) => line.startsWith("## "))).toEqual([
+      `## ${DVFR}`,
+      `## ${EXAMPLE}`,
+      "## Optional",
+    ]);
+    expect(text).toContain(`(${EXAMPLE}/${EXAMPLE}_2026-10-03.md)`);
+    // The demo's report is an example, and no site's.
+    expect(text).not.toContain("127.0.0.1_4848");
+    expect(renderLlmsTxt(CONTENT)).not.toContain("demo/");
+  });
+
+  it("says no report for AI tools has been shared yet when no site's has, and still ends with the website's own pages", () => {
+    for (const content of [
+      { demo: null, sites: [] },
+      sites([EXAMPLE, [EXAMPLE_REPORT]]),
+      { demo: DEMO_REPORT, sites: [] },
+    ]) {
+      expect(renderLlmsTxt(content)).toBe(
+        [
+          "# ICJIA Screen Reader Tests",
+          "",
+          `> ${SUMMARY}`,
+          "",
+          "No report for AI tools has been shared yet.",
+          "",
+          ...OPTIONAL,
+          "",
+        ].join("\n"),
+      );
+    }
+  });
+
+  it("is plain text a tool can read: a title, a summary, then lists of links, each a line, with no HTML", () => {
+    const text = renderLlmsTxt(CONTENT);
+    const lines = text.split("\n");
+
+    expect(text.endsWith("\n")).toBe(true);
+    expect(text).not.toContain("\r");
+    expect(text).not.toMatch(/\n\n\n/);
+    expect(text).not.toContain("<");
+    // The one ">" a line has is the summary's quote mark.
+    expect(lines.filter((line) => line.includes(">")).every((line) => line.startsWith("> "))).toBe(
+      true,
+    );
+    for (const line of lines) {
+      // A heading, the summary, a link, a paragraph, or a blank line: nothing else.
+      expect(line, line).toMatch(
+        /^(?:# .+|## .+|> .+|- \[[^\]]+\]\([A-Za-z0-9._\-/]+\): .+|[A-Z][^\n]*\.|)$/,
+      );
+    }
+  });
+
+  it("leads with a site's name and a date, never an address, and calls no page accessible or not", () => {
+    const text = renderLlmsTxt(CONTENT);
+
+    expect(text).not.toMatch(/https?:|\b\d{1,3}(?:\.\d{1,3}){3}\b|localhost/i);
+    expect(text).not.toMatch(/automat/i);
+    expect(text).not.toMatch(/listen/i);
+    expect(text).not.toMatch(/accessib/i);
+    expect(text).not.toMatch(/guidepup/i);
+    // Claude and ChatGPT are named as tools a reader may use, once, in the summary.
+    expect(text.match(/Claude/g)).toHaveLength(1);
+    expect(text.match(/ChatGPT/g)).toHaveLength(1);
+  });
+
+  it("keeps a name on its line, whatever a record holds", () => {
+    // A line feed, a line separator (U+2028), and the escape that starts red text, in a name.
+    const separator = String.fromCodePoint(0x2028);
+    const hostile = `a\n## Optional${separator}b\u001b[31m<img src=x>"c`;
+    // The escapes are written as text, and then the Markdown in the name is escaped: the backslash
+    // of each escape too, so a viewer shows `\u000a` as it is, and the `[` and the `<`.
+    const written = String.raw`a\\u000a## Optional\\u2028b\\u001b\[31m\<img src=x>"c`;
+    const text = renderLlmsTxt(sites([hostile, [DVFR_NEWEST]]));
+
+    // The name makes the one heading, its line-ending characters written as escapes.
+    expect(text).toContain(`## ${written}\n`);
+    expect(text.split("\n").filter((line) => line.startsWith("## "))).toEqual([
+      `## ${written}`,
+      "## Optional",
+    ]);
+    expect(text.replaceAll("\n", "")).not.toMatch(/[\p{Cc}\u{2028}\u{2029}]/u);
+  });
+
+  // A site's name is a record's, so the heading it makes can't be Markdown of the record's making:
+  // emphasis, a link, HTML, or an address a viewer would link. The name is set as every word of a
+  // record is in the report for AI tools (markdownInline, in share/ai/escape.ts), where an
+  // underscore between two letters is left alone, as it makes no emphasis.
+  it("escapes the Markdown in a site's name, so the heading is the name and nothing else", () => {
+    const heading = (name: string): string | undefined =>
+      renderLlmsTxt(sites([name, [DVFR_NEWEST]]))
+        .split("\n")
+        .find((line) => line.startsWith("## ") && line !== "## Optional");
+
+    expect(heading("a*b_c")).toBe(String.raw`## a\*b_c`);
+    expect(heading("_a_ [b](c) <i>")).toBe(String.raw`## \_a\_ \[b\](c) \<i>`);
+    expect(heading("`code` ~~gone~~ | $x$ & &amp;")).toBe(
+      String.raw`## \`code\` \~\~gone\~\~ \| \$x\$ & \&amp;`,
+    );
+    expect(heading("www.example.org")).toBe(String.raw`## www\.example.org`);
+    expect(heading("see https://example.org/x")).toBe(String.raw`## see https\://example.org/x`);
+    // A hash at the end would be the heading's own closing mark.
+    expect(heading("Fund #")).toBe(String.raw`## Fund \#`);
+    // A site named as a site is: a host, with dots and a hyphen.
+    expect(heading("dvfr.illinois.gov")).toBe("## dvfr.illinois.gov");
+    expect(heading("127.0.0.1_4848")).toBe("## 127.0.0.1_4848");
+  });
+
+  it("is the same text for the same content, and changes none of it", () => {
+    const before = structuredClone(CONTENT);
+
+    expect(renderLlmsTxt(CONTENT)).toBe(renderLlmsTxt(structuredClone(CONTENT)));
+    expect(CONTENT).toEqual(before);
+  });
+});
+
 describe("siteBar", () => {
   it("heads every page with the website's name, then three links, then the theme button", () => {
     const bar = siteBar("trust");
@@ -1932,12 +2618,28 @@ describe("the website's four pages", () => {
 });
 
 describe("fileKind", () => {
-  it("takes a file's kind from its extension: .html is the page, .docx the Word copy, .json a walkthrough file", () => {
+  it("takes a file's kind from its extension: .html is the page, .docx the Word copy, .md the report as Markdown, _walkthrough.json a walkthrough file, and any other .json the report as JSON", () => {
     expect(fileKind("dvfr.illinois.gov_2026-10-03.html")).toBe("page");
     expect(fileKind("dvfr.illinois.gov_2026-10-03.docx")).toBe("word");
+    expect(fileKind("dvfr.illinois.gov_2026-10-03.md")).toBe("markdown");
+    expect(fileKind("dvfr.illinois.gov_2026-10-03.json")).toBe("data");
     expect(fileKind("dvfr.illinois.gov_2026-10-03_2026-10-03_1330_walkthrough.json")).toBe(
       "walkthrough",
     );
+  });
+
+  // A share's report for AI tools is `<stem>.json`, named for the share alone: only a walkthrough
+  // file's name, which has its run in it, ends _walkthrough.json.
+  it("doesn't take the JSON of a share's report for AI tools for a walkthrough file, nor a walkthrough file for it", () => {
+    expect(fileKind("dvfr.illinois.gov_2026-10-03.json")).toBe("data");
+    expect(fileKind("dvfr.illinois.gov_2026-10-03-2.json")).toBe("data");
+    expect(fileKind("walkthrough.json")).toBe("data");
+    expect(fileKind("a_walkthrough.json")).toBe("walkthrough");
+    expect(fileKind("a.walkthrough.json")).toBe("data");
+    // What is nearly either is neither.
+    expect(fileKind("dvfr.illinois.gov_2026-10-03_walkthrough.jsonx")).toBe("other");
+    expect(fileKind("dvfr.illinois.gov_2026-10-03.md.txt")).toBe("other");
+    expect(fileKind("dvfr.illinois.gov_2026-10-03.markdown")).toBe("other");
   });
 
   it("calls anything else other", () => {
@@ -1946,10 +2648,46 @@ describe("fileKind", () => {
       "notes.txt",
       "a.html.zip",
       "a.html.bak",
+      "a.md.bak",
       "html",
       "json",
+      "md",
       "",
     ]) {
+      expect(fileKind(name), name).toBe("other");
+    }
+  });
+
+  it("calls a name that ends .voice.html the voice page, which is no report's page", () => {
+    // The names voicecap share gives: the pair's, and its number on a day it shares again.
+    expect(fileKind("dvfr.illinois.gov_2026-10-03.voice.html")).toBe("voice");
+    expect(fileKind("dvfr.illinois.gov_2026-10-03-2.voice.html")).toBe("voice");
+    expect(fileKind("127.0.0.1_4848_2026-09-29.voice.html")).toBe("voice");
+    // The pair's page, whose name ends with its day or its number, is still the page.
+    expect(fileKind("dvfr.illinois.gov_2026-10-03.html")).toBe("page");
+    expect(fileKind("dvfr.illinois.gov_2026-10-03-2.html")).toBe("page");
+    // A site's name that has "voice" in it makes no page a voice page.
+    expect(fileKind("voice.example.gov_2026-10-03.html")).toBe("page");
+    expect(fileKind("example.voice_2026-10-03.html")).toBe("page");
+  });
+
+  it("takes the whole ending: only a name that ends .voice.html, in lower case, is the voice page", () => {
+    // A page with a dot in its name, no dot before voice, and the ending in another case: pages,
+    // which are given the policy of a page that plays no sound.
+    for (const name of [
+      "voice.html",
+      "x_voice.html",
+      "x.Voice.html",
+      "x.voice.HTML",
+      "x.voice.htm",
+    ]) {
+      expect(fileKind(name), name).not.toBe("voice");
+    }
+    for (const name of ["voice.html", "x_voice.html", "x.Voice.html"]) {
+      expect(fileKind(name), name).toBe("page");
+    }
+    // Something after the ending, or another extension, is other, as for any file.
+    for (const name of ["x.voice.html.zip", "x.voice.html.bak", "x.voice", "x.voice.webm"]) {
       expect(fileKind(name), name).toBe("other");
     }
   });
@@ -2132,6 +2870,11 @@ describe("SITE_CSS", () => {
     // As the audit tool's does: nothing sticks, so no room is kept clear of it either.
     expect(SITE_CSS).not.toContain("position: sticky");
     expect(SITE_CSS).not.toContain("scroll-padding-top");
+  });
+
+  it("draws the line for AI tools in the quiet color, as the line of who prepared a report is", () => {
+    expect(declarationsFor(SITE_CSS, ".report > .ai")).toEqual(["color: var(--muted)"]);
+    expect(declarationsFor(SITE_CSS, ".report > .by")).toEqual(["color: var(--muted)"]);
   });
 
   it("draws the audit tool's parts: a card, a part of a page, a pill, a big number, a table, and a button", () => {

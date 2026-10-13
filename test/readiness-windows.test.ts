@@ -5,12 +5,14 @@ import {
   windowsReadiness,
   type WindowsReadinessDeps,
 } from "../src/drivers/guidepup/readiness-windows.js";
+import { nvdaFirewallRules } from "../src/drivers/guidepup/windows.js";
 import { loadPlatformReadiness, type ReadinessOptions } from "../src/drivers/readiness.js";
 import { ForegroundError, type EnvironmentInfo } from "../src/drivers/types.js";
 import { InterruptedError } from "../src/passes/steps.js";
 import type { LiveCheck } from "../src/readiness/live-check.js";
 import type { Check } from "../src/readiness/model.js";
-import { renderFixes, renderProblems } from "../src/readiness/render.js";
+import { runPreflight } from "../src/readiness/preflight.js";
+import { renderFixes, renderProblems, renderRunSummary } from "../src/readiness/render.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { silentLogger } from "../src/util/log.js";
 
@@ -60,6 +62,7 @@ function fakeDeps(overrides: Partial<WindowsReadinessDeps> = {}): WindowsReadine
     },
     install,
     exists: (file) => file === install.nvdaExe,
+    nvdaFirewallRules: () => Promise.resolve([]),
     nvdaProcesses: () => Promise.resolve([]),
     otherVoicecap: () => Promise.resolve(null),
     nvdaLockFile: LOCK,
@@ -102,7 +105,11 @@ describe("Windows readiness", () => {
     const platform = windows();
     expect(platform.screenReader).toBe("NVDA");
     expect(platform.cannotRunYet).toBeNull();
-    expect(platform.readyTip).toBeNull();
+    // NVDA reads aloud a window that comes to the front, and Do Not Disturb lets calls and
+    // reminders through unless they're turned off: said after "Ready: …".
+    expect(platform.readyTip).toBe(
+      "Tip: turn on Do Not Disturb and turn off its calls and reminders (or quit Outlook and Teams), and close windows that show private text: NVDA reads aloud any window that comes to the front.",
+    );
     expect(platform.liveTestNotice).toEqual([
       "The live test takes about 20 seconds. NVDA speaks and takes over the keyboard, so keep your hands off.",
     ]);
@@ -115,7 +122,16 @@ describe("Windows readiness", () => {
       windows()
         .quickChecks()
         .map((runner) => runner.id),
-    ).toEqual(["node", "guidepupFolder", "nvda", "otherVoicecap", "ownNvda", "session", "browser"]);
+    ).toEqual([
+      "node",
+      "guidepupFolder",
+      "nvda",
+      "nvdaFirewall",
+      "otherVoicecap",
+      "ownNvda",
+      "session",
+      "browser",
+    ]);
   });
 
   it("is what voicecap loads on Windows", async () => {
@@ -125,6 +141,7 @@ describe("Windows readiness", () => {
       "node",
       "guidepupFolder",
       "nvda",
+      "nvdaFirewall",
       "otherVoicecap",
       "ownNvda",
       "session",
@@ -288,6 +305,130 @@ describe("Windows quick checks", () => {
         setupHelps: true,
       },
     });
+  });
+
+  /** The warning for a port open to other computers on `networks` ("the Private network"). */
+  const firewallOpen = (networks: string): string =>
+    `Windows Firewall lets other computers on ${networks} reach NVDA's control port (6837) while voicecap runs: an administrator can close it (README: "NVDA's control port")`;
+  const FIREWALL_CLOSED = "Windows Firewall keeps NVDA's control port closed to other computers";
+
+  /**
+   * The firewall's rules as the check reads them: PowerShell's answer to nvdaFirewallScript, one
+   * rule a line (its action, then the network types it applies to, as Windows writes them), read by
+   * the real reader. Nothing asks Windows.
+   */
+  function firewallSays(...lines: string[]): Pick<WindowsReadinessDeps, "nvdaFirewallRules"> {
+    const answer = lines.map((line) => `${line}\r\n`).join("");
+    return {
+      nvdaFirewallRules: () => nvdaFirewallRules(install.nvdaExe, () => Promise.resolve(answer)),
+    };
+  }
+
+  /** The firewall check, with the firewall's rules as `lines`. */
+  const firewallCheck = (...lines: string[]): Promise<Check> =>
+    quickCheck("nvdaFirewall", firewallSays(...lines));
+
+  // Windows makes a rule for each network type it's told to: clicking Allow at its question with
+  // only "Private networks" ticked makes an Allow rule on Private and a Block rule on Public (a TCP
+  // and a UDP one of each). A Block rule wins only on the network types it applies to.
+  it("warn when an Allow rule for Guidepup's NVDA applies to a network type no Block rule does, naming it", async () => {
+    expect(await firewallCheck("Allow|Private", "Block|Public")).toEqual({
+      id: "nvdaFirewall",
+      status: "WARN",
+      summary: firewallOpen("the Private network"),
+    });
+    expect((await firewallCheck("Allow|Domain, Private", "Block|Private")).summary).toBe(
+      firewallOpen("the Domain network"),
+    );
+    expect((await firewallCheck("Allow|Any", "Block|Public")).summary).toBe(
+      firewallOpen("the Domain and Private networks"),
+    );
+    expect((await firewallCheck("Allow|Any")).summary).toBe(
+      firewallOpen("the Domain, Private, and Public networks"),
+    );
+    // The TCP and the UDP rule Windows makes for each network type are still one warning.
+    expect(
+      await firewallCheck("Allow|Private", "Allow|Private", "Block|Public", "Block|Public"),
+    ).toEqual({ id: "nvdaFirewall", status: "WARN", summary: firewallOpen("the Private network") });
+  });
+
+  it("pass when no rule lets NVDA's control port in, or Block rules cover every network type the Allow rules do", async () => {
+    const closed = { id: "nvdaFirewall", status: "OK", summary: FIREWALL_CLOSED };
+    const answers: string[][] = [
+      [],
+      ["Block|Any"],
+      ["Block|Public"],
+      ["Allow|Any", "Block|Any"],
+      // A Block rule on the port, whichever program it names, is a line like a program's.
+      ["Allow|Private", "Block|Any"],
+      ["Block|Any", "Allow|Private"],
+      ["Allow|Public", "Block|Private, Public"],
+      ["Allow|Domain, Private", "Block|Domain", "Block|Private"],
+      ["Allow|Domain, Private, Public", "Block|Domain, Private, Public"],
+    ];
+    for (const lines of answers) {
+      expect(await firewallCheck(...lines), lines.join(" / ")).toEqual(closed);
+    }
+  });
+
+  // NotApplicable is a profile only a rule made by hand has, and nothing says which network types
+  // Windows then holds it to: so an Allow rule with it covers every one, and a Block rule none.
+  it("count a rule whose network types can't be placed toward a warning", async () => {
+    expect(await firewallCheck("Allow|NotApplicable")).toEqual({
+      id: "nvdaFirewall",
+      status: "WARN",
+      summary: firewallOpen("the Domain, Private, and Public networks"),
+    });
+    expect(await firewallCheck("Allow|Private", "Block|NotApplicable")).toEqual({
+      id: "nvdaFirewall",
+      status: "WARN",
+      summary: firewallOpen("the Private network"),
+    });
+    expect((await firewallCheck("Allow|NotApplicable", "Block|Any")).status).toBe("OK");
+  });
+
+  it("warn that they couldn't read the rules when a line of PowerShell's answer isn't a rule", async () => {
+    const unreadable = {
+      id: "nvdaFirewall",
+      status: "WARN",
+      summary:
+        "Couldn't read Windows Firewall's rules for NVDA's control port (PowerShell's answer has a line that isn't a rule)",
+    };
+    // A Block rule's line beside one that can't be read never makes the answer an OK.
+    for (const lines of [
+      ["Allow|Private", "WARNING: slow"],
+      ["Block|Any", "Allow"],
+      ["Block|Any", "Allow|8"],
+    ]) {
+      expect(await firewallCheck(...lines), lines.join(" / ")).toEqual(unreadable);
+    }
+  });
+
+  it("warn, without failing, when they can't read Windows Firewall's rules, giving the reason's first line", async () => {
+    const check = await quickCheck("nvdaFirewall", {
+      nvdaFirewallRules: () => Promise.reject(new Error("PowerShell didn't answer\nmore words")),
+    });
+    expect(check).toEqual({
+      id: "nvdaFirewall",
+      status: "WARN",
+      summary:
+        "Couldn't read Windows Firewall's rules for NVDA's control port (PowerShell didn't answer)",
+    });
+  });
+
+  it("stay ready when the firewall warns, and put its warning in a run's one-line summary", async () => {
+    const warns: WindowsReadinessDeps["nvdaFirewallRules"][] = [
+      firewallSays("Allow|Private", "Block|Public").nvdaFirewallRules,
+      () => Promise.reject(new Error("PowerShell didn't answer")),
+    ];
+    for (const nvdaFirewallRules of warns) {
+      const result = await runPreflight(windows({ nvdaFirewallRules }));
+      expect(result.ready).toBe(true);
+      expect(result.checks.find((check) => check.id === "nvdaFirewall")?.status).toBe("WARN");
+      const summary = renderRunSummary(result);
+      expect(summary).toContain("  WARN  ");
+      expect(summary).toContain("NVDA's control port");
+    }
   });
 
   it("pass when no other voicecap holds NVDA's lock", async () => {

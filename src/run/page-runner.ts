@@ -1,9 +1,19 @@
+import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
-import type { AxeCapture, EventRecorder, PageInfo, PageScreenshot } from "../drivers/types.js";
+import { axeErrorReason } from "../axe/results.js";
+import type {
+  AxeCapture,
+  EventRecorder,
+  PageInfo,
+  PageScreenshot,
+  VoiceCapture,
+  VoiceRecording,
+} from "../drivers/types.js";
 import {
   AXE_FILE,
   SCREENSHOT_FILE,
+  VOICE_FILE,
   type AttemptRecord,
   type AxeRecord,
   type EnvironmentRecord,
@@ -16,6 +26,8 @@ import {
   type ScreenshotRecord,
   type SkippedRecord,
   type TranscriptJson,
+  type VoiceRecord,
+  type VoiceStretch,
 } from "../model.js";
 import {
   failureOf,
@@ -28,13 +40,14 @@ import { InterruptedError, StepTimeoutError, withTimeout } from "../passes/steps
 import { isHtmlContentType, sameOrigin } from "../pages/url.js";
 import { fileHash, writeTranscript } from "../transcripts/write.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
-import { errorMessage } from "../util/errors.js";
+import { errorCode, errorMessage } from "../util/errors.js";
 import { jpegSize } from "../util/jpeg.js";
 import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
+import { encodeVoice, peakOf, VOICE_SAMPLE_RATE } from "../voice/encode.js";
 import { keepEarlierAttempt } from "./attempts.js";
 import type { DriverSession } from "./driver-session.js";
-import { homeFolder, redactHome } from "./failure.js";
+import { redactAccount } from "./failure.js";
 import { pageDir } from "./paths.js";
 
 export interface PageContext {
@@ -102,6 +115,14 @@ export interface PageOutcome {
    * a page the attempt didn't read (it was skipped, or the site answered with an HTTP error).
    */
   axe?: AxeRecord;
+  /**
+   * The recording of NVDA's voice the last attempt kept in the page's folder, or why it has none: made
+   * from the attempt's start to its end, as the screenshot is taken as the page first loads, and
+   * kept only when the attempt finished (see endVoice), with only each pass's stretch of it (see
+   * keepVoice). Left out when the driver can't record, and for a page the attempt didn't read (it
+   * was skipped, the site answered with an HTTP error, or the page wouldn't open).
+   */
+  voice?: VoiceRecord;
   skip?: SkippedRecord;
 }
 
@@ -126,6 +147,17 @@ interface Loaded {
   screenshot?: ScreenshotRecord;
   /** And the check of the page with axe, if the driver makes one. */
   axe?: AxeRecord;
+  /**
+   * Whether the page is to be read: the attempt's first load wasn't skipped, and wasn't an HTTP error.
+   * Left out otherwise, and then the attempt's recording of NVDA's voice isn't kept, as no one reads
+   * that page's voice. Like the screenshot and axe, which are kept only for a page that's to be read.
+   */
+  toBeRead?: true;
+  /**
+   * The attempt's recording of NVDA's voice, if the driver makes one: set by processPage as the
+   * attempt ends, once the recording has been stopped and kept.
+   */
+  voice?: VoiceRecord;
 }
 
 /** Why an attempt failed, and what the page's record keeps of it. */
@@ -171,6 +203,15 @@ type Attempt = Loaded &
  * Each attempt is in the run's event log too, numbered as the page's record numbers it: its start,
  * and its end, which is the page read or skipped, or the attempt failed. A failed attempt is
  * recorded before it's kept, and before any restart for the next.
+ *
+ * A driver that can record NVDA's voice is asked to as each attempt begins, before the attempt's
+ * start is recorded, and the recording is ended as the attempt ends, before its end is recorded
+ * (endVoice). One of an attempt that finished is stopped: keepVoice encodes it into the page's
+ * folder (voice.webm), and the attempt's record of it is the page's, apart from its files. An
+ * attempt that read the page and then failed keeps none, and its record says why; one that didn't
+ * read the page keeps none and has no record of one, and neither does one that Ctrl+C or an
+ * unexpected error stopped. Not being able to record, or to keep a recording, never fails the
+ * attempt: the reason is the page's record.
  */
 export async function processPage(ctx: PageContext): Promise<PageOutcome> {
   const clock = ctx.clock ?? (() => performance.now());
@@ -196,10 +237,22 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     ...(status === "done" && result.canonical !== undefined ? { canonical: result.canonical } : {}),
     ...(result.screenshot !== undefined ? { screenshot: result.screenshot } : {}),
     ...(result.axe !== undefined ? { axe: result.axe } : {}),
+    ...(result.voice !== undefined ? { voice: result.voice } : {}),
     ...(result.kind === "skipped" ? { skip: result.skip } : {}),
   });
   for (let attempt = 1; ; attempt++) {
-    const result = await runAttempt(ctx);
+    const recording = await startVoice(ctx);
+    let result: Attempt;
+    try {
+      result = await runAttempt(ctx);
+    } catch (error) {
+      // Ctrl+C, or an error that isn't a failed attempt: the attempt isn't kept, and neither is its
+      // recording. Whatever discarding it says, it's the error that goes on.
+      await recording?.discard().catch(() => {});
+      throw error;
+    }
+    // Before the attempt's end is recorded, and before it counts.
+    await endVoice(ctx, recording, result);
     // The attempt has ended, so it counts: one that Ctrl+C stopped threw instead.
     ctx.page.attempts++;
     // This attempt's number in the page's record, which is its number in the event log.
@@ -283,7 +336,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
       kind: "retry",
       failure: "environment",
       restart: true,
-      error: `Could not open the page for the ${pass} pass: ${errorMessage(error)}`,
+      error: `Could not open the page for the ${pass} pass: ${redactAccount(errorMessage(error))}`,
       ...failedWith(problemOf(pass, failureOf(error), "openPage")),
     };
   };
@@ -332,6 +385,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         }
         // The page will be read: keep the picture the driver took of it as it loaded. The loads for
         // the passes after this one are of the same page, and their pictures aren't kept.
+        loaded.toBeRead = true;
         const screenshot = await keepScreenshot(ctx, dir, info.screenshot);
         if (screenshot) loaded.screenshot = screenshot;
         // And have the driver check it with axe, if it can: once a page, on this load, before the
@@ -348,7 +402,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
             kind: "retry",
             failure: "environment",
             restart: true,
-            error: `Could not check the page with axe for the ${pass} pass: ${errorMessage(error)}`,
+            error: `Could not check the page with axe for the ${pass} pass: ${redactAccount(errorMessage(error))}`,
             // The page was still being opened for the pass: no step of it had begun.
             ...failedWith(problemOf(pass, failureOf(error), "openPage")),
           };
@@ -405,7 +459,9 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
 /**
  * Keep the screenshot a driver took of a page: the JPEG in the page's folder, and its record, with
  * the picture's size and when. A picture the driver couldn't take, and bytes that aren't a JPEG
- * voicecap can read, are recorded as the reason, with no file. Null when the driver took none.
+ * voicecap can read, are recorded as the reason, with no file; a reason the driver gave has the
+ * account's folders replaced (see redactAccount), as it may name a path. Null when the driver took
+ * none.
  */
 async function keepScreenshot(
   ctx: PageContext,
@@ -414,7 +470,7 @@ async function keepScreenshot(
 ): Promise<ScreenshotRecord | null> {
   if (screenshot === undefined) return null;
   const takenAt = isoLocalMs(ctx.now());
-  if ("error" in screenshot) return { error: screenshot.error, takenAt };
+  if ("error" in screenshot) return { error: redactAccount(screenshot.error), takenAt };
   const size = jpegSize(screenshot.jpeg);
   if (size === null) return { error: "the picture wasn't a JPEG voicecap could read", takenAt };
   await writeFileAtomic(path.join(dir, SCREENSHOT_FILE), screenshot.jpeg);
@@ -466,33 +522,258 @@ async function keepAxe(
 }
 
 /**
+ * Have the driver begin recording the attempt that's about to start, when it can; null when it can't.
+ * Raced against Ctrl+C and the whole page's time, as every call to a driver is: a recording that's
+ * slow to begin (the first one starts the recorder, which takes seconds) doesn't hold Ctrl+C up. A
+ * driver gives its reasons at stop(), never here; one that fails here gives the page its reason all
+ * the same, as a recording that stops with it: not being able to record never fails a page.
+ */
+async function startVoice(ctx: PageContext): Promise<VoiceRecording | null> {
+  const { driver } = ctx.session;
+  const record = driver.recordVoice?.bind(driver);
+  if (record === undefined) return null;
+  try {
+    return await withTimeout(
+      "Starting the recording",
+      record,
+      ctx.pageTimeoutMs,
+      ctx.signal,
+      "page-timeout",
+    );
+  } catch (error) {
+    if (error instanceof InterruptedError) throw error;
+    const reason = errorMessage(error);
+    return { stop: () => Promise.resolve({ error: reason }), discard: () => Promise.resolve() };
+  }
+}
+
+/**
+ * Why a page's last attempt has no recording when it read the page and then failed: the recording
+ * is discarded as the attempt ends. An attempt can fail because another window came to the front,
+ * and NVDA may have read that window aloud, which its sound would hold. A clause in lowercase with
+ * no full stop, as every reason a page's record keeps of its recording.
+ */
+export const UNFINISHED_ATTEMPT =
+  "the attempt didn't finish, and a recording is kept only of an attempt that did";
+
+/**
+ * End the attempt's recording, now the attempt has ended, and set the attempt's voice. One of an
+ * attempt that finished is stopped and kept (see keepVoice). One of an attempt that read the page
+ * and then failed is discarded, and the attempt's voice says why (UNFINISHED_ATTEMPT): it may hold
+ * what NVDA read of another window. One of an attempt that didn't read the page (it was skipped,
+ * the site answered with an HTTP error, or the page wouldn't open) is discarded, with no record:
+ * its sound says nothing of a page that wasn't read, as its screenshot and axe's results aren't
+ * kept either. None of it fails the attempt.
+ */
+async function endVoice(
+  ctx: PageContext,
+  recording: VoiceRecording | null,
+  attempt: Attempt,
+): Promise<void> {
+  if (recording === null) return;
+  if (attempt.toBeRead !== true) {
+    await recording.discard().catch(() => {});
+    return;
+  }
+  if (attempt.kind !== "done") {
+    await recording.discard().catch(() => {});
+    attempt.voice = { error: UNFINISHED_ATTEMPT, recordedAt: isoLocalMs(ctx.now()) };
+    return;
+  }
+  let capture: VoiceCapture;
+  try {
+    capture = await recording.stop();
+  } catch (error) {
+    capture = { error: errorMessage(error) };
+  }
+  const dir = pageDir(ctx.outDir, ctx.run.id, ctx.page.slug);
+  attempt.voice = await keepVoice(ctx, dir, capture, attempt);
+}
+
+/** A recording that peaks at this many steps or fewer, of 32,768 at most, is silent. */
+const SILENT_PEAK = 2;
+
+/** Samples a millisecond, at the rate the recorder keeps. */
+const SAMPLES_PER_MS = VOICE_SAMPLE_RATE / 1000;
+
+/**
+ * Why a page has no recording when none of it is left to keep: the driver kept no stretch of it (no
+ * pass was confirmed to be read with voicecap's browser in front), or none falls inside the
+ * recording, or what did is shorter than the sound the recorder lost. A clause in lowercase with no
+ * full stop, as every reason a page's record keeps of its recording.
+ */
+export const NOTHING_KEPT =
+  "no pass was confirmed to be read with voicecap's browser in front, so none of the recording is kept";
+
+/**
+ * Keep the recording a driver made of an attempt: its sound is read, silenced outside the stretches
+ * the driver keeps (see keptStretches), encoded, and written to the page's folder (voice.webm), and
+ * its record has the file's fingerprint, its length, the sound lost by the recorder, when its first
+ * sample was (`startedAt`), and the stretches kept, with when it was recorded. Between the passes,
+ * while a browser opens or comes to the front, NVDA may read the window behind it, so nothing of
+ * those moments is kept; the file keeps the recording's length, its silences costing almost
+ * nothing. One that can't be kept is recorded as the reason, with no file, and the page is read as
+ * it was: the reason the driver gave, or that the file isn't 16-bit sound, can't be read, is empty,
+ * keeps nothing (NOTHING_KEPT), is silent, or couldn't be encoded. Silent means what it keeps peaks
+ * at 2 or less while the attempt's transcripts have words (see hasWords): NVDA spoke, and the
+ * recording doesn't have it. A quiet recording of a page with no words is a recording of a quiet
+ * page, and is kept. A reason is its first line, cut at 300 characters, as an axe check's is, once
+ * the account's home and temp folders in it are replaced (see redactAccount): the record, and the
+ * page that shows it, never name the account.
+ *
+ * The sound is deleted whatever comes of it, as the driver leaves its file to this. Encoding holds
+ * the process up for about a hundredth of the recording's length, and it comes now, between attempts,
+ * so it holds up nothing NVDA does. A file that can't be written fails the run, as a transcript's
+ * does: the run's folder can't be written.
+ */
+async function keepVoice(
+  ctx: PageContext,
+  dir: string,
+  capture: VoiceCapture,
+  attempt: Attempt,
+): Promise<VoiceRecord> {
+  const recordedAt = isoLocalMs(ctx.now());
+  // A reason keeps the recorder's words as it said them, and some name a path (a program, the file
+  // .NET couldn't make, the script Add-Type compiled): the account's folders are replaced before the
+  // cut, so that the record never names the account, and a path across the limit leaves no part of it.
+  const without = (reason: string): VoiceRecord => ({
+    error: axeErrorReason(redactAccount(reason)),
+    recordedAt,
+  });
+  if ("error" in capture) return without(capture.error);
+  try {
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(capture.pcm);
+    } catch (error) {
+      return without(`the recording's file couldn't be read (${errorCode(error)})`);
+    }
+    // An Int16Array takes whole samples only: one with a half sample at its end isn't 16-bit sound.
+    if (bytes.length % 2 !== 0) {
+      return without(
+        `the recording's file isn't 16-bit sound: it has an odd number of bytes (${bytes.length})`,
+      );
+    }
+    // A copy, as the bytes may sit at an odd place in a larger block, where no view of samples fits.
+    const samples = new Int16Array(
+      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length),
+    );
+    if (samples.length === 0) return without("the recording is empty");
+    // Only the stretches the driver kept are the page's: the rest is silenced, and the file keeps
+    // the recording's length. Silence is judged by what's kept.
+    const stretches = keptStretches(capture.stretches, capture.lostMs, samples.length);
+    if (stretches.length === 0) return without(NOTHING_KEPT);
+    silenceOutside(samples, stretches);
+    if (peakOf(samples) <= SILENT_PEAK && hasWords(attempt)) {
+      return without("the recording is silent");
+    }
+    let encoded: { webm: Uint8Array; seconds: number };
+    try {
+      encoded = await encodeVoice(samples);
+    } catch (error) {
+      return without(`the recording couldn't be encoded: ${errorMessage(error)}`);
+    }
+    await writeFileAtomic(path.join(dir, VOICE_FILE), encoded.webm);
+    return {
+      ...fileHash(encoded.webm),
+      seconds: encoded.seconds,
+      lostMs: capture.lostMs,
+      ...firstSampleAt(capture.startedAt),
+      stretches,
+      recordedAt,
+    };
+  } finally {
+    // A few tries: Windows refuses to remove a file for a moment while a scanner has it open.
+    await rm(capture.pcm, { force: true, maxRetries: 3 }).catch(() => {});
+  }
+}
+
+/**
+ * The stretches of a recording of `frames` samples to keep, in whole milliseconds from its first
+ * sample: the driver's, each cut to the recording, then shrunk by the sound the recorder lost
+ * (`lostMs`) at both ends, as lost sound can shift where a moment falls in the file. So the
+ * recording keeps less than the driver kept, never more. In order, with stretches that meet or
+ * overlap joined; one nothing is left of, or whose ends aren't numbers, is dropped.
+ */
+function keptStretches(
+  stretches: readonly VoiceStretch[],
+  lostMs: number,
+  frames: number,
+): VoiceStretch[] {
+  const lengthMs = Math.floor(frames / SAMPLES_PER_MS);
+  const margin = Number.isFinite(lostMs) && lostMs > 0 ? Math.ceil(lostMs) : 0;
+  const shrunk = stretches
+    .filter(({ startMs, endMs }) => Number.isFinite(startMs) && Number.isFinite(endMs))
+    .map(({ startMs, endMs }) => ({
+      startMs: Math.max(0, Math.ceil(startMs)) + margin,
+      endMs: Math.min(lengthMs, Math.floor(endMs)) - margin,
+    }))
+    .filter(({ startMs, endMs }) => endMs > startMs)
+    .sort((a, b) => a.startMs - b.startMs);
+  const joined: VoiceStretch[] = [];
+  for (const stretch of shrunk) {
+    const last = joined.at(-1);
+    if (last !== undefined && stretch.startMs <= last.endMs) {
+      last.endMs = Math.max(last.endMs, stretch.endMs);
+    } else {
+      joined.push(stretch);
+    }
+  }
+  return joined;
+}
+
+/** Every sample outside `kept` (in order, apart, as keptStretches gives them) set to silence. */
+function silenceOutside(samples: Int16Array, kept: readonly VoiceStretch[]): void {
+  let from = 0;
+  for (const { startMs, endMs } of kept) {
+    samples.fill(0, from, startMs * SAMPLES_PER_MS);
+    from = endMs * SAMPLES_PER_MS;
+  }
+  samples.fill(0, from);
+}
+
+/**
+ * When the recording's first sample was, for the record: the recorder's UTC time as a local ISO time
+ * to the millisecond, as every other time of the record is, under its key, and nothing for a time
+ * that isn't one (the key is optional: a record without it is whole).
+ */
+function firstSampleAt(startedAt: string): { startedAt?: string } {
+  const time = new Date(startedAt);
+  return Number.isNaN(time.getTime()) ? {} : { startedAt: isoLocalMs(time) };
+}
+
+/**
+ * Whether NVDA said anything in the attempt's transcripts: a step of a pass with words in it,
+ * wherever it was said (the page, or the browser's toolbar when Tab left the page).
+ */
+function hasWords(attempt: Attempt): boolean {
+  return Object.values(attempt.results).some((result) =>
+    result?.steps.some((step) => step.spoken.trim() !== ""),
+  );
+}
+
+/**
  * What the record of a failed pass, or of a page that couldn't be opened for it (command
  * "openPage"), says went wrong. A browser that's gone during the page's check with axe is recorded
  * the same way, as a failure with no step (see AttemptRecord.command): the shareable page words it
  * "…while opening the page for the read pass", and only the page's errors name axe. The program
- * that took the foreground is kept when the driver named one (or said it couldn't). An unexpected
- * error's stack is kept with the home folder replaced, so the record doesn't name the account that
- * ran voicecap. Its message is kept word for word: the report replaces the home folder where it
- * shows one.
+ * that took the foreground is kept when the driver named one (or said it couldn't). The error's
+ * message, and an unexpected error's stack, are kept with the account's home and temp folders
+ * replaced (see redactAccount), so the record doesn't name the account that ran voicecap.
  */
 function problemOf(
   pass: PassName,
   failure: PassFailure,
   command: Problem["command"] = failure.command,
 ): Problem {
-  const home = homeFolder();
   return {
     pass,
     step: failure.step,
     command,
     cause: failure.cause,
-    message: failure.message,
+    message: redactAccount(failure.message),
     ...(failure.program !== undefined ? { program: failure.program } : {}),
-    ...(failure.stack !== undefined
-      ? {
-          stack: home === null ? failure.stack : redactHome(failure.stack, home, process.platform),
-        }
-      : {}),
+    ...(failure.stack !== undefined ? { stack: redactAccount(failure.stack) } : {}),
   };
 }
 

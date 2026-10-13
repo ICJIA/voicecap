@@ -22,11 +22,11 @@ vi.mock("node:path", async (importOriginal) => {
   return { ...win32, default: win32 };
 });
 
-const HOME = "/Users/cschweda";
-const CACHE_DIR = "/Users/cschweda/Library/Caches/guidepup";
+const HOME = "/Users/jane";
+const CACHE_DIR = "/Users/jane/Library/Caches/guidepup";
 const ASSET_FILE = `${CACHE_DIR}/voiceover/25/0.0.1-VoiceOver4/guidepup-voiceover-preferences-macos-26.dmg`;
 const CHROME_PATH =
-  "/Users/cschweda/Library/Caches/ms-playwright/chromium-1243/chrome-mac/Chromium.app/Contents/MacOS/Chromium";
+  "/Users/jane/Library/Caches/ms-playwright/chromium-1243/chrome-mac/Chromium.app/Contents/MacOS/Chromium";
 const MANIFEST = {
   screenReaders: [
     {
@@ -62,7 +62,7 @@ function mac(overrides: Partial<MacReadinessDeps> = {}) {
     otherVoicecap: () => Promise.resolve(null),
     lockFile: voiceOverLockFile(HOME),
     resolveBrowser: () => ({ name: "Chromium", path: CHROME_PATH, playwrightBuild: true }),
-    transcripts: "/Users/cschweda/webdev/voicecap-transcripts",
+    transcripts: "/Users/jane/webdev/voicecap-transcripts",
     totalmem: () => 16 * 1024 ** 3,
     disk: () => Promise.resolve(null),
     ...overrides,
@@ -88,7 +88,7 @@ describe("the Mac's paths, where Node's path functions are Windows'", () => {
   });
 
   it("puts the VoiceOver lock under the home folder, the Mac's way", () => {
-    expect(voiceOverLockFile(HOME)).toBe("/Users/cschweda/Library/Caches/voicecap/voiceover.lock");
+    expect(voiceOverLockFile(HOME)).toBe("/Users/jane/Library/Caches/voicecap/voiceover.lock");
   });
 
   it("puts Guidepup's files under the home folder, or where GUIDEPUP_SCREEN_READERS_PATH says", () => {
@@ -110,15 +110,15 @@ describe("the Mac's paths, where Node's path functions are Windows'", () => {
     const fullDiskAccess = platform.quickChecks().find((runner) => runner.id === "fullDiskAccess");
     await fullDiskAccess?.run();
     expect(looked).toEqual([
-      "/Users/cschweda/Library/Group Containers/group.com.apple.VoiceOver/Library/Preferences",
-      "/Users/cschweda/Library/Preferences/com.apple.VoiceOver4.local.plist",
+      "/Users/jane/Library/Group Containers/group.com.apple.VoiceOver/Library/Preferences",
+      "/Users/jane/Library/Preferences/com.apple.VoiceOver4.local.plist",
     ]);
   });
 
   it("names the user, Guidepup's files, and the browser's path the Mac's way", async () => {
     const info = await mac().platform.machineInfo();
     const line = (label: string) => info.lines.find((candidate) => candidate.label === label);
-    expect(line("Computer")?.value).toBe("this Mac, user cschweda");
+    expect(line("Computer")?.value).toBe("this Mac, user jane");
     expect(line("Guidepup files")?.value).toBe(CACHE_DIR);
     expect(line("Browser path")?.value).toBe(
       "~/Library/Caches/ms-playwright/chromium-1243/chrome-mac/Chromium.app/Contents/MacOS/Chromium",

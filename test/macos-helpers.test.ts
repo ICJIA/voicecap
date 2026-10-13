@@ -571,25 +571,25 @@ describe("systemEventsAccess and askVoiceOver", () => {
 
 describe("voiceOverPrefsDir", () => {
   it("is under the home folder's Group Containers", () => {
-    expect(voiceOverPrefsDir("/Users/cschweda")).toBe(
-      "/Users/cschweda/Library/Group Containers/group.com.apple.VoiceOver/Library/Preferences",
+    expect(voiceOverPrefsDir("/Users/jane")).toBe(
+      "/Users/jane/Library/Group Containers/group.com.apple.VoiceOver/Library/Preferences",
     );
   });
 });
 
 describe("guidepupPrefsDir", () => {
-  const GROUP = voiceOverPrefsDir("/Users/cschweda");
+  const GROUP = voiceOverPrefsDir("/Users/jane");
 
   it("is VoiceOver's group container's Preferences folder when it exists, as Guidepup chooses", () => {
-    expect(guidepupPrefsDir("/Users/cschweda", (file) => file === GROUP)).toEqual({
+    expect(guidepupPrefsDir("/Users/jane", (file) => file === GROUP)).toEqual({
       dir: GROUP,
       groupContainer: true,
     });
   });
 
   it("is the home folder's Library/Preferences when it doesn't", () => {
-    expect(guidepupPrefsDir("/Users/cschweda", () => false)).toEqual({
-      dir: "/Users/cschweda/Library/Preferences",
+    expect(guidepupPrefsDir("/Users/jane", () => false)).toEqual({
+      dir: "/Users/jane/Library/Preferences",
       groupContainer: false,
     });
   });
@@ -603,7 +603,7 @@ describe("canWriteVoiceOverPrefs", () => {
   it("writes and removes a marker file named with this process's pid", async () => {
     const written: string[] = [];
     const removed: string[] = [];
-    const result = await canWriteVoiceOverPrefs("/Users/cschweda/prefs", {
+    const result = await canWriteVoiceOverPrefs("/Users/jane/prefs", {
       writeFile: (file) => {
         written.push(file);
         return Promise.resolve();
@@ -614,13 +614,13 @@ describe("canWriteVoiceOverPrefs", () => {
       },
     });
     expect(result).toEqual({ ok: true });
-    expect(written).toEqual([`/Users/cschweda/prefs/.voicecap-check-${process.pid}`]);
-    expect(removed).toEqual([`/Users/cschweda/prefs/.voicecap-check-${process.pid}`]);
+    expect(written).toEqual([`/Users/jane/prefs/.voicecap-check-${process.pid}`]);
+    expect(removed).toEqual([`/Users/jane/prefs/.voicecap-check-${process.pid}`]);
   });
 
   it("gives EPERM when the write fails, as macOS 26 does without Full Disk Access", async () => {
     const error = Object.assign(new Error("Operation not permitted"), { code: "EPERM" });
-    const result = await canWriteVoiceOverPrefs("/Users/cschweda/prefs", {
+    const result = await canWriteVoiceOverPrefs("/Users/jane/prefs", {
       writeFile: () => Promise.reject(error),
       rm: () => Promise.resolve(),
     });
@@ -1101,7 +1101,7 @@ describe("macSystem", () => {
           }),
         },
       ],
-      [(file) => file === "scutil", overrides.computerName ?? { stdout: "cschweda's Mac mini\n" }],
+      [(file) => file === "scutil", overrides.computerName ?? { stdout: "Jane's Mac mini\n" }],
       [
         (file, args) => file === "defaults" && args[0] === "read",
         overrides.locale ?? { stdout: "en_US\n" },
@@ -1118,7 +1118,7 @@ describe("macSystem", () => {
       model: "Mac mini",
       identifier: "Mac16,10",
       chip: "Apple M4",
-      computerName: "cschweda's Mac mini",
+      computerName: "Jane's Mac mini",
       locale: "en_US",
     });
   });

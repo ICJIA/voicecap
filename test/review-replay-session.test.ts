@@ -19,6 +19,8 @@ import { afterAll, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { RunJson } from "../src/model.js";
 import type { Key } from "../src/review-replay/keys.js";
+import { replayPagesOf } from "../src/review-replay/pages.js";
+import type * as PagesModule from "../src/review-replay/pages.js";
 import {
   replayReview,
   type ReplayDeps,
@@ -30,6 +32,8 @@ import type { Voice } from "../src/review-replay/voice.js";
 import { addReview } from "../src/reviews/review.js";
 import { readReviews } from "../src/reviews/store.js";
 import { runAudit } from "../src/run/audit.js";
+import { loadShareInput } from "../src/share/load.js";
+import type * as LoadModule from "../src/share/load.js";
 import type { LiveReportOptions } from "../src/run/live-report.js";
 import { pageDir, runDir, runJsonPath } from "../src/run/paths.js";
 import { listRuns } from "../src/run/store.js";
@@ -50,6 +54,20 @@ import {
   setup,
   SITE,
 } from "./helpers/run-site.js";
+
+// The loader goes through as it does, and each call is kept: the replay reads pages aloud, and the
+// test of what it asks the loader for reads the calls.
+vi.mock("../src/share/load.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof LoadModule>();
+  return { ...actual, loadShareInput: vi.fn(actual.loadShareInput) };
+});
+
+// The same for the choice of pages, so the test of what the session shows of a page it leaves out
+// can give it a page the real run never has: one whose address holds a control character.
+vi.mock("../src/review-replay/pages.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof PagesModule>();
+  return { ...actual, replayPagesOf: vi.fn(actual.replayPagesOf) };
+});
 
 /** The scripted site's pages, by their keys. */
 const HOME_PAGE = "https://example.illinois.gov/";
@@ -227,6 +245,18 @@ function soon<T>(promise: Promise<T>): Promise<T | "still waiting"> {
 }
 
 describe("replayReview", () => {
+  it("asks the loader for no recording of NVDA's voice: it reads transcripts aloud, and makes no voice page", async () => {
+    const at = await countedHome();
+    vi.mocked(loadShareInput).mockClear();
+    const { session } = replay(at, [["1"], ["1"], ["1"]], { options: { all: true } });
+    await session;
+
+    // Once, for its pages, and for none of the megabytes a site's recordings can come to.
+    expect(vi.mocked(loadShareInput).mock.calls.map(([asked]) => asked.recordings)).toEqual([
+      false,
+    ]);
+  });
+
   it("records each decision through addReview, against the run it played, and writes the report once", async () => {
     const at = await countedHome();
     const report = await readFile(path.join(at.siteDir, "report.html"), "utf8");
@@ -840,6 +870,23 @@ describe("replayReview", () => {
       "Skipped.",
       "Recorded no decisions.",
     ]);
+  });
+
+  // A page's address comes from a record, so the line that names the pages left out is written as
+  // text, as every line the session shows is.
+  it("shows the pages it leaves out as text: a control character in an address becomes an escape", async () => {
+    const at = await countedHome();
+    vi.mocked(replayPagesOf).mockImplementationOnce(() => ({
+      pages: [],
+      leftOut: ["/a\u{1b}[2Jb", "/c\u{202e}d"],
+    }));
+    const { session, out, startVoice } = replay(at, []);
+
+    await expect(session).resolves.toEqual({ decisions: 0, outcome: "done" });
+    expect(out.text()).toBe(
+      `Left out, with no transcripts to hear: /a\\u{1b}[2Jb, /c\\u{202e}d.\n${REPLAY_TEXT.nothingDefault}\n`,
+    );
+    expect(startVoice).not.toHaveBeenCalled();
   });
 
   it("records a decision against the run that played, not a later run that doesn't count", async () => {

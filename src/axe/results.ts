@@ -13,6 +13,7 @@ import { createRequire } from "node:module";
 
 import { z } from "zod";
 
+import { redactAccount } from "../run/failure.js";
 import { errorMessage } from "../util/errors.js";
 import { sortKeys } from "../util/hash.js";
 
@@ -188,10 +189,12 @@ function keptRule(rule: AxeRule): KeptRule {
 /**
  * The reason a page has no result from axe, as its record keeps it and the shareable page shows it:
  * the first line of what went wrong (the first with words in it, when the first has none), without
- * the stack that may follow, cut to MAX_REASON.
+ * the stack that may follow, cut to MAX_REASON. The account's home and temp folders are replaced
+ * before the cut (see redactAccount), so a path across the limit leaves no part of the account's
+ * name.
  */
 export function axeErrorReason(error: unknown): string {
-  const line = errorMessage(error)
+  const line = redactAccount(errorMessage(error))
     .split(/\r?\n|\r/)
     .map((text) => text.trim())
     .find((text) => text !== "");

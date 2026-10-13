@@ -35,9 +35,12 @@ import {
   LINK_FLAG,
   manyPages,
   picturesOf,
+  heldRecordings,
   storeOf,
   TRANSCRIPTS,
   type Lines,
+  VOICE_PAGE,
+  voiceRecord,
   withoutReadTxt,
 } from "./helpers/share-model.js";
 
@@ -63,13 +66,16 @@ const NO_STOPS_FLAG: FlagResult = {
   message: "Tab reached no focusable elements on the page.",
 };
 
+/** The line of a card's fold of its page's transcripts, as everyone sees it, when it has all three. */
+const SEEN_ALL_THREE = "The full transcript: read, headings, and Tab transcripts";
+
 /**
  * The line of a card's fold of its page's transcripts as a screen reader gets it, when the page has
- * all three: "The full transcript of /about/: read, headings, and Tab transcripts". A sighted
- * reader sees the same without "of /about/", which is set apart for a screen reader alone.
+ * all three: "The full transcript: read, headings, and Tab transcripts of /about/". A sighted reader
+ * sees the same without " of /about/", which is set apart for a screen reader alone and follows the
+ * words everyone sees, so those are whole and first in the name (WCAG 2.5.3, label in name).
  */
-const allThree = (path: string): string =>
-  `The full transcript of ${path}: read, headings, and Tab transcripts`;
+const allThree = (path: string): string => `${SEEN_ALL_THREE} of ${path}`;
 
 /** Pages whose read pass has fewer than the three lines a card shows first. */
 const LESS = { two: { read: ["One", "Two"] }, one: { read: ["Only"] } } satisfies Record<
@@ -781,7 +787,7 @@ describe("renderPages", () => {
       expect(markup, card.path).not.toContain(" open>");
       expect(foldLines(markup), card.path).toEqual([allThree(card.path)]);
       expect(markup, card.path).toContain(
-        `<summary><span class="what">The full transcript<span class="sr"> of ${esc(card.path)}</span>:</span> <span class="sub">read, headings, and Tab transcripts</span></summary>`,
+        `<summary><span class="what">The full transcript:</span> <span class="sub">read, headings, and Tab transcripts</span><span class="sr"> of ${esc(card.path)}</span></summary>`,
       );
       // Its three transcripts keep the names the fingerprint check finds them by, and a heading
       // each, one level under the card's own.
@@ -840,7 +846,7 @@ describe("renderPages", () => {
     }
   });
 
-  it("names each page's fold of its transcripts by its page for a screen reader, and looks the same to everyone else", () => {
+  it("names each page's fold of its transcripts by its page for a screen reader, after the words everyone sees, and looks the same to everyone else", () => {
     const model = manyPages(13, 2);
     const html = renderPages(model);
     const cards = cardsIn(html);
@@ -855,10 +861,11 @@ describe("renderPages", () => {
       const lines = foldLines(markup);
 
       // The fold in a card says which page it is of, by the card's own path as a screen reader gets
-      // it (the path ends at the colon, so "/page-1" isn't taken for "/page-10").
+      // it, as the line's last words (the line is compared whole, so "/page-1" isn't taken for
+      // "/page-10").
       expect(card, slug).toBeDefined();
       expect(lines, slug).toHaveLength(1);
-      expect(lines[0], slug).toContain(` of ${card?.path}:`);
+      expect(lines[0], slug).toBe(allThree(card?.path ?? ""));
       heard.push(...lines);
     }
     // So no two are alike.
@@ -869,9 +876,14 @@ describe("renderPages", () => {
     const seen = foldSummaries(html).map((line) =>
       textOf(line.replace(/<span class="sr">.*?<\/span>/g, ""), ""),
     );
-    expect(seen).toEqual(
-      Array.from({ length: 13 }, () => "The full transcript: read, headings, and Tab transcripts"),
-    );
+    expect(seen).toEqual(Array.from({ length: 13 }, () => SEEN_ALL_THREE));
+
+    // And a screen reader's name for each fold starts with those words, whole (WCAG 2.5.3, label in
+    // name): a voice command that says the words on the screen finds the fold.
+    expect(foldLines(html)).toHaveLength(13);
+    for (const [at, line] of foldLines(html).entries()) {
+      expect(line.startsWith(seen[at] ?? "\0"), line).toBe(true);
+    }
   });
 
   it("has no first lines and no transcript fold for a page never read", () => {
@@ -1114,12 +1126,12 @@ describe("a card's full transcript", () => {
 
     expect(summary(only(["read", "headings", "tab"]))).toBe(allThree("/a"));
     expect(summary(only(["read", "tab"]))).toBe(
-      "The full transcript of /a: read and Tab transcripts",
+      "The full transcript: read and Tab transcripts of /a",
     );
-    expect(summary(only(["headings"]))).toBe("The full transcript of /a: headings transcript");
+    expect(summary(only(["headings"]))).toBe("The full transcript: headings transcript of /a");
     // A page whose record lists no transcript says so, rather than offer an empty fold.
     const none = modelOf([done("/a", { files: [] })]);
-    expect(summary(none)).toBe("The full transcript of /a: no transcripts");
+    expect(summary(none)).toBe("The full transcript: no transcripts of /a");
     expect(renderPages(none)).toContain(
       "<p>This run&#39;s record lists no transcript files for the page.</p>",
     );
@@ -1913,5 +1925,155 @@ describe("what axe found, on a page's card", () => {
     expect(card).not.toContain("axe-page");
     expect(card).not.toContain("axe:");
     expect(foldKinds(card)).toEqual(["tx-page"]);
+  });
+});
+
+describe("NVDA's voice, on a recorded page's card", () => {
+  /** A run of voicecap 0.18.0, the first to record NVDA's voice, of these pages. */
+  const runOf = (pages: SharePageSpec[], version = "0.18.0"): RunJson =>
+    shareRun({ id: "r1", voicecapVersion: version, pages });
+
+  /**
+   * The model of a run as a share makes it, the voice page beside it (`voiceName`), with a file held
+   * for each recording the run keeps.
+   */
+  const modelOfRun = (run: RunJson, overrides: Partial<ShareInput> = {}): ShareModel =>
+    buildShareModel(
+      inputOf([run], { recordings: heldRecordings([run]), voiceName: VOICE_PAGE, ...overrides }),
+    );
+
+  /** The cards of a run, each as its markup. */
+  const cardsOf = (run: RunJson, overrides: Partial<ShareInput> = {}): string[] =>
+    cardsIn(renderPages(modelOfRun(run, overrides)));
+
+  /** A card's links to the voice page, each as its address and its words, the sr part included. */
+  const voiceLinksIn = (card: string): [string, string][] =>
+    [...card.matchAll(/<a href="([^"]*\.voice\.html[^"]*)">(.*?)<\/a>/gs)].map(
+      ([, href = "", words = ""]): [string, string] => [decode(href), textOf(words, "")],
+    );
+
+  it("gives a recorded page's card the line, linked to its section", () => {
+    const run = runOf([
+      done("/", { label: "Home", voice: voiceRecord(134.2) }),
+      done("/about/", { voice: voiceRecord(61) }),
+      done("/apply/"),
+    ]);
+    const [home = "", about = "", apply = ""] = cardsOf(run);
+    const [homeSlug = "", aboutSlug = ""] = run.pages.map((page) => page.slug);
+
+    // The plan's words: the length, and where it is, the page's address for a screen reader alone.
+    expect(home).toContain(
+      `<p class="sub"><a href="${VOICE_PAGE}#voice-${idFragment(homeSlug)}">NVDA&#39;s voice: 2 min 14 s, on the voice page<span class="sr"> for /</span></a></p>`,
+    );
+    expect(about).toContain(
+      `<p class="sub"><a href="${VOICE_PAGE}#voice-${idFragment(aboutSlug)}">NVDA&#39;s voice: 1 min 1 s, on the voice page<span class="sr"> for /about/</span></a></p>`,
+    );
+    // A page with no recording says nothing of one.
+    expect(apply).not.toContain("NVDA&#39;s voice");
+    expect(apply).not.toContain(".voice.html");
+    // What a sighted reader sees is the line alone.
+    expect(textOf(home.replace(/<span class="sr">.*?<\/span>/g, ""))).toContain(
+      "NVDA's voice: 2 min 14 s, on the voice page",
+    );
+  });
+
+  it("links each card to its own section, and tells the links apart by the page they're for, so no two read alike", () => {
+    // Two pages whose recordings are as long as each other: the lengths can't tell their links apart.
+    const run = runOf([
+      done("/a/", { voice: voiceRecord(30) }),
+      done("/b/", { voice: voiceRecord(30) }),
+    ]);
+    const links = cardsOf(run).flatMap(voiceLinksIn);
+
+    expect(links.map(([, words]) => words)).toEqual([
+      "NVDA's voice: 30 s, on the voice page for /a/",
+      "NVDA's voice: 30 s, on the voice page for /b/",
+    ]);
+    expect(new Set(links.map(([href]) => href)).size).toBe(2);
+    expect(new Set(links.map(([, words]) => words)).size).toBe(2);
+  });
+
+  it("puts the line after what NVDA said first, and before the numbers, the strip, and the folds", () => {
+    const run = runOf([done("/about/", { voice: voiceRecord(61) })]);
+    const [card = ""] = cardsOf(run);
+    const order = [
+      'class="heard-first"',
+      ".voice.html#",
+      'class="passes"',
+      'class="strip-fig"',
+      'class="fold tx-page"',
+    ].map((part) => card.indexOf(part));
+
+    expect(order.every((place) => place >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it("gives a page that was never transcribed its line too, beside its failure, since its last attempt was recorded", () => {
+    const run = runOf([{ path: "/never/", status: "failed", voice: voiceRecord(7) }]);
+    const [card = ""] = cardsOf(run);
+
+    expect(card).toContain("NVDA&#39;s voice: 7 s, on the voice page");
+    expect(card.indexOf(".voice.html#")).toBeGreaterThan(card.indexOf('class="chips"'));
+  });
+
+  it("says nothing of NVDA's voice for a card with no recording, a copy with no voice page beside it, or a run from before 0.18.0", () => {
+    const pages = [done("/", { voice: voiceRecord(10) }), done("/about/")];
+    const none = [
+      // A recording the loader doesn't hold: the file isn't as the run recorded it.
+      cardsOf(runOf(pages), { recordings: new Map() }),
+      // The live copy: nothing is written beside it, so nothing is linked.
+      cardsOf(runOf(pages), { voiceName: null }),
+      // A run of an earlier voicecap, which has no record of one.
+      cardsOf(runOf([done("/"), done("/about/")], "0.17.0")),
+    ];
+
+    for (const cards of none) {
+      expect(cards).toHaveLength(2);
+      for (const card of cards) expect(card).not.toMatch(/NVDA&#39;s voice|\.voice\.html/);
+    }
+  });
+
+  it("leaves the length out when the record has none, and still links the page", () => {
+    const run = runOf([done("/", { voice: { ...voiceRecord(10), seconds: Number.NaN } })]);
+    const [card = ""] = cardsOf(run);
+
+    expect(card).toContain(
+      `<a href="${VOICE_PAGE}#voice-home">NVDA&#39;s voice, on the voice page<span class="sr"> for /</span></a>`,
+    );
+  });
+
+  it("escapes the address it links to, and sets no style", () => {
+    const run = runOf([done("/", { voice: voiceRecord(10) })]);
+    const [card = ""] = cardsOf(run, { voiceName: 'a&b"<c>.voice.html' });
+
+    expect(card).toContain('<a href="a&amp;b&quot;&lt;c&gt;.voice.html#voice-home">');
+    expect(card).not.toContain("<c>");
+    expect(card).not.toMatch(/style\s*=/i);
+  });
+
+  it("changes nothing else about the card: with the line taken out it is the card it was", () => {
+    const pages = [
+      done("/", { voice: voiceRecord(134.2) }),
+      done("/about/", { voice: voiceRecord(61) }),
+    ];
+    const withLine = cardsOf(runOf(pages));
+    const without = cardsOf(runOf(pages), { voiceName: null });
+
+    expect(
+      withLine.map((card) =>
+        card.replace(/<p class="sub"><a href="[^"]*\.voice\.html[^"]*">.*?<\/a><\/p>\s*/s, ""),
+      ),
+    ).toEqual(without);
+  });
+
+  it("has a card in a fold of quiet pages carry its line too", () => {
+    const pages = Array.from({ length: 13 }, (_, index) =>
+      done(`/page-${index + 1}/`, { voice: voiceRecord(10 + index) }),
+    );
+    const html = renderPages(modelOfRun(runOf(pages)));
+
+    // More than 12 pages, and none needs attention: all 13 are in the quiet fold, each with its link.
+    expect(html).toContain('<div class="folds">');
+    expect(cardsIn(html).flatMap(voiceLinksIn)).toHaveLength(13);
   });
 });

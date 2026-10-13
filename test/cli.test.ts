@@ -21,7 +21,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { main, nvdaRunningOn } from "../src/cli/main.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { listManualSessions } from "../src/manual/list.js";
-import type { ReviewsFile, RunJson, SharesFile } from "../src/model.js";
+import type { ReviewsFile, RunJson, SharedFile, SharesFile } from "../src/model.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
 import { REPLAY_TEXT } from "../src/review-replay/text.js";
 import type { Voice } from "../src/review-replay/voice.js";
@@ -40,6 +40,7 @@ import { realSitesFetch } from "./helpers/real-sites.js";
 import { fakeVoice, ttyInput } from "./helpers/replay.js";
 import { homeWithCountedRun, MACHINE_PROBE, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
 import { homeWithShares } from "./helpers/site-home.js";
+import { argumentsOf, splitCommand } from "./helpers/split-command.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
@@ -177,42 +178,6 @@ async function oneSiteHome(): Promise<string> {
 /** Every file and folder under `dir`, relative to it, sorted. */
 async function contents(dir: string): Promise<string[]> {
   return (await readdir(dir, { recursive: true })).sort();
-}
-
-/**
- * A command line split into its arguments, as Git Bash splits what `formatCommand` writes (and
- * PowerShell too, unless a value has a single quote in it): words apart at spaces, a value in
- * single quotes whole, a backslash in it just a backslash, and `'\''` for a single quote inside one.
- */
-function splitCommand(line: string): string[] {
-  const args: string[] = [];
-  let word = "";
-  // An empty value, '', is still an argument.
-  let started = false;
-  let quoted = false;
-  for (let at = 0; at < line.length; at++) {
-    const char = line.charAt(at);
-    if (quoted) {
-      if (char === "'") quoted = false;
-      else word += char;
-    } else if (char === "'") {
-      quoted = true;
-      started = true;
-    } else if (char === "\\" && line.charAt(at + 1) === "'") {
-      word += "'";
-      started = true;
-      at++;
-    } else if (char === " ") {
-      if (started) args.push(word);
-      word = "";
-      started = false;
-    } else {
-      word += char;
-      started = true;
-    }
-  }
-  if (started) args.push(word);
-  return args;
 }
 
 /** A computer that isn't ready: one quick check FAILs, with its problem. */
@@ -1347,6 +1312,22 @@ describe("voicecap review --replay", () => {
     expect(replayVoice).not.toHaveBeenCalled();
   });
 
+  // Every command prints through the console logger, which writes a control character, an
+  // invisible formatting character, or a line separator as text: here, in the words of an error
+  // that quotes what it was given.
+  it("writes a control character in what an error quotes as text, at the terminal", async () => {
+    const refused = await cli(
+      ["review", "--replay", "--rate", "fast\u{1b}[2J\u{202e}"],
+      await emptyFolder(),
+    );
+
+    expect(refused.code).toBe(1);
+    expect(refused.err).toBe(
+      'Error: --rate is in words a minute, a whole number from 60 to 540 (got "fast\\u{1b}[2J\\u{202e}").\n',
+    );
+    expect(refused.out).toBe("");
+  });
+
   it("--replay needs a terminal", async () => {
     const replayVoice = vi.fn((): Promise<Voice> => Promise.resolve(fakeVoice({ auto: true })));
     /** `review --replay` with its output captured, as from a script, and its input `stdin`. */
@@ -1743,18 +1724,26 @@ describe("voicecap share", () => {
       by: "Pat Lee",
       site: "https://example.illinois.gov/",
     });
-    const page = entry.files[0]!;
-    const word = entry.files[1]!;
-    const walkthrough = entry.files[2]!;
+    const [page, word, markdown, json, walkthrough] = entry.files as [
+      SharedFile,
+      SharedFile,
+      SharedFile,
+      SharedFile,
+      SharedFile,
+    ];
+    expect(entry.files).toHaveLength(5);
     // Named for the site (here by the host voicecap read) and the day, as the page, then its Word
-    // copy, then the run's walkthrough file, whole on disk.
+    // copy, then the report for AI tools as Markdown and as JSON, then the run's walkthrough file,
+    // whole on disk.
     const day = entry.at.slice(0, 10);
-    expect([page.name, word.name, walkthrough.name]).toEqual([
+    expect(entry.files.map(({ name }) => name)).toEqual([
       `example.illinois.gov_${day}.html`,
       `example.illinois.gov_${day}.docx`,
+      `example.illinois.gov_${day}.md`,
+      `example.illinois.gov_${day}.json`,
       `example.illinois.gov_${day}_${run.runId}_walkthrough.json`,
     ]);
-    for (const file of [page, word, walkthrough]) {
+    for (const file of [page, word, markdown, json, walkthrough]) {
       const bytes = await readFile(path.join(shareDir(siteDir), file.name));
       expect({ bytes: bytes.length, sha256: sha256(bytes) }).toEqual({
         bytes: file.bytes,
@@ -1764,12 +1753,10 @@ describe("voicecap share", () => {
     expect(share.out).toBe(
       [
         `Shared example.illinois.gov, as of ${longDate(entry.at)}: entry 1 in ${sharesPath(siteDir)}.`,
-        `  ${path.join(shareDir(siteDir), page.name)}`,
-        `    ${sizeLine(page.bytes)}, SHA-256 ${page.sha256}`,
-        `  ${path.join(shareDir(siteDir), word.name)}`,
-        `    ${sizeLine(word.bytes)}, SHA-256 ${word.sha256}`,
-        `  ${path.join(shareDir(siteDir), walkthrough.name)}`,
-        `    ${sizeLine(walkthrough.bytes)}, SHA-256 ${walkthrough.sha256}`,
+        ...[page, word, markdown, json, walkthrough].flatMap((file) => [
+          `  ${path.join(shareDir(siteDir), file.name)}`,
+          `    ${sizeLine(file.bytes)}, SHA-256 ${file.sha256}`,
+        ]),
         "To paste into the email that sends the page and its Word copy:",
         `  Fingerprints (SHA-256): ${page.name} ${page.sha256}; ${word.name} ${word.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.`,
         "",
@@ -1828,7 +1815,7 @@ describe("voicecap share", () => {
 
     expect(help.code).toBe(0);
     expect(squeezed(help.out)).toContain(
-      "share [options] make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
+      "share [options] make a dated copy of the shareable page and its Word copy to send, a voice page when a page has a recording, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, and record them",
     );
   });
 
@@ -1838,7 +1825,7 @@ describe("voicecap share", () => {
     expect(help.code).toBe(0);
     const said = squeezed(help.out);
     expect(said).toContain(
-      "make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
+      "make a dated copy of the shareable page and its Word copy to send, a voice page when a page has a recording, the report as Markdown and as JSON for AI tools, and each run's walkthrough file, and record them",
     );
     expect(said).toContain(
       "--site <url> the site's address, or its canonical address (default: the home's only site)",
@@ -2348,7 +2335,7 @@ describe("voicecap site", () => {
 
   /** What the command is for, as the help says it. */
   const WHAT_IT_DOES =
-    "build the website of each site's newest shared reports, for Netlify: index.html, trust.html, technical-details.html, whats-new.html, each report's files, robots.txt, _headers, and _redirects";
+    "build the website of each site's newest shared reports, for Netlify: index.html, trust.html, technical-details.html, whats-new.html, each report's files, llms.txt, robots.txt, _headers, and _redirects";
 
   /** What a build says it made of the home homeWithShares makes: its reports, its sites, and the demo. */
   const BUILT = "3 reports from 2 sites, and the demo's.";
@@ -2448,13 +2435,22 @@ describe("voicecap --walkthrough", () => {
     return JSON.parse(await readFile(file, "utf8")) as RunJson;
   }
 
-  /** A home with a replayed run in it, and that run's walkthrough, as walkthrough.json in it. */
-  async function homeWithWalkthrough(): Promise<{ home: string; original: RunJson }> {
+  /**
+   * A home with a replayed run in it, and that run's walkthrough, as walkthrough.json in it, and the
+   * command that `voicecap walkthrough` printed to repeat the run.
+   */
+  async function homeWithWalkthrough(): Promise<{
+    home: string;
+    original: RunJson;
+    command: string;
+  }> {
     const home = await oneSiteHome();
     const original = await latestRun(home);
     const written = await cli(["walkthrough", "walkthrough.json"], home);
     expect(written.code).toBe(0);
-    return { home, original };
+    const [, command = ""] =
+      /^To repeat the run: (npx @icjia\/voicecap .+)$/m.exec(written.out) ?? [];
+    return { home, original, command };
   }
 
   /** The runs the home's site has: how many run.json files its folder holds. */
@@ -2493,6 +2489,48 @@ describe("voicecap --walkthrough", () => {
 
     expect([without.code, same.code]).toEqual([0, 0]);
     expect(await runCount(home)).toBe(3);
+  });
+
+  // The run was read at an IP address, so a live repeat of its file is refused without --site: the command
+  // that `voicecap walkthrough` prints names it, and as a person pastes it, the program takes it.
+  it("prints a command for a site at an IP address that the program takes as it is", async () => {
+    const { home, command } = await homeWithWalkthrough();
+    const file = path.join(home, "walkthrough.json");
+
+    const args = argumentsOf(command);
+
+    expect(args).toEqual(["--walkthrough", file, "--site", SITE]);
+    // Given to the program's own parser, with runAudit replaced by one that only keeps its options,
+    // so that nothing is read: the file and the site are what runAudit is asked to repeat.
+    vi.resetModules();
+    let given: RunAuditOptions | undefined;
+    vi.doMock("../src/run/audit.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      runAudit: (options: RunAuditOptions) => {
+        given = options;
+        return Promise.resolve({ exitCode: 0 });
+      },
+    }));
+    try {
+      const { main: mainKeepingOptions } = await import("../src/cli/main.js");
+      const code = await mainKeepingOptions(args, {
+        stdout: capture().stream,
+        stderr: capture().stream,
+        cwd: home,
+        env: {},
+        signal: new AbortController().signal,
+        interactive: false,
+        platform: "linux",
+      });
+      expect(code).toBe(0);
+      expect(given).toMatchObject({ walkthrough: file, site: SITE, replayFrom: null });
+    } finally {
+      vi.doUnmock("../src/run/audit.js");
+      vi.resetModules();
+    }
+    // And with the replay driver, so that nothing real starts, the same command is a run.
+    const run = await cli([...args, "--replay-from", fixture("replay-run")], home);
+    expect(run.code).toBe(0);
   });
 
   it("still needs --site when there's no --walkthrough", async () => {

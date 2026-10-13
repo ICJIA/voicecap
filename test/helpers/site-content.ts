@@ -3,6 +3,9 @@
  * first with the address people visit it at), a Word copy that isn't published (changed since it
  * was shared, and missing), and a report with no walkthrough file. The reports' times are mixed so
  * that a site's newest report isn't the newest of all: by date, the two sites' reports interleave.
+ * A report shared now has the report for AI tools, as Markdown and as JSON, beside its page and its
+ * Word copy: the demo's and the first site's newest do. The other two are of shares from before it,
+ * which have none.
  */
 import { createHash } from "node:crypto";
 
@@ -36,7 +39,10 @@ export function published(
   };
 }
 
-/** The demo's report: its page, its Word copy, and the walkthrough file of one run. */
+/**
+ * The demo's report: its page, its Word copy, the report for AI tools as Markdown and as JSON, and
+ * the walkthrough file of one run.
+ */
 export const DEMO_REPORT: PublishedReport = {
   folder: "demo",
   id: "report-demo",
@@ -45,6 +51,8 @@ export const DEMO_REPORT: PublishedReport = {
   files: [
     published("page", "demo", "127.0.0.1_4848_2026-09-29.html", 311),
     published("word", "demo", "127.0.0.1_4848_2026-09-29.docx", 47),
+    published("markdown", "demo", "127.0.0.1_4848_2026-09-29.md", 83),
+    published("data", "demo", "127.0.0.1_4848_2026-09-29.json", 167),
     published(
       "walkthrough",
       "demo",
@@ -56,7 +64,10 @@ export const DEMO_REPORT: PublishedReport = {
   notPublished: [],
 };
 
-/** A site's second report, and the newest of all: everything is published. */
+/**
+ * A site's second report, and the newest of all: everything is published, the report for AI tools
+ * among it.
+ */
 export const DVFR_NEWEST: PublishedReport = {
   folder: DVFR,
   id: `report-${DVFR}-2`,
@@ -65,6 +76,8 @@ export const DVFR_NEWEST: PublishedReport = {
   files: [
     published("page", DVFR, `${DVFR}_2026-10-03.html`, 324),
     published("word", DVFR, `${DVFR}_2026-10-03.docx`, 51),
+    published("markdown", DVFR, `${DVFR}_2026-10-03.md`, 262),
+    published("data", DVFR, `${DVFR}_2026-10-03.json`, 521),
     published(
       "walkthrough",
       DVFR,

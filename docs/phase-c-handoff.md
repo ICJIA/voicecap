@@ -212,11 +212,9 @@ The owner's standing rules, from Phases A and B:
 
 - **Commit messages are one subject line, with no trailers of any kind.**
 - **Commit and push only when asked.** Check CI on a pushed branch before merging to main: CI can't run on a branch that isn't pushed.
-- **Publish to npm only when asked.** The owner's npm account uses 2FA codes that expire in about 30 seconds, while `publish.sh` spends about 3 minutes on checks. So:
-  1. run `./publish.sh --dry-run <bump>` once CI has passed on `main`;
-  2. `npm version <bump> --no-git-tag-version`, then ask the owner for a fresh code;
-  3. the moment it arrives: `npm publish --access public --ignore-scripts --otp <code>`;
-  4. commit `package.json` as "Release vX.Y.Z", add an annotated tag `vX.Y.Z` ("voicecap X.Y.Z"), and push `main` and the tag.
+- **Publish to npm only when asked.** The owner's npm account requires a two-factor code for each publish, and a code expires in about 30 seconds, while `publish.sh` spends about 8 minutes on checks. So a release is two commands, once CI has passed on `main`:
+  1. `./publish.sh --dry-run <bump>`: it checks everything, publishes nothing, and asks for no code;
+  2. `./publish.sh <bump>`: it runs the checks again, asks for the new version to be typed, and then, just before it publishes, for npm's 6-digit code; the owner gets a fresh one at that moment. It publishes the tarball it checked, commits `package.json` and `npm-shrinkwrap.json` as "Release vX.Y.Z", adds the annotated tag `vX.Y.Z` ("voicecap X.Y.Z"), and pushes `main` and the tag. The version is its only argument: a code on the command line is refused (from 0.18.0).
 - **Ask before building** rather than silently working around something that conflicts with how Guidepup or VoiceOver actually work.
 - **Keep screen-reader specifics in the driver layer and config** as far as possible, not in the core.
 - **Never use or repeat a password or PIN** pasted into the chat.
@@ -348,7 +346,7 @@ The owner's standing rules, from Phases A and B:
   - 0.17.0 (2026-10-10) is NVDA's own log (plan 6c): each run keeps a cleaned copy of NVDA's log, sealed with it; the shareable page and its Word copy check it against the transcripts, line by line; and a problem's record shows NVDA's warnings and errors. It also has the fixes from the r3.illinois.gov run of 2026-10-09: a read pass whose page grew a last line as it was read ends "end reached", and voicecap presses Escape to close Windows Search or the Start menu when one comes in front of the browser. Checked at the PC on 2026-10-10, with the owner's hands off: two runs of the demo with the computer's own NVDA running (given back at each end), one with Notepad brought in front so NVDA restarted, and a share. Both runs kept their copies (two for the restarted one), and each says 204 of 204 lines agree.
 - **Being built:** each plan written when the owner says:
   - plans 11 and 13 and the PC security audit's fixes, together as 0.18.0 (the owner's ask of 2026-10-10: finish the PC work as soon as possible): one merge, one check at the PC, and one release.
-    - plan 11, NVDA's own voice for each page: its spec and plan were approved on 2026-10-09 (`docs/superpowers/specs/2026-10-09-nvda-voice-design.md`), and it's built and reviewed on `plan-11-nvda-voice` (worktree `voicecap-voice`). Windows' process loopback records NVDA's process alone, `libopus-wasm` makes it a WebM Opus file of about 70-90 KB a minute, sealed with the run, and a voice page beside each share plays it at slower speeds. Safari hasn't been tried with the voice page yet.
+    - plan 11, NVDA's own voice for each page: its spec and plan were approved on 2026-10-09 (`docs/superpowers/specs/2026-10-09-nvda-voice-design.md`), and it's built and reviewed on `plan-11-nvda-voice` (worktree `voicecap-voice`). Windows' process loopback records NVDA's process alone, `libopus-wasm` makes it a WebM Opus file of about 70-90 KB a minute, sealed with the run, and a voice page beside each share plays it at slower speeds. A person checked Safari on 2026-10-10: a `data:` WebM of voicecap's own encoder played at 1x and slowed to 0.5x.
     - plan 13, each shared report as Markdown and as JSON too, for AI tools, with an `llms.txt` on the website: built and reviewed on `plan-13-ai-export` (worktree `voicecap-ai`), its final review's fixes being made.
     - the security audit of the PC work, then its fixes, on the same branch as the two plans.
   - plan 6d, queued for later ("eventually"): an optional double check that re-reads some pages, compares the reads, and reads again on a mismatch, so the page can say a page read the same twice.

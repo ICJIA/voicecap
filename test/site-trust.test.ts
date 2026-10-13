@@ -395,10 +395,10 @@ describe("renderTrustPage", () => {
 
   it("says every number from the facts it's given", () => {
     // The facts' own: the tests that passed, the pages of the two sites' current reports (9 of 9
-    // and 32 of 32), the files published (the demo's 3, the first site's 3 and 1, and the second's
+    // and 32 of 32), the files published (the demo's 5, the first site's 5 and 1, and the second's
     // 4), and the releases.
-    expect(RECORDS.files.published).toBe(11);
-    expect(tilesOf(html).map(({ looks }) => looks)).toEqual(["5,012", "41 of 41", "11", "3"]);
+    expect(RECORDS.files.published).toBe(15);
+    expect(tilesOf(html).map(({ looks }) => looks)).toEqual(["5,012", "41 of 41", "15", "3"]);
     expect(tileOf(html, 1).line).toMatch(/, where 1 problem needs attention$/);
 
     // Each fact changes the page where it's said, and only there.
@@ -417,8 +417,8 @@ describe("renderTrustPage", () => {
 
     const files = { ...RECORDS.files, published: RECORDS.files.published + 1 };
     const moreFiles = pageWith({ records: { ...RECORDS, files } });
-    expect(tileOf(moreFiles, 2).looks).toBe("12");
-    expect(pointsOf(sectionOf(moreFiles, "evidence"))[3]?.words).toContain(": 12 today, and");
+    expect(tileOf(moreFiles, 2).looks).toBe("16");
+    expect(pointsOf(sectionOf(moreFiles, "evidence"))[3]?.words).toContain(": 16 today, and");
 
     const releases = [...FACTS.releases, ...EARLIER_RELEASES.slice(0, 1)];
     const fourth = pageWith({ voicecap: { ...FACTS, releases } });
@@ -527,7 +527,7 @@ describe("renderTrustPage", () => {
     expect(pointsOf(sectionOf(unreleased, "tested")).slice(0, 2)).toEqual([
       {
         // With no count, it's what every release does, in the order publish.sh does it.
-        words: `Before each release: the lint and the type checks, then every test, then a check that the package installs and runs. The count is ${NOT_RECORDED}.`,
+        words: `Before each release: the lint and the type checks, then every test, then every dependency locked in npm-shrinkwrap.json and audited for high or critical advisories, then a check that the package installs and runs. The count is ${NOT_RECORDED}.`,
       },
       { words: `On every change: the same tests, on every system in its CI; ${NOT_RECORDED}.` },
     ]);
@@ -575,12 +575,12 @@ describe("renderTrustPage", () => {
   it("says no site's report has been shared yet when only the demo's has, and counts the demo's time and files", () => {
     const demoOnly: SiteContent = { demo: DEMO_REPORT, sites: [] };
     const records = recordFactsOf(demoOnly);
-    // The demo's report is no site's, so no report counts; its time and its three files do.
+    // The demo's report is no site's, so no report counts; its time and its five files do.
     expect(records).toMatchObject({
       sites: 0,
       reports: 0,
       reading: null,
-      files: { published: 3, leftOut: 0 },
+      files: { published: 5, leftOut: 0 },
       newest: DEMO_REPORT.at,
     });
 
@@ -594,7 +594,7 @@ describe("renderTrustPage", () => {
       link: { href: "index.html#sites", words: "See the reports" },
     });
     expect(tileOf(page, 2)).toMatchObject({
-      looks: "3",
+      looks: "5",
       line: "files on this website, each matching the fingerprint recorded when it was shared",
     });
   });
@@ -840,11 +840,13 @@ describe("renderTrustPage", () => {
     expect(textsOf(evidence, "p")[0]).toBe("the evidence");
     expect(pointsOf(evidence)).toEqual([
       {
-        // A run's record has the fingerprints of each page's transcripts, its screenshot, and its
-        // axe results (PageRecord.files, .screenshot, and .axe), and a report's check counts the
-        // last in those words ("9 of 9 axe results match their fingerprints").
+        // A run's record has the fingerprints of each page's transcripts, its screenshot, its axe
+        // results, and its recording of NVDA's voice (PageRecord.files, .screenshot, .axe, and
+        // .voice). A report's check counts the third in those words ("9 of 9 axe results match
+        // their fingerprints"), and the voice page's the last ("3 of 3 recordings match their
+        // fingerprints").
         words:
-          "Every transcript, screenshot, and axe result has a SHA-256 fingerprint. Every run's record is sealed, and every share and every review is chained to the one before it.",
+          "Every transcript, screenshot, axe result, and recording of NVDA's voice has a SHA-256 fingerprint. Every run's record is sealed, and every share and every review is chained to the one before it.",
         link: { href: README.auditRecord, words: "The audit record" },
       },
       {
@@ -858,7 +860,7 @@ describe("renderTrustPage", () => {
       },
       {
         words:
-          "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 11 today, and 2 left out.",
+          "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 15 today, and 2 left out.",
       },
       {
         // How to check a copy of one of them: the files tile links here.
@@ -885,9 +887,10 @@ describe("renderTrustPage", () => {
     expect(pointsOf(tested)).toEqual([
       {
         // The count and the system are this release's own run's, in the order publish.sh runs
-        // its checks: the lint and the type checks first, the check of the package last.
+        // its checks: the lint and the type checks first, then the tests, then the lock of every
+        // dependency and its audit, and the check of the package last.
         words:
-          "Before this release: the lint and the type checks, then 5,012 tests passed on Windows, with 2 skipped, in 125 files, then a check that the package installs and runs. If one test fails, nothing is published.",
+          "Before this release: the lint and the type checks, then 5,012 tests passed on Windows, with 2 skipped, in 125 files, then every dependency locked in npm-shrinkwrap.json and audited for high or critical advisories, then a check that the package installs and runs. If one test fails, nothing is published.",
       },
       {
         // Three systems by two Node versions: 6 combinations.

@@ -121,7 +121,7 @@ const LEVEL_TAG = /^wcag(\d)(\d?)(a{1,3})$/;
 const CRITERION_TAG = /^wcag(\d)(\d)(\d+)$/;
 
 /** The tag of axe's best practices, which name no WCAG criterion. */
-const BEST_PRACTICE = "best-practice";
+export const BEST_PRACTICE = "best-practice";
 
 /** A WCAG version and level from its tag ("wcag21aa" → 2.1 and AA), or null for another tag. */
 function levelOf(tag: string): { version: string; level: string } | null {
@@ -169,6 +169,29 @@ export function axeRulesRun(tags: readonly string[]): string {
   ]);
 }
 
+/** A WCAG success criterion as its number from its tag ("wcag143" is "1.4.3"), or null for another tag. */
+function criterionOf(tag: string): string | null {
+  const found = CRITERION_TAG.exec(tag);
+  return found === null ? null : found.slice(1).join(".");
+}
+
+/**
+ * The WCAG success criteria a rule's tags name, as their numbers in strings ("1.1.1", "4.1.2", "1.4.10"),
+ * in the order axe's tags give them, each once: the data of what `axeCriteria` says in words, for the
+ * JSON file of the report for AI tools. A tag that names a version and level ("wcag2a", "wcag21aa"),
+ * a best practice, or anything else names no criterion, and a rule that names none gives an empty list.
+ */
+export function axeCriteriaList(tags: readonly string[]): string[] {
+  return [
+    ...new Set(
+      tags.flatMap((tag) => {
+        const criterion = criterionOf(tag);
+        return criterion === null ? [] : [criterion];
+      }),
+    ),
+  ];
+}
+
 /**
  * The WCAG success criteria a rule's tags name, with their version and level, as a reader says
  * them: "WCAG 2.0 AA 1.4.3", "WCAG 2.0 A 2.4.4 and 4.1.2"; "best practice" for one of axe's best
@@ -181,8 +204,8 @@ export function axeCriteria(tags: readonly string[]): string {
     return wcag === null ? [] : [`${wcag.version} ${wcag.level}`];
   });
   const criteria = tags.flatMap((tag) => {
-    const found = CRITERION_TAG.exec(tag);
-    return found === null ? [] : [found.slice(1).join(".")];
+    const criterion = criterionOf(tag);
+    return criterion === null ? [] : [criterion];
   });
   const wcag =
     levels.length + criteria.length === 0

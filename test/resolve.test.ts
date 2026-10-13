@@ -1,12 +1,13 @@
-import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { PageSource } from "../src/model.js";
+import { PASS_NAMES, type PageSource, type RunJson } from "../src/model.js";
 import {
   describeSource,
   pageSourceFor,
@@ -16,10 +17,14 @@ import {
 } from "../src/pages/resolve.js";
 import { pageSlug } from "../src/pages/slug.js";
 import { canonicalKey, parseSiteUrl } from "../src/pages/url.js";
+import { runAudit } from "../src/run/audit.js";
+import { pageDir, runDir, runJsonPath } from "../src/run/paths.js";
 import type { Walkthrough, WalkthroughPage } from "../src/share/walkthrough.js";
 import { UsageError } from "../src/util/errors.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { gitBashForm } from "./helpers/git-bash.js";
+import { options, outDir, sitePages } from "./helpers/run-site.js";
+import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
 const REPO = fileURLToPath(new URL("../", import.meta.url));
 const SITE_DIR = new URL("../fixture/site/", import.meta.url);
@@ -42,6 +47,8 @@ function fetchFrom(extra: Record<string, string> = {}): typeof fetch {
 
 const urlset = (...locs: string[]) =>
   `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${locs.map((l) => `<url><loc>${l}</loc></url>`).join("")}</urlset>`;
+
+const sha256Of = (text: string) => createHash("sha256").update(text).digest("hex");
 
 let dir: string;
 beforeAll(async () => {
@@ -191,6 +198,48 @@ describe("resolvePages: normalization and dedupe", () => {
       },
     ]);
   });
+
+  // An address with a user name or password in it would be kept in the run's records, and shown on
+  // the website. It's never read; the line that names it says so, without them.
+  it("reports sitemap locs whose address has a user name or password as invalid, without them", async () => {
+    const logger = createMemoryLogger();
+    const result = await resolvePages({
+      site,
+      sitemap: `${ORIGIN}/secret.xml`,
+      logger,
+      fetch: fetchFrom({
+        [`${ORIGIN}/secret.xml`]: urlset(
+          "https://u:p@example.org/a",
+          `http://u:p@127.0.0.1:4747/on-the-site`,
+          "https://jane@example.org/b",
+          // Not a page, and still not repeated with what it holds.
+          "ftp://u:p@example.org/file.xml",
+          `${ORIGIN}/ok`,
+        ),
+      }),
+    });
+
+    expect(result.pages.map((p) => p.url)).toEqual([`${ORIGIN}/ok`]);
+    expect(result.source.invalid).toEqual([
+      { line: null, value: "https://example.org/a", reason: "has a user name or password in it" },
+      { line: null, value: `${ORIGIN}/on-the-site`, reason: "has a user name or password in it" },
+      { line: null, value: "https://example.org/b", reason: "has a user name or password in it" },
+      {
+        line: null,
+        value: "ftp://example.org/file.xml",
+        reason: "has a user name or password in it",
+      },
+    ]);
+    expect(logger.text("warn")).toContain(
+      "Ignored an invalid entry (has a user name or password in it): https://example.org/a",
+    );
+    // Neither the record nor anything printed holds them.
+    for (const kept of [JSON.stringify(result), logger.text()]) {
+      expect(kept).not.toContain("u:p");
+      expect(kept).not.toContain("jane");
+    }
+    expect(result.skipped).toEqual([]);
+  });
 });
 
 describe("resolvePages: page list files", () => {
@@ -290,6 +339,89 @@ describe("resolvePages: page list files", () => {
       { url: `${ORIGIN}/files/x.pdf`, reason: "non-html-extension", line: 4 },
     ]);
   });
+
+  // The row is kept out of the run, and recorded without the user name and password, so that no
+  // record, report, or share ever holds one. The person is told which line, and why.
+  describe.each([
+    ["CSV", "secrets.csv", "url,label\nhttps://u:p@example.org/a,Secret\n/b,Fine\n"],
+    ["JSON", "secrets.json", '[\n"https://u:p@example.org/a",\n"/b"\n]\n'],
+  ])(
+    "a %s page list with an address that has a user name and a password in it",
+    (_format, name, text) => {
+      const example = parseSiteUrl("https://example.org");
+
+      it("reports the row as invalid, recorded without them, and reads the rest", async () => {
+        const file = path.join(dir, name);
+        await writeFile(file, text);
+        const logger = createMemoryLogger();
+
+        const result = await resolvePages({ site: example, pagesFile: file, cwd: dir, logger });
+
+        expect(result.pages.map((p) => p.url)).toEqual(["https://example.org/b"]);
+        expect(result.source.invalid).toEqual([
+          { line: 2, value: "https://example.org/a", reason: "has a user name or password in it" },
+        ]);
+        expect(logger.text("warn")).toContain(
+          "Ignored an invalid entry (line 2: has a user name or password in it): https://example.org/a",
+        );
+        // The listing counts it, as it counts any row it didn't read.
+        expect(result.source.listed).toBe(2);
+        expect(result.skipped).toEqual([]);
+        // Nothing recorded, and nothing printed, holds what was in the row.
+        for (const kept of [JSON.stringify(result), logger.text()])
+          expect(kept).not.toContain("u:p");
+      });
+    },
+  );
+
+  it("reads a page the list gives once without credentials, whatever it gives with them", async () => {
+    const file = path.join(dir, "both.json");
+    await writeFile(file, '[\n"https://u:p@example.org/a",\n"https://example.org/a"\n]\n');
+
+    const result = await resolvePages({
+      site: parseSiteUrl("https://example.org"),
+      pagesFile: file,
+      cwd: dir,
+    });
+
+    expect(result.pages.map((p) => p.url)).toEqual(["https://example.org/a"]);
+    expect(result.source.invalid).toHaveLength(1);
+    expect(result.source.duplicates).toBe(0);
+  });
+
+  it("reports a row with a password on a path-only address that names another host", async () => {
+    const file = path.join(dir, "protocol-relative.json");
+    await writeFile(file, '[\n"//u:p@example.org/a",\n"/b"\n]\n');
+
+    const result = await resolvePages({
+      site: parseSiteUrl("https://example.org"),
+      pagesFile: file,
+      cwd: dir,
+    });
+
+    expect(result.pages.map((p) => p.url)).toEqual(["https://example.org/b"]);
+    expect(result.source.invalid).toEqual([
+      { line: 2, value: "https://example.org/a", reason: "has a user name or password in it" },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("u:p");
+  });
+
+  it("keeps a row whose @ is in its path or query, which is no user name", async () => {
+    const file = path.join(dir, "ats.json");
+    await writeFile(file, '[\n"/@jane",\n"/x?mail=a@b.c"\n]\n');
+
+    const result = await resolvePages({
+      site: parseSiteUrl("https://example.org"),
+      pagesFile: file,
+      cwd: dir,
+    });
+
+    expect(result.pages.map((p) => p.url)).toEqual([
+      "https://example.org/@jane",
+      "https://example.org/x?mail=a@b.c",
+    ]);
+    expect(result.source.invalid).toEqual([]);
+  });
 });
 
 describe("resolvePages: --page", () => {
@@ -328,6 +460,134 @@ describe("resolvePages: --page", () => {
     await expect(resolvePages({ site, pageUrls: ["C:/Program Files/Git/faq/"] })).rejects.toThrow(
       /Git Bash rewrote it/,
     );
+  });
+
+  // A --page is kept in the run's records, so one with a user name or password in it is refused,
+  // before anything is read, in words that hold neither.
+  it.each([
+    "https://u:p@example.org/a",
+    "http://u:p@127.0.0.1:4747/a",
+    "https://jane@example.org/a",
+    "https://:p@example.org/a",
+    "//u:p@example.org/a",
+  ])("refuses a --page of %s, in words that hold no user name and no password", async (page) => {
+    const words =
+      "--page has a user name or password in its address: voicecap doesn't read pages that way, and the address would be kept in its records.";
+
+    for (const attempt of [
+      () => resolvePages({ site, pageUrls: [page] }),
+      () => pageSourceFor({ site, pageUrls: ["/fine", page] }),
+    ]) {
+      const error = await attempt().then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      expect((error as UsageError).message).toBe(words);
+    }
+  });
+
+  it("takes a --page whose @ is in its path or query, which is no user name", async () => {
+    const result = await resolvePages({ site, pageUrls: ["/@jane", "/x?mail=a@b.c"] });
+
+    expect(result.pages.map((p) => p.url)).toEqual([`${ORIGIN}/@jane`, `${ORIGIN}/x?mail=a@b.c`]);
+  });
+});
+
+// A name and a password written with no scheme (`staging:secret@staging.example.org/a`) read as the
+// scheme `staging:` to the URL standard, so the address has no user name to it. It's still a name and
+// a password to a person, and an entry that has them is recorded, and said, without them.
+describe("resolvePages: a name and a password that read as a scheme", () => {
+  const example = parseSiteUrl("https://example.org");
+
+  it.each([
+    ["CSV", "scheme-less.csv", "url,label\nstaging:secret@staging.example.org/a,Secret\n/b,Fine\n"],
+    ["JSON", "scheme-less.json", '[\n"staging:secret@staging.example.org/a",\n"/b"\n]\n'],
+  ])("is recorded as invalid in a %s page list, without them", async (_format, name, text) => {
+    const file = path.join(dir, name);
+    await writeFile(file, text);
+    const logger = createMemoryLogger();
+
+    const result = await resolvePages({ site: example, pagesFile: file, cwd: dir, logger });
+
+    expect(result.pages.map((p) => p.url)).toEqual(["https://example.org/b"]);
+    expect(result.source.invalid).toEqual([
+      { line: 2, value: "staging.example.org/a", reason: "has a user name or password in it" },
+    ]);
+    expect(logger.text("warn")).toContain(
+      "Ignored an invalid entry (line 2: has a user name or password in it): staging.example.org/a",
+    );
+    for (const kept of [JSON.stringify(result), logger.text()])
+      expect(kept).not.toContain("secret");
+  });
+
+  it("is recorded as invalid in a sitemap, without them, and a mail address is not one", async () => {
+    const logger = createMemoryLogger();
+    const result = await resolvePages({
+      site,
+      sitemap: `${ORIGIN}/scheme-less.xml`,
+      logger,
+      fetch: fetchFrom({
+        [`${ORIGIN}/scheme-less.xml`]: urlset(
+          "staging:secret@staging.example.org/a",
+          "mailto:web@example.com",
+          `${ORIGIN}/ok`,
+        ),
+      }),
+    });
+
+    expect(result.pages.map((p) => p.url)).toEqual([`${ORIGIN}/ok`]);
+    expect(result.source.invalid).toEqual([
+      { line: null, value: "staging.example.org/a", reason: "has a user name or password in it" },
+      {
+        line: null,
+        value: "mailto:web@example.com",
+        reason: "not an http(s) URL or a root-relative path",
+      },
+    ]);
+    for (const kept of [JSON.stringify(result), logger.text()])
+      expect(kept).not.toContain("secret");
+  });
+
+  it("is not repeated by the refusal of a --page", async () => {
+    for (const attempt of [
+      () => resolvePages({ site, pageUrls: ["staging:secret@example.org/a"] }),
+      () => pageSourceFor({ site, pageUrls: ["staging:secret@example.org/a"] }),
+    ]) {
+      const error = await attempt().then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      expect((error as UsageError).message).toBe(
+        `--page "example.org/a" isn't a page URL or a path like /faq/.`,
+      );
+    }
+  });
+
+  it("is not repeated by the refusal of a --sitemap, before anything is fetched", async () => {
+    let fetched = 0;
+    const counting: typeof fetch = () => {
+      fetched += 1;
+      return Promise.resolve(new Response("not found", { status: 404 }));
+    };
+    const sitemap = "staging:secret@example.org/sitemap.xml";
+    const words =
+      '--sitemap must be a full URL such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on --site such as sitemap.xml (got "example.org/sitemap.xml").';
+
+    for (const attempt of [
+      () => resolvePages({ site, sitemap, fetch: counting }),
+      () => pageSourceFor({ site, sitemap }),
+      () => pageSourceFor({ sitemap }),
+    ]) {
+      const error = await attempt().then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      expect((error as UsageError).message).toBe(words);
+    }
+    expect(fetched).toBe(0);
   });
 });
 
@@ -410,6 +670,48 @@ describe("resolvePages: a sitemap given by name or path", () => {
     expect(fetched).toBe(0);
   });
 
+  // A sitemap's address is kept in the run's records, so one with a user name or password in it is
+  // refused before anything is fetched, in words that hold neither.
+  it.each([
+    "https://u:p@example.org/sitemap.xml",
+    "https://jane@example.org/sitemap.xml",
+    "http://:p@127.0.0.1:4747/sitemap.xml",
+    "//u:p@example.org/sitemap.xml",
+    "ftp://u:p@example.org/sitemap.xml",
+  ])("refuses a --sitemap of %s, before fetching anything", async (sitemap) => {
+    let fetched = 0;
+    const counting: typeof fetch = () => {
+      fetched += 1;
+      return Promise.resolve(new Response("not found", { status: 404 }));
+    };
+    const words =
+      "--sitemap has a user name or password in it: give the sitemap's address without them.";
+
+    for (const attempt of [
+      () => resolvePages({ site, sitemap, fetch: counting }),
+      () => pageSourceFor({ site, sitemap }),
+      // With no site too: a full URL needs none.
+      () => pageSourceFor({ sitemap }),
+    ]) {
+      const error = await attempt().then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      expect((error as UsageError).message).toBe(words);
+    }
+    expect(fetched).toBe(0);
+  });
+
+  it("takes a --sitemap whose @ is in its path or query, which is no user name", async () => {
+    expect(await pageSourceFor({ site, sitemap: "https://example.org/@jane/sitemap.xml" })).toEqual(
+      {
+        kind: "sitemap",
+        url: "https://example.org/@jane/sitemap.xml",
+      },
+    );
+  });
+
   it("needs a site to read a name or path against", async () => {
     await expect(pageSourceFor({ sitemap: "sitemap.xml" })).rejects.toThrow(UsageError);
     await expect(pageSourceFor({ sitemap: "/sitemap.xml" })).rejects.toThrow(
@@ -461,17 +763,18 @@ describe("pageSourceFor", () => {
     });
   });
 
-  it("uses forward slashes for nested paths and an absolute path outside cwd", async () => {
+  it("uses forward slashes for nested paths, and the file's name alone outside cwd", async () => {
     const nested = await pageSourceFor({
       pagesFile: path.join("fixture", "pages.json"),
       cwd: REPO,
     });
     expect(nested).toMatchObject({ file: "fixture/pages.json" });
+    // A path outside the folder can carry the account's name, so only the file's name is kept.
     const outside = await pageSourceFor({
       pagesFile: path.join(REPO, "fixture", "pages.json"),
       cwd: dir,
     });
-    expect(outside).toMatchObject({ file: path.join(REPO, "fixture", "pages.json") });
+    expect(outside).toMatchObject({ kind: "pages", file: "pages.json" });
   });
 
   it("reports a missing file", async () => {
@@ -490,6 +793,120 @@ describe("pageSourceFor", () => {
       pageSourceFor({ sitemap: `${ORIGIN}/sitemap.xml`, pageUrls: ["/a"], site }),
     ).rejects.toThrow(/Use one kind of page source/);
     await expect(pageSourceFor({ site })).rejects.toThrow(/--page <url>/);
+  });
+});
+
+// A path from outside the folder voicecap runs in can carry the account's name (a file dragged in
+// from Downloads, a redirected Documents folder on a file server), so a run keeps such a file by
+// its name alone. A file inside the folder keeps its path from it, which names no account.
+describe("a page list outside the working folder", () => {
+  const CSV = "url\n/\n/about\n";
+  let work: string;
+  let elsewhere: string;
+  beforeAll(async () => {
+    work = path.join(dir, "work");
+    elsewhere = path.join(dir, `elsewhere-${randomUUID()}`);
+    await mkdir(path.join(work, "page-lists"), { recursive: true });
+    await mkdir(elsewhere, { recursive: true });
+    await writeFile(path.join(work, "page-lists", "pages.csv"), CSV);
+    await writeFile(path.join(elsewhere, "pages.csv"), CSV);
+  });
+
+  it("is recorded by its name alone: in the page source and in the source's details", async () => {
+    const pagesFile = path.join(elsewhere, "pages.csv");
+    const result = await resolvePages({ site, pagesFile, cwd: work });
+
+    const list = { kind: "pages", file: "pages.csv", sha256: sha256Of(CSV) };
+    expect(result.pageSource).toEqual(list);
+    expect(result.source).toMatchObject({ ...list, listed: 2 });
+    expect(await pageSourceFor({ pagesFile, cwd: work })).toEqual(list);
+    expect(describeSource(result.pageSource)).toBe("the page list pages.csv");
+  });
+
+  it("keeps its path from the working folder when it's inside, however it's given", async () => {
+    const inside = { kind: "pages", file: "page-lists/pages.csv", sha256: sha256Of(CSV) };
+
+    for (const pagesFile of [
+      path.join("page-lists", "pages.csv"),
+      path.join(work, "page-lists", "pages.csv"),
+    ]) {
+      const result = await resolvePages({ site, pagesFile, cwd: work });
+      expect(result.pageSource, pagesFile).toEqual(inside);
+      expect(result.source, pagesFile).toMatchObject(inside);
+      expect(await pageSourceFor({ pagesFile, cwd: work }), pagesFile).toEqual(inside);
+    }
+  });
+
+  it("is recorded by its name alone when it is in a folder beside the working folder, too", async () => {
+    // "../elsewhere-…/pages.csv" begins with two dots, and is not inside.
+    const pagesFile = path.relative(work, path.join(elsewhere, "pages.csv"));
+    expect(pagesFile.startsWith("..")).toBe(true);
+    expect(await pageSourceFor({ pagesFile, cwd: work })).toMatchObject({ file: "pages.csv" });
+  });
+});
+
+describe("a run from a page list outside the working folder", () => {
+  /** Every file under a folder, with its text. */
+  function filesUnder(folder: string): { file: string; text: string }[] {
+    return readdirSync(folder, { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => {
+        const file = path.join(entry.parentPath, entry.name);
+        return { file, text: readFileSync(file, "utf8") };
+      });
+  }
+
+  it("records the file by its name alone: in run.json, and in every transcript", async () => {
+    const cwd = path.join(dir, `run-${randomUUID()}`);
+    const folder = `elsewhere-${randomUUID()}`;
+    await mkdir(path.join(dir, folder), { recursive: true });
+    const pages = path.join(dir, folder, "pages.csv");
+    const list = "url\n/\n/about\n";
+    await writeFile(pages, list);
+
+    const result = await runAudit(options(cwd, new ScriptedDriver(sitePages()), { pages }));
+    expect(result.outcome).toBe("completed");
+
+    const siteDir = outDir(cwd);
+    const run = JSON.parse(readFileSync(runJsonPath(siteDir, result.runId), "utf8")) as RunJson;
+    const listed = { kind: "pages", file: "pages.csv", sha256: sha256Of(list) };
+    // The settings the run resumes by, the details of the source, and each session's environment.
+    expect(run.settings.source).toEqual(listed);
+    expect(run.source).toMatchObject({ kind: "pages", file: "pages.csv" });
+    expect(run.sessions.map((session) => session.environment?.pageSource)).toEqual([listed]);
+    // Every transcript says the same in its header, in the JSON and in the TXT.
+    const headers = run.pages.flatMap((page) =>
+      PASS_NAMES.map((pass) => path.join(pageDir(siteDir, run.id, page.slug), `${pass}.txt`)),
+    );
+    expect(headers).toHaveLength(6);
+    for (const file of headers) {
+      expect(readFileSync(file, "utf8"), file).toMatch(
+        /^# Page source: page list pages\.csv \(sha256 [\da-f]{64}\)$/m,
+      );
+    }
+    // No file of the run holds the folder the list was in, in any spelling.
+    const files = filesUnder(runDir(siteDir, run.id));
+    expect(files.length).toBeGreaterThan(10);
+    expect(files.filter(({ text }) => text.includes(folder)).map(({ file }) => file)).toEqual([]);
+  });
+
+  it("records the file with its path from the working folder when it's inside it", async () => {
+    const cwd = path.join(dir, `run-${randomUUID()}`);
+    await mkdir(path.join(cwd, "page-lists"), { recursive: true });
+    await writeFile(path.join(cwd, "page-lists", "pages.csv"), "url\n/\n");
+
+    const result = await runAudit(
+      options(cwd, new ScriptedDriver(sitePages()), {
+        pages: path.join("page-lists", "pages.csv"),
+      }),
+    );
+
+    const run = JSON.parse(readFileSync(runJsonPath(outDir(cwd), result.runId), "utf8")) as RunJson;
+    expect(run.settings.source).toMatchObject({ kind: "pages", file: "page-lists/pages.csv" });
+    const read = path.join(pageDir(outDir(cwd), run.id, run.pages[0]!.slug), "read.txt");
+    expect(readFileSync(read, "utf8")).toMatch(
+      /^# Page source: page list page-lists\/pages\.csv \(sha256 [\da-f]{64}\)$/m,
+    );
   });
 });
 
@@ -782,6 +1199,33 @@ describe("readWalkthroughFile", () => {
 
     await expect(readWalkthroughFile("not-a-walkthrough.json", dir)).rejects.toThrow(
       /^not-a-walkthrough\.json isn't a voicecap walkthrough file: /,
+    );
+  });
+
+  // As a page list is: by its name alone outside the folder voicecap runs in, which can carry the
+  // account's name, and by its path from the folder inside it.
+  it("records the file by its name alone outside the working folder, and its path inside it", async () => {
+    const work = path.join(dir, `walk-${randomUUID()}`);
+    const elsewhere = path.join(dir, `walk-elsewhere-${randomUUID()}`);
+    await mkdir(path.join(work, "walkthroughs"), { recursive: true });
+    await mkdir(elsewhere, { recursive: true });
+    await writeFile(path.join(work, "walkthroughs", "w.json"), text);
+    await writeFile(path.join(elsewhere, "w.json"), text);
+
+    const outside = await readWalkthroughFile(path.join(elsewhere, "w.json"), work);
+    expect(outside.file).toBe("w.json");
+    const inside = await readWalkthroughFile(path.join("walkthroughs", "w.json"), work);
+    expect(inside.file).toBe("walkthroughs/w.json");
+    expect((await readWalkthroughFile(path.join(work, "walkthroughs", "w.json"), work)).file).toBe(
+      "walkthroughs/w.json",
+    );
+
+    // A repeat keeps it so in its page source, and in the details of the source.
+    const pages = await resolvePages({ site, walkthrough: outside, cwd: work });
+    expect(pages.pageSource).toMatchObject({ kind: "walkthrough", file: "w.json" });
+    expect(pages.source).toMatchObject({ kind: "walkthrough", file: "w.json" });
+    expect(describeSource(pages.pageSource)).toBe(
+      "the walkthrough w.json from run 2026-09-29_1402",
     );
   });
 });

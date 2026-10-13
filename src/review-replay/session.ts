@@ -40,6 +40,7 @@ import { listRuns } from "../run/store.js";
 import { loadShareInput } from "../share/load.js";
 import { buildShareModel } from "../share/model.js";
 import { UsageError, errorMessage } from "../util/errors.js";
+import { inertText } from "../util/inert.js";
 import type { Logger, OutputStream } from "../util/log.js";
 import { BACK, readNote, type Key, type KeySource } from "./keys.js";
 import { replayPagesOf, type ReplayPage } from "./pages.js";
@@ -178,8 +179,9 @@ export async function replayReview(
 ): Promise<ReplayResult> {
   const { cwd, env } = options;
   const { out, keys, logger } = deps;
+  // Written as text (inertText): the pages left out are named by their addresses, from a record.
   const show = (text: string): void => {
-    out.write(`${text}\n`);
+    out.write(`${inertText(text)}\n`);
   };
 
   // The config first, since the reviewer's name can come from it.
@@ -197,7 +199,8 @@ export async function replayReview(
     throw new UsageError(NOTHING_TO_HEAR.noRun(siteDir));
   }
 
-  const input = await loadShareInput({ siteDir, config });
+  // No recording of NVDA's voice: the replay reads pages aloud from their transcripts.
+  const input = await loadShareInput({ siteDir, config, recordings: false });
   const model = buildShareModel(input);
   if (model.header.tested === null) throw new UsageError(NOTHING_TO_HEAR.noCountedRun);
   const asked =
@@ -412,9 +415,9 @@ async function endSession(
   }
 }
 
-/** Shows one of the session's own lines. */
+/** Shows one of the session's own lines, written as text (inertText) like every line it shows. */
 function show(hearing: Hearing, text: string): void {
-  hearing.out.write(`${text}\n`);
+  hearing.out.write(`${inertText(text)}\n`);
 }
 
 /**

@@ -162,6 +162,27 @@ describe("environmentDifferences", () => {
     ]);
   });
 
+  // From 0.18.0, voicecap starts its NVDA with notifications off, which NVDA's session then records
+  // in its presentation settings, a section a run from before had none of.
+  it("names NVDA's notifications, off from 0.18.0, against a run from before, which had no presentation settings", async () => {
+    const outDir = await tempOutDir();
+    const base = await writeSyntheticRun(outDir, { id: "a", pages: [{ path: "/" }] });
+    const run = await writeSyntheticRun(outDir, {
+      id: "b",
+      pages: [{ path: "/" }],
+      environment: {
+        screenReaderSettings: {
+          ...environment().screenReaderSettings,
+          presentation: { reportHelpBalloons: false },
+        },
+      },
+    });
+    expect(environment().screenReaderSettings).not.toHaveProperty("presentation");
+    expect(environmentDifferences(base, run)).toEqual([
+      'Screen reader settings differ: presentation unset → {"reportHelpBalloons":false} (run a → run b).',
+    ]);
+  });
+
   it("notes a driver change and a run whose environment changed while resuming", async () => {
     const outDir = await tempOutDir();
     const base = await writeSyntheticRun(outDir, { id: "a", pages: [{ path: "/" }] });

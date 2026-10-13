@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import { readdir, readFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +34,17 @@ describe("driver selection", () => {
       });
     },
   );
+
+  // The label goes into a run's settings and every transcript, and a folder typed in full can name
+  // the account: the home folder in it is written %USERPROFILE%, or ~ away from Windows. The folder
+  // the replay driver reads is still the real one.
+  it("--replay-from labels a folder in the home folder with the home folder replaced", () => {
+    const folder = path.join(os.homedir(), "runs", "replay-run");
+    const mark = process.platform === "win32" ? "%USERPROFILE%" : "~";
+    const selection = selectDriver(DEFAULT_CONFIG, folder, "/work");
+    expect(selection.replayLabel).toBe(`${mark}/runs/replay-run`);
+    expect(selection.replayFrom).toBe(path.resolve(folder));
+  });
 
   it("driver: replay without a folder is a usage error", () => {
     expect(() => selectDriver({ ...DEFAULT_CONFIG, driver: "replay" }, null, "/work")).toThrow(
