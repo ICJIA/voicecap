@@ -29,8 +29,9 @@
  * microphone and no speaker's mix is in it. The stop reasons are typed against the model's
  * (`StopReason`), so a reason added there and not here doesn't compile.
  *
- * Guidepup is named only in the toolchain's rows, as the owner chose: everywhere else, it's
- * voicecap's NVDA driver.
+ * Guidepup is named in the toolchain's rows, as the owner chose, and in one sentence of "What goes
+ * out", about what npx also downloads for its recorder on a Mac: everywhere else, it's voicecap's
+ * NVDA driver.
  *
  * It holds plain words, and nothing in it is escaped: the page escapes each piece as it draws it. In
  * a sentence (`Sentence`), a command or a file is a `{ code }` piece, in the fixed-width font, and a
@@ -46,6 +47,7 @@ import { HOW_TEXT, MAC_HASH, POWERSHELL_HASH, VOICE_TEXT } from "../share/text.j
 import { NO_SPEECH } from "../transcripts/format.js";
 import { ExitCode } from "../util/errors.js";
 import type { RecordFacts, ReleaseFacts } from "./facts.js";
+import { EXACT_VERSION } from "./netlify.js";
 import { SITE_TEXT, type Sentence } from "./text.js";
 import { TRUST_TEXT } from "./trust-text.js";
 
@@ -682,7 +684,11 @@ export const TECHNICAL_TEXT = {
             { code: "voicecap setup" },
             " downloads NVDA's build from GitHub, checked by its SHA-256 (on a Mac, the files VoiceOver needs), and Chromium where Chrome isn't installed.",
           ],
-          ["voicecap itself comes from npm, through ", { code: "npx" }, "."],
+          [
+            "voicecap itself comes from npm, through ",
+            { code: "npx" },
+            ". npx also downloads, for Guidepup's recorder on a Mac, an ffmpeg program voicecap never runs, unless install scripts are off, as they are in the website's build.",
+          ],
           ["Nothing else."],
         ] satisfies Sentence[],
       },
@@ -879,7 +885,10 @@ export const TECHNICAL_TEXT = {
     { name: "voicecap site", job: "Builds this website from the shares." },
     { name: "voicecap verify", job: "Checks the records against their fingerprints and seals." },
   ] satisfies { name: string; job: string }[],
-  /** The toolchain, a row each: Guidepup is named here, and nowhere else on the page. */
+  /**
+   * The toolchain, a row each: Guidepup is named here, and in one sentence of "What goes out", and
+   * nowhere else on the page.
+   */
   toolchain: [
     {
       tool: "NVDA",
@@ -1073,11 +1082,11 @@ export function toolHref({ npm, source }: Tool): string | null {
 }
 
 /**
- * The command voicecap writes into netlify.toml to build the website, for `version`: npm reads its
- * minor version (`@0.15`) as the newest release of it. A version that doesn't start with two numbers
- * names none, and the command says `<version>` in its place.
+ * The command voicecap writes into netlify.toml to build the website, for `version`: it names that
+ * exact release (`@0.18.0`), so the build installs it and nothing newer. A version that isn't one
+ * (see EXACT_VERSION) names none, and the command says `<version>` in its place.
  */
 export function buildCommand(version: string): string {
-  const minor = /^\d+\.\d+/.exec(version)?.[0] ?? "<version>";
-  return `npx --yes @icjia/voicecap@${minor} site --home . --out _site`;
+  const exact = EXACT_VERSION.test(version) ? version : "<version>";
+  return `npx --yes @icjia/voicecap@${exact} site --home . --out _site`;
 }

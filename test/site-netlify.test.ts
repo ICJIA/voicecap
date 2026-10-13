@@ -10,14 +10,18 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ensureNetlifyFiles, netlifyToml, NVMRC } from "../src/site/netlify.js";
 
-/** netlify.toml as Netlify reads it, with `minor` as the version its build command names. */
+/** netlify.toml as Netlify reads it, with `version` as the exact release its build command names. */
 const tomlFor = (
-  minor: string,
+  version: string,
 ) => `# Written by voicecap site, once: voicecap never changes it. Netlify builds the website with it on every push.
-# To build with a newer voicecap, change the version in the command.
+# Change the version in the command after each release, a patch included.
 [build]
-  command = "npx --yes @icjia/voicecap@${minor} site --home . --out _site"
+  command = "npx --yes @icjia/voicecap@${version} site --home . --out _site"
   publish = "_site"
+
+[build.environment]
+  # No package's install script runs in the build.
+  NPM_CONFIG_IGNORE_SCRIPTS = "true"
 
 [[headers]]
   for = "/*"
@@ -32,21 +36,73 @@ const tomlFor = (
     Cross-Origin-Resource-Policy = "same-origin"
 `;
 
+/** The lines of one table of netlify.toml: after its header, up to the blank line that ends it. */
+function tableOf(toml: string, header: string): string[] {
+  const lines = toml.split("\n");
+  const start = lines.indexOf(header);
+  if (start === -1) throw new Error(`netlify.toml has no ${header}.`);
+  const table = lines.slice(start + 1);
+  const end = table.indexOf("");
+  return end === -1 ? table : table.slice(0, end);
+}
+
 describe("netlifyToml", () => {
-  it("builds with the minor version that wrote it", () => {
-    expect(netlifyToml("0.9.0")).toBe(tomlFor("0.9"));
-    expect(netlifyToml("0.9.7")).toBe(tomlFor("0.9"));
-    expect(netlifyToml("0.9")).toBe(tomlFor("0.9"));
-    expect(netlifyToml("1.2.3-beta.1")).toBe(tomlFor("1.2"));
-    expect(netlifyToml("10.20.30")).toBe(tomlFor("10.20"));
+  it("builds with the exact version that wrote it, and nothing newer", () => {
+    expect(netlifyToml("0.18.0")).toBe(tomlFor("0.18.0"));
+    expect(netlifyToml("1.2.3-beta.1")).toBe(tomlFor("1.2.3-beta.1"));
+    expect(netlifyToml("10.20.30")).toBe(tomlFor("10.20.30"));
+    // A patch release is another version, and the command names it: the owner changes the version
+    // after each release, a patch included.
+    expect(netlifyToml("0.18.1")).toBe(tomlFor("0.18.1"));
+    expect(netlifyToml("0.18.1")).not.toContain("@icjia/voicecap@0.18.0");
   });
 
-  it.each(["", "0", "v0.9.0", "latest", ".9.0", "0.x.1", "x.9.0"])(
-    "refuses %j, which doesn't start with two numbers",
-    (version) => {
-      expect(() => netlifyToml(version)).toThrow("doesn't start with two numbers");
-    },
-  );
+  it("tells the owner, in its second comment line, to change the version after each release", () => {
+    expect(netlifyToml("0.18.0").split("\n").slice(0, 2)).toEqual([
+      "# Written by voicecap site, once: voicecap never changes it. Netlify builds the website with it on every push.",
+      "# Change the version in the command after each release, a patch included.",
+    ]);
+  });
+
+  it("turns npm's install scripts off in the build, in a table of its own after [build]", () => {
+    const toml = netlifyToml("0.18.0");
+
+    const tables = toml
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("["));
+    expect(tables).toEqual(["[build]", "[build.environment]", "[[headers]]", "[headers.values]"]);
+    expect(tableOf(toml, "[build.environment]")).toEqual([
+      "  # No package's install script runs in the build.",
+      '  NPM_CONFIG_IGNORE_SCRIPTS = "true"',
+    ]);
+    // The command and the folder to publish stay in [build], above it.
+    expect(tableOf(toml, "[build]")).toEqual([
+      '  command = "npx --yes @icjia/voicecap@0.18.0 site --home . --out _site"',
+      '  publish = "_site"',
+    ]);
+  });
+
+  it.each([
+    "0.9",
+    "",
+    "v0.9.0",
+    "latest",
+    "0",
+    ".9.0",
+    "0.x.1",
+    "0.9.x",
+    "^0.9.0",
+    "0.9.0-",
+    // Nothing but a version can reach the command, which Netlify runs in a shell.
+    "0.9.0 ",
+    "0.9.0\n",
+    "0.9.0 --yes",
+    '0.9.0" --evil "',
+    "0.9.0;exit",
+  ])("refuses %j, which isn't three numbers like 1.2.3", (version) => {
+    expect(() => netlifyToml(version)).toThrow("isn't three numbers like 1.2.3");
+  });
 });
 
 describe("NVMRC", () => {
@@ -72,7 +128,7 @@ describe("ensureNetlifyFiles", () => {
   it("writes netlify.toml and .nvmrc into a home that has neither, and says which", async () => {
     expect(await ensureNetlifyFiles(home, "0.9.0")).toEqual(["netlify.toml", ".nvmrc"]);
 
-    expect(await readFile(tomlFile(), "utf8")).toBe(tomlFor("0.9"));
+    expect(await readFile(tomlFile(), "utf8")).toBe(tomlFor("0.9.0"));
     expect(await readFile(nvmrcFile(), "utf8")).toBe("24\n");
   });
 
@@ -96,15 +152,18 @@ describe("ensureNetlifyFiles", () => {
     await writeFile(nvmrcFile(), "22\n");
 
     expect(await ensureNetlifyFiles(home, "0.9.0")).toEqual(["netlify.toml"]);
-    expect(await readFile(tomlFile(), "utf8")).toBe(tomlFor("0.9"));
+    expect(await readFile(tomlFile(), "utf8")).toBe(tomlFor("0.9.0"));
     expect(await readFile(nvmrcFile(), "utf8")).toBe("22\n");
   });
 
-  it("writes neither file when the version doesn't start with two numbers", async () => {
-    await expect(ensureNetlifyFiles(home, "latest")).rejects.toThrow(
-      "doesn't start with two numbers",
-    );
+  it.each(["latest", "0.9"])(
+    "writes neither file when the version is %j, which isn't three numbers",
+    async (version) => {
+      await expect(ensureNetlifyFiles(home, version)).rejects.toThrow(
+        "isn't three numbers like 1.2.3",
+      );
 
-    expect(await readdir(home)).toEqual([]);
-  });
+      expect(await readdir(home)).toEqual([]);
+    },
+  );
 });

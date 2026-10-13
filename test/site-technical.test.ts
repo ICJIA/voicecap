@@ -33,7 +33,7 @@ import { netlifyToml } from "../src/site/netlify.js";
 import type { SiteContent } from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { renderTechnical, type TechnicalInput } from "../src/site/technical.js";
-import { TECHNICAL_TEXT } from "../src/site/technical-text.js";
+import { buildCommand, TECHNICAL_TEXT } from "../src/site/technical-text.js";
 import { SITE_TEXT } from "../src/site/text.js";
 import { packageRoot } from "../src/util/version.js";
 import { decode, rowsOf, tableOf, textOf } from "./helpers/share-html.js";
@@ -163,6 +163,31 @@ function unknownIn(command: string): string[] {
     return CLI.includes(`.command("${word}"`) ? [] : [`${command}: no command ${word}`];
   });
 }
+
+describe("buildCommand", () => {
+  it("is the command netlify.toml is written with: the exact version, and nothing newer", () => {
+    expect(buildCommand("0.18.0")).toBe(
+      "npx --yes @icjia/voicecap@0.18.0 site --home . --out _site",
+    );
+    expect(buildCommand("1.2.3-beta.1")).toBe(
+      "npx --yes @icjia/voicecap@1.2.3-beta.1 site --home . --out _site",
+    );
+    for (const version of ["0.18.0", "0.18.1", "1.2.3-beta.1", "10.20.30"]) {
+      expect(buildCommand(version), version).toBe(
+        /command = "([^"]+)"/.exec(netlifyToml(version))?.[1],
+      );
+    }
+  });
+
+  it.each(["0.9", "", "v0.9.0", "latest", "0.9.0 --yes", "9.8.7<script>"])(
+    "says <version> in place of %j, which isn't a version",
+    (version) => {
+      expect(buildCommand(version)).toBe(
+        "npx --yes @icjia/voicecap@<version> site --home . --out _site",
+      );
+    },
+  );
+});
 
 describe("renderTechnical", () => {
   const html = pageWith();
@@ -402,11 +427,37 @@ describe("renderTechnical", () => {
     );
   });
 
-  it("names Guidepup in the toolchain table and nowhere else", () => {
+  it("names Guidepup in the toolchain table, and in one sentence about what npx downloads, and nowhere else", () => {
     const table = tableOf(html, "toolchain");
 
     expect(table.match(/guidepup/gi)?.length ?? 0).toBeGreaterThanOrEqual(1);
-    expect(html.replace(table, "").match(/guidepup/gi) ?? []).toEqual([]);
+    // Outside the table, the one place is the sentence of "What goes out" about the recorder that
+    // Guidepup's setup brings with it.
+    expect(html.replace(table, "").match(/guidepup/gi) ?? []).toHaveLength(1);
+    expect(textOf(partOf(html, "privacy-and-security"), "")).toContain(
+      "for Guidepup's recorder on a Mac",
+    );
+  });
+
+  it("says npx also downloads an ffmpeg program voicecap never runs, unless install scripts are off", () => {
+    // @guidepup/setup lists @guidepup/record as an optional dependency, and that needs
+    // ffmpeg-static, whose install script downloads ffmpeg. The website's build turns install
+    // scripts off with NPM_CONFIG_IGNORE_SCRIPTS (netlify.toml).
+    expect(textOf(partOf(html, "privacy-and-security"), "")).toContain(
+      "voicecap itself comes from npm, through npx. npx also downloads, for Guidepup's recorder on a Mac, an ffmpeg program voicecap never runs, unless install scripts are off, as they are in the website's build.",
+    );
+  });
+
+  it("gives the website's build command with the exact version of this voicecap", () => {
+    const built = (page: string): string => textOf(partOf(page, "this-website"), "");
+
+    expect(built(html)).toContain(
+      "The build's command is in the repository's netlify.toml, which voicecap writes once. From this version, it's npx --yes @icjia/voicecap@9.8.7 site --home . --out _site.",
+    );
+    // A version that isn't one is named by no command.
+    expect(built(pageWith({ voicecap: { ...FACTS, version: "latest" } }))).toContain(
+      "From this version, it's npx --yes @icjia/voicecap@<version> site --home . --out _site.",
+    );
   });
 
   it("gives each npm tool the license of the package voicecap installs", () => {

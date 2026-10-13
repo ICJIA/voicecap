@@ -3043,6 +3043,12 @@ describe("buildSite", () => {
       expect(await readFile(path.join(home, "netlify.toml"), "utf8")).toBe(
         netlifyToml(voicecapVersion()),
       );
+      // The command names this voicecap's exact version, and the build runs no install script.
+      const toml = await readFile(path.join(home, "netlify.toml"), "utf8");
+      expect(toml).toContain(
+        `command = "npx --yes @icjia/voicecap@${voicecapVersion()} site --home . --out _site"`,
+      );
+      expect(toml).toContain('NPM_CONFIG_IGNORE_SCRIPTS = "true"');
       expect(await readFile(path.join(home, ".nvmrc"), "utf8")).toBe(NVMRC);
       expect(first.logger.entries.filter(({ level }) => level === "info").slice(0, 2)).toEqual([
         {
