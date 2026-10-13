@@ -371,13 +371,20 @@ describe("Windows quick checks", () => {
     }
   });
 
-  it("ignore a rule that applies to no network type", async () => {
-    expect((await firewallCheck("Allow|NotApplicable")).status).toBe("OK");
+  // NotApplicable is a profile only a rule made by hand has, and nothing says which network types
+  // Windows then holds it to: so an Allow rule with it covers every one, and a Block rule none.
+  it("count a rule whose network types can't be placed toward a warning", async () => {
+    expect(await firewallCheck("Allow|NotApplicable")).toEqual({
+      id: "nvdaFirewall",
+      status: "WARN",
+      summary: firewallOpen("the Domain, Private, and Public networks"),
+    });
     expect(await firewallCheck("Allow|Private", "Block|NotApplicable")).toEqual({
       id: "nvdaFirewall",
       status: "WARN",
       summary: firewallOpen("the Private network"),
     });
+    expect((await firewallCheck("Allow|NotApplicable", "Block|Any")).status).toBe("OK");
   });
 
   it("warn that they couldn't read the rules when a line of PowerShell's answer isn't a rule", async () => {

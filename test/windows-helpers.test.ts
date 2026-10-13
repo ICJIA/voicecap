@@ -320,7 +320,8 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
       rule("Allow", "Public"),
       rule("Allow", "Private", "Public"),
       rule("Allow", "Domain", "Private", "Public"),
-      rule("Allow"),
+      // NotApplicable can't be placed, so an Allow rule with it covers every network type.
+      rule("Allow", "Domain", "Private", "Public"),
     ]);
   }, 60_000);
 
@@ -555,21 +556,25 @@ describe("Windows helpers (what PowerShell says)", () => {
       rule("Block", "Public"),
       rule("Allow", "Domain", "Private"),
     ]);
-    // Any is every network type, and NotApplicable none.
-    expect(parseFirewallRules("Block|Any\r\nAllow|NotApplicable\r\n")).toEqual([
+    // Any is every network type.
+    expect(parseFirewallRules("Block|Any\r\nAllow|Any\r\n")).toEqual([
       rule("Block", "Domain", "Private", "Public"),
-      rule("Allow"),
+      rule("Allow", "Domain", "Private", "Public"),
     ]);
-    // Each line is trimmed, as is each word, and an empty line is no rule. A word that names no
-    // network type voicecap knows is left out.
-    expect(
-      parseFirewallRules(
-        "  Allow|Private ,  Public \r\n\r\n\tBlock|Domain\r\nAllow|Private, Satellite\n",
-      ),
-    ).toEqual([
+    // A word the reader can't place (NotApplicable, a word it doesn't know, or one in another
+    // letter case) errs toward a warning: an Allow rule with one covers every network type, beside
+    // any it names, and a Block rule with one covers none, not even those it names.
+    const unplaced = ["NotApplicable", "Satellite", "Private, Satellite", "private"];
+    for (const words of unplaced) {
+      expect(parseFirewallRules(`Allow|${words}\r\nBlock|${words}\r\n`), words).toEqual([
+        rule("Allow", "Domain", "Private", "Public"),
+        rule("Block"),
+      ]);
+    }
+    // Each line is trimmed, as is each word, and an empty line is no rule.
+    expect(parseFirewallRules("  Allow|Private ,  Public \r\n\r\n\tBlock|Domain\n")).toEqual([
       rule("Allow", "Private", "Public"),
       rule("Block", "Domain"),
-      rule("Allow", "Private"),
     ]);
     expect(parseFirewallRules("")).toEqual([]);
     expect(parseFirewallRules("\r\n \r\n")).toEqual([]);

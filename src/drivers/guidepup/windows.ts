@@ -142,9 +142,11 @@ const NOT_A_RULE = "PowerShell's answer has a line that isn't a rule";
 
 /**
  * nvdaFirewallScript's answer as rules, one a line, an empty line skipped. `Any` is every network
- * type, and `NotApplicable` none; a word that names no network type voicecap knows is left out.
- * Throws when a line isn't a rule (a warning, another action, or a number Windows' type has no name
- * for), since a rule read wrong could hide one that lets other computers in.
+ * type. A word the reader can't place (`NotApplicable`, which only a rule made by hand has, or a
+ * word it doesn't know) errs toward a warning: an Allow rule with one covers every network type,
+ * and a Block rule with one covers none. Throws when a line isn't a rule (a warning, another
+ * action, or a number Windows' type has no name for), since a rule read wrong could hide one that
+ * lets other computers in.
  */
 export function parseFirewallRules(stdout: string): FirewallRule[] {
   const rules: FirewallRule[] = [];
@@ -153,14 +155,21 @@ export function parseFirewallRules(stdout: string): FirewallRule[] {
     if (text === "") continue;
     const match = RULE_LINE.exec(text);
     if (match === null) throw new Error(NOT_A_RULE);
+    const action = match[1] === "Allow" ? "Allow" : "Block";
     const profiles = new Set<FirewallProfile>();
+    let unplaced = false;
     for (const word of (match[2] ?? "").split(",")) {
       const name = word.trim();
       if (name === "Any") FIREWALL_PROFILES.forEach((profile) => profiles.add(profile));
       const known = FIREWALL_PROFILES.find((profile) => profile === name);
       if (known !== undefined) profiles.add(known);
+      else if (name !== "Any") unplaced = true;
     }
-    rules.push({ action: match[1] === "Allow" ? "Allow" : "Block", profiles });
+    if (unplaced) {
+      profiles.clear();
+      if (action === "Allow") FIREWALL_PROFILES.forEach((profile) => profiles.add(profile));
+    }
+    rules.push({ action, profiles });
   }
   return rules;
 }
