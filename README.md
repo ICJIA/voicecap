@@ -457,7 +457,7 @@ These steps assume Windows 11, a normal (non-administrator) account, and PowerSh
 
 4. **Install NVDA for voicecap:** `npx @icjia/voicecap setup`. This downloads (about 100 MB, from GitHub) the portable NVDA build that voicecap's pinned Guidepup expects into `%LOCALAPPDATA%\guidepup`. It's separate from any NVDA you already have installed, and needs no administrator rights. If Google Chrome isn't installed, setup also installs Playwright's Chromium for voicecap to use instead. Behind a proxy, set `HTTPS_PROXY` first (in PowerShell, `$env:HTTPS_PROXY = "http://your-proxy:port"` sets it for the current window).
 
-   - **If your Windows user folder's path has a space or one of `& ( , ; = ^`** (`C:\Users\Jane Doe`, `C:\Users\R&D`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a plain folder such as `C:\guidepup` (`mkdir "C:\guidepup"`, then `setx GUIDEPUP_SCREEN_READERS_PATH "C:\guidepup"`, the same in PowerShell and Git Bash), open a new terminal, and run setup again.
+   - **If your Windows user folder's path has a space or one of `& ( , ; = ^`** (`C:\Users\Jane Doe`, `C:\Users\R&D`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a plain folder such as `C:\guidepup` (`mkdir "C:\guidepup"`, then `setx GUIDEPUP_SCREEN_READERS_PATH "C:\guidepup"`, the same in PowerShell and Git Bash), open a new terminal, and run setup again. The folder has to be new or empty (or one an earlier setup filled): setup refuses one that already holds other files, since Guidepup's installer deletes what isn't its own inside it.
    - **The first time NVDA starts**, Windows may ask whether NVDA can communicate on networks. Click **Cancel**, and leave every box unticked. voicecap reaches NVDA through this computer's own address (127.0.0.1), which Windows Firewall never blocks. NVDA's control port, though, is open on every network the computer is on, behind a password Guidepup publishes, and Allow would let another computer on the network press keys on this one. If you clicked Allow, see [NVDA's control port](#nvdas-control-port).
    - **Then setup checks this computer.** If it's ready, setup offers the live test (see [The checks, and the live test](#the-checks-and-the-live-test)); if it isn't, setup says what's wrong and exits with code 2.
 
@@ -499,13 +499,15 @@ With the rewriting off, Git Bash also stops translating its own way of writing a
 
 ### NVDA's control port
 
-The NVDA build Guidepup installs turns on NVDA's Remote Access, and Remote Access listens on a control port, 6837, on every network the computer is on, not only on this computer. A key protects it, but Guidepup publishes that key. voicecap connects to the port through this computer's own address (127.0.0.1), which Windows Firewall never blocks. A Windows Firewall rule that lets the port in, though, makes it reachable from other computers on the network, and a computer that reached it could press keys on this one. Windows makes such a rule when you click **Allow** at the question it asks the first time NVDA starts (see [Windows setup](#windows-setup-for-someone-new-to-windows), step 4); **Cancel** makes none.
+The NVDA build Guidepup installs turns on NVDA's Remote Access, and Remote Access listens on a control port, 6837, on every network the computer is on, not only on this computer. A key protects it, but Guidepup publishes that key. voicecap connects to the port through this computer's own address (127.0.0.1), which Windows Firewall never blocks. A Windows Firewall rule that lets the port in, though, makes it reachable from other computers on the network, and a computer that reached it could press keys on this one. Windows makes such a rule when you click **Allow** at the question it asks the first time NVDA starts (see [Windows setup](#windows-setup-for-someone-new-to-windows), step 4). **Cancel** keeps the port closed.
 
-`preflight`, `init`, `setup`, `doctor`, and each run read Windows Firewall's rules (they change nothing, and need no administrator) and warn when a rule lets other computers in:
+`preflight`, `init`, `setup`, `doctor`, and each run read Windows Firewall's rules, change nothing, and warn when a rule lets other computers in:
 
 ```
   WARN  Windows Firewall lets other computers reach NVDA's control port (6837) while voicecap runs: an administrator can close it (README: "NVDA's control port")
 ```
+
+Reading the rules takes no administrator. The rules that name Guidepup's NVDA are always read. A block rule on port 6837 is read too, but only when Windows lets the account read port rules, and a normal account may be refused. The check then answers from the rules that name Guidepup's NVDA alone, so it can warn although a block rule already closes the port. What ends the warning for any account is removing the rules that let Guidepup's NVDA in (step 2 below).
 
 The warning never stops a run, since closing the port takes an administrator and a person who isn't one would be stopped for good. If Windows can't say (the check then warns that it couldn't read the rules), the port may be open, and the same steps apply. To close the port, an administrator does this:
 

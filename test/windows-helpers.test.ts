@@ -44,10 +44,12 @@ import {
   sessionLocked,
   startedNvda,
   startProcessScript,
+  strictThenBestEffort,
   windowsMachineProbe,
   windowsSystemInfo,
 } from "../src/drivers/guidepup/windows.js";
 import { collectMachineRecord, nodeMachineFacts } from "../src/run/machine-record.js";
+import { systemTool } from "../src/util/system-tools.js";
 
 const temps: string[] = [];
 const orphans: number[] = [];
@@ -116,6 +118,28 @@ function runPowershell(script: string): Promise<{ stdout: string; stderr: string
       },
     );
   });
+}
+
+/**
+ * Runs a script as powershell() in windows.ts does: Windows' own PowerShell, by its full path, with
+ * an argument list and no shell. Gives its exit code (null when it didn't finish), what it printed,
+ * and its errors (or why it didn't start).
+ */
+function runSystemPowershell(script: string): {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+} {
+  const done = spawnSync(
+    systemTool("powershell"),
+    ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(script)],
+    { encoding: "utf8", windowsHide: true, timeout: 60_000 },
+  );
+  return {
+    status: done.status,
+    stdout: done.stdout ?? "",
+    stderr: done.error ? String(done.error) : (done.stderr ?? ""),
+  };
 }
 
 /** The script foregroundWindow() has PowerShell run, which nothing here runs against the desktop. */
@@ -204,6 +228,48 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
   it("find running processes by image name", async () => {
     expect(await listProcesses("node.exe")).toContain(process.pid);
     expect(await listProcesses("no-such-program-for-voicecap.exe")).toEqual([]);
+  });
+
+  // What a failure in each of the firewall script's two statements does, on stand-ins that fail as
+  // the firewall cmdlets do: they report a refusal as a non-terminating error, and a script that
+  // goes on after one takes its exit code from its last statement alone. The script itself is never
+  // run here, since it reads the computer's firewall rules.
+  it("fail the firewall script, printing nothing, when its first statement fails", () => {
+    // Without the strict first statement, the second would print Block and the exit would be 0: the
+    // script would answer "closed" having read none of the rules that name the program.
+    for (const first of ["Write-Error 'first failed'", "throw 'first failed'"]) {
+      const answer = runSystemPowershell(strictThenBestEffort(first, "'Block'"));
+      expect(answer.status, `${first}: ${answer.stderr}`).toBe(1);
+      expect(answer.stdout, first).toBe("");
+    }
+  });
+
+  it("keep the firewall script's first lines, and exit 0, when only its second statement fails", () => {
+    // Without the closing exit 0, the exit stays 1 after a caught error, and the first statement's
+    // Allow would be thrown away with the failure.
+    for (const second of ["Write-Error 'second failed'", "throw 'second failed'"]) {
+      const answer = runSystemPowershell(strictThenBestEffort("'Allow'", second));
+      expect(answer.status, `${second}: ${answer.stderr}`).toBe(0);
+      expect(parseFirewallActions(answer.stdout), second).toEqual(["Allow"]);
+    }
+    // What the second statement printed before it failed is real, so it is kept too.
+    const late = runSystemPowershell(
+      strictThenBestEffort("'Allow'", "'Block'; Write-Error 'late'"),
+    );
+    expect(late.status, late.stderr).toBe(0);
+    expect(parseFirewallActions(late.stdout)).toEqual(["Allow", "Block"]);
+  });
+
+  it("print both of the firewall script's statements' lines, and exit 0, when neither fails", () => {
+    const both = runSystemPowershell(strictThenBestEffort("'Allow'; 'Allow'", "'Block'"));
+    expect(both.status, both.stderr).toBe(0);
+    expect(parseFirewallActions(both.stdout)).toEqual(["Allow", "Allow", "Block"]);
+    // Nothing to print is an answer too: no rule names the program, and none blocks the port.
+    const none = runSystemPowershell(
+      strictThenBestEffort("@() | ForEach-Object { 'Allow' }", "@() | ForEach-Object { 'Block' }"),
+    );
+    expect(none.status, none.stderr).toBe(0);
+    expect(none.stdout).toBe("");
   });
 
   // The lookup of the window in front is checked for real only at the PC, and a typo in it would
@@ -435,9 +501,11 @@ describe("Windows helpers (what PowerShell says)", () => {
     const script = nvdaFirewallScript(exe);
     expect(script).toBe(
       [
+        "$ErrorActionPreference = 'Stop';",
         `$exe = '${exe}';`,
         "Get-NetFirewallApplicationFilter -PolicyStore ActiveStore | Where-Object { [Environment]::ExpandEnvironmentVariables($_.Program) -eq $exe } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' } | ForEach-Object { [string]$_.Action };",
-        "Get-NetFirewallPortFilter -PolicyStore ActiveStore | Where-Object { $_.LocalPort -contains '6837' } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and [string]$_.Action -eq 'Block' } | ForEach-Object { 'Block' }",
+        "try { Get-NetFirewallPortFilter -PolicyStore ActiveStore | Where-Object { $_.LocalPort -contains '6837' } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and [string]$_.Action -eq 'Block' } | ForEach-Object { 'Block' } } catch { };",
+        "exit 0",
       ].join(" "),
     );
     // It only reads: no cmdlet that adds, changes, removes, or turns anything on or off.
@@ -447,7 +515,7 @@ describe("Windows helpers (what PowerShell says)", () => {
   it("quote the NVDA program's path in the firewall script, so a quote in it stays text", () => {
     const script = nvdaFirewallScript("C:\\jane's folder\\nvda.exe'; Remove-NetFirewallRule *; '");
     expect(script.split(" Get-NetFirewallApplicationFilter ")[0]).toBe(
-      "$exe = 'C:\\jane''s folder\\nvda.exe''; Remove-NetFirewallRule *; ''';",
+      "$ErrorActionPreference = 'Stop'; $exe = 'C:\\jane''s folder\\nvda.exe''; Remove-NetFirewallRule *; ''';",
     );
   });
 

@@ -50,8 +50,9 @@ export interface WindowsReadinessDeps {
   exists: (file: string) => boolean;
   /**
    * What Windows Firewall does with NVDA's control port: an Allow for each enabled inbound rule
-   * that lets Guidepup's NVDA in, and a Block for each enabled inbound block rule on the port.
-   * Rejects when Windows can't say.
+   * that lets Guidepup's NVDA in, and a Block for each enabled inbound block rule on the port when
+   * Windows lets the account read the rules of a port. Rejects when Windows can't say what rules
+   * name Guidepup's NVDA.
    */
   nvdaFirewallRules: () => Promise<FirewallAction[]>;
   /** Every running nvda.exe, Guidepup's or the person's. */
@@ -225,7 +226,8 @@ function nvdaCheck(deps: WindowsReadinessDeps): Check {
  * Guidepup's NVDA and no Block rule on the port. NVDA's Remote Access opens that port on every
  * network the computer is on, behind a key Guidepup publishes. Never a FAIL: closing it needs an
  * administrator, and a FAIL would stop every run of a person who isn't one. Also a WARN when
- * Windows can't say.
+ * Windows can't say. A normal account may be refused the rules of a port, and then a Block rule on
+ * the port goes unseen: the warning stays until the Allow rule is removed.
  */
 async function nvdaFirewallCheck(deps: WindowsReadinessDeps): Promise<Check> {
   let rules: FirewallAction[];
