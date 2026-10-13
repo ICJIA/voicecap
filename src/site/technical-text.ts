@@ -539,6 +539,12 @@ export const TECHNICAL_TEXT = {
           ` checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there, and read only under the name voicecap gives it. An incomplete run is listed, and its files aren't checked: they can change until it's sealed. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
         ],
         [
+          { code: "voicecap share" },
+          " takes a transcript, screenshot, axe result, recording, event log, or copy of NVDA's own log into a report only when its file is a regular file, never a link, with the size and SHA-256 its run recorded. One that isn't is left out, the report says so, and ",
+          { code: "voicecap verify" },
+          " names it.",
+        ],
+        [
           "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, axe results, run seals, and review chain the report carries. It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",
         ],
         [

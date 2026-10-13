@@ -1,13 +1,20 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
-import type { PageSource, RunJson } from "../src/model.js";
-import { buildReportModel, generateReport, renderReport } from "../src/report/index.js";
+import type { PageSource, ReviewStatus, RunJson } from "../src/model.js";
+import {
+  buildReportModel,
+  generateReport,
+  renderReport,
+  type ReportModel,
+} from "../src/report/index.js";
+import { webHref } from "../src/report/render.js";
+import { readReviews } from "../src/reviews/store.js";
 import { regenerateLiveFiles } from "../src/run/live-report.js";
 import { linkPath, liveCompareDir, runDir, runJsonPath, runReportPath } from "../src/run/paths.js";
 import { writeRunJson } from "../src/run/store.js";
@@ -585,6 +592,189 @@ describe("generateReport", () => {
     expect(html.split("<tr data-flagged=").length - 1).toBe(2000);
     expect(model.templates).toHaveLength(10);
     expect(elapsed).toBeLessThan(3000);
+  });
+});
+
+// A record is data: a field that holds markup, or an address of another kind, is shown as the text
+// it is, and never becomes an element or a link.
+describe("renderReport: a record whose fields hold markup", () => {
+  /** Markup the page has none of, and a link that runs a script. */
+  const MARKUP = /<(?:b|i|u)>|href="\s*javascript:/i;
+
+  /**
+   * The report of a run of one page that `change` has changed in memory, its model changed by
+   * `shape` before it is rendered.
+   */
+  async function htmlOf(
+    change: (run: RunJson) => RunJson,
+    shape: (model: ReportModel) => void = () => {},
+  ): Promise<string> {
+    const outDir = await tempOutDir();
+    try {
+      const run = change(
+        await writeSyntheticRun(outDir, { id: "2026-09-26_1405", pages: [{ path: "/" }] }),
+      );
+      const model = buildReportModel({
+        run,
+        target: "live",
+        reviews: await readReviews(outDir),
+        manual: [],
+        compare: null,
+        branding: config.report,
+        generatedAt: "2026-09-26T18:10:00-05:00",
+        voicecapVersion: "0.18.0",
+      });
+      shape(model);
+      return renderReport(model, { outDir, baseDir: outDir, snapshotExists: false });
+    } finally {
+      // The page is made in memory; the folder only held the run's record for the model.
+      await rm(outDir, { recursive: true, force: true });
+    }
+  }
+
+  it("shows a review status that holds markup as text", async () => {
+    const html = await htmlOf(
+      (run) => run,
+      (model) => {
+        const first = model.rows[0];
+        if (first) first.reviewStatus = 'x"><b>' as ReviewStatus;
+      },
+    );
+
+    expect(html).not.toMatch(MARKUP);
+    expect(html).toContain('data-review="x&quot;&gt;&lt;b&gt;"');
+  });
+
+  it("shows a session's number and pages done that hold markup as text", async () => {
+    const html = await htmlOf((run) => ({
+      ...run,
+      sessions: run.sessions.map((session) => ({
+        ...session,
+        n: "<b>" as unknown as number,
+        pagesDone: "<i>" as unknown as number,
+      })),
+    }));
+
+    expect(html).not.toMatch(MARKUP);
+    // Not a number, so it's shown as one that isn't, rather than as what it says.
+    expect(html).toContain("<td>NaN</td>");
+  });
+
+  it("shows the counts of a page source that hold markup as text", async () => {
+    const html = await htmlOf((run) => ({
+      ...run,
+      source: {
+        ...run.source,
+        listed: "<u>" as unknown as number,
+        duplicates: "<b>" as unknown as number,
+        excludedByFilter: "<i>" as unknown as number,
+        excludedByLimit: "<u>" as unknown as number,
+      },
+    }));
+
+    expect(html).not.toMatch(MARKUP);
+    expect(html).toContain("<dt>Entries listed</dt><dd>NaN</dd>");
+  });
+
+  it("shows the numbers of a skipped URL and an invalid entry that hold markup as text", async () => {
+    const html = await htmlOf((run) => ({
+      ...run,
+      skipped: [
+        {
+          url: "https://example.illinois.gov/file.pdf",
+          reason: "non-html-extension" as const,
+          status: "<b>" as unknown as number,
+          line: "<i>" as unknown as number,
+        },
+      ],
+      source: {
+        ...run.source,
+        invalid: [{ value: "x", reason: "not an address", line: "<u>" as unknown as number }],
+      },
+    }));
+
+    expect(html).not.toMatch(MARKUP);
+    expect(html).toContain("HTTP &lt;b&gt;");
+  });
+
+  it.each([
+    ["the address the run read", "javascript:alert(1)"],
+    ["an address of no scheme", "example.illinois.gov"],
+    ["an address that isn't text", 42],
+  ])("links the site only to a web address: %s", async (_, site) => {
+    const html = await htmlOf((run) => ({ ...run, site: site as string }));
+
+    expect(html).not.toMatch(MARKUP);
+    expect(html).not.toMatch(/href="(?:javascript|example\.illinois|42)/i);
+    // Its name is still there, as text.
+    expect(html).toContain(String(site));
+  });
+
+  it("links a page only to a web address, and shows any other as text", async () => {
+    const html = await htmlOf((run) => ({
+      ...run,
+      pages: run.pages.map((page) => ({ ...page, url: "javascript:alert(1)" })),
+    }));
+
+    expect(html).not.toMatch(MARKUP);
+    expect(html).toContain("javascript:alert(1)");
+  });
+
+  it("links the sitemap only to a web address", async () => {
+    const html = await htmlOf((run) => ({
+      ...run,
+      settings: { ...run.settings, source: { kind: "sitemap", url: "javascript:alert(1)" } },
+    }));
+
+    expect(html).not.toMatch(MARKUP);
+    expect(html).toContain("Full sitemap: javascript:alert(1)");
+  });
+
+  it("links the pages of a comparison only to web addresses", async () => {
+    const html = await htmlOf(
+      (run) => run,
+      (model) => {
+        const ref = (url: string) => ({ key: url, url, slug: "x" });
+        model.input.compare = {
+          base: "2026-09-25_1000",
+          run: "2026-09-26_1405",
+          changed: [],
+          unchanged: 0,
+          onlyInBase: [ref("javascript:alert(2)")],
+          onlyInRun: [ref("javascript:alert(1)"), ref("https://example.illinois.gov/new")],
+          notCompared: [],
+          environmentDifferences: [],
+        };
+      },
+    );
+
+    expect(html).not.toMatch(MARKUP);
+    expect(html).toContain('href="https://example.illinois.gov/new"');
+    expect(html).toContain("javascript:alert(1)");
+  });
+});
+
+describe("webHref", () => {
+  it("gives a web address, escaped, and nothing for another kind of address", () => {
+    expect(webHref("https://example.illinois.gov/a?b=1&c=%22")).toBe(
+      "https://example.illinois.gov/a?b=1&amp;c=%22",
+    );
+    expect(webHref('http://example.illinois.gov/"x')).toBe("http://example.illinois.gov/&quot;x");
+    for (const other of [
+      "javascript:alert(1)",
+      " JavaScript:alert(1)",
+      "data:text/html,<b>",
+      "file:///etc/passwd",
+      "mailto:a@b.test",
+      "/about",
+      "example.illinois.gov",
+      "",
+      42,
+      null,
+      undefined,
+    ]) {
+      expect(webHref(other), String(other)).toBeNull();
+    }
   });
 });
 

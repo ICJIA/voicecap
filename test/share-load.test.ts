@@ -5,21 +5,33 @@
  * them: real scripted runs, each page of which was recorded by the scripted driver, with the real
  * encoder making the WebM Opus files. Nothing here plays a sound.
  */
+import type { Stats } from "node:fs";
 import type * as Fsp from "node:fs/promises";
-import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  copyFile,
+  lstat,
+  mkdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
+import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
 import type { RunJson } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
 import { pageDir, runJsonPath } from "../src/run/paths.js";
-import { loadShareInput } from "../src/share/load.js";
+import { loadShareInput, readAsRecorded } from "../src/share/load.js";
 import { buildShareModel } from "../src/share/model.js";
 import { renderVoicePage } from "../src/share/voice-page.js";
 import { fileHash } from "../src/transcripts/write.js";
 import { sealOf } from "../src/util/hash.js";
+import { copyOf, keyAt, saidAt } from "./helpers/nvda-log.js";
 import {
   config as runConfig,
   options as runOptions,
@@ -32,10 +44,11 @@ import { DEMO_SITE, VOICE_PAGE } from "./helpers/share-model.js";
 import { busySound, speechAndPauses } from "./helpers/voice-signal.js";
 
 // Each file read is watched, not stopped: every call goes through, and the test of what the loader
-// leaves unread counts the recordings it opened.
+// leaves unread counts the recordings it opened. What a file is looked at with is watched the same
+// way, so a test can give what it says of a link where the system can't make one.
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof Fsp>();
-  return { ...actual, readFile: vi.fn(actual.readFile) };
+  return { ...actual, lstat: vi.fn(actual.lstat), readFile: vi.fn(actual.readFile) };
 });
 
 /** The folders these tests made, which are taken away after each. */
@@ -385,5 +398,224 @@ describe("loadShareInput: a record that isn't its folder's", () => {
 
     expect(input.records.map((record) => record.id)).toEqual([result.run.id]);
     expect(input.unreadableRuns).toEqual(["2099-01-01_0900"]);
+  });
+});
+
+describe("loadShareInput: each page's transcripts", () => {
+  /** A site folder with one completed run of the scripted site: no recordings, and no log copies. */
+  async function transcriptSite() {
+    const dir = await newFolder();
+    const result = await runAudit(runOptions(dir, new ScriptedDriver(sitePages())));
+    expect(result.outcome).toBe("completed");
+    return { siteDir: result.siteDir, run: result.run };
+  }
+
+  /** Where a page of a run keeps a transcript file. */
+  const fileOf = (siteDir: string, run: RunJson, index: number, name: string): string =>
+    path.join(pageDir(siteDir, run.id, run.pages[index]?.slug ?? ""), name);
+
+  /** The text with its first letter made the next one: the same size, and not the same bytes. */
+  const oneByteOff = (text: string): string =>
+    text.replace(/[a-y]/, (letter) => String.fromCharCode(letter.charCodeAt(0) + 1));
+
+  it("reads a TXT transcript only when its file is as its run recorded it", async () => {
+    const { siteDir, run } = await transcriptSite();
+    const slug = run.pages[0]?.slug ?? "";
+    const before = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+    expect(before.transcripts.txt(run.id, slug, "read")).not.toBeNull();
+
+    // One byte differs and the size is the same: the SHA-256 is what tells.
+    const file = fileOf(siteDir, run, 0, "read.txt");
+    const text = await readFile(file, "utf8");
+    await writeFile(file, oneByteOff(text));
+    expect(Buffer.byteLength(oneByteOff(text))).toBe(Buffer.byteLength(text));
+    const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+
+    expect(input.transcripts.txt(run.id, slug, "read")).toBeNull();
+    // The page's other transcripts, and the other page's, are as recorded and still read.
+    expect(input.transcripts.txt(run.id, slug, "headings")).not.toBeNull();
+    expect(input.transcripts.txt(run.id, run.pages[1]?.slug ?? "", "read")).not.toBeNull();
+
+    // A byte more is another size.
+    await writeFile(file, text);
+    await appendFile(file, "x");
+    expect(
+      (await loadShareInput({ siteDir, config: DEFAULT_CONFIG })).transcripts.txt(
+        run.id,
+        slug,
+        "read",
+      ),
+    ).toBeNull();
+  });
+
+  it("reads the steps of a JSON transcript only when its file is as its run recorded it", async () => {
+    const { siteDir, run } = await transcriptSite();
+    const slug = run.pages[0]?.slug ?? "";
+    const before = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+    expect(before.transcripts.steps(run.id, slug, "read")?.length).toBeGreaterThan(0);
+    expect(before.flagsAsRecorded).toEqual([]);
+
+    // The changed file still parses, with its steps: only its fingerprint tells it from the recorded.
+    const file = fileOf(siteDir, run, 0, "read.json");
+    const changed = oneByteOff(await readFile(file, "utf8"));
+    expect(Array.isArray((JSON.parse(changed) as { steps?: unknown }).steps)).toBe(true);
+    await writeFile(file, changed);
+    const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+
+    expect(input.transcripts.steps(run.id, slug, "read")).toBeNull();
+    // With a pass's steps left out, the page's flags can't be worked out afresh: they're the record's.
+    expect(input.flagsAsRecorded).toEqual([{ run: run.id, slug }]);
+    expect(input.transcripts.steps(run.id, slug, "headings")?.length).toBeGreaterThan(0);
+    expect(input.transcripts.steps(run.id, run.pages[1]?.slug ?? "", "read")).not.toBeNull();
+  });
+
+  it("names a transcript that isn't as recorded as it names a missing one", async () => {
+    const { siteDir, run } = await transcriptSite();
+    const changed = fileOf(siteDir, run, 0, "read.txt");
+    await writeFile(changed, oneByteOff(await readFile(changed, "utf8")));
+    await rm(fileOf(siteDir, run, 1, "headings.txt"));
+    const model = buildShareModel(await loadShareInput({ siteDir, config: DEFAULT_CONFIG }));
+
+    const [home, about] = run.pages.map((page) =>
+      model.appendix.find((entry) => entry.slug === page.slug),
+    );
+    expect(home?.unreadable).toEqual(["read"]);
+    expect(home?.files.map((file) => file.pass)).toEqual(["headings", "tab"]);
+    expect(about?.unreadable).toEqual(["headings"]);
+    expect(about?.files.map((file) => file.pass)).toEqual(["read", "tab"]);
+  });
+
+  it("reads no transcript whose record isn't a file's fingerprint", async () => {
+    const { siteDir, run } = await transcriptSite();
+    const slug = run.pages[0]?.slug ?? "";
+    // As an edit, or a later voicecap, might leave them: the file is there, its record isn't a hash.
+    await rewrite(siteDir, run, (page, index) =>
+      index === 0
+        ? { files: { ...page.files, "read.txt": "not a fingerprint", "read.json": null } }
+        : {},
+    );
+    const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+
+    expect(input.transcripts.txt(run.id, slug, "read")).toBeNull();
+    expect(input.transcripts.steps(run.id, slug, "read")).toBeNull();
+    expect(input.transcripts.txt(run.id, slug, "headings")).not.toBeNull();
+  });
+
+  // Making a symbolic link needs a privilege on Windows, so this runs elsewhere.
+  it.skipIf(process.platform === "win32")(
+    "reads no transcript that is a symbolic link, even to a file with the recorded bytes",
+    async () => {
+      const { siteDir, run } = await transcriptSite();
+      const slug = run.pages[0]?.slug ?? "";
+      for (const name of ["read.txt", "read.json"]) {
+        const file = fileOf(siteDir, run, 0, name);
+        const elsewhere = path.join(await newFolder([]), name);
+        await copyFile(file, elsewhere);
+        await rm(file);
+        await symlink(elsewhere, file);
+      }
+      const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+
+      expect(input.transcripts.txt(run.id, slug, "read")).toBeNull();
+      expect(input.transcripts.steps(run.id, slug, "read")).toBeNull();
+      expect(input.transcripts.txt(run.id, slug, "headings")).not.toBeNull();
+    },
+  );
+
+  it("reads no steps of an earlier run's page from a JSON that isn't as recorded, for the check of NVDA's log", async () => {
+    const dir = await newFolder();
+    /** A run whose NVDA session left a copy of NVDA's log, as a driver hands one over. */
+    const runWithCopy = (when: Date, fresh: boolean) => {
+      const driver = new ScriptedDriver(sitePages());
+      const stop = driver.stop.bind(driver);
+      driver.stop = (stopOptions) => {
+        driver.recorder?.screenReaderLog?.(
+          copyOf(keyAt(32_400_000, "downArrow"), saidAt(32_400_040, "Welcome")),
+        );
+        return stop(stopOptions);
+      };
+      return runAudit(runOptions(dir, driver, { fresh, now: () => when }));
+    };
+    const first = await runWithCopy(new Date(2026, 8, 26, 14, 5), false);
+    const second = await runWithCopy(new Date(2026, 8, 27, 9, 30), true);
+    expect(first.run.files).toBeDefined();
+    const slug = first.run.pages[0]?.slug ?? "";
+
+    // The page's JSON in the first run isn't read for the page (the second run has it, the same),
+    // only for the check, which needs a copy of NVDA's log and NVDA's keys.
+    const load = () =>
+      loadShareInput({ siteDir: first.siteDir, config: DEFAULT_CONFIG, gestureOf });
+    const intact = await load();
+    expect(intact.nvdaLogs.has(first.run.id)).toBe(true);
+    expect(intact.transcripts.steps(first.run.id, slug, "read")?.length).toBeGreaterThan(0);
+    expect(intact.transcripts.txt(first.run.id, slug, "read")).toBeNull();
+
+    const file = fileOf(first.siteDir, first.run, 0, "read.json");
+    await writeFile(file, oneByteOff(await readFile(file, "utf8")));
+    const changed = await load();
+
+    expect(changed.transcripts.steps(first.run.id, slug, "read")).toBeNull();
+    expect(changed.transcripts.steps(first.run.id, slug, "headings")?.length).toBeGreaterThan(0);
+    expect(changed.transcripts.steps(second.run.id, slug, "read")?.length).toBeGreaterThan(0);
+  });
+});
+
+describe("readAsRecorded", () => {
+  /** A file in a new folder, taken away after the test. */
+  async function fileWith(content: string): Promise<string> {
+    const dir = await newFolder([]);
+    const file = path.join(dir, "read.txt");
+    await writeFile(file, content);
+    return file;
+  }
+
+  it("gives the bytes of a regular file whose size and SHA-256 are the record's", async () => {
+    const file = await fileWith("Welcome");
+
+    const bytes = await readAsRecorded(file, fileHash("Welcome"));
+
+    expect(bytes?.toString("utf8")).toBe("Welcome");
+  });
+
+  it("gives nothing for a file that differs in its bytes, its size, or both", async () => {
+    const file = await fileWith("Welcome");
+
+    expect(await readAsRecorded(file, fileHash("Welcomf"))).toBeNull();
+    expect(await readAsRecorded(file, { ...fileHash("Welcome"), bytes: 8 })).toBeNull();
+    expect(await readAsRecorded(file, { sha256: "0".repeat(64), bytes: 8 })).toBeNull();
+  });
+
+  it("gives nothing for a record that isn't a file's fingerprint", async () => {
+    const file = await fileWith("Welcome");
+
+    for (const recorded of [undefined, null, "Welcome", 7, [], {}, { sha256: 1, bytes: 7 }]) {
+      expect(await readAsRecorded(file, recorded), JSON.stringify(recorded)).toBeNull();
+    }
+  });
+
+  it("gives nothing for a file that's missing or is a folder", async () => {
+    const file = await fileWith("Welcome");
+    const recorded = fileHash("Welcome");
+    await rm(file);
+    expect(await readAsRecorded(file, recorded)).toBeNull();
+
+    await mkdir(file);
+    expect(await readAsRecorded(file, recorded)).toBeNull();
+  });
+
+  it("opens nothing that lstat finds to be a link, even with the recorded bytes", async () => {
+    // A link needs a privilege to make on Windows, so what lstat says of one is given here, over a
+    // file that has the recorded bytes: the test of a transcript's link above makes a real one.
+    const file = await fileWith("Welcome");
+    const link = { isFile: () => false, isSymbolicLink: () => true } as unknown as Stats;
+    vi.mocked(lstat).mockResolvedValueOnce(link);
+    vi.mocked(readFile).mockClear();
+
+    expect(await readAsRecorded(file, fileHash("Welcome"))).toBeNull();
+
+    expect(vi.mocked(lstat)).toHaveBeenLastCalledWith(file);
+    expect(vi.mocked(readFile)).not.toHaveBeenCalled();
+    // The same file, looked at as it is, is read.
+    expect((await readAsRecorded(file, fileHash("Welcome")))?.toString("utf8")).toBe("Welcome");
   });
 });

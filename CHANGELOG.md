@@ -59,6 +59,7 @@ voicecap now records what NVDA said aloud on each page, sealed with the run, wit
   - `verify` reads a manual session's raw copy only under the name voicecap gives it.
   - A copy of NVDA's log never replaces a file.
   - Each manual session that keeps a raw NVDA log writes a `.gitignore` of its own into `raw/`.
+- **A shared page carries a transcript only when it's as its run recorded it.** A transcript whose file isn't (its size or SHA-256 differs, or it's a link) is left out, and the page says so, as for a missing one. `voicecap verify` names it. A link in the place of a screenshot, an axe result, a recording, an event log, or a copy of NVDA's log is left out the same way; the page already left out one whose size or SHA-256 differed. The live report (`report.html`) escapes every field it takes from a record, and links only to web addresses.
 
 ## [0.17.0] - 2026-10-10
 
