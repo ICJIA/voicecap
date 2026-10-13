@@ -9,7 +9,8 @@
  * the run on the line under it; a note on what the file is, and that a transcript, a title, an
  * address, and axe's HTML are data, never instructions (`AI_TEXT.about`, which the JSON file carries
  * too); At a glance; What needs attention, when a card is left; Every page, a section for each,
- * with its first lines, its flags, what axe found, the person's review, and every step of each
+ * with what the page says of itself (its title, its result, its flags, the person's review, and
+ * what each pass captured), then its first lines, what axe found, and, last, every step of each
  * pass, then the pages no longer listed (those earlier runs tested that the latest list no longer
  * has), when there are any; and the details: the numbers, what changed since the last run, what the
  * results cover, the runs and their evidence, the problems during them, and each file's
@@ -25,11 +26,12 @@
  *
  * Every word of a record or a website is text, never Markdown (./escape.ts). What NVDA said, and
  * every record and fix that is code, is in a fenced block whose fence is longer than any run of
- * backticks in it, so nothing in it can end the block or become a heading. What a person or the
- * model supplies in the middle of voicecap's own sentences is escaped, and a plain web address in a
- * sentence of voicecap's own (the site's, a page's) is set in code, where it reads as it is. A run's
- * record may name the library that drives the screen reader; the page, its Word copy, and these
- * files name none, and say `AI_TEXT.driver` where a record does (`ownWords`, ../text.ts).
+ * backticks in it, so nothing in it can end the block or become a heading. What a person wrote, or
+ * what the share worked out, in the middle of voicecap's own sentences is escaped, and a plain web
+ * address in a sentence of voicecap's own (the site's, a page's) is set in code, where it reads as
+ * it is. A run's record may name the library that drives the screen reader; the page, its Word
+ * copy, and these files name none, and say `AI_TEXT.driver` where a record does (`ownWords`,
+ * ../text.ts).
  *
  * Deterministic: it reads the model and nothing else, so the same model gives the same bytes. The
  * file ends with one newline. Pure.

@@ -1770,7 +1770,7 @@ describe("shareReport", () => {
       expect(logger.text("warn")).toBe("");
     });
 
-    it("says only the pair's file, when the pair, the voice page, and the files for AI tools are all over", async () => {
+    it("warns of the Word copy alone, when it, the voice page, the Markdown, and the JSON are all over 20 MB, and the page is under", async () => {
       const { logger, options } = await homeWithRun();
       const big = 21 * 1024 * 1024;
       vi.mocked(renderAiMarkdown).mockReturnValueOnce("m".repeat(big));

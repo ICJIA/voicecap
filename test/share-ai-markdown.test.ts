@@ -33,6 +33,7 @@ import * as text from "../src/share/text.js";
 import { byteCount, heardFirstLine } from "../src/share/words.js";
 import { bodyLines, stepLine } from "../src/transcripts/format.js";
 import { fileHash } from "../src/transcripts/write.js";
+import { keptLogsAndVoiceModel, problemEntry } from "./helpers/nvda-log.js";
 import { rawNode, rawRule, type RawAxeRule } from "./helpers/raw-axe.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
 import { withCards } from "./helpers/share-attention.js";
@@ -48,6 +49,7 @@ import {
   LINK_FLAG,
   storeOf,
   TRANSCRIPTS,
+  VOICE_PAGE,
   withoutTxt,
 } from "./helpers/share-model.js";
 
@@ -2362,6 +2364,94 @@ describe("renderAiMarkdown", () => {
     // Every issue lists ten elements and counts the 40 more.
     expect(markdown.match(/^and 40 more elements$/gm)).toHaveLength(32 * 8);
     expect(markdown.match(/^Element: /gm)).toHaveLength(32 * 8 * MOST_ELEMENTS);
+  });
+});
+
+// A run of voicecap 0.18.0 keeps a copy of NVDA's own log for each NVDA session, and a recording of
+// NVDA's voice for each page. The Markdown lists them among each run's files, as the page does, and
+// leaves out the rest of what the page says of them: the voice page, each card's line to it, the
+// details' paragraph on it, and the check of NVDA's own log against the transcripts.
+describe("a run that keeps NVDA's own log and records NVDA's voice", () => {
+  let kept: ShareModel;
+  let markdown: string;
+
+  /** A part of the details (a heading of level 3 in them), from its heading on. */
+  const detail = (words: string): string =>
+    sectionOf(sectionOf(markdown, 2, "The details, for reviewers and auditors"), 3, words);
+
+  beforeAll(async () => {
+    // NVDA logged an error during the attempt at Apply that another window ended.
+    kept = await keptLogsAndVoiceModel([
+      problemEntry(
+        "ERROR",
+        "14:04:20.123",
+        "Error accepting connection",
+        "Traceback (most recent call last):",
+      ),
+    ]);
+    markdown = renderAiMarkdown(kept);
+  });
+
+  it("lists each copy of NVDA's log, which is of no page, and each recording among the run's files, as the page does", () => {
+    const listed = (file: string): boolean => file.startsWith("nvda-log/") || file === "voice.webm";
+    const files = (kept.evidence[0]?.fingerprints ?? []).filter(({ file }) => listed(file));
+
+    // The three copies of the three NVDA sessions, which are of the run and no page's, then a
+    // recording for each page.
+    expect(files.map(({ page, file }) => `${page} · ${file}`)).toEqual([
+      `${text.EVIDENCE_TEXT.theRun} · nvda-log/1-1.txt`,
+      `${text.EVIDENCE_TEXT.theRun} · nvda-log/1-2.txt`,
+      `${text.EVIDENCE_TEXT.theRun} · nvda-log/2-1.txt`,
+      "/ · voice.webm",
+      "/apply/ · voice.webm",
+      "/contact/ · voice.webm",
+    ]);
+    // The part has a line for each, with its size and SHA-256, among the run's files.
+    const [block] = read(detail("Fingerprints (SHA-256)")).blocks;
+    for (const { page, file, bytes, sha256 } of files) {
+      expect(block?.lines, file).toContain(
+        `${page} · ${file} · ${byteCount(bytes)} · SHA-256 ${sha256}`,
+      );
+    }
+  });
+
+  it("keeps NVDA's own warning or error in a problem's record, as a line from NVDA's log, after its level", () => {
+    const [record] = read(detail("Problems during the runs")).blocks;
+    const lines = record?.lines ?? [];
+    const at = lines.indexOf("14:04:20.123 · nvda-log · ERROR: Error accepting connection");
+
+    expect(at).toBeGreaterThan(-1);
+    // A traceback's lines follow, indented under it.
+    expect(lines[at + 1]).toBe("    Traceback (most recent call last):");
+  });
+
+  it("leaves out the voice page, each card's line to it, the details' paragraph on it, and the check of NVDA's own log", () => {
+    // The page has all four for this model.
+    expect(kept.voicePage).toEqual({ name: VOICE_PAGE });
+    const lines = kept.pages.map(({ voice }) =>
+      voice === null ? "" : text.VOICE_TEXT.card.line(voice.seconds),
+    );
+    expect(lines).toHaveLength(3);
+    expect(lines.every((line) => line !== "")).toBe(true);
+    const log = kept.evidence[0]?.nvdaLog;
+    if (log === undefined || !("logLines" in log)) throw new Error("The run's log isn't checked.");
+
+    // The file says none of it: not the voice page's name or its sections' ids, not the card lines
+    // or the paragraph, and not the check's part, its heading or what its tiles count. (Escaped
+    // words are read as a viewer reads them.)
+    const shown = unescaped(markdown);
+    const said = [
+      VOICE_PAGE,
+      ".voice.html",
+      "#voice-",
+      ...lines,
+      text.VOICE_TEXT.details.lead,
+      text.VOICE_TEXT.details.open,
+      text.EVIDENCE_TEXT.parts.nvdaLog,
+      text.NVDA_LOG_TEXT.tiles.inLog(log.logLines),
+    ];
+    for (const words of said) expect(shown, words).not.toContain(words);
+    expect(shown).not.toMatch(/voice page|NVDA's voice|checked against the transcripts/i);
   });
 });
 

@@ -38,7 +38,7 @@ import {
   sitePages,
 } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
-import { argumentsOf } from "./helpers/split-command.js";
+import { argumentsOf, splitCommand, splitCommandInGitBash } from "./helpers/split-command.js";
 
 // Every call goes through as it did, and is kept: the config each driver is made with, what the page
 // runner is given, and which files are read.
@@ -850,6 +850,18 @@ describe("a repeat of a file whose site is on this computer or its network", () 
     "http://10.0.0.5:8080",
   ];
 
+  /**
+   * How the hint writes an address after `--site`, as a command is written for pasting (quoteArg):
+   * bare, but for the IPv6 address, whose brackets a shell reads, so it is in single quotes.
+   */
+  const IN_A_COMMAND: Record<(typeof NEARBY)[number], string> = {
+    "http://127.0.0.1:4747": "http://127.0.0.1:4747",
+    "http://intranet": "http://intranet",
+    "http://localhost:3000": "http://localhost:3000",
+    "http://[::1]:4747": "'http://[::1]:4747'",
+    "http://10.0.0.5:8080": "http://10.0.0.5:8080",
+  };
+
   it.each(NEARBY)(
     "is refused without --site for %s, which says which flag to add",
     async (origin) => {
@@ -861,8 +873,38 @@ describe("a repeat of a file whose site is on this computer or its network", () 
       const message = await refusedWith(NAME, {}, dir);
 
       expect(message).toBe(
-        `This walkthrough file reads ${origin}, an IP address, a local address, or a one-word name, which can be a computer on this network. To read it, name it yourself: add --site ${origin}.`,
+        `This walkthrough file reads ${origin}, an IP address, a local address, or a one-word name, which can be a computer on this network. To read it, name it yourself: add --site ${IN_A_COMMAND[origin]}.`,
       );
+    },
+  );
+
+  // The hint is a command a person pastes, and the file it reads may come from anyone: a one-word
+  // host passes the address check, and may hold a single quote or a command substitution. The
+  // address is written as the command voicecap prints for a repeat writes it: a single quote as %27,
+  // and an address with anything a shell reads in single quotes, so that neither PowerShell nor Git
+  // Bash reads more than the address in it. The sentence before it names the site as it is.
+  it.each([
+    ["a single quote", "http://o'brien:3000", "http://o%27brien:3000"],
+    ["a command substitution", "http://x$(calc):3000", "'http://x$(calc):3000'"],
+  ])(
+    "writes the address in its hint as a command is written, for a one-word host with %s in it",
+    async (_what, origin, written) => {
+      const { file } = await originalAt(origin);
+      const dir = await copyToNewFolder(file);
+
+      const message = await refusedWith(NAME, {}, dir);
+
+      expect(message).toBe(
+        `This walkthrough file reads ${origin}, an IP address, a local address, or a one-word name, which can be a computer on this network. To read it, name it yourself: add --site ${written}.`,
+      );
+      // Pasted into either shell, the hint's address is one argument, which the program reads as
+      // the file's site.
+      for (const split of [splitCommand, splitCommandInGitBash]) {
+        const [flag, argument, ...rest] = split(`--site ${written}`);
+        expect(flag).toBe("--site");
+        expect(rest).toEqual([]);
+        expect(new URL(argument ?? "").origin).toBe(origin);
+      }
     },
   );
 

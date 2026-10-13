@@ -269,10 +269,12 @@ export const PAGES_TEXT = {
   heardFirst: "Heard first",
   fullTranscript: "The full transcript",
   /**
-   * What follows `fullTranscript` for a screen reader alone, before the page's address: "The full
-   * transcript of /about/: read, headings, and Tab transcripts". Every card's fold says the same on
-   * screen, so a reader moving from one fold to the next, or listing the page's folds, would hear
-   * them all alike; the page sets these words apart (`sr`), so each fold says which page it is of.
+   * What goes before the page's address, for a screen reader alone, after the fold's line: "The
+   * full transcript: read, headings, and Tab transcripts of /about/". Every card's fold says the
+   * same on screen, so a reader moving from one fold to the next, or listing the page's folds,
+   * would hear them all alike; the page sets these words apart (`sr`), after the words everyone
+   * sees, so each fold says which page it is of and its name starts with the words it shows (WCAG
+   * 2.5.3, label in name).
    */
   fullTranscriptOf: "of",
   /** The label of each number on a card: what each pass captured, and how long the page took. */

@@ -23,11 +23,12 @@
  * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
  * page and to download its Word copy; and, when its share has the report for AI tools, as Markdown
  * and as JSON, a line under them that links both. Its earlier reports are a line each under it, and
- * every report's files, with their sizes and fingerprints, are in a fold, closed, for whoever checks
- * a copy: a share's voice page (from 0.18.0), which plays NVDA's recordings, is one of them, listed
- * as NVDA's voice, and is no part of a report's card or line, which are of its page, its Word copy,
- * and, on the card, its report for AI tools. Each view's heading and each site's name has a picture
- * before it, and the views of the sites and of every report by date say beside their headings how many they hold (from 0.13.1).
+ * every report's files, with their sizes and fingerprints, are in a fold, closed, for whoever
+ * checks a copy: a share's voice page (from 0.18.0), which plays NVDA's recordings, is one of them,
+ * listed as NVDA's voice, and is no part of a report's card or line, which are of its page, its
+ * Word copy, and, on the card, its report for AI tools. Each view's heading and each site's name
+ * has a picture before it, and the views of the sites and of every report by date say beside their
+ * headings how many they hold (from 0.13.1).
  *
  * llms.txt (`renderLlmsTxt`) is the website's other file of this kind: a plain text file at its top,
  * for AI tools, that points to each site's current report as Markdown and as JSON.

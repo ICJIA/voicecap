@@ -51,6 +51,7 @@ import {
 } from "../share/walkthrough.js";
 import { writeShareFiles } from "../share/write.js";
 import { fileHash } from "../transcripts/write.js";
+import { quoteArg, urlArg } from "../util/command-line.js";
 import { EnvironmentError, errorMessage, ExitCode, UsageError } from "../util/errors.js";
 import { sealOf } from "../util/hash.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
@@ -438,7 +439,7 @@ async function readRepeat(options: RunAuditOptions, cwd: string): Promise<Walkth
     const { hostname, origin } = parseSiteUrl(walkthrough.parsed.site);
     if (isNearbyHost(hostname)) {
       throw new UsageError(
-        `This walkthrough file reads ${origin}, an IP address, a local address, or a one-word name, which can be a computer on this network. To read it, name it yourself: add --site ${origin}.`,
+        `This walkthrough file reads ${origin}, an IP address, a local address, or a one-word name, which can be a computer on this network. To read it, name it yourself: add --site ${quoteArg(urlArg(origin))}.`,
       );
     }
   }

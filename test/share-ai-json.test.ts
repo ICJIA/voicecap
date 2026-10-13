@@ -42,13 +42,16 @@ import {
   APPENDIX_TEXT,
   CHANGES_TEXT,
   EVIDENCE_TEXT,
+  NVDA_LOG_TEXT,
   ownWords,
   PAGES_TEXT,
+  VOICE_TEXT,
   WORD_TEXT,
 } from "../src/share/text.js";
 import { verdictOf } from "../src/share/verdict.js";
 import { sentence } from "../src/share/words.js";
 import { NO_SPEECH } from "../src/transcripts/format.js";
+import { keptLogsAndVoiceModel, problemEntry } from "./helpers/nvda-log.js";
 import { rawNode, rawRule, type RawAxeRule } from "./helpers/raw-axe.js";
 import { withCards } from "./helpers/share-attention.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
@@ -62,6 +65,7 @@ import {
   LINK_FLAG,
   storeOf,
   TRANSCRIPTS,
+  VOICE_PAGE,
   withoutTxt,
 } from "./helpers/share-model.js";
 
@@ -2780,6 +2784,105 @@ describe("the details of renderAiJson", () => {
   });
 });
 
+// A run of voicecap 0.18.0 keeps a copy of NVDA's own log for each NVDA session, and a recording of
+// NVDA's voice for each page. The files for AI tools list them among each run's files, as the page
+// does, and leave out the rest of what the page says of them: the voice page, each card's line to it,
+// the details' paragraph on it, and the check of NVDA's own log against the transcripts.
+describe("a run that keeps NVDA's own log and records NVDA's voice", () => {
+  let kept: ShareModel;
+  let text: string;
+  let report: AiReport;
+
+  beforeAll(async () => {
+    // NVDA logged an error during the attempt at Apply that another window ended.
+    kept = await keptLogsAndVoiceModel([
+      problemEntry(
+        "ERROR",
+        "14:04:20.123",
+        "Error accepting connection",
+        "Traceback (most recent call last):",
+      ),
+    ]);
+    text = renderAiJson(kept);
+    report = JSON.parse(text) as AiReport;
+  });
+
+  it("lists each copy of NVDA's log, which is of no page, and each recording among the run's files, as the page does", () => {
+    const listed = (file: string): boolean => file.startsWith("nvda-log/") || file === "voice.webm";
+    const onPage = kept.evidence.flatMap(({ run, fingerprints }) =>
+      fingerprints
+        .filter(({ file }) => listed(file))
+        .map(({ page, file, bytes, sha256 }) => ({
+          run: run.id,
+          page: page === EVIDENCE_TEXT.theRun ? null : page,
+          file,
+          bytes,
+          sha256,
+        })),
+    );
+
+    // The three copies of the three NVDA sessions, then a recording for each page.
+    expect(onPage.map(({ page, file }) => `${page ?? "the run"} ${file}`)).toEqual([
+      "the run nvda-log/1-1.txt",
+      "the run nvda-log/1-2.txt",
+      "the run nvda-log/2-1.txt",
+      "/ voice.webm",
+      "/apply/ voice.webm",
+      "/contact/ voice.webm",
+    ]);
+    // The JSON lists those very rows, with each file's size and SHA-256.
+    expect(report.fingerprints.filter(({ file }) => listed(file))).toEqual(onPage);
+    expect(onPage.every(({ bytes, sha256 }) => bytes > 0 && /^[0-9a-f]{64}$/.test(sha256))).toBe(
+      true,
+    );
+  });
+
+  it("keeps NVDA's own warning or error in a problem's record, as a row from NVDA's log, after its level", () => {
+    const [problem] = report.runProblems;
+    const rows = must(problem, "the run's problem").record.filter(
+      ({ source }) => source === "nvda-log",
+    );
+
+    expect(rows).toEqual([
+      {
+        time: "2026-09-26T14:04:20.123-05:00",
+        source: "nvda-log",
+        entry: "ERROR: Error accepting connection\nTraceback (most recent call last):",
+      },
+    ]);
+  });
+
+  it("leaves out the voice page, each card's line to it, the details' paragraph on it, and the check of NVDA's own log", () => {
+    // The page has all four for this model.
+    expect(kept.voicePage).toEqual({ name: VOICE_PAGE });
+    const lines = kept.pages.map(({ voice }) =>
+      voice === null ? "" : VOICE_TEXT.card.line(voice.seconds),
+    );
+    expect(lines).toHaveLength(3);
+    expect(lines.every((line) => line !== "")).toBe(true);
+    const log = kept.evidence[0]?.nvdaLog;
+    if (log === undefined || !("logLines" in log)) throw new Error("The run's log isn't checked.");
+
+    // The file says none of it: not the voice page's name or its sections' ids, not the card lines
+    // or the paragraph, and not the check's part, its heading or what its tiles count.
+    const said = [
+      VOICE_PAGE,
+      ".voice.html",
+      "#voice-",
+      ...lines,
+      VOICE_TEXT.details.lead,
+      VOICE_TEXT.details.open,
+      EVIDENCE_TEXT.parts.nvdaLog,
+      NVDA_LOG_TEXT.tiles.inLog(log.logLines),
+    ];
+    for (const words of said) expect(text, words).not.toContain(words);
+    expect(text).not.toMatch(/voice page|NVDA's voice|checked against the transcripts/i);
+    // None of it is a key of the file's own: at the top, on a page, or on a run.
+    const keys = [report, ...report.pages, ...report.runs].flatMap((part) => Object.keys(part));
+    expect(keys.filter((key) => /^voice(?!cap)|nvda.?log|check/i.test(key))).toEqual([]);
+  });
+});
+
 describe("the same report, as bytes", () => {
   it("is one JSON text with a 2-space indent and one newline at the end", () => {
     for (const model of [i2i, demo, richModel(), noRunModel()]) {
@@ -3165,6 +3268,22 @@ describe("the package's entry", () => {
     expect(types).toHaveLength(26);
   });
 
+  /**
+   * The names the entry exports from a module with `export type { … } from "<module>"`, as the list
+   * has them ("Step as AiStep" for a renamed one). Only the list: the comments around it name some
+   * of the types too, and a name a comment says is no export.
+   */
+  function exportedFrom(entry: string, module: string): string[] {
+    const quoted = module.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+    const list = new RegExp(`export type \\{([^}]*)\\} from "${quoted}";`).exec(entry)?.[1];
+    if (list === undefined) throw new Error(`The entry has no list of types from ${module}.`);
+    return list
+      .replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "")
+      .split(",")
+      .map((name) => name.trim())
+      .filter((name) => name !== "");
+  }
+
   it("leaves none of the JSON's types out of it", () => {
     const source = readFileSync(
       fileURLToPath(new URL("../src/share/ai/json.ts", import.meta.url)),
@@ -3175,9 +3294,10 @@ describe("the package's entry", () => {
       ([, name]) => name ?? "",
     );
 
-    // The file's shape is 25 types, and the entry names each, and its step too.
+    // The file's shape is 25 types, and the entry's list names each, and its step too.
     expect(types).toHaveLength(25);
-    for (const name of types) expect(entry, name).toMatch(new RegExp(`\\b${name}\\b`));
-    expect(entry).toMatch(/\bStep as AiStep\b/);
+    const exported = exportedFrom(entry, "./share/ai/json.js");
+    for (const name of types) expect(exported, name).toContain(name);
+    expect(exportedFrom(entry, "./share/ai/shared.js")).toEqual(["Step as AiStep"]);
   });
 });

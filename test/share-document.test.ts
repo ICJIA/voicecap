@@ -902,17 +902,22 @@ describe("renderSharePage", () => {
     // does so: one for i2i and for the logged run (their Driver row), and four for the demo (its two
     // runs' Driver rows and their lines on NVDA's settings). The fonts are left out of the page here,
     // so the comment they begin with changes none of these.
+    // Task 15 of the security fixes re-pinned the three pages' SHA-256 once more, and nothing else:
+    // a card's fold of its page's transcripts names its page after the words it shows (WCAG 2.5.3,
+    // label in name), so the hidden words that name the page (` of /about/`) now follow the line's
+    // two visible parts and no longer sit inside the first. The same characters are in another
+    // order, so each page is as long as before, and the Word copies' blocks are as they were.
     const before = {
       i2i: {
-        page: [218_326, "2fad6d6aebef00df15bac4d7c5a214c7275e87320b56ede2020ce9a1eb4ece60"],
+        page: [218_326, "c3c66e9513354861f068ffb4a0065164bc69e768ce07398be4c8cbb4683c381b"],
         word: [59_915, "71c51e3d96e44ba28288a240af30acfc786180b1fb042bd2cad8ee0c99eeaa1e"],
       },
       demo: {
-        page: [252_868, "163987a40abb34c4f71e2a8ab7d9dd072097d35dda6222796c2b3f8cf64e3a76"],
+        page: [252_868, "041801ddefdcd66735a6de3862fa5bbc6f566570513800f52d1f266091f9dd5a"],
         word: [82_753, "5e1937c51573450a920fd77b62ac6b81bb7c9773eef963f2fd36f536e38dad93"],
       },
       logged: {
-        page: [135_256, "15ae14bf5a4ae730f41b8f0c286c70d7b37292e2a8787204439e34dcf571c736"],
+        page: [135_256, "61b6b6674c0417820f8f1ee9de0713353a51eade3e32158190e844cfbe058d42"],
         word: [41_417, "3f431c5299bf2ac1035ec609b9b85b1faf4b95410859f9e8b95666e11e59a0f0"],
       },
     };

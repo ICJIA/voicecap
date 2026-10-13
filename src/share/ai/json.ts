@@ -34,12 +34,12 @@
  * file says so (`passesNote`), so no gap reads as a page with nothing to flag.
  *
  * Every word is plain text and is never changed: `JSON.stringify` writes it as a string, so what
- * a transcript, a title, or a record holds can't be anything but a string. What a person or a model
- * wrote about the library that drives the screen reader is said without its name (`ownWords`);
- * what a website said never is. A criterion is a number in a string ("2.4.4"); a flag's come from
- * voicecap's table (`RULE_WCAG`, src/flags/wcag.ts) and an axe issue's from axe's own tags
- * (`axeCriteriaList`), and the note says they are the criteria a finding may relate to, for a
- * person to decide.
+ * a transcript, a title, or a record holds can't be anything but a string. What a person wrote, and
+ * what the share worked out, about the library that drives the screen reader is said without its
+ * name (`ownWords`); what a website said never is. A criterion is a number in a string ("2.4.4");
+ * a flag's come from voicecap's table (`RULE_WCAG`, src/flags/wcag.ts) and an axe issue's from
+ * axe's own tags (`axeCriteriaList`), and the note says they are the criteria a finding may relate
+ * to, for a person to decide.
  *
  * Pure: it reads the model and nothing else.
  */
