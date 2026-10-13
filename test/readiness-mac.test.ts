@@ -32,22 +32,22 @@ import { fakeCommands } from "./helpers/fake-commands.js";
 
 const AGAIN = "npx @icjia/voicecap doctor";
 const GIB = 1024 ** 3;
-const HOME = "/Users/cschweda";
+const HOME = "/Users/jane";
 const PID = 4321;
-const LOCK = "/Users/cschweda/Library/Caches/voicecap/voiceover.lock";
-const CACHE_DIR = "/Users/cschweda/Library/Caches/guidepup";
+const LOCK = "/Users/jane/Library/Caches/voicecap/voiceover.lock";
+const CACHE_DIR = "/Users/jane/Library/Caches/guidepup";
 const ASSET_FILE = `${CACHE_DIR}/voiceover/25/0.0.1-VoiceOver4/guidepup-voiceover-preferences-macos-26.dmg`;
 /** VoiceOver's group container's Preferences folder, where Guidepup links voicecap's settings in. */
 const GROUP_PREFS =
-  "/Users/cschweda/Library/Group Containers/group.com.apple.VoiceOver/Library/Preferences";
+  "/Users/jane/Library/Group Containers/group.com.apple.VoiceOver/Library/Preferences";
 /** Guidepup's other choice, when the group container isn't there. */
-const USER_PREFS = "/Users/cschweda/Library/Preferences";
+const USER_PREFS = "/Users/jane/Library/Preferences";
 /** VoiceOver's own settings file, which it creates the first time it's turned on. */
 const LOCAL_PLIST = "com.apple.VoiceOver4.local.plist";
 const VSCODE_BUNDLE = "/Applications/Visual Studio Code.app";
 const CHROME_PATH =
-  "/Users/cschweda/Library/Caches/ms-playwright/chromium-1243/chrome-mac/Chromium.app/Contents/MacOS/Chromium";
-const TRANSCRIPTS = "/Users/cschweda/webdev/voicecap-transcripts";
+  "/Users/jane/Library/Caches/ms-playwright/chromium-1243/chrome-mac/Chromium.app/Contents/MacOS/Chromium";
+const TRANSCRIPTS = "/Users/jane/webdev/voicecap-transcripts";
 
 const MANIFEST = {
   screenReaders: [
@@ -89,7 +89,7 @@ const OPTIONS: Omit<ReadinessOptions, "platform"> = {
   config: DEFAULT_CONFIG,
   logger: silentLogger,
   env: {},
-  cwd: "/Users/cschweda/webdev/voicecap",
+  cwd: "/Users/jane/webdev/voicecap",
   again: AGAIN,
 };
 
@@ -165,7 +165,7 @@ const BASE_ANSWERS: Answer[] = [
       }),
     },
   ],
-  [(file) => file === "scutil", { stdout: "cschweda's Mac mini\n" }],
+  [(file) => file === "scutil", { stdout: "Jane's Mac mini\n" }],
   [
     (file, args) => file === "defaults" && args[0] === "read" && args[1] === "-g",
     { stdout: "en_US\n" },
@@ -417,7 +417,7 @@ describe("Mac machine info", () => {
   it("describes this computer the way the design spec's sample does", async () => {
     const info = await mac().machineInfo();
     expect(info.lines).toEqual([
-      { label: "Computer", value: "cschweda's Mac mini, user cschweda" },
+      { label: "Computer", value: "Jane's Mac mini, user jane" },
       {
         label: "Model",
         value: "Mac mini (Mac16,10), Apple M4, 16 GB memory, 72 GB free of 228 GB",
@@ -942,7 +942,7 @@ describe("Mac quick checks: otherVoicecap", () => {
       otherVoicecap: () =>
         Promise.resolve({
           pid: 999,
-          host: "cschwedas-Mac-mini",
+          host: "Janes-Mac-mini",
           startedAt: "2026-09-28T08:00:00-05:00",
         }),
     });

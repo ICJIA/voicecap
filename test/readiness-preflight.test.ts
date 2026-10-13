@@ -200,13 +200,13 @@ describe("languageName", () => {
 
 describe("homePath", () => {
   it("shows a path under the home folder as ~/…", () => {
-    expect(homePath("/Users/cschweda/Library/Caches/guidepup", "/Users/cschweda", path.posix)).toBe(
+    expect(homePath("/Users/jane/Library/Caches/guidepup", "/Users/jane", path.posix)).toBe(
       "~/Library/Caches/guidepup",
     );
   });
 
   it("leaves a path outside the home folder alone", () => {
-    expect(homePath("/opt/other/file", "/Users/cschweda", path.posix)).toBe("/opt/other/file");
+    expect(homePath("/opt/other/file", "/Users/jane", path.posix)).toBe("/opt/other/file");
   });
 
   it("reads each system's paths with that system's path functions, on any computer", () => {
@@ -282,7 +282,7 @@ describe("otherVoicecapCheck", () => {
     const holder = { pid: 4242, startedAt: "2026-09-28 11:00" };
     const result = otherVoicecapCheck(
       holder,
-      "/Users/cschweda/Library/Caches/voicecap/voiceover.lock",
+      "/Users/jane/Library/Caches/voicecap/voiceover.lock",
       "VoiceOver",
       "npx @icjia/voicecap doctor",
     );
@@ -298,7 +298,7 @@ describe("otherVoicecapCheck", () => {
         fix: [
           "Wait for it to finish, or stop it.",
           "If no other voicecap is running, delete its lock: " +
-            "/Users/cschweda/Library/Caches/voicecap/voiceover.lock",
+            "/Users/jane/Library/Caches/voicecap/voiceover.lock",
           "Run npx @icjia/voicecap doctor again.",
         ],
         setupHelps: false,

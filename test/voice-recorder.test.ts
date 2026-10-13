@@ -92,9 +92,9 @@ async function exit(child: ChildProcess): Promise<void> {
   if (!ended(child)) await once(child, "exit");
 }
 
-const NVDA = String.raw`C:\Users\cschw\AppData\Local\guidepup\nvda\all\0.2.1-2026.2\extracted\nvda.exe`;
-const HOME = String.raw`C:\Users\cschw\AppData\Local\Temp\voicecap-voice-4242\home.pcm`;
-const ABOUT = String.raw`C:\Users\cschw\AppData\Local\Temp\voicecap-voice-4242\about.pcm`;
+const NVDA = String.raw`C:\Users\jane\AppData\Local\guidepup\nvda\all\0.2.1-2026.2\extracted\nvda.exe`;
+const HOME = String.raw`C:\Users\jane\AppData\Local\Temp\voicecap-voice-4242\home.pcm`;
+const ABOUT = String.raw`C:\Users\jane\AppData\Local\Temp\voicecap-voice-4242\about.pcm`;
 const STOPPED: RecorderStop = {
   frames: 24_016,
   lostMs: 30,
@@ -756,7 +756,7 @@ describe("what the recorder's reasons say of the program it records", () => {
 
   it("leaves out the path of the program it was last pointed at, as the NVDA it records changes", async () => {
     // A restart gives the next NVDA's target: the one the path of which must be left out is that one.
-    const later = String.raw`C:\Users\cschw\AppData\Local\guidepup\nvda\all\0.2.1-2026.3\extracted\nvda.exe`;
+    const later = String.raw`C:\Users\jane\AppData\Local\guidepup\nvda\all\0.2.1-2026.3\extracted\nvda.exe`;
     const helper = played();
     const starting = startRecorder({ spawnRecorder: helper.spawnRecorder });
     await helper.say({ ready: { build: 26200 } });

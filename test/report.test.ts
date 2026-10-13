@@ -362,7 +362,7 @@ describe("generateReport", () => {
       pages: [{ path: "/" }],
       resumedWith: [{}, {}],
     });
-    run.sessions[0]!.reviewer = { name: "cschweda", source: "option" };
+    run.sessions[0]!.reviewer = { name: "jane", source: "option" };
     run.sessions[1]!.reviewer = null;
     // The third, like a session from before voicecap recorded the reviewer, has none at all.
     const html = await readFile(
@@ -376,7 +376,7 @@ describe("generateReport", () => {
       .split("<tr>")
       .slice(2)
       .map((row) => /<td>[^<]*<\/td><td>([^<]*)<\/td>/.exec(row)?.[1]);
-    expect(cells).toEqual(["cschweda", "None given", "Not recorded"]);
+    expect(cells).toEqual(["jane", "None given", "Not recorded"]);
   });
 
   it("refuses to write a snapshot into a completed run", async () => {

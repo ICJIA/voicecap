@@ -375,7 +375,7 @@ describe("NVDA's voice, in the Word copy's details", () => {
     expect(saidOf(refusedBy(refused))).toMatch(/, not voicecap's NVDA\.$/);
     expect(saidOf(refusedBy(refused))).not.toMatch(/guidepup/i);
     // The scan sees it when it's there: the path a refusal used to name is in Guidepup's folder.
-    const path = String.raw`C:\Users\cschw\AppData\Local\guidepup\nvda\all\0.2.1-2026.2\extracted\nvda.exe`;
+    const path = String.raw`C:\Users\jane\AppData\Local\guidepup\nvda\all\0.2.1-2026.2\extracted\nvda.exe`;
     expect(saidOf(refusedBy(refused.replace("voicecap's NVDA", path)))).toMatch(/guidepup/i);
   });
 

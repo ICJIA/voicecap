@@ -527,7 +527,7 @@ describe("renderTrustPage", () => {
     expect(pointsOf(sectionOf(unreleased, "tested")).slice(0, 2)).toEqual([
       {
         // With no count, it's what every release does, in the order publish.sh does it.
-        words: `Before each release: the lint and the type checks, then every test, then a check that the package installs and runs. The count is ${NOT_RECORDED}.`,
+        words: `Before each release: the lint and the type checks, then every test, then every dependency locked in npm-shrinkwrap.json and audited for high or critical advisories, then a check that the package installs and runs. The count is ${NOT_RECORDED}.`,
       },
       { words: `On every change: the same tests, on every system in its CI; ${NOT_RECORDED}.` },
     ]);
@@ -887,9 +887,10 @@ describe("renderTrustPage", () => {
     expect(pointsOf(tested)).toEqual([
       {
         // The count and the system are this release's own run's, in the order publish.sh runs
-        // its checks: the lint and the type checks first, the check of the package last.
+        // its checks: the lint and the type checks first, then the tests, then the lock of every
+        // dependency and its audit, and the check of the package last.
         words:
-          "Before this release: the lint and the type checks, then 5,012 tests passed on Windows, with 2 skipped, in 125 files, then a check that the package installs and runs. If one test fails, nothing is published.",
+          "Before this release: the lint and the type checks, then 5,012 tests passed on Windows, with 2 skipped, in 125 files, then every dependency locked in npm-shrinkwrap.json and audited for high or critical advisories, then a check that the package installs and runs. If one test fails, nothing is published.",
       },
       {
         // Three systems by two Node versions: 6 combinations.

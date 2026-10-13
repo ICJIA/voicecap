@@ -301,14 +301,15 @@ export const TRUST_TEXT = {
     heading: "It tests itself before every release.",
     /**
      * The checks publish.sh runs, in its order: the lint and the type checks, then every test, then
-     * the check that the package installs and runs. With the release's facts, the count and the
-     * system are this release's own run's, so the line is of this release; without them, it's what
-     * each release does, with no number.
+     * the lock of every dependency (npm-shrinkwrap.json), audited for high or critical advisories,
+     * then the check that the package installs and runs. With the release's facts, the count and
+     * the system are this release's own run's, so the line is of this release; without them, it's
+     * what each release does, with no number.
      */
     release: (tests: ReleaseFacts["tests"] | null): string =>
       tests === null
-        ? `Before each release: the lint and the type checks, then every test, then a check that the package installs and runs. The count is ${NOT_RECORDED}.`
-        : `Before this release: the lint and the type checks, then ${count(tests.passed)} tests passed on ${tests.system}, with ${count(tests.skipped)} skipped, in ${count(tests.files)} files, then a check that the package installs and runs. If one test fails, nothing is published.`,
+        ? `Before each release: the lint and the type checks, then every test, then every dependency locked in npm-shrinkwrap.json and audited for high or critical advisories, then a check that the package installs and runs. The count is ${NOT_RECORDED}.`
+        : `Before this release: the lint and the type checks, then ${count(tests.passed)} tests passed on ${tests.system}, with ${count(tests.skipped)} skipped, in ${count(tests.files)} files, then every dependency locked in npm-shrinkwrap.json and audited for high or critical advisories, then a check that the package installs and runs. If one test fails, nothing is published.`,
     /** CI's matrix: the systems it runs on, the Node versions, and how many pairs they make. */
     change: (ci: ReleaseFacts["ci"] | null): string =>
       ci === null

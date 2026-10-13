@@ -973,9 +973,9 @@ export const TECHNICAL_TEXT = {
     },
     {
       tool: "jiti",
-      job: "Loads a config written in TypeScript or JavaScript",
+      job: "Loads a config written in TypeScript or JavaScript when `VOICECAP_CONFIG` names it",
       license: "MIT",
-      where: "`voicecap.config.ts`",
+      where: "A config written as code, such as `voicecap.config.ts`",
       npm: "jiti",
     },
     {

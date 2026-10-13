@@ -139,10 +139,10 @@ describe("redactHome", () => {
   it("replaces the home folder however it's written, on Windows", () => {
     const stack = [
       "TypeError: x",
-      "    at f (C:\\Users\\cschw\\code\\voicecap\\dist\\a.js:1:2)",
-      "    at g (c:/users/cschw/code/b.js:3:4)",
+      "    at f (C:\\Users\\jane\\code\\voicecap\\dist\\a.js:1:2)",
+      "    at g (c:/users/jane/code/b.js:3:4)",
     ].join("\n");
-    expect(redactHome(stack, "C:\\Users\\cschw", "win32")).toBe(
+    expect(redactHome(stack, "C:\\Users\\jane", "win32")).toBe(
       [
         "TypeError: x",
         "    at f (%USERPROFILE%\\code\\voicecap\\dist\\a.js:1:2)",
@@ -160,13 +160,13 @@ describe("redactHome", () => {
   it("replaces it wherever the next character can't continue the folder's name", () => {
     expect(
       redactHome(
-        "Cannot read properties of undefined (C:\\Users\\cschw)",
-        "C:\\Users\\cschw",
+        "Cannot read properties of undefined (C:\\Users\\jane)",
+        "C:\\Users\\jane",
         "win32",
       ),
     ).toBe("Cannot read properties of undefined (%USERPROFILE%)");
     expect(
-      redactHome("open 'C:\\Users\\cschw', then C:\\Users\\cschw", "C:\\Users\\cschw", "win32"),
+      redactHome("open 'C:\\Users\\jane', then C:\\Users\\jane", "C:\\Users\\jane", "win32"),
     ).toBe("open '%USERPROFILE%', then %USERPROFILE%");
     expect(redactHome("failed (/Users/pat) in /Users/pat", "/Users/pat", "linux")).toBe(
       "failed (~) in ~",
@@ -182,8 +182,8 @@ describe("redactHome", () => {
   );
 
   it("leaves another Windows folder with the same start alone, too", () => {
-    const text = "at f (C:\\Users\\cschwab\\a.js:1:2) C:\\Users\\cschw.old\\b.js";
-    expect(redactHome(text, "C:\\Users\\cschw", "win32")).toBe(text);
+    const text = "at f (C:\\Users\\janet\\a.js:1:2) C:\\Users\\jane.old\\b.js";
+    expect(redactHome(text, "C:\\Users\\jane", "win32")).toBe(text);
   });
 
   it("matches the case of the home folder exactly, except on Windows", () => {
@@ -200,7 +200,7 @@ describe("redactHome", () => {
     expect(redactHome("at f (/Users/pat/a.js:1:2)", "/Users/pat/", "darwin")).toBe(
       "at f (~/a.js:1:2)",
     );
-    expect(redactHome("at f (C:\\Users\\cschw\\a.js:1:2)", "C:\\Users\\cschw\\", "win32")).toBe(
+    expect(redactHome("at f (C:\\Users\\jane\\a.js:1:2)", "C:\\Users\\jane\\", "win32")).toBe(
       "at f (%USERPROFILE%\\a.js:1:2)",
     );
   });

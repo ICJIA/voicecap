@@ -192,6 +192,7 @@ The "Unlabeled graphic" in two of those lines is the one problem the report find
 - [Reviews: the audit trail](#reviews-the-audit-trail)
   - [Hearing pages again: voicecap review --replay](#hearing-pages-again-voicecap-review---replay)
 - [Manual NVDA sessions](#manual-nvda-sessions)
+  - [Security](#security)
 - [Verifying transcript fidelity](#verifying-transcript-fidelity)
 - [Reading the report](#reading-the-report)
 - [The shareable page](#the-shareable-page)
@@ -249,7 +250,7 @@ To try voicecap first, `npx @icjia/voicecap demo` is a guided first run on voice
 In PowerShell inside Windows Terminal (on a computer new to all this, start with [Windows setup](#windows-setup-for-someone-new-to-windows); if you use Git Bash, read [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-) first):
 
 1. **Set up, once:** `npx @icjia/voicecap setup` installs voicecap's own copy of NVDA, and Playwright's Chromium if Google Chrome isn't installed, with no administrator rights. It ends by checking this computer.
-2. **Check:** `npx @icjia/voicecap doctor` checks this computer and runs a 20-second live test with NVDA, then prints a report to paste into a bug report.
+2. **Check:** `npx @icjia/voicecap doctor` checks this computer and runs a 20-second live test with NVDA, then prints a report to paste into a bug report. The report names this computer and your Windows account, so read it before you post it anywhere public.
 3. **Compose the run:** `npx @icjia/voicecap init` checks this computer, asks a few questions, and prints the run's command, with the offer to run it now.
 4. **Run:** the command `init` printed, such as `npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap.xml --limit 5 --reviewer icjia`. NVDA speaks and takes over the keyboard until the run ends (see [Windows setup](#windows-setup-for-someone-new-to-windows), step 6). To resume a run that stopped, run the same command again.
 
@@ -261,7 +262,7 @@ PS> npx @icjia/voicecap init
 voicecap preflight, 2026-09-28 11:10
 
 This computer
-  Computer        DESKTOP-4K2P1, user cschw
+  Computer        DESKTOP-EXAMPLE, user jane
   Model           Dell Inc. OptiPlex 7010, Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz, 16 GB memory, 120 GB free of 476 GB
   System          Windows 11 Pro 24H2 (10.0.26100), x64
   Node.js         22.19.0
@@ -269,13 +270,13 @@ This computer
   Screen reader   NVDA 2026.2 (Guidepup's build 0.2.1-2026.2)
   Browser         Chrome 153.0.8010.53
   Language        English (United States)
-  Transcripts     C:\Users\cschw\code\voicecap-transcripts
-  Guidepup files  C:\Users\cschw\AppData\Local\guidepup
+  Transcripts     C:\Users\jane\code\voicecap-transcripts
+  Guidepup files  C:\Users\jane\AppData\Local\guidepup
   Browser path    C:\Program Files\Google\Chrome\Application\chrome.exe
 
 Checks
   OK    Node.js 22.19.0
-  OK    Guidepup's folder: C:\Users\cschw\AppData\Local\guidepup
+  OK    Guidepup's folder: C:\Users\jane\AppData\Local\guidepup
   OK    NVDA 2026.2 (Guidepup's build 0.2.1-2026.2) is installed
   OK    Windows Firewall keeps NVDA's control port closed to other computers
   OK    No other voicecap is using NVDA
@@ -302,8 +303,8 @@ Where are the pages?
   5. One page
 Choose [1]: 2
 How many pages? A number, or Enter for all [all]: 5
-Transcripts home [C:\Users\cschw\code\voicecap-transcripts]:
-  → this run goes into C:\Users\cschw\code\voicecap-transcripts\i2i.illinois.gov\2026-09-28\
+Transcripts home [C:\Users\jane\code\voicecap-transcripts]:
+  → this run goes into C:\Users\jane\code\voicecap-transcripts\i2i.illinois.gov\2026-09-28\
 Reviewer, recorded with the run [icjia]:
 Tip: set VOICECAP_REVIEWER to make your own name the default.
 
@@ -331,7 +332,7 @@ Run it now? [y/N]:
 In Terminal, iTerm, or Visual Studio Code's terminal:
 
 1. **Set up, once:** `npx @icjia/voicecap setup` installs Guidepup's VoiceOver files, and Playwright's Chromium if Google Chrome isn't installed. It changes two VoiceOver settings, walks you through the macOS permissions voicecap needs, and ends by checking this Mac (see [Mac setup](#mac-setup)).
-2. **Check:** `npx @icjia/voicecap doctor` checks this Mac and runs a 20-second live test that starts VoiceOver, then prints a report to paste into a bug report.
+2. **Check:** `npx @icjia/voicecap doctor` checks this Mac and runs a 20-second live test that starts VoiceOver, then prints a report to paste into a bug report. The report names this Mac and your user, so read it before you post it anywhere public.
 3. **Compose the run:** `npx @icjia/voicecap init` checks this Mac, asks the same questions as on Windows, and prints the run's command.
 4. **Run:** on a Windows computer, for now. voicecap can't run VoiceOver yet: that comes with its VoiceOver driver, in a later release. (A run started on a Mac stops at once, with exit code 2.)
 
@@ -461,7 +462,7 @@ These steps assume Windows 11, a normal (non-administrator) account, and PowerSh
    - **The first time NVDA starts**, Windows may ask whether NVDA can communicate on networks. Click **Cancel**, and leave every box unticked. voicecap reaches NVDA through this computer's own address (127.0.0.1), which Windows Firewall never blocks. NVDA's control port, though, is open on every network the computer is on, behind a password Guidepup publishes, and Allow would let another computer on the network press keys on this one. If you clicked Allow, see [NVDA's control port](#nvdas-control-port).
    - **Then setup checks this computer.** If it's ready, setup offers the live test (see [The checks, and the live test](#the-checks-and-the-live-test)); if it isn't, setup says what's wrong and exits with code 2.
 
-5. **Check everything:** `npx @icjia/voicecap doctor`. It checks the NVDA build, whether Windows Firewall keeps NVDA's control port closed, whether your own NVDA or another voicecap is running, Windows' lock state, and the browser, then runs the live test, which also checks that the browser comes to the front and that NVDA speaks English. It prints one report, with a plain-language fix for anything wrong, to paste into a bug report (see [Other commands](#other-commands)).
+5. **Check everything:** `npx @icjia/voicecap doctor`. It checks the NVDA build, whether Windows Firewall keeps NVDA's control port closed, whether your own NVDA or another voicecap is running, Windows' lock state, and the browser, then runs the live test, which also checks that the browser comes to the front and that NVDA speaks English. It prints one report, with a plain-language fix for anything wrong, to paste into a bug report (see [Other commands](#other-commands)). The report names this computer and your Windows account, so read it before you post it anywhere public.
 
 6. **Before a run:**
    - **voicecap checks this computer first,** and stops with exit code 2, before touching anything, if it isn't ready (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)).
@@ -469,6 +470,8 @@ These steps assume Windows 11, a normal (non-administrator) account, and PowerSh
    - **Don't use the computer during a run.** NVDA's keystrokes go to whichever window is in front. voicecap brings its browser to the front for every page, checks it with NVDA+T, and throws away any step during which another window came forward, but each click elsewhere costs a page (it's recorded as failed). The only windows voicecap tries to close for you are Windows Search and the Start menu: they sometimes open by themselves, with no one at the computer, and then keep the browser from coming forward. If voicecap finds one of them in front as it brings its browser forward, it presses Escape once and tries again, and the run's event log says it pressed the key. NVDA speaks aloud throughout, and NVDA's Speech Viewer window opens beside the browser.
    - **Keep the computer unlocked.** On a locked computer, NVDA can't press keys or speak, and voicecap stops with "Windows is locked". voicecap keeps Windows from sleeping or turning the screen off while it runs, but it can't stop a lock: Win+L, a screen saver set to lock, or a workplace lock policy. If you step away, leave it unlocked. A minimized Remote Desktop window (Windows stops drawing it) breaks a run too.
    - **Turn on Do Not Disturb** (Settings → System → Notifications), and turn off its priority calls and reminders, or quit Outlook and Teams: a notification NVDA reads during a step is in that step's transcript. voicecap also starts its NVDA with notifications off (`presentation.reportHelpBalloons: false`).
+   - **Close or minimize windows that show private text,** such as an email or a terminal: NVDA reads aloud the window in front as it starts, and any window that comes to the front.
+   - **Keep the transcripts home out of a synced folder** (OneDrive, Dropbox): Git leaves raw manual logs out of the repository, but a sync copies them.
    - **Pause Windows Update** restarts during long runs (Settings → Windows Update → Pause updates). If a restart happens anyway, voicecap resumes where it stopped.
 
 </details>
@@ -567,7 +570,7 @@ Checking this Mac. If macOS asks for access to control "System Events", click Al
 voicecap preflight, 2026-09-28 11:10
 
 This computer
-  Computer        cschweda’s Mac mini, user cschweda
+  Computer        Jane’s Mac mini, user jane
   Model           Mac mini (Mac16,10), Apple M4, 16 GB memory, 72 GB free of 228 GB
   System          macOS 26.6.2 (25G83), Apple silicon
   Terminal app    Visual Studio Code (macOS gives permissions to this app)
@@ -576,8 +579,8 @@ This computer
   Screen reader   VoiceOver 10 (build 993)
   Browser         Chromium 153.0.8010.12 (Playwright's)
   Language        English (United States)
-  Transcripts     /Users/cschweda/webdev/voicecap-transcripts
-  Guidepup files  /Users/cschweda/Library/Caches/guidepup
+  Transcripts     /Users/jane/webdev/voicecap-transcripts
+  Guidepup files  /Users/jane/Library/Caches/guidepup
   Browser path    ~/Library/Caches/ms-playwright/chromium-1243/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing
 
 Checks
@@ -755,7 +758,7 @@ Wherever a command takes a page, give a full URL or a root-relative path (`/abou
 
 **`site` takes two options:** `--home <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`); and `--out <dir>`, the folder to build the website in (default: `_site` in the home). **Here `--out` isn't the home.** In every other command that takes it, `--out` is the transcripts home, and `site` takes the home as `--home`. It reads every site's folder in the home, so it takes no `--site`, and it needs no screen reader. What it builds and prints is under [The website: `voicecap site`](#the-website-voicecap-site).
 
-**`setup` and `doctor` work on Windows and on a Mac;** [Quick start](#quick-start) says what each does there. `doctor` installs nothing and changes no settings. It runs the checks and, if they pass, the live test, without asking first, then prints one report to paste whole into a bug report: this computer's details, one line per check (`OK`, `WARN`, or `FAIL`), and a verdict. On Windows:
+**`setup` and `doctor` work on Windows and on a Mac;** [Quick start](#quick-start) says what each does there. `doctor` installs nothing and changes no settings. It runs the checks and, if they pass, the live test, without asking first, then prints one report to paste whole into a bug report: this computer's details, one line per check (`OK`, `WARN`, or `FAIL`), and a verdict. It names this computer and your Windows account (on a Mac, the Mac and your user), and folders under your user folder: read it before you post it anywhere public. On Windows:
 
 ```
 PS> npx @icjia/voicecap doctor
@@ -764,7 +767,7 @@ The live test takes about 20 seconds. NVDA speaks and takes over the keyboard, s
 voicecap doctor, 2026-09-28 11:10
 
 This computer
-  Computer        DESKTOP-4K2P1, user cschw
+  Computer        DESKTOP-EXAMPLE, user jane
   Model           Dell Inc. OptiPlex 7010, Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz, 16 GB memory, 120 GB free of 476 GB
   System          Windows 11 Pro 24H2 (10.0.26100), x64
   Node.js         22.19.0
@@ -772,13 +775,13 @@ This computer
   Screen reader   NVDA 2026.2 (Guidepup's build 0.2.1-2026.2)
   Browser         Chrome 153.0.8010.53
   Language        English (United States)
-  Transcripts     C:\Users\cschw\code\voicecap-transcripts
-  Guidepup files  C:\Users\cschw\AppData\Local\guidepup
+  Transcripts     C:\Users\jane\code\voicecap-transcripts
+  Guidepup files  C:\Users\jane\AppData\Local\guidepup
   Browser path    C:\Program Files\Google\Chrome\Application\chrome.exe
 
 Checks
   OK    Node.js 22.19.0
-  OK    Guidepup's folder: C:\Users\cschw\AppData\Local\guidepup
+  OK    Guidepup's folder: C:\Users\jane\AppData\Local\guidepup
   OK    NVDA 2026.2 (Guidepup's build 0.2.1-2026.2) is installed
   OK    Windows Firewall keeps NVDA's control port closed to other computers
   OK    No other voicecap is using NVDA
@@ -1013,7 +1016,7 @@ It needs the `guidepup` driver, on Windows 11 or Windows Server 2022 (Windows bu
   - **Windows 11 or Windows Server 2022 (Windows build 20348 or later).** The helper checks the build first, and below it says so, as the page's reason. voicecap doesn't try on a Windows 10 PC, whose builds end at 19045: each page gives that reason, and the run goes on as usual.
 - **Kept on the wall clock.** Windows sends sound every 10 milliseconds, silence included. The helper fills every gap of 2 milliseconds or more with silence, from the system clock's timestamps, so a second into the file is a second into the page's attempt: in the helper's own tests on the PC, recording a program that makes no sound, the length stayed within about a millisecond of the wall clock. When the helper falls behind, Windows drops sound: the helper fills the gap, and the record says how much was lost, in milliseconds (`lostMs`), which is normally 0. The few milliseconds a sound stream leaves as it opens or closes, where nothing is lost, aren't counted.
 - **How it's encoded.** The helper writes the sound as 16 kHz mono 16-bit PCM, about 1.9 MB a minute, to a temporary file in a folder of its own in the temp folder (`voicecap-voice-<process id>`). When the attempt ends, voicecap reads it, encodes it, and deletes it. A folder that a run left when it crashed is removed by the next run's start-up cleanup.
-  - **Opus, in a WebM file.** voicecap encodes with `libopus-wasm`, pinned at exactly 0.4.1 (libopus compiled to WebAssembly: see [Credits](#credits)), and writes the WebM file with a small muxer of its own, with Cues for seeking, and the padding at its end marked so the length is exact to the sample. Chrome and Edge, which share one player, and Firefox play WebM with Opus. voicecap's own tests load a recording from a `data:` address in Chromium, as the voice page holds it, and check its length, seeking, and decoded samples; no test plays a sound. Safari hasn't been tried.
+  - **Opus, in a WebM file.** voicecap encodes with `libopus-wasm`, pinned at exactly 0.4.1 (libopus compiled to WebAssembly: see [Credits](#credits)), and writes the WebM file with a small muxer of its own, with Cues for seeking, and the padding at its end marked so the length is exact to the sample. Chrome and Edge, which share one player, and Firefox play WebM with Opus. voicecap's own tests load a recording from a `data:` address in Chromium, as the voice page holds it, and check its length, seeking, and decoded samples; no test plays a sound. A person checked Safari on 10 October 2026, with a test page that held a 20-second sample from voicecap's own encoder, at 12 kbps: it played from a `data:` address, as the voice page holds each recording, at 1× and slowed to 0.5×, and from a `blob:` address and as a WAV too. That was a person's check, not a test the suite runs.
   - **At 12 kbps, tuned for speech:** the VoIP and voice settings, wideband at most (8 kHz), variable bit rate, DTX, so that a stretch of silence costs about a byte a packet, and 60 ms frames. The same sound always gives the same bytes, and a test of the output tells if a newer `libopus-wasm` changes it.
   - **It holds up nothing NVDA does.** Encoding takes about a hundredth of the recording's length (ten minutes in about 6 seconds), and it runs after the attempt ends and before the next begins.
 - **How big.** At 12 kbps, a minute of speech comes to about 65 to 95 KB, the WebM file's own bytes included, and a minute of silence to about 10 KB. A recording is as long as the whole attempt, loads and pauses too, though what's silenced between the passes costs almost nothing.
@@ -1107,6 +1110,8 @@ voicecap-transcripts/                  ← the transcripts home
 - **A recording of NVDA's voice,** `voice.webm` (from voicecap 0.18.0), is what NVDA said aloud while the page was read, kept beside the page's transcripts, screenshot, and axe results. It's described under [What each run records](#what-each-run-records), and how it's made under [NVDA's voice](#nvdas-voice).
 - **Environment record.** `run.json` records, and every transcript repeats: page source (sitemap URL, page list file (its path from the folder voicecap runs in, or its name alone when it's outside that folder) with its SHA-256, or walkthrough file with its SHA-256 and the run it was made from), driver and version, NVDA version (and Guidepup's build id), NVDA language, capture mode, browser and version, OS, voicecap version, a hash of the effective config (this computer's, for a repeat), run timestamp, and NVDA's speech, document formatting, browse mode, and keyboard settings. It also holds the computer's details (see [What each run records](#what-each-run-records)), which `run.json` and the JSON transcripts keep, and the TXT header leaves out.
 - **Hashes.** `run.json` records the SHA-256 of every transcript file (integrity) and of each pass's TXT body without the header (content). "Changed since review" and `--compare` use the content hashes, because headers include timestamps and run ids. It records the event log's SHA-256 too, and each copy of NVDA's log's, in its `files`, set at the end of each session. A page's record has the SHA-256 of its screenshot, of its axe results, and of its recording of NVDA's voice, kept apart from the page's transcript files, so none of them ever marks a page "changed since review". The run's seal covers them all, and `voicecap verify` checks each file (see [Checking the record](#checking-the-record-voicecap-verify)).
+
+**Keep the transcripts home a private repository.** It holds more than the website shows, and each push to it changes the website. [Security](#security) ("Your transcripts repository") says how to protect its `main` branch, and what to turn on where your GitHub plan doesn't allow that.
 
 </details>
 
@@ -1264,14 +1269,14 @@ voicecap writes `.gitattributes` and `.gitignore` at the home's top the first ti
 **Windows, in PowerShell:**
 
 ```powershell
-mkdir C:\Users\cschw\code\voicecap-transcripts
-cd C:\Users\cschw\code\voicecap-transcripts
+mkdir C:\Users\jane\code\voicecap-transcripts
+cd C:\Users\jane\code\voicecap-transcripts
 git init
 gh repo create voicecap-transcripts --private --source .
-setx VOICECAP_TRANSCRIPTS 'C:\Users\cschw\code\voicecap-transcripts'
+setx VOICECAP_TRANSCRIPTS 'C:\Users\jane\code\voicecap-transcripts'
 ```
 
-`gh repo create --private --source .` is one way to make the private repository; it adds the `origin` remote. Leave off `--push` — there's nothing to push yet. `setx` only takes effect in a new terminal. In Git Bash, the same lines work, except that the first two become `mkdir -p /c/Users/cschw/code/voicecap-transcripts && cd /c/Users/cschw/code/voicecap-transcripts`.
+`gh repo create --private --source .` is one way to make the private repository; it adds the `origin` remote. Leave off `--push` — there's nothing to push yet. `setx` only takes effect in a new terminal. In Git Bash, the same lines work, except that the first two become `mkdir -p /c/Users/jane/code/voicecap-transcripts && cd /c/Users/jane/code/voicecap-transcripts`.
 
 **macOS:**
 
@@ -1296,7 +1301,7 @@ git push -u origin HEAD
 
 After the first push, plain `git push` is enough. `git commit -S` signs the commit, if you want proof of who committed. With the record on two computers, `git pull` before recording reviews, and push after: reviews recorded on both before they're synced break the review chain, and `verify` reports it.
 
-**Once, after the first push:** on GitHub, protect the default branch against force pushes and deletion, in the repository's Settings → Rules → Rulesets, or Settings → Branches → Branch protection rules. Whether a private repository can use these depends on your GitHub plan.
+**Once, after the first push:** on GitHub, protect the default branch against force pushes and deletion, in the repository's Settings → Rules → Rulesets, or Settings → Branches → Branch protection rules. Whether a private repository can use these depends on your GitHub plan. [Security](#security) ("Your transcripts repository") has the ruleset's settings, and says to turn on push emails when your plan doesn't allow a rule.
 
 Keep the repository private: manual sessions can carry reviewer names, notes, and typed text, and a run's event log can carry the title of a window that took the screen, such as an email's subject. A run's cleaned copy of NVDA's log can carry what NVDA said as that window came forward.
 
@@ -1493,6 +1498,69 @@ voicecap's own runs turn this log on for their NVDA too, and never keep the raw 
 
 </details>
 
+### Security
+
+voicecap runs on your own computer, starts a real screen reader, and writes records that can end up on a public website, so it takes care over what it starts, what it prints, and what it keeps. This part sums up what voicecap guards against from 0.18.0, what stays with you, and how voicecap's own repository and package are set up. **To report a security problem, report it privately:** on the repository's page on GitHub, open the **Security** tab and choose **Report a vulnerability** (GitHub's private vulnerability reporting, on since 11 October 2026). Please don't report it in a public issue.
+
+<details>
+<summary>What voicecap guards against, what to do if you set up voicecap before 0.18.0, what stays with you, and how voicecap's own repository and package are set up</summary>
+
+**What voicecap guards against, from 0.18.0.** Each of these closes a gap that a security review of voicecap on Windows found, and each points to the part of this README that has the detail:
+
+- **Windows' own programs are started by their full path.** voicecap starts PowerShell, `tasklist`, `taskkill`, `reg`, and Explorer from the Windows folder, and tells Windows not to look in the folder voicecap runs in for a program it starts by name, so the program that starts is Windows' own (see [Commands and options](#commands-and-options)).
+- **NVDA's control port stays on this computer.** `preflight`, `init`, `setup`, `doctor`, and each run read Windows Firewall's rules, change nothing, and warn when one lets other computers reach NVDA's control port, with the commands that close it (see [NVDA's control port](#nvdas-control-port)).
+- **A website's text can't act on your terminal.** What a website, a sitemap, a server, or a record says is printed as text: a control character or a line separator in it is written as an escape, so it can't move your cursor, clear your screen, or retitle your window (see [Commands and options](#commands-and-options)).
+- **Commands printed for pasting are quoted so nothing in them runs.** A value in a command voicecap prints, such as a web address or a name, is quoted the way PowerShell and Git Bash read it, and a single quote in an address is written `%27`, so the value stays a value (see [Installing voicecap](#installing-voicecap)).
+- **Records name only their own folders.** A site's folder is always inside the transcripts home, and a run's record is read only from its own folder: one whose id isn't its folder's, or whose page has a folder name voicecap never makes, is left out. A run id of any other shape is refused. A manual session's raw NVDA log gets a `.gitignore` of its own, so Git leaves it out (see [The audit record](#the-audit-record)).
+- **Page addresses and walkthrough files are checked more strictly.** An address with a user name or password in it is refused, so a password never reaches a record or the website. A walkthrough file's words can't hold control characters, and a live repeat of a file whose site is on your own computer or network has to name that site (see [Page sources](#page-sources) and [Repeating the run from the file](#repeating-the-run-from-the-file)).
+- **Your account's name stays out of the records and the pages.** A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone, and the errors and reasons a run keeps write your home folder as `%USERPROFILE%` (or `~`) and the temp folder as `%TEMP%` (see [What each run records](#what-each-run-records)).
+- **A shared page carries a transcript only when it's as its run recorded it.** A transcript, screenshot, axe result, recording, event log, or copy of NVDA's log whose file has changed since it was recorded, or is a link, is left out. The page says so, and `voicecap verify` names it (see [The shareable page](#the-shareable-page)).
+- **NVDA's voice is kept only from a clean, finished attempt.** A recording is kept only when its attempt finished with voicecap's browser in front, and only the stretches from each pass's title check to its last step. voicecap also starts its NVDA with notifications off (`presentation.reportHelpBalloons: false`), and deletes NVDA's raw log once it has read and cleaned it (see [NVDA's voice](#nvdas-voice)).
+- **A config written as code runs only when you name it.** voicecap finds `voicecap.config.json` in the folder it runs in. It runs a config written as code (`.ts`, `.mts`, `.js`, or `.mjs`) only when `VOICECAP_CONFIG` names it, and no config can change NVDA's Remote Access settings (see [Configuration](#configuration)).
+- **Each release installs the same packages for everyone.** voicecap's own dependencies are pinned to the exact versions the release was checked with, and each release carries an `npm-shrinkwrap.json`, made and audited when it is published, that fixes every package beneath them (see [Publishing to npm](#publishing-to-npm)).
+- **The website is built by one exact version of voicecap, with install scripts off.** The `netlify.toml` that `voicecap site` writes names the version (`@icjia/voicecap@0.18.0`, say) and turns npm's install scripts off for the build (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
+
+**If you set up voicecap before 0.18.0,** look at NVDA's control port once. If Windows asked whether NVDA could communicate on networks, and someone clicked **Allow**, Windows made a firewall rule that lets other computers on the network reach NVDA's control port (see [NVDA's control port](#nvdas-control-port) for why). An administrator removes that rule and blocks the port:
+
+1. Make sure no voicecap run is going. Right-click the **Start** button, choose **Terminal (Admin)**, and click **Yes**.
+2. Paste these three lines one at a time, pressing **Enter** after each. They remove each inbound rule that lets Guidepup's NVDA in, and leave alone the rules of an NVDA you installed yourself:
+
+   ```powershell
+   $p = '*guidepup*nvda.exe'
+   $r = Get-NetFirewallApplicationFilter | Where-Object Program -like $p | Get-NetFirewallRule
+   $r | Where-Object { $_.Direction -eq 'Inbound' -and $_.Action -eq 'Allow' } | Remove-NetFirewallRule
+   ```
+
+3. Paste these two lines one at a time, pressing **Enter** after each. They add a rule that blocks inbound connections to port 6837 from other computers:
+
+   ```powershell
+   $n = "voicecap: NVDA's control port stays on this computer"
+   New-NetFirewallRule -DisplayName $n -Direction Inbound -Protocol TCP -LocalPort 6837 -Action Block -Profile Any
+   ```
+
+4. Close the window. In a normal PowerShell, run `npx @icjia/voicecap doctor`, which starts NVDA for a 20-second live test, so keep your hands off the keyboard (or `npx @icjia/voicecap preflight`, which doesn't start NVDA). Its new firewall line should read `OK    Windows Firewall keeps NVDA's control port closed to other computers`.
+
+**What stays with you.** Some care can't be built in:
+
+- **Keep the transcripts repository private.** It holds more than the website shows: the records, each run's event log, which can hold the title of a window, copies of NVDA's own log, and the notes of manual sessions.
+- **Turn on Do Not Disturb, close or minimize windows that show private text, and keep the transcripts home out of a synced folder,** before a run (see [Windows setup](#windows-setup-for-someone-new-to-windows), step 6).
+- **Read `doctor`'s output before you post it anywhere public.** It names this computer and your Windows account, and folders under your user folder (see [Other commands](#other-commands)).
+- **Share only what you'd put on a public page.** Everything on the website is public to anyone with its address (see "Before you send it", under [The shareable page](#the-shareable-page)).
+
+**How voicecap's own repository and package are set up.** This is what was set up on 11 October 2026, and what to do for your own transcripts repository:
+
+- **ICJIA/voicecap on GitHub.** A ruleset protects `main`: it can't be deleted or force-pushed, and only the repository's admins can update it. Secret scanning and push protection are on, and so are private vulnerability reporting and Dependabot's security updates. From 0.18.0, `.github/dependabot.yml` also has Dependabot check every week for newer packages and newer versions of the actions CI runs, and open a pull request for each. Nothing merges until a person does.
+- **@icjia/voicecap on npm.** Publishing requires two-factor authentication, and no token can publish. A maintainer publishes each release by hand, with a fresh 6-digit code from their authenticator app (see [Publishing to npm](#publishing-to-npm)). Each release also pins every dependency exactly and carries an `npm-shrinkwrap.json`, as above.
+- **Your transcripts repository.** Keep it private. Protect `main` with the same ruleset where your GitHub plan allows it. GitHub asks for a paid plan for rules on an organization's private repository. The ruleset takes four steps:
+  1. Open the repository's **Settings → Rules → Rulesets → New branch ruleset**.
+  2. Name it `main`, set Enforcement to **Active**, and under Target choose **Include default branch**.
+  3. Tick **Restrict deletions**, **Block force pushes**, and **Restrict updates**.
+  4. Under Bypass list, add **Repository admin**, then click **Create**.
+
+  If your plan doesn't allow it, turn on push emails instead: **Settings → Integrations → Email notifications → Setup notifications**. Every push, which also changes the website, then reaches you as an email, so a push you didn't make shows.
+
+</details>
+
 ## Verifying transcript fidelity
 
 <details>
@@ -1622,7 +1690,7 @@ Its sections, in order:
 
 **The fingerprint check.** "Check the fingerprints", in the evidence, checks every transcript the page shows, every screenshot, and every axe result, against the fingerprint in its run's sealed record, each run's seal, and each review's seal and the review chain, all in the browser. It also checks that the text each transcript shows, in its page's card, is the file the page carries, so the transcripts shown are exactly the ones the sealed records list. `voicecap share` carries a transcript only when its file is as its run recorded it, its size and its SHA-256 both. One that isn't is left out, the page says so, and `voicecap verify` names it. A link standing where a transcript's file belongs is never read. For axe's results it checks that each card's fold shows its file: the counts, the number on the card's chip, each rule's heading and impact, each element's selector and HTML, axe's words on how to fix them, and the number in a rule's "and N more elements" line. It doesn't compare the rest of the fold: the version line, each rule's criteria (the rest of its impact line), and the links, which are drawn from the same file, and the line with the file's size and SHA-256, which comes from the run's record. The page's own "What the check proves" names both. "Show a change being caught" repeats the check on a copy with one character changed, in memory only (the first character of the first transcript, and of the first axe file too, when the page has one), so a reader can see a mismatch named. The check shows that the page agrees with itself. It can't show that the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare the file's own fingerprint with the one its sender recorded: `voicecap share` prints it, ready for the email that sends the file, and `Get-FileHash <file>` in PowerShell, or `shasum -a 256 <file>` on a Mac, shows it for the file you received. Or run `voicecap verify` on the transcripts home, which checks the originals. `voicecap verify` leaves `current.html` and `current.docx` alone, since voicecap makes them again from the records each time, and `verify` checks the records. It does check the dated copies that `voicecap share` made, against what `shares.json` recorded of them (see [Checking the record](#checking-the-record-voicecap-verify)).
 
-**Before you send it:** the page carries its runs' sealed records exactly as voicecap wrote them, for the fingerprint check. From voicecap 0.18.0, a run records a page list or walkthrough file from outside the folder it runs in by its name alone, and writes your home folder as `%USERPROFILE%` and the temp folder as `%TEMP%` in the errors and reasons it keeps. A run recorded before 0.18.0 keeps them as they were, and the page carries its records as they are. It also carries the text of each page's `axe.json`, which holds the selectors and the HTML (cut at 300 characters) of the elements axe found, and shows them in the card's fold. A share's voice page carries the sealed records of the runs its recordings are from, exactly as written, for its own check, and each recording of NVDA's voice that it plays: the sound of what NVDA said while each pass read the page with voicecap's browser in front, from the pass's title check to its last step, between the steps too. The moments between the passes, while a browser opens or comes to the front, are silenced, because NVDA may read the window behind it then. voicecap keeps no recording of an attempt that didn't finish, or during which another window came to the front; a window that came and went between two of a pass's steps, which voicecap can't see, can still be heard, though that's rare. The walkthrough files it offers hold no folder names: a page list's file is kept by its name only. Each walkthrough file carries the pages' labels, templates, and notes from your page list, as the records do. **Everything on the website is public to anyone with its address,** so all of this holds there too, for every page, voice page, Word copy, and walkthrough file that has been shared (see [The website: `voicecap site`](#the-website-voicecap-site)).
+**Before you send it:** the page carries its runs' sealed records exactly as voicecap wrote them, for the fingerprint check. From voicecap 0.18.0, a run records a page list or walkthrough file from outside the folder it runs in by its name alone, and writes your home folder as `%USERPROFILE%` and the temp folder as `%TEMP%` in the errors and reasons it keeps. A run recorded before 0.18.0 keeps them as they were, and the page carries its records as they are. It also carries the text of each page's `axe.json`, which holds the selectors and the HTML (cut at 300 characters) of the elements axe found, and shows them in the card's fold. It also carries `reviews.json` whole, for the review chain's check: every note of every page, earlier ones and pages no longer listed included. And a page's address is kept as it was listed, so a query string with a token in it (a preview link, say) goes with it. A share's voice page carries the sealed records of the runs its recordings are from, exactly as written, for its own check, and each recording of NVDA's voice that it plays: the sound of what NVDA said while each pass read the page with voicecap's browser in front, from the pass's title check to its last step, between the steps too. The moments between the passes, while a browser opens or comes to the front, are silenced, because NVDA may read the window behind it then. voicecap keeps no recording of an attempt that didn't finish, or during which another window came to the front; a window that came and went between two of a pass's steps, which voicecap can't see, can still be heard, though that's rare. The walkthrough files it offers hold no folder names: a page list's file is kept by its name only. Each walkthrough file carries the pages' labels, templates, and notes from your page list, as the records do. **Everything on the website is public to anyone with its address,** so all of this holds there too, for every page, voice page, Word copy, and walkthrough file that has been shared (see [The website: `voicecap site`](#the-website-voicecap-site)).
 
 **The event log, and private text.** `events.jsonl` keeps the title of each window that took the screen, which can hold private text, such as an email's subject. The page and its Word copy never show a title: they show the program's name, and the log's other events in words. The page carries no copy of the log, only the fingerprint its run's sealed record has for it.
 
@@ -1682,7 +1750,7 @@ An address is kept as its root: a scheme, a host, and a path that ends in `/`. `
 - **No fingerprint check of its own.** A Word document can't check itself. Where the page has its check, the Word copy says what a reader can do instead: compare the file's own fingerprint with the one its sender recorded (`voicecap share` prints it), or run `voicecap verify` on the transcripts folder. It also says that the page can check the transcripts it shows.
 - **No download, but how to get each run's walkthrough file.** A Word document can't carry the file, as the page does. Where the page has its download, the Word copy says to get the file from the web page, or with `voicecap walkthrough --site <site> --run <id> <file>`, and then gives the command that repeats the run. A run whose file can't be made says why.
 
-On Windows, voicecap can't replace `current.docx` while Word has it open. A run, review, or report still finishes, in about a second, with the page written, and a warning says the Word copy wasn't updated: `current.docx` couldn't be replaced (with the error's code in parentheses, such as `EPERM`), as happens while it's open in Word. The warning says to close it, then gives the exact command to run. The command names the site and the transcripts home, so it works in a home of several sites, and in a home you gave with `--out`: `npx @icjia/voicecap report --site https://dvfr.illinois.gov --out 'C:\Users\cschw\code\voicecap-transcripts'`. Like the page, a Word copy that can't be made or written is a warning, never a failed run, review, or report, and neither file stops the other being written.
+On Windows, voicecap can't replace `current.docx` while Word has it open. A run, review, or report still finishes, in about a second, with the page written, and a warning says the Word copy wasn't updated: `current.docx` couldn't be replaced (with the error's code in parentheses, such as `EPERM`), as happens while it's open in Word. The warning says to close it, then gives the exact command to run. The command names the site and the transcripts home, so it works in a home of several sites, and in a home you gave with `--out`: `npx @icjia/voicecap report --site https://dvfr.illinois.gov --out 'C:\Users\jane\code\voicecap-transcripts'`. Like the page, a Word copy that can't be made or written is a warning, never a failed run, review, or report, and neither file stops the other being written.
 
 </details>
 
@@ -1746,7 +1814,7 @@ It's a hint, never a verdict. A flag is a heuristic over what NVDA said, and the
 
 **`llms.txt`** is at the website's top, after the convention at [llmstxt.org](https://llmstxt.org/). It's plain text in Markdown's shape: the website's name as its title, a line that sums it up, a section for each site with links to its current report's Markdown and JSON (each with the report's date and, when the report records one, its verdict), and, last, a section named "Optional", the convention's name for what a tool short of room can skip, with "Can I trust this?" and Technical details. The links are relative, since the build doesn't know the website's address. Only a site whose current report has the files is listed, so a site whose current report is a share from before has no section, and the demo, which is no site's, never has one; with no site to list, it says so. **It's for a tool a person points at the website, not for a crawler:** `robots.txt` still asks every bot to stay away and the site still sends a `noindex` header, so `llms.txt` invites no crawler in. And some AI tools honor `robots.txt` even when a person asks them to read a page, so they won't read `llms.txt` or the files from the website; others may. Saving the file from the report's card and giving it to the tool works with any of them.
 
-**What they hold.** The files hold much of what the page shows, as text: each page's title and address, every transcript, who reviewed what, each problem's record, and the HTML of the elements axe found. Everything on the website is public to anyone with its address, and these files are on it too, so share them as you'd share the page (see "Before you send it", under [The shareable page](#the-shareable-page)). voicecap can't say what an AI tool does with a file you give it.
+**What they hold.** The files hold much of what the page shows, as text: each page's title and address, every transcript, who reviewed what, each run's test environment (the computer's details, the page list's file name, NVDA's settings, and who ran it), each problem's record, with NVDA's own warnings and errors in it, and the HTML of the elements axe found. Everything on the website is public to anyone with its address, and these files are on it too, so share them as you'd share the page (see "Before you send it", under [The shareable page](#the-shareable-page)). voicecap can't say what an AI tool does with a file you give it.
 
 **A share from before has none.** A share made before voicecap wrote the report for AI tools has no Markdown or JSON, and nothing changes for it: its card shows no line, the fold lists the files it has, and, while it's a site's current report, `llms.txt` leaves the site out. Share the site again (no new run is needed) to give it both: the new share becomes the site's current report.
 
@@ -1775,16 +1843,16 @@ npx @icjia/voicecap share [--site <url>] [--out <dir>] [--reviewer <name>]
 
 ```
 PS> npx @icjia/voicecap share
-Shared dvfr.illinois.gov, as of 2 October 2026: entry 1 in C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\share\shares.json.
-  C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02.html
+Shared dvfr.illinois.gov, as of 2 October 2026: entry 1 in C:\Users\jane\code\voicecap-transcripts\dvfr.illinois.gov\share\shares.json.
+  C:\Users\jane\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02.html
     1.2 MB (1,234,567 bytes), SHA-256 9f2c…e41a
-  C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02.docx
+  C:\Users\jane\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02.docx
     310 KB (317,440 bytes), SHA-256 61b7…03d5
-  C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02.md
+  C:\Users\jane\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02.md
     186 KB (190,512 bytes), SHA-256 5d1a…c7f2
-  C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02.json
+  C:\Users\jane\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02.json
     402 KB (411,904 bytes), SHA-256 e83b…19a0
-  C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02_2026-09-26_1405_walkthrough.json
+  C:\Users\jane\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02_2026-09-26_1405_walkthrough.json
     4 KB (3,894 bytes), SHA-256 c04e…77b9
 To paste into the email that sends the page and its Word copy:
   Fingerprints (SHA-256): dvfr.illinois.gov_2026-10-02.html 9f2c…e41a; dvfr.illinois.gov_2026-10-02.docx 61b7…03d5. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.
@@ -1890,13 +1958,13 @@ Here is the top of the front page for the i2i report, in the dark theme it opens
 
 **Each of the website's four pages follows the shareable page's rules.** Each is one self-contained file, with one style block and one script, dark at first, with the theme button for a light version, and light in print. Each has its headings in order, its landmarks, a skip link, and visible keyboard focus, and is complete without JavaScript. voicecap's tests run axe on each, in both themes, at a computer's width, at a phone's, and at 320 pixels, and check that nothing is wider than a window 320 pixels wide, where WCAG's reflow rule is measured. A reader's choice of theme carries between the website and its reports.
 
-**Everything on the website is public to anyone with its address.** Anyone can open each report, download each Word copy and walkthrough file, and open or save each report for AI tools. `robots.txt` and a header ask search engines to keep the site out of their results, but that's a request, not a lock. Keep the transcripts repository private: the website holds only what was shared, and the repository holds much more. Read "Before you send it", under [The shareable page](#the-shareable-page), and share only what you'd put on a public page.
+**Everything on the website is public to anyone with its address.** Anyone can open each report, download each Word copy and walkthrough file, and open or save each report for AI tools. `robots.txt` and a header ask search engines to keep the site out of their results, but that's a request, not a lock. Keep the transcripts repository private: the website holds only what was shared, and the repository holds much more. Read "Before you send it", under [The shareable page](#the-shareable-page), and share only what you'd put on a public page. Each push to the repository changes the website, so protect its `main` branch where your GitHub plan allows it, and turn on push emails where it doesn't (see [Security](#security), "Your transcripts repository").
 
 **The site shows each site's newest three shares,** as long as their records are intact. The current report is what matters, and a long list of older ones would bury it. A share is never deleted: its entry and its files stay in the transcripts home, and `voicecap verify` still checks them. Only the website leaves an older one out. Its files aren't published, and the address of its page sends a reader on to the site's current report, so a link to it in an email still leads somewhere (see `_redirects`, under [The files it writes, and the headers](#the-files-it-writes-and-the-headers)). voicecap has no command that takes a report off the site.
 
 ### Can I trust this?
 
-**A manager shouldn't have to take one person's tool on trust.** So the website has a page, `trust.html`, which the site serves at `/trust` too. Its link, "Can I trust this?", is in both bars of each of the website's own pages. It says plainly who built voicecap, and shows how what voicecap records can be checked and how voicecap tests itself, so a reader can check every claim on it without taking anyone's word for it, the builder's included. It has the website's look and follows the website's rules for a page (see [The website](#the-website-voicecap-site)). A link at its top, "Back to the test results", opens the front page, which has the reports.
+**A manager shouldn't have to take one person's tool on trust.** So the website has a page, `trust.html`, which the site serves at `/trust` too. Its link, "Can I trust this?", is in both bars of each of the website's own pages. It says plainly who built voicecap, and shows how what voicecap records can be checked and how voicecap tests itself, so a reader can check every claim on it without taking anyone's word for it, the builder's included. It has the website's look and follows the website's rules for a page (see [The website](#the-website-voicecap-site)). A link at its top, "Back to the test results", opens the front page, which has the reports. For what voicecap guards against, and how its own repository and package are set up, see [Security](#security).
 
 Here is the top of the page, in the dark theme it opens in. Under the top bar and the way back, its kicker, "voicecap · a human review, sped up", is over a heading of two lines: "Built to be checked." and, in green, "See for yourself." Under the lead is the stamp, in an amber box. At its left, small, is where the page's counts come from: the version of voicecap that built the website, the day it was released, and this website's records. At its right, big, is the records' date, when the newest report on the website was shared. Then come four big numbers, each in a card, with a line that says what it counts and a link to where the page shows it.
 
@@ -1913,7 +1981,7 @@ Here is the top of the page, in the dark theme it opens in. Under the top bar an
 - **What it does, and that the screen reader is the real one.** voicecap has one job, to hear a website the way a screen reader user hears it. It drives NVDA, not a simulation of it, to read each page three ways (line by line, heading by heading, and control by control), and saves every word. A person then reads what NVDA said, and decides what each page needs: it's a human review, sped up.
 - **The law, in three cards:** Title II of the ADA, IITAA (the Illinois Information Technology Accessibility Act), and WCAG. Each card's heading links to its source: ada.gov's page on the rule, the state's page on accessibility, and W3C's page on WCAG.
 - **How every word can be checked,** in six points: each transcript, screenshot, axe result, and recording of NVDA's voice has a SHA-256 fingerprint, each run's record is sealed, and each share and review is chained to the one before it; `voicecap verify` checks a whole record; each report checks its own fingerprints in a browser; of the files shared with its reports, the website publishes only those that still match their recorded fingerprints, and says how many; how to check a copy you downloaded, with `Get-FileHash <file>` in PowerShell, or `shasum -a 256 <file>` on a Mac, against the fingerprint the front page lists for the file; and each walkthrough file a report offers repeats its run. Five of the six link to where they're shown or described. The one on the files the website publishes has no link.
-- **How voicecap is tested.** Before the release goes out: the lint and the type checks, then its own run of every test (how many passed, how many were skipped, in how many files, and on which system), then a check that the package installs and runs. On every change: the same tests on each system and Node version in CI's matrix, and a run of the command line with its replay driver. The shareable page (the report you open from the website) and the website itself are checked with axe, in a real browser, in both themes and at a phone's width. A run with real NVDA at a PC comes before any release that changes how voicecap drives NVDA.
+- **How voicecap is tested.** Before the release goes out: the lint and the type checks, then its own run of every test (how many passed, how many were skipped, in how many files, and on which system), then every dependency locked in `npm-shrinkwrap.json` and audited for high or critical advisories, then a check that the package installs and runs. On every change: the same tests on each system and Node version in CI's matrix, and a run of the command line with its replay driver. The shareable page (the report you open from the website) and the website itself are checked with axe, in a real browser, in both themes and at a phone's width. A run with real NVDA at a PC comes before any release that changes how voicecap drives NVDA.
 - **What it doesn't do.** It doesn't decide what's accessible: a person does. It uses NVDA only, for now. A transcript shows what NVDA said, not what every screen reader would say. A checker such as axe finds what code can find, and a person's review finds the rest.
 - **"One person built this," answered.** "Built by Christopher Schweda at ICJIA," then six cards: the code is public, on GitHub, under the MIT license; voicecap records the real screen reader; every word is on the record; anyone can check the fingerprints; the tests, with their count; and a public, dated record of every change.
 - **How it got here:** the newest five releases, each with its version as a green pill, its day, and the first line of its CHANGELOG entry. Under them, when there are more than five, is "See all N releases", a link to [What's New](#whats-new), which has every one, then "The full CHANGELOG", a link to it on GitHub. Nothing follows: the bottom bar, on each of the website's own pages, has GitHub, the CHANGELOG, and the version.
@@ -2021,12 +2089,12 @@ Here is the top of the page, in the dark theme it opens in, through its first tw
 
 **The folder it builds into** is emptied first, so voicecap builds only into a folder it can be sure of. That's a folder that's new or empty, or one an earlier build made: its `_headers` starts with voicecap's own line.
 
-It stops at an earlier build's folder that holds a name starting with a dot (a repository's `.git`, say) or a folder inside a folder. A build writes neither, so they aren't voicecap's to delete. The one exception is `demo-site/`, the demo's own pages, which has a folder for each page: it counts as a build's when it holds only the paths this voicecap writes there. If `demo-site/` holds a file or a folder this voicecap doesn't write (a demo page that a later voicecap removed, say), `voicecap site` refuses the folder, and says why and what to do, such as `voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\_site: it holds demo-site/old-page, which this voicecap's build doesn't write (it may be from another voicecap): delete the folder and build again.` It says that only when nothing else in the folder is anyone's: a link, or a name that starts with a dot, gets the refusal any other folder does. The files an operating system adds to a folder you open (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count against a folder an earlier build made, and are emptied with the rest. They're never published from the demo's own pages either, as in a checkout of voicecap opened in Finder or Explorer.
+It stops at an earlier build's folder that holds a name starting with a dot (a repository's `.git`, say) or a folder inside a folder. A build writes neither, so they aren't voicecap's to delete. The one exception is `demo-site/`, the demo's own pages, which has a folder for each page: it counts as a build's when it holds only the paths this voicecap writes there. If `demo-site/` holds a file or a folder this voicecap doesn't write (a demo page that a later voicecap removed, say), `voicecap site` refuses the folder, and says why and what to do, such as `voicecap site won't build into C:\Users\jane\code\voicecap-transcripts\_site: it holds demo-site/old-page, which this voicecap's build doesn't write (it may be from another voicecap): delete the folder and build again.` It says that only when nothing else in the folder is anyone's: a link, or a name that starts with a dot, gets the refusal any other folder does. The files an operating system adds to a folder you open (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count against a folder an earlier build made, and are emptied with the rest. They're never published from the demo's own pages either, as in a checkout of voicecap opened in Finder or Explorer.
 
 It also refuses the transcripts home itself, a folder that holds the home, and anything inside a site's folder or inside `voicecap-demo/`. It goes by where each folder really is, so a link, a short name, or another letter case doesn't get past it. On Windows, it also refuses a folder whose name ends with a dot or a space, which Windows drops: a folder made with one can't be opened or removed there. Every refusal comes before anything is touched. The build says why, and exits with code 1:
 
 ```
-Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\notes: it isn't empty, and voicecap site didn't build it. Give a folder of its own, such as "C:\Users\cschw\code\voicecap-transcripts\_site".
+Error: voicecap site won't build into C:\Users\jane\code\voicecap-transcripts\notes: it isn't empty, and voicecap site didn't build it. Give a folder of its own, such as "C:\Users\jane\code\voicecap-transcripts\_site".
 ```
 
 </details>
@@ -2107,7 +2175,7 @@ To update the demo, do the three steps again: the site shows the latest share.
 
 If you can't run the demo again, give the share the address in a config instead. **Keep that config out of the transcripts home.** `share`, `report`, `review`, `manual add`, and every run read the config in the folder they run from, so a `report.canonical` in the home would name every site in it after the demo, in shares that are never deleted (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)). Put it in a folder of its own, and run `share` from there:
 
-1. Make a folder outside the transcripts home, such as `C:\Users\cschw\code\demo-share`.
+1. Make a folder outside the transcripts home, such as `C:\Users\jane\code\demo-share`.
 2. In that folder, make a file named `voicecap.config.json` with this in it:
 
    ```json
@@ -2117,7 +2185,7 @@ If you can't run the demo again, give the share the address in a config instead.
 3. In PowerShell, go to that folder and share the demo from there, with the demo's folder in the transcripts home as `--out`. As every share does, it needs a name for who is sharing.
 
    ```powershell
-   cd C:\Users\cschw\code\demo-share
+   cd C:\Users\jane\code\demo-share
    npx @icjia/voicecap share --out "$env:VOICECAP_TRANSCRIPTS\voicecap-demo"
    ```
 
@@ -2150,9 +2218,9 @@ Do this once, after the transcripts home holds a share, and is a repository on G
    It builds from the transcripts home (`VOICECAP_TRANSCRIPTS`; give `--home <folder>` if you haven't set it). `@latest` makes `npx` use the newest voicecap, not one it kept: `netlify.toml` names the version that writes it, and Netlify builds with that version. It prints a line for each file it writes in the home, then one for the site (your numbers will differ). If the home is missing `.gitattributes` or `.gitignore` (a home that holds a share has both already), it writes that too, with a line that ends `for Git: commit it with the records.`:
 
    ```
-   Wrote netlify.toml into C:\Users\cschw\code\voicecap-transcripts, for Netlify: commit it with the records.
-   Wrote .nvmrc into C:\Users\cschw\code\voicecap-transcripts, for Netlify: commit it with the records.
-   Built the site in C:\Users\cschw\code\voicecap-transcripts\_site: 3 reports from 2 sites, and the demo's.
+   Wrote netlify.toml into C:\Users\jane\code\voicecap-transcripts, for Netlify: commit it with the records.
+   Wrote .nvmrc into C:\Users\jane\code\voicecap-transcripts, for Netlify: commit it with the records.
+   Built the site in C:\Users\jane\code\voicecap-transcripts\_site: 3 reports from 2 sites, and the demo's.
    ```
 
    Check that the folder it names is your transcripts home. Anything it left out comes as `Warning:` lines before the last line, and the build still finishes (see [What the build reads, and what it leaves out](#what-the-build-reads-and-what-it-leaves-out)). If it stops with an `Error:`, it says why. If the `Error:` says `isn't a folder`, the transcripts home isn't where `VOICECAP_TRANSCRIPTS` (or `--home`) says it is.
@@ -2222,9 +2290,9 @@ voicecap walkthrough [--site <url>] [--run <id>] [--out <dir>] <file>
 It writes the walkthrough of a completed run to `<file>`, then says where it is and how to repeat the run:
 
 ```
-PS> npx @icjia/voicecap walkthrough C:\Users\cschw\walkthrough.json
-Wrote the walkthrough of run 2026-09-26_1405 (12 pages) to C:\Users\cschw\walkthrough.json.
-To repeat the run: npx @icjia/voicecap --walkthrough 'C:\Users\cschw\walkthrough.json'
+PS> npx @icjia/voicecap walkthrough C:\Users\jane\walkthrough.json
+Wrote the walkthrough of run 2026-09-26_1405 (12 pages) to C:\Users\jane\walkthrough.json.
+To repeat the run: npx @icjia/voicecap --walkthrough 'C:\Users\jane\walkthrough.json'
 ```
 
 For a run read on this computer or its network (an IP address, `localhost`, a one-word name), the command also names the address that run read, such as `… --walkthrough 'walkthrough.json' --site http://127.0.0.1:4747`, since a live repeat of such a file needs it (see [Repeating the run from the file](#repeating-the-run-from-the-file)). The shareable page and its Word copy say the same command.
@@ -2295,7 +2363,7 @@ A page the file lists twice is read once, as with a page list.
 When a repeat completes, voicecap prints each page of the file against the original, after the line that says where the report is:
 
 ```
-Run 2026-10-02_0930 complete. Report: C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\report.html
+Run 2026-10-02_0930 complete. Report: C:\Users\jane\code\voicecap-transcripts\dvfr.illinois.gov\report.html
 Compared with run 2026-09-26_1405, from its walkthrough file:
   https://dvfr.illinois.gov/: sounds the same
   https://dvfr.illinois.gov/about/: sounds different (headings, tab)
@@ -2579,6 +2647,8 @@ It stops before publishing unless:
 
 Then it lists the commits since the last release and who made them (a dry run does too), and asks for the version to be typed; giving a 2FA code skips the question. What it publishes is the same tarball it installed and ran in the scratch project, not a new one.
 
+**Publishing access.** The `@icjia/voicecap` package's **Publishing access** setting on npmjs.com is "Require two-factor authentication and disallow tokens", so a publish needs a fresh 6-digit code from a maintainer's authenticator app and no token can publish. `npm publish` takes the code with `--otp`, and `publish.sh` passes on the code it is given as its second argument (`./publish.sh minor 123456`). The setting was made on 11 October 2026 (see [Security](#security)).
+
 It restores `package.json` and `npm-shrinkwrap.json` if anything fails before publishing. After publishing it commits the version bump and `npm-shrinkwrap.json`, tags `vX.Y.Z`, and pushes.
 
 </details>
@@ -2593,7 +2663,7 @@ voicecap also stands on:
 - **[Playwright](https://playwright.dev/)**, which opens each page in a real browser;
 - **[axe-core](https://github.com/dequelabs/axe-core)**, Deque Systems' open-source accessibility checker, under the Mozilla Public License 2.0 (MPL-2.0). voicecap runs the package's own `axe.min.js` on each page, unchanged and with its license notice, and shows what it finds beside what NVDA said; voicecap's own tests run axe on its pages too, through [@axe-core/playwright](https://github.com/dequelabs/axe-core-npm);
 - **[libopus-wasm](https://github.com/openclaw/libopus-wasm)** 0.4.1, a small WebAssembly build of the Opus codec for JavaScript, under the MIT license. voicecap uses it to encode each page's recording of NVDA's voice, and pins it at exactly 0.4.1, so that the same sound always gives the same file;
-- **[libopus](https://github.com/xiph/opus)** 1.6.1, Xiph.Org's open-source Opus audio codec, under a BSD-style license: the code inside `libopus-wasm`. Its notice is kept in the package's `THIRD_PARTY_NOTICES.md`;
+- **[libopus](https://github.com/xiph/opus)** 1.6.1, Xiph.Org's open-source Opus audio codec, under a BSD-style license: the code inside `libopus-wasm`. Its license is named in the package's `THIRD_PARTY_NOTICES.md`;
 - **[IBM Plex](https://github.com/IBM/plex)**, the typefaces in the shareable page, under the SIL Open Font License.
 
 ## License

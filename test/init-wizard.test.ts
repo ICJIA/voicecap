@@ -820,12 +820,12 @@ describe("runWizard", () => {
 
   it("offers VOICECAP_REVIEWER as the default, with no tip", async () => {
     const { result, screen } = await session(["dvfr.illinois.gov", "", "", "", ""], {
-      env: { VOICECAP_REVIEWER: " cschweda " },
+      env: { VOICECAP_REVIEWER: " jane " },
     });
 
-    expect(screen).toContain("Reviewer, recorded with the run [cschweda]: \n\nYour command:");
+    expect(screen).toContain("Reviewer, recorded with the run [jane]: \n\nYour command:");
     expect(screen).not.toContain(REVIEWER_TIP);
-    expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --reviewer cschweda`);
+    expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --reviewer jane`);
   });
 
   it("runs only after a yes", async () => {

@@ -691,7 +691,7 @@ describe("renderVoicePage", () => {
       expect(whyOf(model)).toBe(`Not recorded: ${refused}.`);
       expect(textOfPage(model)).not.toMatch(/guidepup/i);
       // The scan sees it when it's there: the path a refusal used to name is in Guidepup's folder.
-      const path = String.raw`C:\Users\cschw\AppData\Local\guidepup\nvda\all\0.2.1-2026.2\extracted\nvda.exe`;
+      const path = String.raw`C:\Users\jane\AppData\Local\guidepup\nvda\all\0.2.1-2026.2\extracted\nvda.exe`;
       const named = withEarlier("0.18.0", reason(refused.replace("voicecap's NVDA", path)));
       expect(textOfPage(named)).toMatch(/guidepup/i);
     });

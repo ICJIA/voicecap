@@ -17,7 +17,7 @@ describe("composeArgs", () => {
       pages: { kind: "sitemap", url: "https://i2i.illinois.gov/sitemap-index.xml" },
       limit: 5,
       home: null,
-      reviewer: "cschweda",
+      reviewer: "jane",
     };
     expect(composeArgs(answers)).toEqual([
       "--site",
@@ -27,7 +27,7 @@ describe("composeArgs", () => {
       "--limit",
       "5",
       "--reviewer",
-      "cschweda",
+      "jane",
     ]);
   });
 
@@ -59,7 +59,7 @@ describe("composeArgs", () => {
       pages: { kind: "sitemap", url: "http://localhost:3000/sitemap.xml" },
       limit: 5,
       home: "C:\\vt",
-      reviewer: "cschweda",
+      reviewer: "jane",
     };
     expect(composeArgs(answers)).toEqual([
       "--site",
@@ -73,7 +73,7 @@ describe("composeArgs", () => {
       "--out",
       "C:\\vt",
       "--reviewer",
-      "cschweda",
+      "jane",
     ]);
   });
 
@@ -84,7 +84,7 @@ describe("composeArgs", () => {
       pages: { kind: "page", url: "https://dvfr.illinois.gov/faq/" },
       limit: null,
       home: null,
-      reviewer: "cschweda",
+      reviewer: "jane",
     };
     expect(composeArgs(answers)).toEqual([
       "--site",
@@ -92,7 +92,7 @@ describe("composeArgs", () => {
       "--page",
       "https://dvfr.illinois.gov/faq/",
       "--reviewer",
-      "cschweda",
+      "jane",
     ]);
   });
 
@@ -324,10 +324,10 @@ describe("formatCommand", () => {
       pages: { kind: "sitemap", url: "https://i2i.illinois.gov/sitemap-index.xml" },
       limit: 5,
       home: null,
-      reviewer: "cschweda",
+      reviewer: "jane",
     };
     expect(formatCommand(composeArgs(answers))).toBe(
-      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-index.xml --limit 5 --reviewer cschweda",
+      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-index.xml --limit 5 --reviewer jane",
     );
   });
 

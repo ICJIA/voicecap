@@ -687,6 +687,13 @@ describe("voicecap's gestures", () => {
 
 const FIXTURE_DIR = fileURLToPath(new URL("../fixture/nvda-io-run/", import.meta.url));
 const readFixtureLog = () => readFileSync(path.join(FIXTURE_DIR, "nvda-log", "1-1.txt"), "utf8");
+
+/**
+ * A path into a Users folder (`C:\Users\<account>`, `/Users/<account>`): where an account's name
+ * would be. A path in a JSON file writes each backslash twice, which this matches as well.
+ */
+const USER_FOLDER = /[\\/]users[\\/]/i;
+
 const fixtureFiles = () =>
   readdirSync(FIXTURE_DIR, { recursive: true, withFileTypes: true })
     .filter((item) => item.isFile())
@@ -701,7 +708,8 @@ describe("the fixture's cleaned copy of a real NVDA log", () => {
   });
 
   it("holds no account name", () => {
-    expect(readFixtureLog().toLowerCase()).not.toContain("cschw");
+    // The home folder is written as %USERPROFILE%, so no path into a Users folder is left.
+    expect(readFixtureLog()).not.toMatch(USER_FOLDER);
   });
 
   it("holds no key but voicecap's", () => {
@@ -750,7 +758,7 @@ describe("the fixture's files", () => {
 
   it("holds no account name, in any file", () => {
     for (const file of fixtureFiles()) {
-      expect(readFileSync(file, "utf8").toLowerCase(), file).not.toContain("cschw");
+      expect(readFileSync(file, "utf8"), file).not.toMatch(USER_FOLDER);
     }
   });
 
