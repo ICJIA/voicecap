@@ -29,6 +29,7 @@ import {
   type GuidepupPackage,
 } from "./paths.js";
 import {
+  FIREWALL_PROFILES,
   NVDA_CONTROL_PORT,
   nvdaFirewallRules,
   nvdaProcesses,
@@ -38,6 +39,8 @@ import {
   windowsComputerModel,
   windowsSystemInfo,
   type FirewallAction,
+  type FirewallProfile,
+  type FirewallRule,
   type NvdaProcess,
 } from "./windows.js";
 
@@ -49,12 +52,12 @@ export interface WindowsReadinessDeps {
   install: GuidepupInstall;
   exists: (file: string) => boolean;
   /**
-   * What Windows Firewall does with NVDA's control port: an Allow for each enabled inbound rule
-   * that lets Guidepup's NVDA in, and a Block for each enabled inbound block rule on the port when
-   * Windows lets the account read the rules of a port. Rejects when Windows can't say what rules
-   * name Guidepup's NVDA.
+   * What Windows Firewall does with NVDA's control port: each enabled inbound rule that names
+   * Guidepup's NVDA, and each enabled inbound block rule on the port when Windows lets the account
+   * read the rules of a port, with the network types each applies to. Rejects when Windows can't
+   * say what rules name Guidepup's NVDA, or says something that isn't a rule.
    */
-  nvdaFirewallRules: () => Promise<FirewallAction[]>;
+  nvdaFirewallRules: () => Promise<FirewallRule[]>;
   /** Every running nvda.exe, Guidepup's or the person's. */
   nvdaProcesses: () => Promise<NvdaProcess[]>;
   /** Another voicecap holding the NVDA lock, if one is running. */
@@ -222,15 +225,19 @@ function nvdaCheck(deps: WindowsReadinessDeps): Check {
 }
 
 /**
- * WARN when Windows Firewall lets other computers reach NVDA's control port: an Allow rule for
- * Guidepup's NVDA and no Block rule on the port. NVDA's Remote Access opens that port on every
- * network the computer is on, behind a key Guidepup publishes. Never a FAIL: closing it needs an
- * administrator, and a FAIL would stop every run of a person who isn't one. Also a WARN when
- * Windows can't say. A normal account may be refused the rules of a port, and then a Block rule on
- * the port goes unseen: the warning stays until the Allow rule is removed.
+ * WARN when Windows Firewall lets other computers reach NVDA's control port: on a network type that
+ * an Allow rule for Guidepup's NVDA applies to and no Block rule does (openNetworks), and the
+ * warning names those network types. NVDA's Remote Access opens that port on every network the
+ * computer is on, behind a key Guidepup publishes. Windows makes a rule for each network type it's
+ * told to: Allow, clicked at its question with only private networks ticked, makes an Allow rule on
+ * Private and a Block rule on Public, which leaves the port open on Private. Never a FAIL: closing
+ * it needs an administrator, and a FAIL would stop every run of a person who isn't one. Also a WARN
+ * when Windows can't say, or says something that isn't a rule. A normal account may be refused the
+ * rules of a port, and then a Block rule on the port goes unseen: the warning stays until the Allow
+ * rule is removed.
  */
 async function nvdaFirewallCheck(deps: WindowsReadinessDeps): Promise<Check> {
-  let rules: FirewallAction[];
+  let rules: FirewallRule[];
   try {
     rules = await deps.nvdaFirewallRules();
   } catch (error) {
@@ -241,11 +248,13 @@ async function nvdaFirewallCheck(deps: WindowsReadinessDeps): Promise<Check> {
       summary: `Couldn't read Windows Firewall's rules for NVDA's control port (${reason})`,
     };
   }
-  if (rules.includes("Allow") && !rules.includes("Block")) {
+  const open = openNetworks(rules);
+  if (open.length > 0) {
+    const networks = `the ${new Intl.ListFormat("en").format(open)} ${open.length === 1 ? "network" : "networks"}`;
     return {
       id: "nvdaFirewall",
       status: "WARN",
-      summary: `Windows Firewall lets other computers reach NVDA's control port (${NVDA_CONTROL_PORT}) while voicecap runs: an administrator can close it (README: "NVDA's control port")`,
+      summary: `Windows Firewall lets other computers on ${networks} reach NVDA's control port (${NVDA_CONTROL_PORT}) while voicecap runs: an administrator can close it (README: "NVDA's control port")`,
     };
   }
   return {
@@ -253,6 +262,19 @@ async function nvdaFirewallCheck(deps: WindowsReadinessDeps): Promise<Check> {
     status: "OK",
     summary: "Windows Firewall keeps NVDA's control port closed to other computers",
   };
+}
+
+/**
+ * The network types on which Windows Firewall lets other computers reach NVDA's control port: each
+ * that an Allow rule applies to and no Block rule does, since a Block rule wins over an Allow rule
+ * where both apply, and only there. In Windows' order: Domain, Private, Public.
+ */
+function openNetworks(rules: readonly FirewallRule[]): FirewallProfile[] {
+  const applies = (action: FirewallAction, profile: FirewallProfile): boolean =>
+    rules.some((rule) => rule.action === action && rule.profiles.has(profile));
+  return FIREWALL_PROFILES.filter(
+    (profile) => applies("Allow", profile) && !applies("Block", profile),
+  );
 }
 
 /**

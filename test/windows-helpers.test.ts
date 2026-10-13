@@ -26,11 +26,12 @@ import {
   keepAwake,
   listProcesses,
   NVDA_CONTROL_PORT,
+  nvdaFirewallRules,
   nvdaFirewallScript,
   nvdaProcesses,
   ownNvdaPaths,
   parseComputerModel,
-  parseFirewallActions,
+  parseFirewallRules,
   parseForegroundWindow,
   parseNvdaProcesses,
   parseWindowsMachine,
@@ -47,9 +48,17 @@ import {
   strictThenBestEffort,
   windowsMachineProbe,
   windowsSystemInfo,
+  type FirewallAction,
+  type FirewallProfile,
+  type FirewallRule,
 } from "../src/drivers/guidepup/windows.js";
 import { collectMachineRecord, nodeMachineFacts } from "../src/run/machine-record.js";
 import { systemTool } from "../src/util/system-tools.js";
+
+/** A rule as parseFirewallRules reads it: its action, and the network types it applies to. */
+function rule(action: FirewallAction, ...profiles: FirewallProfile[]): FirewallRule {
+  return { action, profiles: new Set(profiles) };
+}
 
 const temps: string[] = [];
 const orphans: number[] = [];
@@ -235,10 +244,10 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
   // goes on after one takes its exit code from its last statement alone. The script itself is never
   // run here, since it reads the computer's firewall rules.
   it("fail the firewall script, printing nothing, when its first statement fails", () => {
-    // Without the strict first statement, the second would print Block and the exit would be 0: the
-    // script would answer "closed" having read none of the rules that name the program.
+    // Without the strict first statement, the second would print a Block and the exit would be 0:
+    // the script would answer "closed" having read none of the rules that name the program.
     for (const first of ["Write-Error 'first failed'", "throw 'first failed'"]) {
-      const answer = runSystemPowershell(strictThenBestEffort(first, "'Block'"));
+      const answer = runSystemPowershell(strictThenBestEffort(first, "'Block|Any'"));
       expect(answer.status, `${first}: ${answer.stderr}`).toBe(1);
       expect(answer.stdout, first).toBe("");
     }
@@ -248,29 +257,86 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
     // Without the closing exit 0, the exit stays 1 after a caught error, and the first statement's
     // Allow would be thrown away with the failure.
     for (const second of ["Write-Error 'second failed'", "throw 'second failed'"]) {
-      const answer = runSystemPowershell(strictThenBestEffort("'Allow'", second));
+      const answer = runSystemPowershell(strictThenBestEffort("'Allow|Private'", second));
       expect(answer.status, `${second}: ${answer.stderr}`).toBe(0);
-      expect(parseFirewallActions(answer.stdout), second).toEqual(["Allow"]);
+      expect(parseFirewallRules(answer.stdout), second).toEqual([rule("Allow", "Private")]);
     }
     // What the second statement printed before it failed is real, so it is kept too.
     const late = runSystemPowershell(
-      strictThenBestEffort("'Allow'", "'Block'; Write-Error 'late'"),
+      strictThenBestEffort("'Allow|Private'", "'Block|Any'; Write-Error 'late'"),
     );
     expect(late.status, late.stderr).toBe(0);
-    expect(parseFirewallActions(late.stdout)).toEqual(["Allow", "Block"]);
+    expect(parseFirewallRules(late.stdout)).toEqual([
+      rule("Allow", "Private"),
+      rule("Block", "Domain", "Private", "Public"),
+    ]);
   });
 
   it("print both of the firewall script's statements' lines, and exit 0, when neither fails", () => {
-    const both = runSystemPowershell(strictThenBestEffort("'Allow'; 'Allow'", "'Block'"));
+    const both = runSystemPowershell(
+      strictThenBestEffort("'Allow|Private'; 'Allow|Private, Public'", "'Block|Public'"),
+    );
     expect(both.status, both.stderr).toBe(0);
-    expect(parseFirewallActions(both.stdout)).toEqual(["Allow", "Allow", "Block"]);
+    expect(parseFirewallRules(both.stdout)).toEqual([
+      rule("Allow", "Private"),
+      rule("Allow", "Private", "Public"),
+      rule("Block", "Public"),
+    ]);
     // Nothing to print is an answer too: no rule names the program, and none blocks the port.
     const none = runSystemPowershell(
-      strictThenBestEffort("@() | ForEach-Object { 'Allow' }", "@() | ForEach-Object { 'Block' }"),
+      strictThenBestEffort(
+        "@() | ForEach-Object { 'Allow|Any' }",
+        "@() | ForEach-Object { 'Block|Any' }",
+      ),
     );
     expect(none.status, none.stderr).toBe(0);
     expect(none.stdout).toBe("");
   });
+
+  // The script names each rule's network types as Windows' own type for them writes them, which is
+  // checked here on that type alone: no rule is read.
+  it("write a rule's network types in the words the firewall script's answer is read in", () => {
+    const answer = runSystemPowershell(
+      [
+        "Import-Module NetSecurity;",
+        "foreach ($value in 0, 1, 2, 4, 6, 7, 65535) {",
+        "'Allow|' + [string][Microsoft.PowerShell.Cmdletization.GeneratedTypes.NetSecurity.Profile]$value }",
+      ].join(" "),
+    );
+    expect(answer.status, answer.stderr).toBe(0);
+    expect(answer.stdout.split(/\r?\n/).filter((line) => line !== "")).toEqual([
+      "Allow|Any",
+      "Allow|Domain",
+      "Allow|Private",
+      "Allow|Public",
+      "Allow|Private, Public",
+      "Allow|Domain, Private, Public",
+      "Allow|NotApplicable",
+    ]);
+    expect(parseFirewallRules(answer.stdout)).toEqual([
+      rule("Allow", "Domain", "Private", "Public"),
+      rule("Allow", "Domain"),
+      rule("Allow", "Private"),
+      rule("Allow", "Public"),
+      rule("Allow", "Private", "Public"),
+      rule("Allow", "Domain", "Private", "Public"),
+      rule("Allow"),
+    ]);
+  }, 60_000);
+
+  it("parse the firewall script as PowerShell, and run none of it", () => {
+    const script = nvdaFirewallScript(
+      "C:\\Users\\jane\\AppData\\Local\\guidepup\\nvda\\all\\0.2.1-2026.2\\extracted\\nvda.exe",
+    );
+    const answer = runSystemPowershell(
+      [
+        "$errors = $null;",
+        `[void][System.Management.Automation.Language.Parser]::ParseInput(${powershellString(script)}, [ref]$null, [ref]$errors);`,
+        "$errors | ForEach-Object { $_.Message }; 'parsed'",
+      ].join(" "),
+    );
+    expect(answer.stdout.trim(), answer.stderr).toBe("parsed");
+  }, 60_000);
 
   // The lookup of the window in front is checked for real only at the PC, and a typo in it would
   // fail every lookup: each lost foreground would read as one voicecap couldn't name the program of.
@@ -481,17 +547,73 @@ describe("Windows helpers (what PowerShell says)", () => {
     ]);
   });
 
-  it("read the firewall rules' actions, keeping only Allow and Block", () => {
-    expect(parseFirewallActions("Allow\r\nBlock\r\n\r\nNotConfigured\r\n")).toEqual([
-      "Allow",
-      "Block",
-    ]);
-    // Each line is trimmed. A warning, a longer word, and another letter case are not an action.
+  it("read each firewall rule's action and the network types it applies to", () => {
     expect(
-      parseFirewallActions("  Allow \r\n\tBlock\r\nWARNING: slow\r\nAllowed\r\nallow\r\n"),
-    ).toEqual(["Allow", "Block"]);
-    expect(parseFirewallActions("")).toEqual([]);
-    expect(parseFirewallActions("NotConfigured\r\n")).toEqual([]);
+      parseFirewallRules("Allow|Private\r\nBlock|Public\r\nAllow|Domain, Private\r\n"),
+    ).toEqual([
+      rule("Allow", "Private"),
+      rule("Block", "Public"),
+      rule("Allow", "Domain", "Private"),
+    ]);
+    // Any is every network type, and NotApplicable none.
+    expect(parseFirewallRules("Block|Any\r\nAllow|NotApplicable\r\n")).toEqual([
+      rule("Block", "Domain", "Private", "Public"),
+      rule("Allow"),
+    ]);
+    // Each line is trimmed, as is each word, and an empty line is no rule. A word that names no
+    // network type voicecap knows is left out.
+    expect(
+      parseFirewallRules(
+        "  Allow|Private ,  Public \r\n\r\n\tBlock|Domain\r\nAllow|Private, Satellite\n",
+      ),
+    ).toEqual([
+      rule("Allow", "Private", "Public"),
+      rule("Block", "Domain"),
+      rule("Allow", "Private"),
+    ]);
+    expect(parseFirewallRules("")).toEqual([]);
+    expect(parseFirewallRules("\r\n \r\n")).toEqual([]);
+  });
+
+  it("refuse the whole answer when a line of it isn't a rule", () => {
+    // A warning, an action with no network types, another action or its letters in another case, a
+    // number for the network types (one Windows' type has no name for), or an empty word.
+    for (const line of [
+      "WARNING: slow",
+      "Allow",
+      "Allow|",
+      "Allowed|Any",
+      "allow|Any",
+      "NotConfigured|Any",
+      "Allow|8",
+      "Allow|Private,",
+      "Allow|Private,,Public",
+      "Allow|Private|Public",
+    ]) {
+      expect(() => parseFirewallRules(`Block|Any\r\n${line}\r\n`), line).toThrow(
+        "PowerShell's answer has a line that isn't a rule",
+      );
+    }
+  });
+
+  it("read the firewall rules PowerShell gives, and reject when a line isn't a rule", async () => {
+    const exe =
+      "C:\\Users\\jane\\AppData\\Local\\guidepup\\nvda\\all\\0.2.1-2026.2\\extracted\\nvda.exe";
+    const asked: string[] = [];
+    const answer = (stdout: string) => (script: string) => {
+      asked.push(script);
+      return Promise.resolve(stdout);
+    };
+    await expect(
+      nvdaFirewallRules(exe, answer("Allow|Private\r\nBlock|Public\r\n")),
+    ).resolves.toEqual([rule("Allow", "Private"), rule("Block", "Public")]);
+    expect(asked).toEqual([nvdaFirewallScript(exe)]);
+    await expect(nvdaFirewallRules(exe, answer("Block|Any\r\nWARNING: slow\r\n"))).rejects.toThrow(
+      "PowerShell's answer has a line that isn't a rule",
+    );
+    await expect(
+      nvdaFirewallRules(exe, () => Promise.reject(new Error("exit code 1"))),
+    ).rejects.toThrow("PowerShell didn't answer");
   });
 
   it("read the firewall with one read-only script that names the NVDA program and port 6837", () => {
@@ -503,8 +625,8 @@ describe("Windows helpers (what PowerShell says)", () => {
       [
         "$ErrorActionPreference = 'Stop';",
         `$exe = '${exe}';`,
-        "Get-NetFirewallApplicationFilter -PolicyStore ActiveStore | Where-Object { [Environment]::ExpandEnvironmentVariables($_.Program) -eq $exe } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' } | ForEach-Object { [string]$_.Action };",
-        "try { Get-NetFirewallPortFilter -PolicyStore ActiveStore | Where-Object { $_.LocalPort -contains '6837' } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and [string]$_.Action -eq 'Block' } | ForEach-Object { 'Block' } } catch { };",
+        "Get-NetFirewallApplicationFilter -PolicyStore ActiveStore | Where-Object { [Environment]::ExpandEnvironmentVariables($_.Program) -eq $exe } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' } | ForEach-Object { [string]$_.Action + '|' + [string]$_.Profile };",
+        "try { Get-NetFirewallPortFilter -PolicyStore ActiveStore | Where-Object { $_.LocalPort -contains '6837' } | Get-NetFirewallRule | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and [string]$_.Action -eq 'Block' } | ForEach-Object { 'Block|' + [string]$_.Profile } } catch { };",
         "exit 0",
       ].join(" "),
     );

@@ -72,6 +72,21 @@ export const NVDA_CONTROL_PORT = 6837;
 export type FirewallAction = "Allow" | "Block";
 
 /**
+ * A network type Windows Firewall keeps rules for (a rule's profile): a network with a domain, as
+ * at work, one set as private, as at home, or one set as public, as at an airport.
+ */
+export type FirewallProfile = "Domain" | "Private" | "Public";
+
+/** Windows Firewall's network types, in the order Windows lists them. */
+export const FIREWALL_PROFILES: readonly FirewallProfile[] = ["Domain", "Private", "Public"];
+
+/** An enabled inbound firewall rule: what it does, and the network types it applies to. */
+export interface FirewallRule {
+  action: FirewallAction;
+  profiles: ReadonlySet<FirewallProfile>;
+}
+
+/**
  * `strict` and then `bestEffort`, statements of one PowerShell script. An error in `strict` ends
  * the script at once with exit code 1, which powershell() turns into a rejection, and `bestEffort`
  * never runs. An error in `bestEffort` is dropped, and the script ends with exit code 0, keeping
@@ -86,14 +101,16 @@ export function strictThenBestEffort(strict: string, bestEffort: string): string
 }
 
 /**
- * The PowerShell that lists what Windows Firewall does with NVDA's control port, one action per
- * line. It only reads. Its first statement, which must succeed, lists the action of each enabled
- * inbound rule of the active store that names `nvdaExe` (a rule may write the path with environment
- * variables), which a normal account can read. Its second, which may fail, lists a `Block` for each
- * enabled inbound block rule on local port 6837, whatever program it names. Windows can refuse that
- * to an account that isn't an administrator (a normal PowerShell got "Access is denied" at the
- * PC), and the answer is then the first statement's alone, which can only err toward a warning,
- * since a `Block` line is what quiets one.
+ * The PowerShell that lists what Windows Firewall does with NVDA's control port, one rule per line:
+ * its action, then the network types it applies to, as `<action>|<profile>` (`Allow|Private`, or
+ * `Block|Any`). A rule's profile is written as Windows' own type for it writes it: `Any`, a network
+ * type, a list of them (`Private, Public`), or `NotApplicable`. It only reads. Its first statement,
+ * which must succeed, lists each enabled inbound rule of the active store that names `nvdaExe` (a
+ * rule may write the path with environment variables), which a normal account can read. Its second,
+ * which may fail, lists a `Block` line for each enabled inbound block rule on local port 6837,
+ * whatever program it names. Windows can refuse that to an account that isn't an administrator (a
+ * normal PowerShell got "Access is denied" at the PC), and the answer is then the first statement's
+ * alone, which can only err toward a warning, since a `Block` line is what quiets one.
  */
 export function nvdaFirewallScript(nvdaExe: string): string {
   const enabledInbound = "$_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound'";
@@ -102,38 +119,67 @@ export function nvdaFirewallScript(nvdaExe: string): string {
     "Get-NetFirewallApplicationFilter -PolicyStore ActiveStore",
     "| Where-Object { [Environment]::ExpandEnvironmentVariables($_.Program) -eq $exe }",
     `| Get-NetFirewallRule | Where-Object { ${enabledInbound} }`,
-    "| ForEach-Object { [string]$_.Action }",
+    "| ForEach-Object { [string]$_.Action + '|' + [string]$_.Profile }",
   ].join(" ");
   const portBlocks = [
     "Get-NetFirewallPortFilter -PolicyStore ActiveStore",
     `| Where-Object { $_.LocalPort -contains '${NVDA_CONTROL_PORT}' }`,
     `| Get-NetFirewallRule | Where-Object { ${enabledInbound} -and [string]$_.Action -eq 'Block' }`,
-    "| ForEach-Object { 'Block' }",
+    "| ForEach-Object { 'Block|' + [string]$_.Profile }",
   ].join(" ");
   return strictThenBestEffort(programRules, portBlocks);
 }
 
-/** nvdaFirewallScript's lines, each trimmed and kept when it is `Allow` or `Block`. */
-export function parseFirewallActions(stdout: string): FirewallAction[] {
-  const actions: FirewallAction[] = [];
+/**
+ * A line of nvdaFirewallScript's answer, trimmed: an action, then one or more words separated by
+ * commas. Each part ends where the next can't start, so it's tried in time in proportion to the
+ * line's length.
+ */
+const RULE_LINE = /^(Allow|Block)\|([A-Za-z]+(?: *, *[A-Za-z]+)*)$/;
+
+/** Why nvdaFirewallRules can't use PowerShell's answer: a line of it isn't a rule. */
+const NOT_A_RULE = "PowerShell's answer has a line that isn't a rule";
+
+/**
+ * nvdaFirewallScript's answer as rules, one a line, an empty line skipped. `Any` is every network
+ * type, and `NotApplicable` none; a word that names no network type voicecap knows is left out.
+ * Throws when a line isn't a rule (a warning, another action, or a number Windows' type has no name
+ * for), since a rule read wrong could hide one that lets other computers in.
+ */
+export function parseFirewallRules(stdout: string): FirewallRule[] {
+  const rules: FirewallRule[] = [];
   for (const line of stdout.split(/\r?\n/)) {
-    const action = line.trim();
-    if (action === "Allow" || action === "Block") actions.push(action);
+    const text = line.trim();
+    if (text === "") continue;
+    const match = RULE_LINE.exec(text);
+    if (match === null) throw new Error(NOT_A_RULE);
+    const profiles = new Set<FirewallProfile>();
+    for (const word of (match[2] ?? "").split(",")) {
+      const name = word.trim();
+      if (name === "Any") FIREWALL_PROFILES.forEach((profile) => profiles.add(profile));
+      const known = FIREWALL_PROFILES.find((profile) => profile === name);
+      if (known !== undefined) profiles.add(known);
+    }
+    rules.push({ action: match[1] === "Allow" ? "Allow" : "Block", profiles });
   }
-  return actions;
+  return rules;
 }
 
 /**
- * What Windows Firewall does with NVDA's control port: an `Allow` for each enabled inbound rule
- * that lets `nvdaExe` in, and a `Block` for each enabled inbound block rule on port 6837 when
- * Windows lets this account read the rules of a port. Throws "PowerShell didn't answer" when it
- * can't read the rules that name `nvdaExe`.
+ * What Windows Firewall does with NVDA's control port: each enabled inbound rule that names
+ * `nvdaExe`, and each enabled inbound block rule on port 6837 when Windows lets this account read
+ * the rules of a port, with the network types each applies to. `answer` runs the script
+ * (PowerShell, hidden, unless a test gives another). Throws "PowerShell didn't answer" when it
+ * can't read the rules that name `nvdaExe`, and NOT_A_RULE when a line of the answer isn't a rule.
  */
-export async function nvdaFirewallRules(nvdaExe: string): Promise<FirewallAction[]> {
-  const found = await powershell(nvdaFirewallScript(nvdaExe)).catch((error: unknown) => {
+export async function nvdaFirewallRules(
+  nvdaExe: string,
+  answer: (script: string) => Promise<string> = powershell,
+): Promise<FirewallRule[]> {
+  const found = await answer(nvdaFirewallScript(nvdaExe)).catch((error: unknown) => {
     throw new Error("PowerShell didn't answer", { cause: error });
   });
-  return parseFirewallActions(found);
+  return parseFirewallRules(found);
 }
 
 /** A running nvda.exe. */
