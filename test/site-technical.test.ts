@@ -427,16 +427,11 @@ describe("renderTechnical", () => {
     );
   });
 
-  it("names Guidepup in the toolchain table, and in one sentence about what npx downloads, and nowhere else", () => {
+  it("names Guidepup in the toolchain table and nowhere else", () => {
     const table = tableOf(html, "toolchain");
 
     expect(table.match(/guidepup/gi)?.length ?? 0).toBeGreaterThanOrEqual(1);
-    // Outside the table, the one place is the sentence of "What goes out" about the recorder that
-    // Guidepup's setup brings with it.
-    expect(html.replace(table, "").match(/guidepup/gi) ?? []).toHaveLength(1);
-    expect(textOf(partOf(html, "privacy-and-security"), "")).toContain(
-      "for Guidepup's recorder on a Mac",
-    );
+    expect(html.replace(table, "").match(/guidepup/gi) ?? []).toEqual([]);
   });
 
   it("says npx also downloads an ffmpeg program voicecap never runs, unless install scripts are off", () => {
@@ -444,7 +439,7 @@ describe("renderTechnical", () => {
     // ffmpeg-static, whose install script downloads ffmpeg. The website's build turns install
     // scripts off with NPM_CONFIG_IGNORE_SCRIPTS (netlify.toml).
     expect(textOf(partOf(html, "privacy-and-security"), "")).toContain(
-      "voicecap itself comes from npm, through npx. npx also downloads, for Guidepup's recorder on a Mac, an ffmpeg program voicecap never runs, unless install scripts are off, as they are in the website's build.",
+      "voicecap itself comes from npm, through npx. npx also downloads, for the screen reader driver's recorder on a Mac, an ffmpeg program voicecap never runs, unless install scripts are off, as they are in the website's build.",
     );
   });
 

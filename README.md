@@ -225,7 +225,7 @@ The "Unlabeled graphic" in two of those lines is the one problem the report find
 
 ## Quick start
 
-voicecap needs **Node.js 22.19 or later** (24 recommended), and nothing else to start: run it with `npx`, as below. npx downloads voicecap the first time and reuses it; `npx @icjia/voicecap@latest …` picks up a newer version. `npx` also installs, for Guidepup's recorder on a Mac, a package that downloads an `ffmpeg` program voicecap never runs (about 80 MB). Set `npm_config_ignore_scripts=true` first to skip it. pnpm is only for developing voicecap, or for the replay demo below.
+voicecap needs **Node.js 22.19 or later** (24 recommended), and nothing else to start: run it with `npx`, as below. npx downloads voicecap the first time and reuses it; `npx @icjia/voicecap@latest …` picks up a newer version. `npx` also installs, for Guidepup's recorder on a Mac, a package that downloads an `ffmpeg` program voicecap never runs (about 30 MB compressed, about 80 MB unpacked). To skip it, run `$env:npm_config_ignore_scripts = "true"` before the `npx` command in PowerShell, or start the command with `npm_config_ignore_scripts=true npx …` in Git Bash or on a Mac. pnpm is only for developing voicecap, or for the replay demo below.
 
 Why voicecap is built the way it is, in three short answers:
 
@@ -410,7 +410,7 @@ To install it anyway: `npm install -g @icjia/voicecap`, and `npm install -g @icj
 
 The command `init` prints always starts with `npx @icjia/voicecap`, so it works on any computer with Node.js. It's quoted for Git Bash, PowerShell, and a Mac's terminal; in cmd, its single quotes must become double quotes (`init` says so when it uses any), or answer "Run it now?" with y, which uses no shell.
 
-npm may say it skipped `ffmpeg-static`'s install script, or it may download ffmpeg (about 30 MB): `@guidepup/setup` can screen-record its own macOS setup with it, which voicecap never does. Either way, voicecap works the same.
+npm may say it skipped `ffmpeg-static`'s install script, or it may download ffmpeg (about 30 MB compressed, about 80 MB unpacked): `@guidepup/setup` can screen-record its own macOS setup with it, which voicecap never does. Either way, voicecap works the same.
 
 </details>
 
