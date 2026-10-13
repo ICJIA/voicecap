@@ -56,6 +56,7 @@ voicecap now records what NVDA said aloud on each page, sealed with the run, wit
   - `preflight`, `doctor`, `init`, `setup`, and each run now warn when such a rule is there, and the README gives the two commands that close the port. The check needs no administrator: it always reads the rules that name Guidepup's NVDA, and a block rule on the port too when Windows lets the account read port rules. A firewall that can't be read is a warning too, never a stop.
   - `setup` says to click Cancel when Windows asks whether NVDA may communicate on networks.
   - `setup` refuses a `GUIDEPUP_SCREEN_READERS_PATH` folder that already holds other files, which Guidepup's installer would delete.
+- **A config written as code runs only when you name it.** voicecap finds `voicecap.config.json` in the folder it runs in, as before. It no longer runs a `voicecap.config.ts`, `.mts`, `.js`, or `.mjs` it finds there, which anyone who can commit to that folder could have put there. It stops and says to write the settings as JSON, or to set `VOICECAP_CONFIG` to the file's path to run it. A config's `nvdaSettings` may no longer set NVDA's Remote Access settings (`remote`), which voicecap's connection to NVDA depends on.
 
 ## [0.17.0] - 2026-10-10
 

@@ -54,6 +54,7 @@ jobs:
         env:
           VOICECAP_TRANSCRIPTS: never-a-test-home
           VOICECAP_REVIEWER: never-a-test-reviewer
+          VOICECAP_CONFIG: never-a-test-config
       - run: pnpm build
 
       - name: Smoke test the CLI with the replay driver

@@ -821,6 +821,11 @@ describe("renderTechnical", () => {
     expect(part("privacy-and-security")).toContain(
       "voicecap starts Windows' own programs (PowerShell, tasklist, taskkill, reg, Explorer) by their full path in the Windows folder, and Windows never looks for a program in the folder voicecap runs in.",
     );
+    // The folder voicecap runs in can be a shared repository's, so a config found there is read as
+    // JSON, and one written as code is never run unless the person names it (loadConfig).
+    expect(part("privacy-and-security")).toContain(
+      "A config is read as JSON from the folder voicecap runs in; one written as code runs only when the person names it.",
+    );
 
     // The rules say their thresholds, and nothing they don't count.
     expect(TECHNICAL_TEXT.rules["repeated-phrase"]).not.toContain("twice");

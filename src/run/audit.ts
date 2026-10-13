@@ -149,7 +149,7 @@ export interface RunAuditOptions {
   cwd?: string;
   /** Where VOICECAP_TRANSCRIPTS is read from. Default: process.env. */
   env?: NodeJS.ProcessEnv;
-  /** Default: voicecap.config.* in cwd. */
+  /** Default: voicecap.config.json in cwd, or the file VOICECAP_CONFIG names (see loadConfig). */
   config?: LoadedConfig;
   logger?: Logger;
   /** Abort to interrupt the run (Ctrl+C): state is saved and the run can be resumed. */

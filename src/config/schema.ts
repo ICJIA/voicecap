@@ -22,6 +22,19 @@ const regexSource = z.string().refine(
 
 const toggle = { enabled: z.boolean() };
 
+/** What a config is told when its nvdaSettings set NVDA's Remote Access settings. */
+const REMOTE_ACCESS_REFUSAL =
+  "voicecap doesn't change NVDA's Remote Access settings (remote): Guidepup's own configuration sets them, and voicecap's connection to NVDA depends on them.";
+
+/**
+ * Whether `name` is the section that holds NVDA's Remote Access settings, `remote`. It is compared
+ * in any case, and with the spaces around it left off: Guidepup writes a section's name as it is
+ * given, and the reader of NVDA's settings file may ignore spaces there.
+ */
+function isRemoteAccessSection(name: string): boolean {
+  return name.trim().toLowerCase() === "remote";
+}
+
 /**
  * The resolved config. Defaults (defaults.ts) are merged under the user's config before this
  * schema validates it, so every field is required here. Unknown keys are errors, to catch typos.
@@ -39,8 +52,17 @@ export const configSchema = z.strictObject({
   }),
   /** "complete" keeps everything NVDA says per keystroke (Guidepup capture: true). */
   capture: z.enum(["complete", "initial"]),
-  /** NVDA settings overrides, applied through Guidepup's start({ settings }) and recorded. */
-  nvdaSettings: z.record(z.string(), z.unknown()),
+  /**
+   * NVDA settings overrides, applied through Guidepup's start({ settings }) and recorded. They may
+   * not set NVDA's Remote Access settings, a section named `remote` in any case: voicecap's
+   * connection to NVDA depends on them, and Guidepup's own configuration sets them.
+   */
+  nvdaSettings: z
+    .record(z.string(), z.unknown())
+    .refine((settings) => !Object.keys(settings).some(isRemoteAccessSection), {
+      path: ["remote"],
+      message: REMOTE_ACCESS_REFUSAL,
+    }),
   readiness: z.strictObject({
     /** Wait for this selector after network idle (Nuxt sites keep rendering after load). */
     readySelector: z.string().min(1).nullable(),

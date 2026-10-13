@@ -1163,12 +1163,8 @@ Beyond its transcripts, each run's `run.json` records:
   - **When there's no copy,** the run goes on. If NVDA's log isn't there, is empty, or can't be read (another program has it locked, say), or began before that NVDA session did (an earlier NVDA's log, left where NVDA couldn't begin its own), or a copy can't be written, the event log records `screen-reader-log` with no file and the reason, and the shareable page says so, with the reason, where it would show the check.
   - **Turning it off.** voicecap starts its NVDA with `general.loggingLevel` at `"IO"`, through Guidepup's own settings and nothing else, and a `general.loggingLevel` you set yourself in `nvdaSettings` wins (see [Configuration](#configuration)). To stop voicecap keeping NVDA's log, set it to `"OFF"` in the config:
 
-    ```ts
-    import { defineConfig } from "@icjia/voicecap";
-
-    export default defineConfig({
-      nvdaSettings: { general: { loggingLevel: "OFF" } },
-    });
+    ```json
+    { "nvdaSettings": { "general": { "loggingLevel": "OFF" } } }
     ```
 
     A run with the log off keeps no copy, or a copy with no speech in it, and its shareable page says that NVDA's log wasn't checked, and why. Each transcript's header records the level NVDA ran with (`loggingLevel="IO"`). In the check at the PC on 6 October 2026, the demo's 21 passes read word for word the same with the log on and off.
@@ -2346,22 +2342,22 @@ In the JSON file of the report for AI tools, each flag carries the WCAG success 
 <details>
 <summary>An example config file, and every setting with its default</summary>
 
-Put a `voicecap.config.ts` (or `.mts`, `.js`, `.mjs`, `.json`) in the folder you run voicecap from. Every setting is optional:
+Put a `voicecap.config.json` in the folder you run voicecap from. Every setting is optional:
 
-```ts
-import { defineConfig } from "@icjia/voicecap";
-
-export default defineConfig({
-  readiness: { readySelector: "#__nuxt main", settleMs: 1000 },
-  reviewer: "Your Name",
-  report: {
-    title: "NVDA transcripts: dvfr.illinois.gov",
-    agency: "Illinois Criminal Justice Information Authority",
-    canonical: "https://dvfr.illinois.gov",
-    logo: "data:image/png;base64,iVBORw0KGgo...",
-  },
-});
+```json
+{
+  "readiness": { "readySelector": "#__nuxt main", "settleMs": 1000 },
+  "reviewer": "Your Name",
+  "report": {
+    "title": "NVDA transcripts: dvfr.illinois.gov",
+    "agency": "Illinois Criminal Justice Information Authority",
+    "canonical": "https://dvfr.illinois.gov",
+    "logo": "data:image/png;base64,iVBORw0KGgo..."
+  }
+}
 ```
+
+A config written as code (`voicecap.config.ts`, `.mts`, `.js`, or `.mjs`, with `defineConfig` for its types) runs only when `VOICECAP_CONFIG` names it (in PowerShell, `$env:VOICECAP_CONFIG = "C:\path\voicecap.config.ts"`), since anyone who can add a file to that folder, such as a shared transcripts repository, could have put one there.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -2370,7 +2366,7 @@ export default defineConfig({
 | `browser.channel` | `"chrome"` | Playwright browser channel; `"chrome"` is the installed Google Chrome. |
 | `browser.fallbackToChromium` | `true` | Use Playwright's Chromium if the channel isn't installed. |
 | `capture` | `"complete"` | `"complete"` keeps everything NVDA says per keystroke; `"initial"` keeps only the first utterance. |
-| `nvdaSettings` | `{}` | NVDA settings overrides (applied through Guidepup's `start({ settings })` and recorded). voicecap also turns NVDA's log on, with `general.loggingLevel` at `"IO"`, unless you set `general.loggingLevel` yourself: `"OFF"` keeps it off (see [What each run records](#what-each-run-records)). And it turns NVDA's notifications off, with `presentation.reportHelpBalloons` at `false`, unless you set that yourself, so that a notification isn't read into a transcript or a recording. |
+| `nvdaSettings` | `{}` | NVDA settings overrides (applied through Guidepup's `start({ settings })` and recorded). It may not set NVDA's Remote Access settings (`remote`). voicecap also turns NVDA's log on, with `general.loggingLevel` at `"IO"`, unless you set `general.loggingLevel` yourself: `"OFF"` keeps it off (see [What each run records](#what-each-run-records)). And it turns NVDA's notifications off, with `presentation.reportHelpBalloons` at `false`, unless you set that yourself, so that a notification isn't read into a transcript or a recording. |
 | `readiness.readySelector` | `null` | Wait for this CSS selector after network idle. |
 | `readiness.settleMs` | `500` | Extra delay after the page is ready. |
 | `readiness.networkIdleTimeoutMs` | `15000` | How long to wait for network idle. |

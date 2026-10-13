@@ -715,6 +715,9 @@ export const TECHNICAL_TEXT = {
             "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser.",
           ],
           [
+            "A config is read as JSON from the folder voicecap runs in; one written as code runs only when the person names it.",
+          ],
+          [
             "What a website, a sitemap, a server, or a record says is printed as text: a control character, an invisible formatting character, or a line separator in it is written as an escape such as ",
             { code: "\\u{1b}" },
             ", so it can't move the cursor, clear the screen, retitle the window, or turn the words around. The warning when the browser can't come to the front names the program in front, never its window's title.",
