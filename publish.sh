@@ -10,11 +10,14 @@ set -euo pipefail
 #                                bump that part of the version and publish
 #   ./publish.sh current         publish package.json's version as is (not yet on npm)
 #   ./publish.sh 1.2.3           publish exactly this version
-#   ./publish.sh minor 123456    also pass an npm 2FA code (skips the prompt for the version, so
-#                                the code doesn't expire while waiting)
 #   ./publish.sh --dry-run [...] run every check and a dry-run publish; change nothing
 #                                (if you're not logged in to npm, it warns instead of
 #                                logging you in)
+#
+# A release is two commands: ./publish.sh --dry-run minor, then ./publish.sh minor (or patch,
+# major, current, or a version). The version is the only argument. A publish asks for npm's 6-digit
+# two-factor code last, just before it publishes: a code lasts about 30 seconds, and the checks
+# take minutes. A dry run asks for no code.
 #
 # Works in Git Bash on Windows as well as on macOS and Linux.
 #
@@ -30,8 +33,9 @@ set -euo pipefail
 #     finds no high or critical advisory in them;
 #   - the packed files are right, with nothing in the package but what this script expects, and the
 #     packed tarball installs and runs.
-# It then shows the commits since the last release and who made them, and asks for the version to be
-# typed. What it publishes is the same tarball it installed and ran in the scratch project.
+# It then shows the commits since the last release and who made them, asks for the version to be
+# typed, and then for npm's two-factor code. What it publishes is the same tarball it installed and
+# ran in the scratch project.
 # If anything fails before the publish, package.json and npm-shrinkwrap.json are restored.
 
 PACKAGE_NAME="@icjia/voicecap"
@@ -56,14 +60,14 @@ POSITIONAL=()
 for arg in "$@"; do
   if [[ "$arg" == "--dry-run" ]]; then DRY_RUN=true; else POSITIONAL+=("$arg"); fi
 done
+# The version is the only argument. npm's two-factor code is asked for just before the publish.
+if [[ ${#POSITIONAL[@]} -gt 1 ]]; then
+  die "publish.sh takes one version at most (patch, minor, major, current, or a version like 1.2.3). It asks for npm's two-factor code itself, just before it publishes."
+fi
 BUMP="${POSITIONAL[0]:-}"
-OTP="${POSITIONAL[1]:-}"
 
 if [[ -n "$BUMP" && ! "$BUMP" =~ ^(patch|minor|major|current|[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
   die "Unknown version '$BUMP'. Use patch, minor, major, current, or a version like 1.2.3."
-fi
-if [[ -n "$OTP" && ! "$OTP" =~ ^[0-9]{6}$ ]]; then
-  warn "The 2FA code '$OTP' isn't 6 digits; passing it to npm anyway."
 fi
 
 # Read package.json with Node (the package is "type": "module", so force CommonJS here).
@@ -295,25 +299,30 @@ fi
 
 # ─── Confirm ────────────────────────────────────────────────────────
 
-if [[ -z "$OTP" ]]; then
-  echo ""
-  if [[ "$FIRST_TIME" == true ]]; then
-    warn "About to publish $PACKAGE_NAME@$NEW_VERSION for the FIRST TIME (public)."
-  else
-    warn "About to publish $PACKAGE_NAME@$NEW_VERSION."
-  fi
-  read -r -p "To publish it, type the version ($NEW_VERSION): " REPLY
-  [[ "$REPLY" == "$NEW_VERSION" ]] || {
-    info "Aborted. Nothing was published."
-    exit 0
-  }
+echo ""
+if [[ "$FIRST_TIME" == true ]]; then
+  warn "About to publish $PACKAGE_NAME@$NEW_VERSION for the FIRST TIME (public)."
+else
+  warn "About to publish $PACKAGE_NAME@$NEW_VERSION."
 fi
+read -r -p "To publish it, type the version ($NEW_VERSION): " REPLY
+[[ "$REPLY" == "$NEW_VERSION" ]] || {
+  info "Aborted. Nothing was published."
+  exit 0
+}
 
 # ─── Publish ────────────────────────────────────────────────────────
 
+# npm asks every publish for a fresh two-factor code, and a code lasts about 30 seconds, so it's
+# asked for now, after every check and the typed version. A code that isn't 6 digits, or none at
+# all, stops the release here, with nothing published.
+read -r -p "npm's 6-digit two-factor code: " OTP || OTP=""
+[[ "$OTP" =~ ^[0-9]{6}$ ]] ||
+  die "That isn't a 6-digit code, so nothing was published. Run the same ./publish.sh command again, and type npm's code when it asks."
+
 # The tarball that was installed and run above, not a new one packed from the folder. The checks
 # above already ran, so skip prepublishOnly rather than run them all again.
-npm publish "$TARBALL" --access public --ignore-scripts ${OTP:+--otp "$OTP"}
+npm publish "$TARBALL" --access public --ignore-scripts --otp "$OTP"
 PUBLISHED=true
 rm -rf "$SCRATCH"
 info "Published $PACKAGE_NAME@$NEW_VERSION."

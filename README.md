@@ -1552,7 +1552,7 @@ voicecap runs on your own computer, starts a real screen reader, and writes reco
 **How voicecap's own repository and package are set up.** This is what was set up on 11 October 2026, and what to do for your own transcripts repository:
 
 - **ICJIA/voicecap on GitHub.** A ruleset protects `main`: it can't be deleted or force-pushed, and only the repository's admins can update it. Secret scanning and push protection are on, and so are private vulnerability reporting and Dependabot's security updates. From 0.18.0, `.github/dependabot.yml` also has Dependabot check every week for newer packages and newer versions of the actions CI runs, and open a pull request for each. Nothing merges until a person does.
-- **@icjia/voicecap on npm.** Publishing requires two-factor authentication, and no token can publish. A maintainer publishes each release by hand, with a fresh 6-digit code (see [Publishing to npm](#publishing-to-npm)). Each release also pins every dependency exactly and carries an `npm-shrinkwrap.json`, as above.
+- **@icjia/voicecap on npm.** Publishing requires two-factor authentication, and no token can publish. A maintainer publishes each release by hand, with a fresh 6-digit code, which `publish.sh` asks for just before it publishes (see [Publishing to npm](#publishing-to-npm)). Each release also pins every dependency exactly and carries an `npm-shrinkwrap.json`, as above.
 - **Your transcripts repository.** Keep it private. Protect `main` with the same ruleset where your GitHub plan allows it. GitHub asks for a paid plan for rules on an organization's private repository. The ruleset takes four steps:
   1. Open the repository's **Settings → Rules → Rulesets → New branch ruleset**.
   2. Name it `main`, set Enforcement to **Active**, and under Target choose **Include default branch**.
@@ -2630,14 +2630,13 @@ On Windows, `VOICECAP_SOUND_TEST=1` makes `pnpm test` also run the tests of the 
 <details>
 <summary>How <code>publish.sh</code> works, and what it checks before publishing</summary>
 
-Always publish with `publish.sh`, from an up-to-date `main`. It's a bash script, so on Windows run it from Git Bash. Add the release to `CHANGELOG.md` first (move items from `[Unreleased]` under `## [x.y.z] - date`).
+Always publish with `publish.sh`, from an up-to-date `main`. It's a bash script, so on Windows run it from Git Bash. Add the release to `CHANGELOG.md` first (move items from `[Unreleased]` under `## [x.y.z] - date`). A release is then two commands: `./publish.sh --dry-run minor`, and, once that has passed, `./publish.sh minor`, which asks for the version to be typed, then for npm's 6-digit two-factor code. The version is the only argument.
 
 | Command | What it does |
 | --- | --- |
-| `./publish.sh --dry-run` | Every check, plus a dry-run publish. It shows the commits since the last release and who made them. It changes nothing, and doesn't log you in to npm. |
+| `./publish.sh --dry-run minor` | Every check for the next minor version, plus a dry-run publish. It shows the commits since the last release and who made them. It changes nothing, doesn't log you in to npm, and asks for no code. `./publish.sh --dry-run` alone checks the next patch version. |
 | `./publish.sh` | The first publish: package.json's version. Afterwards: the next patch version. |
 | `./publish.sh minor` | Or `patch`, `major`, `current`, or an exact version like `1.2.3`. |
-| `./publish.sh minor 123456` | With an npm 2FA code, which skips the prompt for the version. |
 
 It stops before publishing unless:
 - you're logged in to npm, the version isn't published yet, and `CHANGELOG.md` has an entry for it;
@@ -2647,9 +2646,9 @@ It stops before publishing unless:
 - the package contains `dist/`, with `dist/release-facts.json`, the demo site, `npm-shrinkwrap.json`, and the docs, and nothing else (no source, tests, or fixtures);
 - the packed tarball installs in a scratch project, with npm's install scripts off, and `voicecap --version` prints the new version.
 
-Then it lists the commits since the last release and who made them (a dry run does too), and asks for the version to be typed; giving a 2FA code skips the question. What it publishes is the same tarball it installed and ran in the scratch project, not a new one.
+Then it lists the commits since the last release and who made them (a dry run does too), and asks for the version to be typed. Last, just before it publishes, it asks for npm's 6-digit two-factor code: a code lasts about 30 seconds, and the checks before it take minutes, so a code given at the start would have run out. A code that isn't 6 digits stops it there, with nothing published. A dry run asks for neither. What it publishes is the same tarball it installed and ran in the scratch project, not a new one.
 
-**Publishing access.** The `@icjia/voicecap` package's **Publishing access** setting on npmjs.com is "Require two-factor authentication and disallow tokens", so a publish needs a fresh 6-digit code, and no token can publish. `npm publish` takes the code with `--otp`, and `publish.sh` passes on the code it is given as its second argument (`./publish.sh minor 123456`). The setting was made on 11 October 2026 (see [Security](#security)).
+**Publishing access.** The `@icjia/voicecap` package's **Publishing access** setting on npmjs.com is "Require two-factor authentication and disallow tokens", so a publish needs a fresh 6-digit code, and no token can publish. `npm publish` takes the code with `--otp`, and `publish.sh` passes on the code it asks for just before it publishes. The setting was made on 11 October 2026 (see [Security](#security)).
 
 It restores `package.json` and `npm-shrinkwrap.json` if anything fails before publishing. After publishing it commits the version bump and `npm-shrinkwrap.json`, tags `vX.Y.Z`, and pushes.
 
