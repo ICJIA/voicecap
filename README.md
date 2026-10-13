@@ -1518,7 +1518,7 @@ voicecap runs on your own computer, starts a real screen reader, and writes reco
 - **Your account's name stays out of the records and the pages.** A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone, and the errors and reasons a run keeps write your home folder as `%USERPROFILE%` (or `~`) and the temp folder as `%TEMP%` (see [What each run records](#what-each-run-records)).
 - **A shared page carries a transcript only when it's as its run recorded it.** A transcript, screenshot, axe result, recording, event log, or copy of NVDA's log whose file has changed since it was recorded, or is a link, is left out. The page says so, and `voicecap verify` names it (see [The shareable page](#the-shareable-page)).
 - **NVDA's voice is kept only from a clean, finished attempt.** A recording is kept only when its attempt finished with voicecap's browser in front, and only the stretches from each pass's title check to its last step (see [NVDA's voice](#nvdas-voice)). voicecap also starts its NVDA with notifications off (`presentation.reportHelpBalloons: false`; see [Configuration](#configuration)), and deletes NVDA's raw log once it has read and cleaned it (see [What each run records](#what-each-run-records)).
-- **A config written as code runs only when you name it.** voicecap finds `voicecap.config.json` in the folder it runs in. It runs a config written as code (`.ts`, `.mts`, `.js`, or `.mjs`) only when `VOICECAP_CONFIG` names it, and no config can change NVDA's Remote Access settings (see [Configuration](#configuration)).
+- **A config written as code runs only when you name it.** voicecap finds `voicecap.config.json` in the folder it runs in. It runs a config written as code (`.ts`, `.mts`, `.js`, or `.mjs`) only when `VOICECAP_CONFIG` names it by its full path, and no config can change NVDA's Remote Access settings (see [Configuration](#configuration)).
 - **Each release installs the same packages for everyone.** voicecap's own dependencies are pinned to the exact versions the release was checked with, and each release carries an `npm-shrinkwrap.json`, made and audited when it is published, that fixes every package beneath them (see [Publishing to npm](#publishing-to-npm)).
 - **The website is built by one exact version of voicecap, with install scripts off.** The `netlify.toml` that `voicecap site` writes names the version (`@icjia/voicecap@0.18.0`, say) and turns npm's install scripts off for the build (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
 
@@ -2433,7 +2433,7 @@ Put a `voicecap.config.json` in the folder you run voicecap from. Every setting 
 }
 ```
 
-A config written as code (`voicecap.config.ts`, `.mts`, `.js`, or `.mjs`, with `defineConfig` for its types) runs only when `VOICECAP_CONFIG` names it (in PowerShell, `$env:VOICECAP_CONFIG = "C:\path\voicecap.config.ts"`), since anyone who can add a file to that folder, such as a shared transcripts repository, could have put one there.
+A config written as code (`voicecap.config.ts`, `.mts`, `.js`, or `.mjs`, with `defineConfig` for its types) runs only when `VOICECAP_CONFIG` names it by its full path (in PowerShell, `$env:VOICECAP_CONFIG = "C:\path\voicecap.config.ts"`), since anyone who can add a file to that folder, such as a shared transcripts repository, could have put one there. A relative path is refused: set once, in a profile, it would name a file in whichever folder voicecap runs in.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |

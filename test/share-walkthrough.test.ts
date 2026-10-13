@@ -1672,6 +1672,18 @@ describe("parseWalkthrough", () => {
     // A CSS selector that quotes the chain's mark in an attribute is refused as well, which is
     // accepted: the pattern doesn't read a selector's quotes.
     ["a CSS selector that quotes >> in an attribute", 'a[title=">> next"]'],
+    // Playwright reads any selector whose words before its first "=" are only letters, digits, "_",
+    // "-", "+", ":", and "*" as an engine and what it's given, a leading "*" marking a capture.
+    ["a text engine", "text=a"],
+    ["an XPath engine", "xpath=//a"],
+    ["the CSS engine, named", "css=a"],
+    ["a text engine that captures, with a regular expression", "*text=/(a+)+$/"],
+    ["an XPath engine that captures", "*xpath=//main"],
+    ["a React engine", "_react=x"],
+    ["a React engine with an attribute", "_react=App[a = /(a+)+$/]"],
+    ["a Vue engine", "_vue=x"],
+    ["an engine with a plus in its name", "a+b=x"],
+    ["an engine with spaces around its name", "  _react  =x"],
   ])("refuses a ready selector that is %s, as not plain CSS", (_name, selector) => {
     const walkthrough = withReadySelector(valid(), selector);
 
@@ -1698,6 +1710,11 @@ describe("parseWalkthrough", () => {
     ["a pseudo-element", "p::first-line"],
     ["a path through an attribute value", '[href="//main"]'],
     ["a leading space, then CSS", "  #main"],
+    // An "=" in plain CSS is in an attribute selector, after its "[".
+    ["an attribute with an unquoted value of letters", "[data-x=y]"],
+    ["an attribute whose quoted value holds an equals sign", 'a[href="x=y"]'],
+    ["a tag and a class", "div.a"],
+    ["an attribute after a universal selector", "*[data-x=y]"],
   ])("takes a ready selector that is %s", (_name, selector) => {
     const walkthrough = withReadySelector(valid(), selector);
 

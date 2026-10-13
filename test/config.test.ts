@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -172,21 +172,57 @@ describe("loadConfig", () => {
   });
 
   describe("the file VOICECAP_CONFIG names", () => {
-    it("is trimmed, and a relative path is resolved against the folder voicecap runs in", async () => {
+    it("is trimmed", async () => {
       const dir = await tmp();
-      await writeFile(
-        path.join(dir, "mine.config.ts"),
-        'export default { reviewer: "Relative" };\n',
-      );
+      const file = path.join(dir, "mine.config.ts");
+      await writeFile(file, 'export default { reviewer: "Trimmed" };\n');
 
-      const loaded = await loadConfig({
-        cwd: dir,
-        env: { VOICECAP_CONFIG: "  mine.config.ts \t" },
-      });
+      const loaded = await loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: `  ${file} \t` } });
 
-      expect(loaded.file).toBe(path.join(dir, "mine.config.ts"));
-      expect(loaded.config.reviewer).toBe("Relative");
+      expect(loaded.file).toBe(file);
+      expect(loaded.config.reviewer).toBe("Trimmed");
     });
+
+    // Set once, in a profile, a relative path would name a file in whichever folder voicecap runs
+    // in, as a shared transcripts repository can be: so only a full path names a config.
+    it("is refused when it isn't a full path, and the file it would name is not run", async () => {
+      const dir = await tmp();
+      const marker = path.join(dir, "ran.txt");
+      await writeFile(path.join(dir, "mine.config.ts"), markedConfig(marker));
+      await mkdir(path.join(dir, "sub"));
+      await writeFile(path.join(dir, "sub", "mine.config.ts"), markedConfig(marker));
+
+      for (const relative of [
+        "mine.config.ts",
+        "./mine.config.ts",
+        "sub/mine.config.ts",
+        " mine.config.ts ",
+      ]) {
+        const refused = loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: relative } });
+        await expect(refused, relative).rejects.toThrow(ConfigError);
+        await expect(refused, relative).rejects.toThrow(
+          `VOICECAP_CONFIG must be a full path (it is "${relative.trim()}"), so that it names one file wherever voicecap runs.`,
+        );
+      }
+      expect(existsSync(marker)).toBe(false);
+    });
+
+    // Git Bash writes C:\Users\jane as /c/Users/jane, and voicecap reads that form on Windows.
+    it.skipIf(process.platform !== "win32")(
+      "takes Git Bash's way of writing a full path, on Windows",
+      async () => {
+        const dir = await tmp();
+        const file = path.join(dir, "bash.config.json");
+        await writeFile(file, '{ "reviewer": "Git Bash" }');
+        const bashForm = `/${dir[0]!.toLowerCase()}${dir.slice(2).replaceAll(path.win32.sep, "/")}/bash.config.json`;
+
+        const loaded = await loadConfig({ cwd: await tmp(), env: { VOICECAP_CONFIG: bashForm } });
+
+        expect(bashForm).toMatch(/^\/[a-z]\//);
+        expect(loaded.file).toBe(file);
+        expect(loaded.config.reviewer).toBe("Git Bash");
+      },
+    );
 
     it("can be in another folder, and then the folder's own code config is not run", async () => {
       const here = await tmp();
@@ -213,7 +249,10 @@ describe("loadConfig", () => {
       await writeFile(path.join(dir, "voicecap.config.json"), '{ "reviewer": "From Json" }');
       await writeFile(path.join(dir, "named.json"), '{ "reviewer": "Named Json" }');
 
-      const loaded = await loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: "named.json" } });
+      const loaded = await loadConfig({
+        cwd: dir,
+        env: { VOICECAP_CONFIG: path.join(dir, "named.json") },
+      });
 
       expect(loaded.file).toBe(path.join(dir, "named.json"));
       expect(loaded.config.reviewer).toBe("Named Json");
@@ -227,7 +266,7 @@ describe("loadConfig", () => {
       const loaded = await loadConfig({
         cwd: dir,
         file: "option.json",
-        env: { VOICECAP_CONFIG: "env.json" },
+        env: { VOICECAP_CONFIG: path.join(dir, "env.json") },
       });
 
       expect(loaded.file).toBe(path.join(dir, "option.json"));

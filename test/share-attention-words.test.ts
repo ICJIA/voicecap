@@ -916,6 +916,27 @@ describe("the path forward", () => {
     ).toEqual(["Run voicecap again on these pages, starting with --page /b/."]);
   });
 
+  // A page's path is the site's own words, and the hint is pasted into PowerShell or Git Bash: a
+  // path that holds anything a shell reads is quoted, and a single quote in it is written %27.
+  it("quotes the first page's path in the option it names, so nothing in it runs", () => {
+    const at = (path: string): AttentionCard["pages"] => [{ ...cardPage("a"), path }];
+    expect(attentionWords(cardOf("skip-link", { pages: at("/x?$(calc)") })).path).toContain(
+      "Run voicecap again on one page (--page '/x?$(calc)'), then on every page.",
+    );
+    expect(attentionWords(cardOf("recorded", { subject: "x", pages: at("/a;b") })).path).toEqual([
+      "Run voicecap again on the page (--page '/a;b').",
+    ]);
+    expect(
+      attentionWords(
+        cardOf("recorded", { subject: "x", pages: [...at("/o'brien/"), cardPage("b")] }),
+      ).path,
+    ).toEqual(["Run voicecap again on these pages, starting with --page /o%27brien/."]);
+    // A query's "?" is quoted too, since Git Bash would read it as a wildcard.
+    expect(attentionWords(cardOf("recorded", { subject: "x", pages: at("/a/?p=2") })).path).toEqual(
+      ["Run voicecap again on the page (--page '/a/?p=2')."],
+    );
+  });
+
   it("has two steps for a read that stopped, for each page when there are more", () => {
     expect(attentionWords(cardOf("read-stopped", { pages: pagesOf(1) })).path).toEqual([
       "Run the page again with --page.",

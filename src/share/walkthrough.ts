@@ -10,12 +10,12 @@
  * it), a page's label, template, or notes with a control character, an invisible formatting
  * character, or a line separator in it (a tab, a line break, and the zero-width joiner and
  * non-joiner are fine), a ready selector over 1,024 characters, with a control or format character
- * in it, or that isn't plain CSS (Playwright's own selectors, such as `text=` or `xpath=`), a run id
- * made of anything but a run id's characters, NVDA settings nested too deep, a step limit over
- * 100,000, or a readiness time over ten minutes (600,000 milliseconds) refuses the whole file,
- * saying what's wrong and where, before anything runs. `walkthroughProblem` gives that same reason
- * for a walkthrough in hand, so a writer can say why a file of it couldn't be read back before it
- * writes one.
+ * in it, or that isn't plain CSS (Playwright's own selectors: an engine named, such as `text=`,
+ * `xpath=`, `_react=`, or `*css=`, or a chain of them with `>>`), a run id made of anything but a
+ * run id's characters, NVDA settings nested too deep, a step limit over 100,000, or a readiness
+ * time over ten minutes (600,000 milliseconds) refuses the whole file, saying what's wrong and
+ * where, before anything runs. `walkthroughProblem` gives that same reason for a walkthrough in
+ * hand, so a writer can say why a file of it couldn't be read back before it writes one.
  *
  * The file goes to auditors, and into the shareable page, so it holds no folders: the file of a
  * page list, or of a walkthrough, is kept by its name alone, since a path can carry the person's
@@ -932,18 +932,39 @@ const UNSAFE_IN_A_SELECTOR = /[\p{Cc}\p{Cf}]/u;
 
 /**
  * What marks a ready selector as one of Playwright's own, which aren't CSS and which a file may not
- * use: an engine, named (`text=Ready`, `xpath=//main`, `internal:text="x"`, `data-testid=save`,
- * `role=button`), an XPath written as one (`//main`, `../main`), a group (`(//main)[1]`), a quoted
- * text (`"Ready"`), a chain of selectors (`main >> text=Ready`), or one of its pseudo-classes
- * (`:has-text()`, `:text()`, `:text-is()`, `:text-matches()`, `:nth-match()`, `:visible`,
- * `:left-of()`, `:right-of()`, `:above()`, `:below()`, `:near()`). Real CSS has none of these at its
- * start, but a CSS selector that quotes `>>` or `:text(` in an attribute's value is refused too,
- * which is accepted. It's tried on a selector of at most MAX_SELECTOR_LENGTH characters, and each
- * part of it that can match many ways is ended by a character the next part can't start with, so
- * the time it takes is in proportion to the selector's length.
+ * use, besides an engine named (namesAnEngine): an XPath written as one (`//main`, `../main`), a
+ * group (`(//main)[1]`), a quoted text (`"Ready"`), a chain of selectors (`main >> text=Ready`), or
+ * one of its pseudo-classes (`:has-text()`, `:text()`, `:text-is()`, `:text-matches()`,
+ * `:nth-match()`, `:visible`, `:left-of()`, `:right-of()`, `:above()`, `:below()`, `:near()`).
+ * Real CSS has none of these at its start, and no `>>` anywhere, but a CSS selector that quotes
+ * `>>` or `:text(` in an attribute's value is refused too, which is accepted. It's tried on a
+ * selector of at most MAX_SELECTOR_LENGTH characters, and each part of it that can match many ways
+ * is ended by a character the next part can't start with, so the time it takes is in proportion to
+ * the selector's length.
  */
 const PLAYWRIGHT_ONLY =
-  /^\s*(?:[a-z][a-z0-9_-]*(?::[a-z][a-z0-9_-]*)*\s*=|\/|\.\.|\(|["'])|>>|:(?:has-text|text|text-is|text-matches|nth-match|visible|left-of|right-of|above|below|near)\b/i;
+  /^\s*(?:\/|\.\.|\(|["'])|>>|:(?:has-text|text|text-is|text-matches|nth-match|visible|left-of|right-of|above|below|near)\b/i;
+
+/**
+ * The words before a selector's first `=` that make Playwright read the selector as one of its
+ * engines and what it's given: only letters, digits, `_`, `-`, `+`, `:`, and `*`, once trimmed.
+ * This is Playwright's own rule, `/^[a-zA-Z_0-9-+:*]+$/`, in `parseSelectorString` (Playwright
+ * 1.63, packages/isomorphic/selectorParser.ts; playwright-core's lib/coreBundle.js), which also
+ * drops a leading `*` from the engine's name, as the mark of a capture.
+ */
+const AN_ENGINES_NAME = /^[A-Za-z0-9_+:*-]+$/;
+
+/**
+ * Whether Playwright reads `selector` as an engine, named: `text=Ready`, `xpath=//main`, `css=a`,
+ * `internal:text="x"`, `data-testid=save`, `_react=App`, `_vue=App`, or `*xpath=//main`.
+ * Playwright tries the rule on each part of a selector between `>>` marks, and a ready selector may
+ * have none (PLAYWRIGHT_ONLY), so the whole selector is its one part. In plain CSS an `=` is in an
+ * attribute selector, after its `[` (`[data-ready=true]`, `a[href="x=y"]`), so no CSS names one.
+ */
+function namesAnEngine(selector: string): boolean {
+  const equals = selector.indexOf("=");
+  return equals !== -1 && AN_ENGINES_NAME.test(selector.slice(0, equals).trim());
+}
 
 /**
  * What's wrong with how an address is written, before it's parsed, as a reason that names it
@@ -969,7 +990,7 @@ function selectorProblem(selector: string): string | null {
     return `${subject} is longer than ${MAX_SELECTOR_LENGTH.toLocaleString("en-US")} characters`;
   }
   if (UNSAFE_IN_A_SELECTOR.test(selector)) return `${subject} has a control character in it`;
-  return PLAYWRIGHT_ONLY.test(selector)
+  return namesAnEngine(selector) || PLAYWRIGHT_ONLY.test(selector)
     ? `${subject} isn't plain CSS: a walkthrough file can't use Playwright's own selectors (text=, xpath=, >>)`
     : null;
 }

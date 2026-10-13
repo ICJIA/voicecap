@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
 
 import { ConfigError, errorMessage } from "../util/errors.js";
-import { resolveUserPath } from "../util/git-bash.js";
+import { fromGitBash, resolveUserPath } from "../util/git-bash.js";
 import { hashJson } from "../util/hash.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { configSchema, type UserConfig, type VoicecapConfig } from "./schema.js";
@@ -42,8 +42,9 @@ export function defineConfig(config: UserConfig): UserConfig {
  * Load a config, merged over the defaults. The file read is, in this order:
  *
  * 1. `file`;
- * 2. the file `env.VOICECAP_CONFIG` names, trimmed and resolved against `cwd` (`env` is
- *    `process.env` unless the caller gives one);
+ * 2. the file `env.VOICECAP_CONFIG` names, trimmed, by its full path (Git Bash's `/c/...` form
+ *    too). A relative path is refused with a ConfigError: set once, in a profile, it would name a
+ *    file in whichever folder voicecap runs in. `env` is `process.env` unless the caller gives one;
  * 3. `voicecap.config.json` in `cwd`.
  *
  * A config written as code (`.ts`, `.mts`, `.js`, `.mjs`) runs only when it's named, by 1 or 2. One
@@ -98,7 +99,12 @@ export function resolveConfig(user: unknown, source: string | null = null): Voic
   return result.data;
 }
 
-/** The config file the caller named with `file` or `VOICECAP_CONFIG`, or null when it named none. */
+/**
+ * The config file the caller named with `file` or `VOICECAP_CONFIG`, or null when it named none.
+ * `VOICECAP_CONFIG` must be a full path, once Git Bash's form is read (fromGitBash), or it's
+ * refused: a relative one names a file in the folder voicecap runs in, which can be a folder many
+ * people write to, such as a shared transcripts repository.
+ */
 function namedConfigFile(
   cwd: string,
   file: string | undefined,
@@ -106,7 +112,13 @@ function namedConfigFile(
 ): string | null {
   if (file) return path.resolve(cwd, file);
   const fromEnv = env.VOICECAP_CONFIG?.trim();
-  return fromEnv ? resolveUserPath(cwd, fromEnv) : null;
+  if (!fromEnv) return null;
+  if (!path.isAbsolute(fromGitBash(fromEnv))) {
+    throw new ConfigError(
+      `VOICECAP_CONFIG must be a full path (it is "${fromEnv}"), so that it names one file wherever voicecap runs.`,
+    );
+  }
+  return resolveUserPath(cwd, fromEnv);
 }
 
 /**
