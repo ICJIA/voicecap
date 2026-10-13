@@ -6,7 +6,9 @@
  * built (scripts/copy-fonts.mjs copies them there).
  *
  * The page embeds them as data URIs in its one style block, so it needs nothing from outside the
- * file.
+ * file. The rules begin with one comment that carries each family's copyright line, as the license
+ * file has it, and the license's name and address, so the page holds their notice as well as the
+ * fonts themselves.
  */
 import { readFile } from "node:fs/promises";
 
@@ -29,6 +31,15 @@ const FACES: Face[] = [
   { family: "IBM Plex Mono", style: "normal", weight: 500 },
 ];
 
+/**
+ * The comment the rules begin with: each family's copyright line, in the words and with the year
+ * the license file has it (fonts/OFL.txt, which has no Reserved Font Name), and then the license's
+ * name and address, so that a copy of the fonts in a page carries their notice. The license's full
+ * text ships beside the fonts, and a test holds this comment to that file.
+ */
+const NOTICE =
+  "/* IBM Plex Sans: Copyright 2019 IBM Corp. All rights reserved. IBM Plex Sans Condensed: Copyright 2019 IBM Corp. All rights reserved. IBM Plex Mono: Copyright 2017 IBM Corp. All rights reserved. SIL Open Font License 1.1: https://openfontlicense.org */";
+
 /** A face's file, as @fontsource names it: "ibm-plex-sans-latin-400-italic.woff2". */
 function fileOf({ family, style, weight }: Face): string {
   return `${family.toLowerCase().replaceAll(" ", "-")}-latin-${weight}-${style}.woff2`;
@@ -45,12 +56,13 @@ let cached: Promise<string> | undefined;
 
 /**
  * The nine `@font-face` rules, one a line, each with its file as a `data:font/woff2;base64,…`
- * source. The files are read once, and the rules kept; a read that failed (a file another program
- * held, say) isn't kept, so the next page reads them again.
+ * source, after the one comment with the fonts' copyright lines and license. The files are read
+ * once, and the rules kept; a read that failed (a file another program held, say) isn't kept, so the
+ * next page reads them again.
  */
 export function fontFaceCss(): Promise<string> {
   cached ??= Promise.all(FACES.map(faceRule))
-    .then((rules) => rules.join("\n"))
+    .then((rules) => [NOTICE, ...rules].join("\n"))
     .catch((error: unknown) => {
       cached = undefined;
       throw error;

@@ -119,6 +119,14 @@ const FACES = [
   ["IBM Plex Mono", "normal", "500", "ibm-plex-mono-latin-500-normal.woff2"],
 ] as const;
 
+/**
+ * The fonts' copyright and license, as the comment their rules begin with says it: each family's
+ * copyright line as the license file (fonts/OFL.txt) has it, with its year, and then the license's
+ * name and address.
+ */
+const PLEX_LINE =
+  "/* IBM Plex Sans: Copyright 2019 IBM Corp. All rights reserved. IBM Plex Sans Condensed: Copyright 2019 IBM Corp. All rights reserved. IBM Plex Mono: Copyright 2017 IBM Corp. All rights reserved. SIL Open Font License 1.1: https://openfontlicense.org */";
+
 const LINK_FLAG: FlagResult = {
   rule: "generic-link-text",
   pass: "read",
@@ -884,18 +892,33 @@ describe("renderSharePage", () => {
     // these Word copies' blocks exactly, and these pages but for the fingerprint check's script,
     // which plan 11 widened to check the recordings the voice page plays: each page here is 2,023
     // characters longer than 0.17.0's, all of them in that script.
+    // Task 6 of the security fixes re-pinned the demo's page and Word copy once more, 58 characters
+    // longer each: the command that repeats a run read at an IP address names that address
+    // (`--site http://127.0.0.1:4848`, 29 characters), as the program asks of a repeat of such a file,
+    // and the demo's two runs each have one. The other two models are of sites people visit.
+    // Task 10 of the security fixes re-pinned all three, since the test environment's rows now say
+    // "the screen reader driver" where a run's record names the library that drives the screen
+    // reader (8 characters). Each page and each Word copy grew by 16 characters for every place it
+    // does so: one for i2i and for the logged run (their Driver row), and four for the demo (its two
+    // runs' Driver rows and their lines on NVDA's settings). The fonts are left out of the page here,
+    // so the comment they begin with changes none of these.
+    // Task 15 of the security fixes re-pinned the three pages' SHA-256 once more, and nothing else:
+    // a card's fold of its page's transcripts names its page after the words it shows (WCAG 2.5.3,
+    // label in name), so the hidden words that name the page (` of /about/`) now follow the line's
+    // two visible parts and no longer sit inside the first. The same characters are in another
+    // order, so each page is as long as before, and the Word copies' blocks are as they were.
     const before = {
       i2i: {
-        page: [218_310, "9dab1a17157d6444830100140971c9bd2e0e727ed0c7e2a71ce5de5b3a62021d"],
-        word: [59_899, "f274eebbb73909a793c5b92f17b4f9a7534a6a02a7f20a8a7a4cd8b312052a51"],
+        page: [218_326, "c3c66e9513354861f068ffb4a0065164bc69e768ce07398be4c8cbb4683c381b"],
+        word: [59_915, "71c51e3d96e44ba28288a240af30acfc786180b1fb042bd2cad8ee0c99eeaa1e"],
       },
       demo: {
-        page: [252_746, "51be6f52ffc2ab68621a16a627b394e2d60881fd07e6e04c736dc9a4ec2bcd82"],
-        word: [82_631, "f4716a7a51c53e74df6ddcf9d6dc53cf2e4f8f3c831001a7c24321bce9168a99"],
+        page: [252_868, "041801ddefdcd66735a6de3862fa5bbc6f566570513800f52d1f266091f9dd5a"],
+        word: [82_753, "5e1937c51573450a920fd77b62ac6b81bb7c9773eef963f2fd36f536e38dad93"],
       },
       logged: {
-        page: [135_240, "a17efc62e175dffa6a7b75c8ef0bc851098e5bce570b1d4a1f40b5ac18b252ed"],
-        word: [41_401, "c786f55d90df597ff6e4f9fb8a5c3d0d962ef3d64424f03836388a3bc9dd03de"],
+        page: [135_256, "61b6b6674c0417820f8f1ee9de0713353a51eade3e32158190e844cfbe058d42"],
+        word: [41_417, "3f431c5299bf2ac1035ec609b9b85b1faf4b95410859f9e8b95666e11e59a0f0"],
       },
     };
     const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };
@@ -1054,6 +1077,17 @@ describe("renderSharePage", () => {
     );
   });
 
+  it("carries the IBM Plex fonts' copyright lines and license once, at the top of its style", () => {
+    for (const { name, html } of pages) {
+      const style = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? "";
+
+      expect(style.startsWith(`\n${PLEX_LINE}\n@font-face`), name).toBe(true);
+      expect(style.split(PLEX_LINE), name).toHaveLength(2);
+      // Nowhere else in the page.
+      expect(html.split(PLEX_LINE), name).toHaveLength(2);
+    }
+  });
+
   it("opens with the skip link to the main content, and ends with the one script", () => {
     for (const { name, html } of pages) {
       const body = html.slice(html.indexOf("<body>") + "<body>".length).trimStart();
@@ -1194,6 +1228,38 @@ describe("fontFaceCss", () => {
     for (const family of new Set(FACES.map(([family]) => family))) {
       expect(SHARE_CSS).toContain(`"${family}"`);
     }
+  });
+
+  it("begins with one comment that carries the IBM Plex copyright lines and license", async () => {
+    const css = await fontFaceCss();
+
+    expect(css.startsWith(`${PLEX_LINE}\n@font-face`)).toBe(true);
+    expect(css.split(PLEX_LINE)).toHaveLength(2);
+    // The comment can't end itself early, or the page's style, or open an HTML comment in it.
+    expect(PLEX_LINE.slice(2, -2)).not.toMatch(/\*\/|<\/style|<!--/i);
+  });
+
+  it("gives each family's copyright line as the license file has it, in its words and with its year", async () => {
+    const licence = await readFile(path.join(FONTS, "OFL.txt"), "utf8");
+    // The file begins each family's notice with its name and package, and its copyright line next.
+    const lines = [
+      ...licence.matchAll(
+        /^(IBM Plex [^\n(]+) \(@fontsource\/[^)\n]+\):\n(Copyright \d{4} IBM Corp\. All rights reserved\.)/gm,
+      ),
+    ].map(([, family, copyright]) => ({ family, line: `${family}: ${copyright}` }));
+    const css = await fontFaceCss();
+    const comment = `/* ${lines.map(({ line }) => line).join(" ")} SIL Open Font License 1.1: https://openfontlicense.org */`;
+
+    // One for each family the page embeds, in the order the file gives them.
+    expect(lines.map(({ family }) => family)).toEqual([
+      ...new Set(FACES.map(([family]) => family)),
+    ]);
+    expect(css.startsWith(`${comment}\n@font-face`)).toBe(true);
+    expect(PLEX_LINE).toBe(comment);
+    // The file names no Reserved Font Name for the fonts (its text only defines the term), so the
+    // comment names none.
+    expect(licence).not.toMatch(/with Reserved Font Name/i);
+    expect(css).not.toMatch(/Reserved Font Name/i);
   });
 
   it("reads the files once", () => {

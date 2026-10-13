@@ -6,7 +6,7 @@
  * it, and reads nothing itself.
  */
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { VoicecapConfig } from "../config/schema.js";
@@ -50,10 +50,11 @@ export interface TranscriptStore {
   /**
    * A pass's TXT transcript, exactly as its file holds it (no byte-order mark taken off, no line
    * endings changed), so it encodes back to the bytes its run fingerprinted. Null when the file
-   * can't be read, or wasn't: only the transcripts the page shows or compares are read.
+   * can't be read, wasn't, or isn't as its run recorded it (a different size or SHA-256, or a
+   * link): only the transcripts the page shows or compares are read, and only as recorded.
    */
   txt(run: string, slug: string, pass: PassName): string | null;
-  /** The steps of a pass's JSON transcript, or null when it can't be read (see `txt`). */
+  /** The steps of a pass's JSON transcript, or null when it can't be read, as `txt` is. */
   steps(run: string, slug: string, pass: PassName): StepRecord[] | null;
 }
 
@@ -99,9 +100,9 @@ export interface ShareInput {
    * The cleaned copies of NVDA's own log (nvda-log/<session>-<n>.txt) of each run the page draws on,
    * by run id, then by the copy's path from the run's folder, as its record lists it. Only a copy
    * its run's record lists whose file is as recorded there (its size and SHA-256), so the page shows
-   * only what the run's seal covers: a copy that isn't (missing, unreadable, or changed), and a
-   * path that is not a copy's, is left out, and a run with none isn't in the map. Which session a
-   * copy belongs to is the run's event log's to say, never its number.
+   * only what the run's seal covers: a copy that isn't (missing, unreadable, a link, or changed),
+   * and a path that is not a copy's, is left out, and a run with none isn't in the map. Which
+   * session a copy belongs to is the run's event log's to say, never its number.
    */
   nvdaLogs: Map<string, Map<string, string>>;
   /**
@@ -143,8 +144,9 @@ export interface ShareInput {
    */
   flagsAsRecorded: { run: string; slug: string }[];
   /**
-   * The ids of the run folders whose run.json is there but couldn't be read (damaged, or not
-   * JSON): no record says what they did, and the page lists them among the runs left out.
+   * The ids of the run folders whose run.json is there but couldn't be read (damaged, not JSON, or
+   * not the folder's own record: see runRecordProblem): no record says what they did, and the page
+   * lists them among the runs left out.
    */
   unreadableRuns: string[];
   /** config.report.siteName. */
@@ -312,22 +314,28 @@ function pagesToRead(standing: Standing): { run: RunJson; page: PageRecord }[] {
   return pages;
 }
 
-/** The transcripts a page's record lists, each pass's TXT and JSON, as far as they can be read. */
+/**
+ * The transcripts a page's record lists, each pass's TXT and JSON, as far as they can be read: a
+ * file is read only when it is as the record has it (`readAsRecorded`), so a transcript changed
+ * since its run's seal, or a link, is left out as a missing one is, and the page says so.
+ */
 async function readPage(
   siteDir: string,
   runId: string,
   page: PageRecord,
 ): Promise<PageTranscripts> {
   const dir = pageDir(siteDir, runId, page.slug);
-  const listed = (name: string) => Object.hasOwn(page.files, name);
   const read: PageTranscripts = { txt: {}, json: {} };
   await Promise.all(
     PASS_NAMES.map(async (pass) => {
-      const text = listed(`${pass}.txt`) ? await readText(path.join(dir, `${pass}.txt`)) : null;
-      if (text !== null) read.txt[pass] = text;
-      const transcript = listed(`${pass}.json`)
-        ? await readTranscript(path.join(dir, `${pass}.json`))
-        : null;
+      const text = await readAsRecorded(
+        path.join(dir, `${pass}.txt`),
+        recordedFile(page, `${pass}.txt`),
+      );
+      if (text !== null) read.txt[pass] = text.toString("utf8");
+      const transcript = transcriptOf(
+        await readAsRecorded(path.join(dir, `${pass}.json`), recordedFile(page, `${pass}.json`)),
+      );
       if (transcript !== null) read.json[pass] = transcript;
     }),
   );
@@ -336,23 +344,16 @@ async function readPage(
 
 /**
  * The event log of each run, by run id: one its record lists (from voicecap 0.11.0), whose file is
- * there and is as its record has it. A log that isn't (missing, unreadable, or changed since its
- * run's seal) is left out, and the page says so; `voicecap verify` names it.
+ * there and is as its record has it. A log that isn't (missing, unreadable, a link, or changed
+ * since its run's seal) is left out, and the page says so; `voicecap verify` names it.
  */
 async function eventLogsOf(siteDir: string, runs: RunJson[]): Promise<ShareInput["events"]> {
   const logs: ShareInput["events"] = new Map();
   for (const run of runs) {
     const recorded = run.files?.[EVENT_LOG];
     if (recorded === undefined) continue;
-    let bytes: Buffer;
-    try {
-      bytes = await readFile(eventLogFile(siteDir, run.id));
-    } catch {
-      continue;
-    }
-    const { sha256, bytes: size } = fileHash(bytes);
-    if (sha256 !== recorded.sha256 || size !== recorded.bytes) continue;
-    logs.set(run.id, readEventLog(bytes.toString("utf8")));
+    const bytes = await readAsRecorded(eventLogFile(siteDir, run.id), recorded);
+    if (bytes !== null) logs.set(run.id, readEventLog(bytes.toString("utf8")));
   }
   return logs;
 }
@@ -360,8 +361,9 @@ async function eventLogsOf(siteDir: string, runs: RunJson[]): Promise<ShareInput
 /**
  * The cleaned copies of NVDA's log of each run, by run id and then by path: each one the run's
  * record lists (RunJson.files) under a path that is a copy's (isCopyPath), whose file is there and is
- * as its record has it. A copy that isn't (missing, unreadable, or changed since its run's seal) is
- * left out, and the page says so; `voicecap verify` names it. A run with no copy isn't in the map.
+ * as its record has it. A copy that isn't (missing, unreadable, a link, or changed since its run's
+ * seal) is left out, and the page says so; `voicecap verify` names it. A run with no copy isn't in
+ * the map.
  */
 async function nvdaLogsOf(siteDir: string, runs: RunJson[]): Promise<ShareInput["nvdaLogs"]> {
   const logs: ShareInput["nvdaLogs"] = new Map();
@@ -371,16 +373,11 @@ async function nvdaLogsOf(siteDir: string, runs: RunJson[]): Promise<ShareInput[
     const copies = new Map<string, string>();
     for (const [file, recorded] of Object.entries(listed)) {
       if (!isCopyPath(file) || !isFileHash(recorded)) continue;
-      let bytes: Buffer;
-      try {
-        bytes = await readFile(path.join(runDir(siteDir, run.id), ...file.split("/")));
-      } catch {
-        continue;
-      }
-      const { sha256, bytes: size } = fileHash(bytes);
-      if (sha256 === recorded.sha256 && size === recorded.bytes) {
-        copies.set(file, bytes.toString("utf8"));
-      }
+      const bytes = await readAsRecorded(
+        path.join(runDir(siteDir, run.id), ...file.split("/")),
+        recorded,
+      );
+      if (bytes !== null) copies.set(file, bytes.toString("utf8"));
     }
     if (copies.size > 0) logs.set(run.id, copies);
   }
@@ -411,12 +408,10 @@ async function stepsOf(
       const dir = pageDir(siteDir, run.id, page.slug);
       const found: KeptSteps = {};
       for (const pass of PASS_NAMES) {
-        const files: unknown = page.files;
-        if (page.passes?.[pass] === undefined || typeof files !== "object" || files === null) {
-          continue;
-        }
-        if (!Object.hasOwn(files, `${pass}.json`)) continue;
-        const transcript = await readTranscript(path.join(dir, `${pass}.json`));
+        if (page.passes?.[pass] === undefined) continue;
+        const transcript = transcriptOf(
+          await readAsRecorded(path.join(dir, `${pass}.json`), recordedFile(page, `${pass}.json`)),
+        );
         if (transcript !== null) found[pass] = transcript.steps;
       }
       steps.set(key, found);
@@ -430,7 +425,7 @@ async function stepsOf(
  * for, when `recordOf` reads that record as one that lists a file (a record of why there's none
  * lists no file, and neither does a record of no kind voicecap writes; see ./records.ts) and the
  * file is there and is as the record has it (its size and SHA-256). A file that isn't (missing,
- * unreadable, or changed since its run's seal) is left out, and the page says so; `voicecap
+ * unreadable, a link, or changed since its run's seal) is left out, and the page says so; `voicecap
  * verify` names it. They're read one at a time: a site of hundreds of pages would otherwise hold
  * hundreds of files open at once, more than some systems allow. A screenshot, an axe file, and a
  * recording are each found this way.
@@ -447,16 +442,11 @@ async function filesAsRecorded(
     const recorded = source === null ? undefined : recordOf(source.page);
     if (source === null || recorded === undefined || recorded === "unreadable") continue;
     if ("error" in recorded) continue;
-    let bytes: Buffer;
-    try {
-      bytes = await readFile(path.join(pageDir(siteDir, source.run.id, source.page.slug), name));
-    } catch {
-      continue;
-    }
-    const { sha256, bytes: size } = fileHash(bytes);
-    if (sha256 === recorded.sha256 && size === recorded.bytes) {
-      files.set(storeKey(source.run.id, source.page.slug), bytes);
-    }
+    const bytes = await readAsRecorded(
+      path.join(pageDir(siteDir, source.run.id, source.page.slug), name),
+      recorded,
+    );
+    if (bytes !== null) files.set(storeKey(source.run.id, source.page.slug), bytes);
   }
   return files;
 }
@@ -498,21 +488,43 @@ function recordingsOf(siteDir: string, standing: Standing): Promise<ShareInput["
   return filesAsRecorded(siteDir, standing, VOICE_FILE, voiceRecordOf);
 }
 
-/** A file's text, exactly: UTF-8, with a byte-order mark and line endings kept. */
-async function readText(file: string): Promise<string | null> {
+/**
+ * The bytes of `file`, only when it is as its run recorded it: `recorded` is a file's fingerprint
+ * (`isFileHash`), the file is a regular file (looked at with `lstat` first, so a symbolic link is
+ * never followed, as `voicecap verify` treats one), and its size and SHA-256 are the record's. Null
+ * otherwise, and the same null whether the file is missing, can't be read, is a link, or differs:
+ * the page leaves it out and says so, and `voicecap verify` names it. What it gives is exactly what
+ * the run's seal covers. The loader reads each file a run's record lists through it: the
+ * transcripts, the event log, the copies of NVDA's log, and the screenshots, axe results, and
+ * recordings.
+ */
+export async function readAsRecorded(file: string, recorded: unknown): Promise<Buffer | null> {
+  if (!isFileHash(recorded)) return null;
   try {
-    return await readFile(file, "utf8");
+    if (!(await lstat(file)).isFile()) return null;
+    const bytes = await readFile(file);
+    const { sha256, bytes: size } = fileHash(bytes);
+    return sha256 === recorded.sha256 && size === recorded.bytes ? bytes : null;
   } catch {
     return null;
   }
 }
 
-/** A pass's JSON transcript, or null when it's missing or isn't one. */
-async function readTranscript(file: string): Promise<TranscriptJson | null> {
-  const text = await readText(file);
-  if (text === null) return null;
+/**
+ * What a page's record lists for the file `name`: its own entry, never an inherited one, and
+ * undefined when it lists none or its list isn't an object (a record is data).
+ */
+function recordedFile(page: PageRecord, name: string): unknown {
+  const files: unknown = page.files;
+  if (typeof files !== "object" || files === null || !Object.hasOwn(files, name)) return undefined;
+  return (files as Record<string, unknown>)[name];
+}
+
+/** A pass's JSON transcript from its bytes, or null when there are none or they aren't one. */
+function transcriptOf(bytes: Buffer | null): TranscriptJson | null {
+  if (bytes === null) return null;
   try {
-    const transcript = JSON.parse(text) as TranscriptJson;
+    const transcript = JSON.parse(bytes.toString("utf8")) as TranscriptJson;
     return Array.isArray(transcript.steps) ? transcript : null;
   } catch {
     return null;
@@ -549,8 +561,8 @@ function withFlagsFromTranscripts(
 
 /**
  * The run folders of a site whose run.json is there but wasn't read (listRuns leaves out one it
- * can't parse), by run id, oldest first. A folder with no run.json at all, as a manual session's,
- * isn't a run.
+ * can't parse, and one that isn't its folder's own), by run id, oldest first. A folder with no
+ * run.json at all, as a manual session's, isn't a run.
  */
 async function runsNotRead(siteDir: string, records: RunJson[]): Promise<string[]> {
   const read = new Set(records.map((run) => run.id));

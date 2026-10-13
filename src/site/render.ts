@@ -23,11 +23,12 @@
  * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
  * page and to download its Word copy; and, when its share has the report for AI tools, as Markdown
  * and as JSON, a line under them that links both. Its earlier reports are a line each under it, and
- * every report's files, with their sizes and fingerprints, are in a fold, closed, for whoever checks
- * a copy: a share's voice page (from 0.18.0), which plays NVDA's recordings, is one of them, listed
- * as NVDA's voice, and is no part of a report's card or line, which are of its page, its Word copy,
- * and, on the card, its report for AI tools. Each view's heading and each site's name has a picture
- * before it, and the views of the sites and of every report by date say beside their headings how many they hold (from 0.13.1).
+ * every report's files, with their sizes and fingerprints, are in a fold, closed, for whoever
+ * checks a copy: a share's voice page (from 0.18.0), which plays NVDA's recordings, is one of them,
+ * listed as NVDA's voice, and is no part of a report's card or line, which are of its page, its
+ * Word copy, and, on the card, its report for AI tools. Each view's heading and each site's name
+ * has a picture before it, and the views of the sites and of every report by date say beside their
+ * headings how many they hold (from 0.13.1).
  *
  * llms.txt (`renderLlmsTxt`) is the website's other file of this kind: a plain text file at its top,
  * for AI tools, that points to each site's current report as Markdown and as JSON.
@@ -41,6 +42,7 @@ import type { ShareResult } from "../model.js";
 import { canonicalName, recordedCanonical } from "../pages/canonical.js";
 import { esc } from "../report/html.js";
 import { folderSafe } from "../run/paths.js";
+import { markdownInline } from "../share/ai/escape.js";
 import { count as countWords, sizeWords } from "../share/format.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf } from "../share/verdict.js";
@@ -618,7 +620,10 @@ export function renderSiteIndex(content: SiteContent, voicecap: VoicecapFacts): 
  * page links to its files: no address of the website is known to the build.
  *
  * What a record supplies, a site's name and each file's address, comes vetted from the build, and
- * is written so that it stays on its line all the same (see printable). Pure.
+ * is written so that it stays on its line all the same (see printable). A site's name is the words
+ * of a heading, so it is set as Markdown words too (markdownInline), as the report for AI tools sets
+ * every word of a record: nothing in it is emphasis, a link, HTML, or an address a viewer would
+ * link. Pure.
  */
 export function renderLlmsTxt(content: SiteContent): string {
   const words = SITE_TEXT.llms;
@@ -635,7 +640,7 @@ export function renderLlmsTxt(content: SiteContent): string {
       const verdictWords = hasVerdict(current.result) ? verdictOf(current.result).headline : null;
       return [`- [${format}](${printable(file.href)}): ${words.report(current.at, verdictWords)}`];
     });
-    return lines.length === 0 ? [] : [[`## ${printable(name)}`, "", ...lines]];
+    return lines.length === 0 ? [] : [[`## ${markdownInline(printable(name))}`, "", ...lines]];
   });
   return [
     `# ${SITE_TEXT.siteName}`,

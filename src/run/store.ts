@@ -3,24 +3,63 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { RunJson } from "../model.js";
+import { isPageSlug } from "../pages/slug.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
 import { UsageError, VoicecapError } from "../util/errors.js";
+import { inertText } from "../util/inert.js";
 import { DATE_FOLDER, latestPath, runJsonPath } from "./paths.js";
+import { isRunIdShape } from "./run-id.js";
 
+/**
+ * Read a run's record. `runId` must be of the shape allocateRunId makes (isRunIdShape), since it's
+ * made into a path: `latest.txt`, `--run`, `--compare`, and a record's `compareTo` all come here, and
+ * each can say anything. The record must be the run's own (see runRecordProblem).
+ */
 export async function readRunJson(outDir: string, runId: string): Promise<RunJson> {
+  if (!isRunIdShape(runId)) {
+    throw new UsageError(`"${inertText(runId)}" isn't a run id, such as 2026-10-10_1405.`);
+  }
   const file = runJsonPath(outDir, runId);
   if (!existsSync(file)) throw new UsageError(`No run "${runId}" in ${outDir}.`);
+  let record: unknown;
   try {
-    return JSON.parse(await readFile(file, "utf8")) as RunJson;
+    record = JSON.parse(await readFile(file, "utf8"));
   } catch (error) {
     throw new UsageError(`Could not read ${file}: it is not valid JSON.`, { cause: error });
   }
+  const problem = runRecordProblem(record, runId);
+  if (problem !== null) throw new UsageError(`Could not read ${file}: ${problem}.`);
+  return record as RunJson;
+}
+
+/**
+ * What is wrong with `record` as the record of run `id`, in a few words; null when nothing is. A
+ * run's record is in the folder its id names (runDir), and its pages are folders in it (pageDir), so
+ * a record counts only when it's an object whose `id` is `id`, and whose `pages` is a list of
+ * objects that each have a slug voicecap makes (isPageSlug). A record is read as found: it can say
+ * any id, and a run that resumed it would write where that id points. The id and the slug it
+ * refuses are the record's own words, so they aren't repeated.
+ */
+export function runRecordProblem(record: unknown, id: string): string | null {
+  if (!isObject(record)) return "it isn't a record";
+  if (record.id !== id) return "its id isn't its folder's";
+  if (!Array.isArray(record.pages)) return "its pages aren't a list";
+  for (const page of record.pages as unknown[]) {
+    if (!isObject(page)) return "a page in it isn't a record";
+    if (!isPageSlug(page.slug)) return "a page in it has a slug voicecap never makes";
+  }
+  return null;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
  * Every run with a readable run.json, oldest first. Each dated folder under the site folder is
  * checked; anything in there without one (a damaged run.json, or, later, a manual session) is
- * skipped, and resume and reports ignore it.
+ * skipped, and resume and reports ignore it. So is a record that isn't its folder's own
+ * (runRecordProblem): `voicecap share` says of it that it couldn't be read.
  */
 export async function listRuns(outDir: string): Promise<RunJson[]> {
   if (!existsSync(outDir)) return [];
@@ -32,7 +71,8 @@ export async function listRuns(outDir: string): Promise<RunJson[]> {
       if (!runEntry.isDirectory()) continue;
       const runId = `${dateEntry.name}_${runEntry.name}`;
       try {
-        runs.push(JSON.parse(await readFile(runJsonPath(outDir, runId), "utf8")) as RunJson);
+        const record: unknown = JSON.parse(await readFile(runJsonPath(outDir, runId), "utf8"));
+        if (runRecordProblem(record, runId) === null) runs.push(record as RunJson);
       } catch {
         // Not a run folder, or a damaged run.json; resume and reports ignore it.
       }

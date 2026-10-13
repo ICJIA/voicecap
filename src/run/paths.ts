@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import { isWindowsReservedName } from "../pages/slug.js";
+import { UsageError } from "../util/errors.js";
 import { resolveUserPath } from "../util/git-bash.js";
 import { EVENT_LOG } from "./events.js";
 
@@ -41,6 +43,7 @@ import { EVENT_LOG } from "./events.js";
  *   <date>/<time>/attempts/<slug>/<n>/<pass>.{txt,json}     (an earlier attempt, kept, n = 1, 2, ...)
  *   <date>/<time>/compare/<base-id>/<slug>/<pass>.diff.txt   (diffs made when the run completed)
  *   <date>/<time>_manual_<slug>/session.{txt,json}  <date>/<time>_manual_<slug>/raw/<format>.txt
+ *                                       (and raw/.gitignore, `*`, beside a raw log that is kept)
  *   compare/<base-id>__<run-id>/<slug>/<pass>.diff.txt        (diffs made by `voicecap report`)
  *
  * voicecap 0.2.0's layout (<home>/runs/..., <home>/manual/...) is left where it is and never read.
@@ -130,11 +133,27 @@ export function folderSafe(name: string): string {
 
 /**
  * The folder for a site: its host (already lowercased by URL parsing), made safe for a folder's name
- * (see folderSafe).
+ * (see folderSafe). A site's folder is inside the transcripts home, so a host that would name no
+ * folder in it is refused with a UsageError: one of only dots (`..`, which is the home's parent, or
+ * `.`, the home itself), or none at all, and one that Windows keeps for itself (`con`, `nul`,
+ * `com1`, `aux.example.org`: see isWindowsReservedName), which can't be made on a Windows computer.
+ * An address that parseSiteUrl or a walkthrough file's reader takes never gives one; this is for any
+ * other way a host gets here, such as a record.
  */
 export function siteFolder(site: string | URL): string {
   const url = typeof site === "string" ? new URL(site) : site;
-  return folderSafe(url.host);
+  const folder = folderSafe(url.host);
+  if (/^\.*$/.test(folder)) {
+    throw new UsageError(
+      `A site whose host is only dots (or has none) can't be a folder in the transcripts home (got "${url.host}").`,
+    );
+  }
+  if (isWindowsReservedName(folder)) {
+    throw new UsageError(
+      `A site whose host is "${folder}" can't be a folder: Windows keeps that name for itself.`,
+    );
+  }
+  return folder;
 }
 
 /**

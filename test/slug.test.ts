@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isWindowsReservedName, pageSlug } from "../src/pages/slug.js";
+import { isPageSlug, isWindowsReservedName, pageSlug } from "../src/pages/slug.js";
 import { canonicalKey } from "../src/pages/url.js";
 
 const SAFE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -81,5 +81,48 @@ describe("isWindowsReservedName", () => {
     for (const name of ["home", "console", "con-1a2b3c4d5e", "nullable", "com10x"]) {
       expect(isWindowsReservedName(name), name).toBe(false);
     }
+  });
+});
+
+describe("isPageSlug", () => {
+  it("knows every slug pageSlug makes", () => {
+    const urls = [
+      "https://a.gov/",
+      "https://a.gov/grants/fy27-jag",
+      "https://a.gov/Some Page/with:colons*and?query=1",
+      "https://a.gov/caf%C3%A9/r%C3%A9sum%C3%A9",
+      "https://a.gov/%E4%B8%AD%E6%96%87",
+      "https://a.gov/?lang=es",
+      `https://a.gov/${"very-long-segment/".repeat(20)}end`,
+      ...["con", "prn", "aux", "nul", "com1", "lpt9"].map((name) => `https://a.gov/${name}`),
+    ];
+    for (const url of urls) expect(isPageSlug(pageSlug(canonicalKey(url))), url).toBe(true);
+    expect(isPageSlug("home")).toBe(true);
+    expect(isPageSlug("page-con-1a2b3c4d5e")).toBe(true);
+  });
+
+  it("refuses anything that could name a place outside a page's own folder, and anything that isn't text", () => {
+    for (const slug of [
+      "",
+      ".",
+      "..",
+      "../x",
+      "../../../Documents/notes",
+      "a/b",
+      "a\b",
+      "Home",
+      "a_b",
+      "a b",
+      "a.b",
+      "home\n",
+      "x".repeat(61),
+      7,
+      null,
+      undefined,
+      ["home"],
+    ]) {
+      expect(isPageSlug(slug), JSON.stringify(slug)).toBe(false);
+    }
+    expect(isPageSlug("x".repeat(60))).toBe(true);
   });
 });

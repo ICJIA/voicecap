@@ -383,6 +383,48 @@ describe("the site, served as Netlify serves it", () => {
     }
   });
 
+  it("downloads a share's Markdown and JSON from the links under its current card's buttons: with their names and types, under the policy that runs nothing in them, and as shared", async () => {
+    const page = await newPage();
+    await page.goto(server.url);
+    const site = built.content.sites.find(({ folders }) => folders.includes(FIXTURE_FOLDER));
+    const report = site?.reports[0];
+    const types = {
+      markdown: "text/markdown; charset=utf-8",
+      data: "application/json; charset=utf-8",
+    } as const;
+
+    for (const kind of ["markdown", "data"] as const) {
+      const file = report?.files.find((each) => each.kind === kind);
+      if (file === undefined) throw new Error(`The report has no ${kind} file.`);
+      const address = new URL(file.href, server.url).href;
+
+      // The card's line for AI tools links each format, and the link's `download` saves it.
+      const link = page.locator(`p.ai a[href="${file.href}"]`);
+      expect(await link.count(), file.name).toBe(1);
+      const [download] = await Promise.all([page.waitForEvent("download"), link.click()]);
+
+      // A browser reports no response for a download, so the address is asked for again. The file
+      // is sent as the type it is, under a policy that loads and runs nothing in it, and with no
+      // attachment header: the link saves it, and its address shows it (see the test below).
+      const response = await page.request.get(address);
+      expect(response.status(), file.name).toBe(200);
+      expect(response.headers()["content-type"], file.name).toBe(types[kind]);
+      expect(response.headers()["content-security-policy"], file.name).toBe(
+        "default-src 'none'; sandbox",
+      );
+      expect(response.headers()["content-disposition"], file.name).toBeUndefined();
+      expect(download.suggestedFilename()).toBe(file.name);
+      const saved = await download.path();
+      if (saved === null) throw new Error(`The browser kept no file for ${file.name}.`);
+      // The bytes it saved are the file as it was shared.
+      const bytes = await readFile(saved);
+      expect({ bytes: bytes.length, sha256: sha256(bytes) }).toEqual({
+        bytes: file.bytes,
+        sha256: file.sha256,
+      });
+    }
+  });
+
   it("serves a share's Markdown and JSON to be read in the browser: with their types, no attachment, a policy that runs nothing in them, and the text as it was shared", async () => {
     const page = await newPage();
     const site = built.content.sites.find(({ folders }) => folders.includes(FIXTURE_FOLDER));

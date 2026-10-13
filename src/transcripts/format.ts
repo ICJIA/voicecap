@@ -9,6 +9,7 @@ import type {
 } from "../model.js";
 import { describePageUrls } from "../pages/describe.js";
 import { sha256 } from "../util/hash.js";
+import { inertText } from "../util/inert.js";
 import { formatDuration } from "../util/time.js";
 
 /** The command each pass repeats. Other commands (setup steps) are labeled in the TXT body. */
@@ -43,9 +44,26 @@ export function stopReasonText(reason: StopReason): string {
   return STOP_REASON_TEXT[reason];
 }
 
-/** One TXT body line: what was said, on one line, with setup steps labeled ("[to top] ..."). */
+/**
+ * `text` with each run of white space that holds a character `breaks` matches folded into one
+ * space, and everything else as it is. Each run is found once, and read once to see whether it holds
+ * a break, so the time grows with the text's length and no more. A single pattern for a line break
+ * with the spaces around it (`\s*[\r\n]+\s*`) searches again from each space of a run that has no
+ * line break: 200,000 spaces took seconds that way, and a walkthrough file, which can come from
+ * anyone, can hold millions. It folds the same runs, so the text is the same.
+ */
+function foldBreaks(text: string, breaks: RegExp): string {
+  return text.replace(/\s+/g, (run) => (breaks.test(run) ? " " : run));
+}
+
+/**
+ * One TXT body line: what was said, on one line, with setup steps labeled ("[to top] ..."). Only a
+ * carriage return and a line feed break a line here, as they always have, and nothing else is
+ * changed: a line is hashed (contentSha256), so the words of a transcript already recorded must come
+ * out the same, whatever they hold.
+ */
 export function stepLine(step: StepRecord, pass: PassName): string {
-  const text = step.spoken.replace(/\s*[\r\n]+\s*/g, " ").trim();
+  const text = foldBreaks(step.spoken, /[\r\n]/).trim();
   const shown = text === "" ? NO_SPEECH : text;
   return step.command === MAIN_COMMAND[pass] ? shown : `[${COMMAND_LABEL[step.command]}] ${shown}`;
 }
@@ -166,15 +184,18 @@ function flatten(value: unknown, prefix = ""): string[] {
 }
 
 /**
- * A field on one line: each run of spaces that holds a line break becomes one space, then the ends
- * are trimmed; "-" for nothing. Each run is found once, so the time is linear in the text's length.
- * A single pattern for a line break with the spaces around it searches again from each space of a
- * run that has no line break: a label of 150,000 spaces took seconds that way, and a walkthrough
- * file, which can come from anyone, can hold millions.
+ * A field on one line: each run of spaces that holds a line break becomes one space (a line
+ * separator or a paragraph separator is one too, since many an editor ends a line at either), then
+ * the ends are trimmed; "-" for nothing. The time is linear in the text's length (see foldBreaks).
+ *
+ * What is left is written as text (inertText). A field is a page's, a server's, or a record's words,
+ * and the file is one a person opens in a terminal, with `type` or `cat`, so a control character or
+ * an invisible formatting character in it is written as an escape such as `\u{1b}`, and can't act
+ * there. A tab stays, as it only lays the words out.
  */
 function oneLine(value: string | undefined): string {
-  const text = (value ?? "").replace(/\s+/g, (run) => (/[\r\n]/.test(run) ? " " : run)).trim();
-  return text === "" ? "-" : text;
+  const text = foldBreaks(value ?? "", /[\r\n\u{2028}\u{2029}]/u).trim();
+  return text === "" ? "-" : inertText(text);
 }
 
 function list(items: readonly string[]): string {

@@ -2372,32 +2372,49 @@ describe("a link into a fold", () => {
 });
 
 describe("a card's fold of its page's transcripts", () => {
-  it("is named by its page for a screen reader, each fold apart from the rest", async () => {
+  it("is named by the words it shows, then its page for a screen reader, each fold apart from the rest", async () => {
     // 13 pages: each card has a fold of its own, and every fold's line reads the same on screen.
     const model = manyPages(13, 2);
     const page = await open(pages.many);
     // The folds of the 11 quiet cards are in the accessibility tree once their own fold is open.
     await page.locator("#open-all").click();
+    // The words each fold shows, as everyone sees them: its line less the words set apart for a
+    // screen reader alone (sr).
+    const shown = await page.locator("details.tx-page > summary").evaluateAll((lines) =>
+      lines.map((line) => {
+        const seen = line.cloneNode(true) as HTMLElement;
+        for (const hidden of seen.querySelectorAll(".sr")) hidden.remove();
+        return (seen.textContent ?? "").replace(/\s+/g, " ").trim();
+      }),
+    );
     const client = await page.context().newCDPSession(page);
     try {
       const { nodes } = await client.send("Accessibility.getFullAXTree");
       // What Chromium gives a screen reader of each fold: the triangle that opens it, named by its
-      // line, the words set apart for a screen reader among them. Chromium puts a space where those
-      // end ("/page-5 :"), which is taken out here.
+      // line, the words set apart for a screen reader among them. Chromium puts a space around
+      // those, which is taken out here, as any run of spaces is.
       const names = nodes
         .filter((node) => node.role?.value === "DisclosureTriangle")
         .map((node): unknown => node.name?.value)
         .filter((name): name is string => typeof name === "string")
         .filter((name) => name.startsWith("The full transcript"))
-        .map((name) => name.replace(" :", ":"));
+        .map((name) => name.replace(/\s+/g, " ").trim());
       const expected = model.pages.map(
-        ({ path: where }) => `The full transcript of ${where}: read, headings, and Tab transcripts`,
+        ({ path: where }) => `The full transcript: read, headings, and Tab transcripts of ${where}`,
       );
 
       // Each page's own, compared sorted: the cards in the open come first in the page, which is
       // the page's order only when the pages with flags are its first.
       expect([...names].sort()).toEqual([...expected].sort());
       expect(new Set(names).size).toBe(13);
+      // Every fold shows the same line, and each name starts with it, whole (WCAG 2.5.3, label in
+      // name), so a voice command that says the words on the screen finds the fold. The page's
+      // words come after.
+      expect(shown).toHaveLength(13);
+      expect(new Set(shown)).toEqual(
+        new Set(["The full transcript: read, headings, and Tab transcripts"]),
+      );
+      for (const name of names) expect(name.startsWith(shown[0] ?? "\0"), name).toBe(true);
     } finally {
       await client.detach();
     }
@@ -2407,23 +2424,38 @@ describe("a card's fold of its page's transcripts", () => {
     const page = await open(pages.many);
     await page.locator("#open-all").click();
 
-    // How wide each fold's line is with those words, then without them: a sighted reader sees the
-    // same line, as the words are clipped to a point.
-    const widths = await page.locator("details.tx-page > summary .what").evaluateAll((lines) =>
-      lines.map((line) => {
+    // Where each fold's line and its two parts are with those words, then without them: a sighted
+    // reader sees the same line, as the words are clipped to a point.
+    const boxes = await page.locator("details.tx-page > summary").evaluateAll((lines) => {
+      const rectOf = (element: Element | null): number[] => {
+        const { x, y, width, height } = element?.getBoundingClientRect() ?? new DOMRect();
+        return [x, y, width, height];
+      };
+      return lines.map((line) => {
         const sr = line.querySelector(".sr");
-        const box = sr?.getBoundingClientRect();
-        const withWords = line.getBoundingClientRect().width;
+        const measured = () => [
+          rectOf(line),
+          rectOf(line.querySelector(".what")),
+          rectOf(line.querySelector(".sub")),
+        ];
+        const hidden = rectOf(sr);
+        const withWords = measured();
         sr?.remove();
-        return { withWords, without: line.getBoundingClientRect().width, hidden: box?.width };
-      }),
-    );
+        return { withWords, without: measured(), hidden };
+      });
+    });
 
-    expect(widths).toHaveLength(13);
-    for (const { withWords, without, hidden } of widths) {
-      expect(withWords).toBeGreaterThan(0);
-      expect(withWords).toBeCloseTo(without, 0);
-      expect(hidden).toBe(1);
+    expect(boxes).toHaveLength(13);
+    for (const { withWords, without, hidden } of boxes) {
+      expect(withWords[1]?.[2]).toBeGreaterThan(0);
+      expect(withWords[2]?.[2]).toBeGreaterThan(0);
+      for (const [at, box] of withWords.entries()) {
+        for (const [edge, value] of (box ?? []).entries()) {
+          expect(value).toBeCloseTo(without[at]?.[edge] ?? NaN, 0);
+        }
+      }
+      // They are clipped to a point: one pixel by one.
+      expect(hidden?.slice(2)).toEqual([1, 1]);
     }
   });
 });

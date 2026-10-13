@@ -16,11 +16,11 @@ import { plural } from "../report/html.js";
 import { resolveHome } from "../run/paths.js";
 import { chooseSiteDir, chooseSiteDirOfRun } from "../run/site-dir.js";
 import { listRuns } from "../run/store.js";
-import { formatCommand } from "../util/command-line.js";
 import { errorMessage, UsageError } from "../util/errors.js";
 import { resolveUserPath } from "../util/git-bash.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
 import {
+  repeatCommand,
   walkthroughJson,
   walkthroughOf,
   walkthroughProblem,
@@ -91,7 +91,9 @@ export async function writeWalkthrough(
   logger.info(
     `Wrote the walkthrough of run ${run.id} (${plural(walkthrough.pages.length, "page")}) to ${file}.`,
   );
-  logger.info(`To repeat the run: ${formatCommand(["--walkthrough", file])}`);
+  // Named for the address the run read, which the file has as its site: the command, which the
+  // shareable page and its Word copy say too (see repeatCommand), is one the program takes.
+  logger.info(`To repeat the run: ${repeatCommand(walkthrough, file)}`);
   return { file, runId: run.id, walkthrough };
 }
 

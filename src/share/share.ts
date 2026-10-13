@@ -1,7 +1,7 @@
 /**
  * `voicecap share`: a dated copy of a site's shareable page and of its Word copy, made to send, the
- * voice page beside them when a page has a recording of NVDA's voice, the same report as Markdown
- * and as JSON for AI tools, each run's walkthrough file, and the record of what was sent.
+ * voice page beside them when a page has a recording of NVDA's voice, the report as Markdown and as
+ * JSON for AI tools, each run's walkthrough file, and the record of what was sent.
  *
  * share/current.html and share/current.docx change with every run, review, and report, so what's
  * sent can't be those. Each share makes a pair of its own, named for the site and the day
@@ -13,15 +13,6 @@
  * read, does. A site with no canonical address that was read at an IP address or a local address
  * isn't shared at all: a share is recorded for good, and published, and such an address is no
  * site's name, so the share stops before anything is written, and says how to name the site.
- * Beside the pair it writes the report for AI tools, as Markdown and as JSON, named as the pair is
- * (`dvfr.illinois.gov_2027-01-15.md` and `.json`): drawn from the model the page and the Word copy
- * are drawn from (./ai/markdown.ts and ./ai/json.ts), with no gate on the version of the runs, so
- * every share has both. Last, it writes the walkthrough file of each run the pair draws on,
- * named for the pair and the run (`dvfr.illinois.gov_2027-01-15_2027-01-14_0900_walkthrough.json`):
- * the very file the page offers to download, so a website of what was shared has one to offer. A
- * walkthrough file is told by that `_walkthrough.json` ending and by its run in the record; the
- * report's JSON is named for the share alone, and has neither. A run that can't have a walkthrough
- * file (see RunWalkthrough) is warned of, and the share goes on without it.
  *
  * Beside the pair it writes the voice page (`dvfr.illinois.gov_2027-01-15.voice.html`, the pair's
  * stem and `.voice.html`) when a page of the report has a recording of NVDA's voice to play (see
@@ -32,13 +23,24 @@
  * runs says nothing of NVDA's voice). The live copy (current.html) has none beside it, and links
  * to none.
  *
+ * Then it writes the report for AI tools, as Markdown and as JSON, named as the pair is
+ * (`dvfr.illinois.gov_2027-01-15.md` and `.json`): drawn from the model the page and the Word copy
+ * are drawn from (./ai/markdown.ts and ./ai/json.ts), with no gate on the version of the runs, so
+ * every share has both. Last, it writes the walkthrough file of each run the pair draws on,
+ * named for the pair and the run (`dvfr.illinois.gov_2027-01-15_2027-01-14_0900_walkthrough.json`):
+ * the very file the page offers to download, so a website of what was shared has one to offer. A
+ * walkthrough file is told by that `_walkthrough.json` ending and by its run in the record; the
+ * report's JSON is named for the share alone, and has neither. A run that can't have a walkthrough
+ * file (see RunWalkthrough) is warned of, and the share goes on without it.
+ *
  * share/shares.json (./shares.ts) records every file: when, who by, the root of the site the copies
  * name, the runs the copies drew on, what the copies say of the site (its pages, those NVDA read,
  * and the problems left and the pages they're on, from the model the copies are made from, for the
  * website's card), and each file's size and SHA-256, with a walkthrough file's run. The output ends
  * with a line to paste into the email that sends the pair, so a receiver can check a file against
- * the sender's own fingerprint. The line names only the pair: the voice page, the report for AI
- * tools, and the walkthrough files aren't what's emailed.
+ * the sender's own fingerprint. The line names only the pair, which is what the email carries: the
+ * voice page can be sent too, as a file of its own, but it, the report for AI tools, and the
+ * walkthrough files aren't part of that email.
  *
  * A copy is never written over a file: each is opened with the `wx` flag, which refuses a name
  * that's taken, and a name that's taken meanwhile means the next number. And a share that fails with
@@ -113,9 +115,10 @@ export interface ShareReportResult {
 }
 
 /**
- * The size above which a copy of the pair that is emailed (the page, its Word copy) is warned of:
- * 20 MB, which is too big for most email. A copy of exactly this size isn't. The voice page, the
- * report for AI tools, and the walkthrough files aren't emailed, so no size warns of them.
+ * The size above which a copy of the pair that the email carries (the page, its Word copy) is warned
+ * of: 20 MB, which is too big for most email. A copy of exactly this size isn't. The voice page, the
+ * report for AI tools, and the walkthrough files aren't part of that email, so no size warns of
+ * them (the voice page can be sent too, as a file of its own).
  */
 export const EMAIL_LIMIT_BYTES = 20 * 1024 * 1024;
 
@@ -277,8 +280,8 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
     }
 
     const files = entry.files.map((file) => ({ ...file, path: path.join(dir, file.name) }));
-    // What's emailed is the page and its Word copy. They're picked by name, because the files with no
-    // run also include the voice page, the Markdown, and the JSON, which aren't emailed.
+    // The email carries the page and its Word copy. They're picked by name, because the files with no
+    // run also include the voice page, the Markdown, and the JSON, which aren't part of it.
     const pair = [names.page, names.word];
     const pasteLine = pasteLineOf(entry.files.filter(({ name }) => pair.includes(name)));
     logger.info(
@@ -290,9 +293,9 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
     }
     logger.info("To paste into the email that sends the page and its Word copy:");
     logger.info(`  ${pasteLine}`);
-    // Only the pair is emailed, so only a file of the pair can be too big for email: the voice page of
-    // a site of many recorded pages, and the Markdown and the JSON of an axe-heavy site, pass 20 MB,
-    // and aren't sent.
+    // The email carries only the pair, so only a file of the pair is warned of as too big for email:
+    // the voice page of a site of many recorded pages, and the Markdown and the JSON of an
+    // axe-heavy site, pass 20 MB, and aren't part of that email.
     for (const file of files.filter(({ name }) => pair.includes(name))) {
       const warning = sizeWarning(file.name, file.bytes);
       if (warning !== null) logger.warn(warning);

@@ -3,9 +3,9 @@
  * tool: the same report as the Markdown beside it (./markdown.ts), as data, with the WCAG criteria
  * each finding may relate to. It is drawn from the same model the page and its Word copy are drawn
  * from (`ShareModel`), with the page's own words wherever the page has words for a part, and the
- * steps of a transcript and the words of a record as the Markdown says them (`stepsOf` and
- * `ownWords`, ./shared.ts), so the two files can't say different things. It imports nothing of the
- * page's or the Word copy's own renderers.
+ * steps of a transcript and the words of a record as the Markdown says them (`stepsOf`, ./shared.ts,
+ * and `ownWords`, ../text.ts), so the two files can't say different things. It imports nothing of
+ * the page's or the Word copy's own renderers.
  *
  * `AiReport` is the file's shape, and the keys of each object are in the order it declares them:
  * the file is `JSON.stringify` of plain data built in that order, with a 2-space indent and one
@@ -34,12 +34,12 @@
  * file says so (`passesNote`), so no gap reads as a page with nothing to flag.
  *
  * Every word is plain text and is never changed: `JSON.stringify` writes it as a string, so what
- * a transcript, a title, or a record holds can't be anything but a string. What a person or a model
- * wrote about the library that drives the screen reader is said without its name (`ownWords`);
- * what a website said never is. A criterion is a number in a string ("2.4.4"); a flag's come from
- * voicecap's table (`RULE_WCAG`, src/flags/wcag.ts) and an axe issue's from axe's own tags
- * (`axeCriteriaList`), and the note says they are the criteria a finding may relate to, for a
- * person to decide.
+ * a transcript, a title, or a record holds can't be anything but a string. What a person wrote, and
+ * what the share worked out, about the library that drives the screen reader is said without its
+ * name (`ownWords`); what a website said never is. A criterion is a number in a string ("2.4.4");
+ * a flag's come from voicecap's table (`RULE_WCAG`, src/flags/wcag.ts) and an axe issue's from
+ * axe's own tags (`axeCriteriaList`), and the note says they are the criteria a finding may relate
+ * to, for a person to decide.
  *
  * Pure: it reads the model and nothing else.
  */
@@ -68,6 +68,7 @@ import {
   APPENDIX_TEXT,
   CHANGES_TEXT,
   EVIDENCE_TEXT,
+  ownWords,
   PAGES_TEXT,
   PROBLEMS_TEXT,
   WORD_TEXT,
@@ -86,7 +87,7 @@ import {
   readCopyNote,
   sentence,
 } from "../words.js";
-import { asSentence, ownWords, resultOf, stepsOf, type Step } from "./shared.js";
+import { asSentence, resultOf, stepsOf, type Step } from "./shared.js";
 
 /**
  * A part a run didn't record, said as the page says it: "Not recorded: this run used voicecap

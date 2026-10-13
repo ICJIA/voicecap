@@ -1,8 +1,9 @@
 /**
  * What the Markdown and the JSON of the report for AI tools say alike, so that the two can't differ:
- * the steps of a transcript (`stepsOf`), the words of a record where it names the library that
- * drives the screen reader (`ownWords`), a page's result as sentences (`resultOf`), and a phrase
- * of the page's as a sentence of its own (`asSentence`). Pure.
+ * the steps of a transcript (`stepsOf`), a page's result as sentences (`resultOf`), and a phrase of
+ * the page's as a sentence of its own (`asSentence`). The words of a record, where it names the
+ * library that drives the screen reader, are said as the page and its Word copy say them
+ * (`ownWords`, ../text.ts). Pure.
  *
  * The steps are each step's number, the key pressed, and what NVDA said. The Markdown puts one on
  * each line of a transcript's block, and the JSON gives each as data. They are worked out from the
@@ -20,7 +21,7 @@
  * said, and are never cut.
  */
 import type { AppendixFile, PageCard } from "../model.js";
-import { AI_TEXT, HOW_TEXT } from "../text.js";
+import { AI_TEXT, HOW_TEXT, ownWords } from "../text.js";
 import { fromRun, sentence } from "../words.js";
 
 /** One step of a pass: its place in it, the key pressed, and what NVDA said, word for word. */
@@ -69,15 +70,6 @@ export function stepsOf(file: Pick<AppendixFile, "pass" | "text" | "lines">): St
     return { n: at + 1, key, said: line.slice(`[${label}] `.length) };
   });
 }
-
-/**
- * Words as a run's record has them, where the record may name the library that drives the screen
- * reader (a row of the test environment, an error it recorded, a stack, a tool that changed between
- * runs): the files for AI tools name no library, and say `AI_TEXT.driver` where a record does. Only
- * what voicecap and its runs wrote goes through it; what a website said, in a transcript or a
- * title, is never changed.
- */
-export const ownWords = (words: string): string => words.replace(/guidepup/gi, AI_TEXT.driver);
 
 /**
  * What a page's record says of how it ended and where its transcripts come from, as sentences: its

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolveConfig } from "../src/config/load.js";
 import {
   LOG_PRIVACY_WARNING,
+  RAW_GITIGNORE,
   importManualSession,
   type ImportManualSessionOptions,
 } from "../src/manual/import.js";
@@ -216,6 +217,27 @@ describe("importing an NVDA log", () => {
     ]);
     expect(listed[0]!.rawPath).toBe("2026-09-25/2357_manual_home/raw/nvda-log.txt");
     expect(listed[1]!.rawPath).toBeNull();
+  });
+
+  it("keeps a raw log out of Git with a .gitignore of its own beside it", async () => {
+    const { session, files } = await importLog({ date: "2026-09-25" });
+    const raw = path.join(manualSessionDir(outDir, session.id, "home"), "raw");
+    expect(RAW_GITIGNORE).toBe(
+      "# Written by voicecap: the raw NVDA log beside this file can hold typed passwords. Keep it out of Git.\n*\n",
+    );
+    expect(await readFile(path.join(raw, ".gitignore"), "utf8")).toBe(RAW_GITIGNORE);
+    // Beside the log, and nothing else is there.
+    expect((await readdir(raw)).sort()).toEqual([".gitignore", "nvda-log.txt"]);
+    expect(files.raw).toBe(path.join(raw, "nvda-log.txt"));
+  });
+
+  it("writes no raw folder, and so no .gitignore, when no raw log is kept", async () => {
+    const dirOf = (id: string) => manualSessionDir(outDir, id, "home");
+    const noRaw = await importLog({ date: "2026-09-25", noRaw: true });
+    expect(existsSync(path.join(dirOf(noRaw.session.id), "raw"))).toBe(false);
+    const redacted = await importLog({ date: "2026-09-26", redactTyping: true });
+    expect(redacted.files.raw).toBeNull();
+    expect(existsSync(path.join(dirOf(redacted.session.id), "raw"))).toBe(false);
   });
 
   it("with --no-raw, records the original's hash without copying it", async () => {

@@ -1,9 +1,10 @@
 import { existsSync } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import type { VoicecapConfig } from "../config/schema.js";
 import type { ManualEntry, ManualInputFormat, ManualSessionJson } from "../model.js";
+import { writeEachIfMissing } from "../run/git-files.js";
 import { manualSessionDir } from "../run/paths.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
 import { UsageError, errorMessage } from "../util/errors.js";
@@ -27,6 +28,14 @@ export const LOG_PRIVACY_WARNING =
   "NVDA logs at Input/output level record every keystroke, including text typed into form and " +
   "password fields. Treat this log, and any raw copy voicecap keeps of it, as sensitive; " +
   "--redact-typing removes the typing it can detect.";
+
+/**
+ * Written as raw/.gitignore beside a session's raw NVDA log: `*`, so Git leaves the log out even
+ * when the home's own .gitignore (see ../run/git-files.ts) doesn't, as in a home that was set up
+ * without it or one whose owner changed it.
+ */
+export const RAW_GITIGNORE =
+  "# Written by voicecap: the raw NVDA log beside this file can hold typed passwords. Keep it out of Git.\n*\n";
 
 export interface ImportManualSessionOptions {
   /** The site's folder in the transcripts home. */
@@ -143,7 +152,13 @@ export async function importManualSession(
     raw: raw.kept ? path.join(dir, "raw", rawName) : null,
   };
   // The JSON is written last: listManualSessions only sees complete imports.
-  if (files.raw) await writeFileAtomic(files.raw, bytes);
+  if (files.raw) {
+    // The log can hold typed passwords: its .gitignore is there before it is.
+    const rawDir = path.dirname(files.raw);
+    await mkdir(rawDir, { recursive: true });
+    await writeEachIfMissing(rawDir, [[".gitignore", RAW_GITIGNORE]]);
+    await writeFileAtomic(files.raw, bytes);
+  }
   await writeFileAtomic(files.txt, txt);
   await writeFileAtomic(files.json, `${JSON.stringify(session, null, 2)}\n`);
   return { session, files };

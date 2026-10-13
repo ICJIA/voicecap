@@ -38,6 +38,7 @@ import {
   sitePages,
 } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
+import { argumentsOf, splitCommand, splitCommandInGitBash } from "./helpers/split-command.js";
 
 // Every call goes through as it did, and is kept: the config each driver is made with, what the page
 // runner is given, and which files are read.
@@ -84,6 +85,32 @@ interface Original {
   /** The walkthrough's full path, in `dir`. */
   file: string;
   run: RunAuditResult;
+  /** The command `voicecap walkthrough` said repeats the run, as it printed it. */
+  command: string;
+}
+
+/** The command that repeats the run, from what `writeWalkthrough` said to its logger. */
+function printedCommand(logger: MemoryLogger): string {
+  const said = logger.entries.map(({ message }) => message);
+  const line = said.find((message) => message.startsWith("To repeat the run: "));
+  if (line === undefined) throw new Error(`It said no command: ${said.join(" / ")}`);
+  return line.slice("To repeat the run: ".length);
+}
+
+/**
+ * The options a command of voicecap's gives `runAudit`, for the two options a repeat's command has,
+ * --walkthrough and --site, as the program's own parser gives them.
+ */
+function repeatOptions(args: readonly string[]): Pick<RunAuditOptions, "walkthrough" | "site"> {
+  const options: Pick<RunAuditOptions, "walkthrough" | "site"> = {};
+  for (let at = 0; at < args.length; at += 2) {
+    const [flag, value] = [args[at], args[at + 1]];
+    if (value === undefined) throw new Error(`${String(flag)} has no value.`);
+    if (flag === "--walkthrough") options.walkthrough = value;
+    else if (flag === "--site") options.site = value;
+    else throw new Error(`A repeat's command has ${String(flag)}, which this test doesn't read.`);
+  }
+  return options;
 }
 
 /**
@@ -98,6 +125,7 @@ async function original(
   const run = await runAudit(runOptions(dir, new ScriptedDriver(sitePages()), extra));
   expect(run.outcome).toBe("completed");
   const file = path.join(dir, NAME);
+  const logger = createMemoryLogger();
   await writeWalkthrough({
     file,
     run: run.runId,
@@ -105,12 +133,12 @@ async function original(
     site: SITE,
     cwd: dir,
     env: {},
-    logger: createMemoryLogger(),
+    logger,
   });
   // What a test looks at is what the repeat does, not what making its original did.
   vi.mocked(createDriver).mockClear();
   vi.mocked(processPage).mockClear();
-  return { dir, file, run };
+  return { dir, file, run, command: printedCommand(logger) };
 }
 
 /** The walkthrough in `file`, read as a repeat reads it. */
@@ -775,6 +803,231 @@ describe("a run repeated from its walkthrough file", () => {
     await expect(readWalkthroughFile("over.json", dir)).rejects.toThrow(
       "over.json is larger than 8 MB, larger than any walkthrough file voicecap writes.",
     );
+  });
+});
+
+// A walkthrough file can come from anyone, and Windows signs a browser in to computers on its own
+// network by itself, so a file whose site is this computer, an IP address, or a name of one word
+// (`http://intranet`) is repeated live only when the person names that site with --site. A replay
+// opens no browser, so it goes ahead, as CI's smoke test runs one.
+describe("a repeat of a file whose site is on this computer or its network", () => {
+  /** The pages of sitePages(), at `origin`. */
+  const pagesAt = (origin: string) =>
+    sitePages().map((page) => ({ ...page, url: page.url.replace(SITE, origin) }));
+
+  /**
+   * A completed scripted run of the site at `origin` (three pages), and its walkthrough, written to
+   * NAME in the folder it ran from.
+   */
+  async function originalAt(origin: string): Promise<Original> {
+    const dir = await newFolder();
+    const run = await runAudit(
+      runOptions(dir, new ScriptedDriver(pagesAt(origin)), { site: origin }),
+    );
+    expect(run.outcome).toBe("completed");
+    const file = path.join(dir, NAME);
+    const logger = createMemoryLogger();
+    await writeWalkthrough({
+      file,
+      run: run.runId,
+      out: path.join(dir, "transcripts"),
+      site: origin,
+      cwd: dir,
+      env: {},
+      logger,
+    });
+    expect((await walkthroughIn(file)).site).toBe(origin);
+    vi.mocked(createDriver).mockClear();
+    vi.mocked(processPage).mockClear();
+    return { dir, file, run, command: printedCommand(logger) };
+  }
+
+  const NEARBY = [
+    "http://127.0.0.1:4747",
+    "http://intranet",
+    "http://localhost:3000",
+    "http://[::1]:4747",
+    "http://10.0.0.5:8080",
+  ];
+
+  /**
+   * How the hint writes an address after `--site`, as a command is written for pasting (quoteArg):
+   * bare, but for the IPv6 address, whose brackets a shell reads, so it is in single quotes.
+   */
+  const IN_A_COMMAND: Record<(typeof NEARBY)[number], string> = {
+    "http://127.0.0.1:4747": "http://127.0.0.1:4747",
+    "http://intranet": "http://intranet",
+    "http://localhost:3000": "http://localhost:3000",
+    "http://[::1]:4747": "'http://[::1]:4747'",
+    "http://10.0.0.5:8080": "http://10.0.0.5:8080",
+  };
+
+  it.each(NEARBY)(
+    "is refused without --site for %s, which says which flag to add",
+    async (origin) => {
+      const { file } = await originalAt(origin);
+      const dir = await copyToNewFolder(file);
+
+      // Refused before anything starts: refusedWith checks that no driver was made, no check run, and
+      // no folder made.
+      const message = await refusedWith(NAME, {}, dir);
+
+      expect(message).toBe(
+        `This walkthrough file reads ${origin}, an IP address, a local address, or a one-word name, which can be a computer on this network. To read it, name it yourself: add --site ${IN_A_COMMAND[origin]}.`,
+      );
+    },
+  );
+
+  // The hint is a command a person pastes, and the file it reads may come from anyone: a one-word
+  // host passes the address check, and may hold a single quote or a command substitution. The
+  // address is written as the command voicecap prints for a repeat writes it: a single quote as %27,
+  // and an address with anything a shell reads in single quotes, so that neither PowerShell nor Git
+  // Bash reads more than the address in it. The sentence before it names the site as it is.
+  it.each([
+    ["a single quote", "http://o'brien:3000", "http://o%27brien:3000"],
+    ["a command substitution", "http://x$(calc):3000", "'http://x$(calc):3000'"],
+  ])(
+    "writes the address in its hint as a command is written, for a one-word host with %s in it",
+    async (_what, origin, written) => {
+      const { file } = await originalAt(origin);
+      const dir = await copyToNewFolder(file);
+
+      const message = await refusedWith(NAME, {}, dir);
+
+      expect(message).toBe(
+        `This walkthrough file reads ${origin}, an IP address, a local address, or a one-word name, which can be a computer on this network. To read it, name it yourself: add --site ${written}.`,
+      );
+      // Pasted into either shell, the hint's address is one argument, which the program reads as
+      // the file's site.
+      for (const split of [splitCommand, splitCommandInGitBash]) {
+        const [flag, argument, ...rest] = split(`--site ${written}`);
+        expect(flag).toBe("--site");
+        expect(rest).toEqual([]);
+        expect(new URL(argument ?? "").origin).toBe(origin);
+      }
+    },
+  );
+
+  it("names the site as the file has it: its origin, whatever case or path the file wrote", async () => {
+    const { file } = await originalAt("http://127.0.0.1:4747");
+    await edit(file, (walkthrough) => {
+      walkthrough.site = "HTTP://127.0.0.1:4747/some/path?x=1";
+    });
+    const dir = await copyToNewFolder(file);
+
+    const message = await refusedWith(NAME, {}, dir);
+
+    expect(message).toContain("add --site http://127.0.0.1:4747.");
+    expect(message).not.toContain("some/path");
+  });
+
+  it.each(NEARBY)("runs for %s when the site is named with --site", async (origin) => {
+    const { file } = await originalAt(origin);
+    const dir = await copyToNewFolder(file);
+    const driver = new ScriptedDriver(pagesAt(origin));
+
+    const repeat = await runAudit(repeating(dir, driver, NAME, { site: origin }));
+
+    expect(repeat.outcome).toBe("completed");
+    expect(repeat.run.site).toBe(origin);
+    expect(repeat.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
+    expect([...new Set(driver.opened)]).toHaveLength(3);
+  });
+
+  it("runs when --site names the file's own site another way: another case, or with a path", async () => {
+    const { file } = await originalAt("http://127.0.0.1:4747");
+    const dir = await copyToNewFolder(file);
+
+    const repeat = await runAudit(
+      repeating(dir, new ScriptedDriver(pagesAt("http://127.0.0.1:4747")), NAME, {
+        site: "HTTP://127.0.0.1:4747/blog/",
+      }),
+    );
+
+    expect(repeat.outcome).toBe("completed");
+  });
+
+  it("still refuses a --site that isn't the file's own, as it does for any file", async () => {
+    const { file } = await originalAt("http://127.0.0.1:4747");
+    const dir = await copyToNewFolder(file);
+
+    const message = await refusedWith(NAME, { site: "http://127.0.0.1:4848" }, dir);
+
+    expect(message).toBe(
+      "--walkthrough repeats the pages and passes its file lists, so it can't be used with --site.",
+    );
+  });
+
+  it.each(NEARBY)("runs for %s with --replay-from, which opens no browser", async (origin) => {
+    const { file, run } = await originalAt(origin);
+    const dir = await copyToNewFolder(file);
+
+    // The replay driver, as CI's smoke test repeats a file whose site is http://127.0.0.1:4747.
+    const repeat = await runAudit(repeating(dir, undefined, NAME, { replayFrom: run.runDir }));
+
+    expect(repeat.outcome).toBe("completed");
+    expect(repeat.run.replayed).toBe(true);
+    expect(repeat.run.site).toBe(origin);
+    expect(repeat.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
+  });
+
+  // The command `voicecap walkthrough` prints to repeat a run is one a person pastes, so a repeat of the
+  // file it wrote must be one that command asks for: for a site on this computer or its network, that
+  // is --site, or the live repeat is refused. Split as a shell splits it, its arguments are what the
+  // program is given, and the scripted driver stands in for the screen reader.
+  it.each(NEARBY)("is repeated by the command voicecap prints for %s", async (origin) => {
+    const { file, command } = await originalAt(origin);
+    const args = argumentsOf(command);
+    expect(args).toEqual(["--walkthrough", file, "--site", origin]);
+
+    const repeat = await runAudit(
+      repeating(await newFolder(), new ScriptedDriver(pagesAt(origin)), file, repeatOptions(args)),
+    );
+
+    expect(repeat.outcome).toBe("completed");
+    expect(repeat.run.site).toBe(origin);
+    expect(repeat.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
+  });
+
+  // A single quote in the address is written %27, so the command reads the same in PowerShell and in
+  // Git Bash. The program reads that as the same site: a URL decodes %27 in a host.
+  it("is repeated by the command voicecap prints for a one-word host with a single quote in it", async () => {
+    const origin = "http://o'brien:3000";
+    const { file, command } = await originalAt(origin);
+    const args = argumentsOf(command);
+    expect(args).toEqual(["--walkthrough", file, "--site", "http://o%27brien:3000"]);
+
+    const repeat = await runAudit(
+      repeating(await newFolder(), new ScriptedDriver(pagesAt(origin)), file, repeatOptions(args)),
+    );
+
+    expect(repeat.outcome).toBe("completed");
+    expect(repeat.run.site).toBe(origin);
+    expect(repeat.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
+  });
+
+  it("is the file alone for a site people visit, and a repeat of it asks for nothing more", async () => {
+    const { file, command } = await original();
+    const args = argumentsOf(command);
+    expect(args).toEqual(["--walkthrough", file]);
+
+    const repeat = await runAudit(
+      repeating(await newFolder(), new ScriptedDriver(sitePages()), file, repeatOptions(args)),
+    );
+
+    expect(repeat.outcome).toBe("completed");
+    expect(repeat.run.site).toBe(SITE);
+  });
+
+  it("isn't asked of a file whose site has a dot in its name, which is a name people visit", async () => {
+    // The sample site is https://example.illinois.gov, as in every other repeat in this file.
+    const { dir } = await original();
+    const driver = new ScriptedDriver(sitePages());
+
+    const repeat = await runAudit(repeating(dir, driver, NAME));
+
+    expect(repeat.outcome).toBe("completed");
+    expect(driver.starts).toBe(1);
   });
 });
 

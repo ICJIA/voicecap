@@ -8,6 +8,7 @@ import {
   readFile,
   rename,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -681,6 +682,68 @@ describe("verifyHome", () => {
     ]);
   });
 
+  // A record that is sealed, so that it matches its own seal, can still name a site that no folder can be
+  // named for: voicecap refuses the folder of a host of only dots, of one Windows keeps for itself, and
+  // of none at all. `verify` says that of the record, and goes on to the rest of the home.
+  it.each([
+    ["a host of only dots", "http://../"],
+    ["a single dot", "http://./"],
+    ["a name Windows keeps for itself", "http://con/"],
+    ["a name Windows keeps, with a domain", "http://aux.example.org/"],
+    ["an address with no host", "file:///C:/records"],
+  ])("lists a run whose site is %s as unreadable, and checks the rest", async (_name, site) => {
+    const home = await copyOfHome();
+    await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+      run.site = site;
+      run.seal = sealOf(run);
+    });
+    await appendFile(at(home, `${SESSION}/session.txt`), "23:59:59      An added line\n");
+
+    // The manual session is in the earlier date's folder, so it comes first.
+    expect((await verify(home)).lines).toEqual([
+      `${SESSION}/session.txt: changed since it was recorded (SHA-256 differs)`,
+      `${RUN}: not a readable run or manual session`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 2 problems.`,
+    ]);
+  });
+
+  it.each([
+    ["a host of only dots", "http://../x"],
+    ["a name Windows keeps for itself", "http://nul/x"],
+    ["an address with no host", "file:///C:/records/x"],
+  ])(
+    "lists a manual session whose page is at %s as unreadable, and checks the rest",
+    async (_name, url) => {
+      const home = await copyOfHome();
+      await editJson<ManualSessionJson>(at(home, `${SESSION}/session.json`), (session) => {
+        session.page = { ...session.page, url };
+        session.seal = sealOf(session);
+      });
+      await appendFile(at(home, `${RUN}/pages/home/read.txt`), "An added line.\n");
+
+      expect((await verify(home)).lines).toEqual([
+        `${SESSION}: not a readable run or manual session`,
+        `${RUN}/pages/home/read.txt: changed since it was recorded (SHA-256 differs)`,
+        `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 2 problems.`,
+      ]);
+    },
+  );
+
+  it("lists an incomplete run whose site is no site's as unreadable, not as one that belongs elsewhere", async () => {
+    const home = await copyOfHome();
+    await interruptedRun(home);
+    await editJson<RunJson>(at(home, `${FOLDER}/2026-09-27/1200/run.json`), (run) => {
+      run.site = "http://../";
+    });
+
+    const { lines } = await verify(home);
+
+    expect(lines).toContain(`${FOLDER}/2026-09-27/1200: not a readable run or manual session`);
+    expect(lines.at(-1)).toBe(
+      `${FOLDER}: 2 runs (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    );
+  });
+
   it("doesn't mind the files an operating system leaves in folders", async () => {
     const home = await copyOfHome();
     await writeFile(at(home, `${RUN}/pages/home/.DS_Store`), "Finder's view settings");
@@ -977,6 +1040,44 @@ describe("verifyHome", () => {
     await rm(at(home, `${SESSION}/raw`), { recursive: true });
     expect((await verify(home)).lines).toEqual([MATCHES]);
   });
+
+  // The raw copy's name is in the sealed record, so a record can be resealed with any name. voicecap
+  // writes two (raw/nvda-log.txt, raw/speech-viewer.txt), and reads no other: a name such as CON
+  // is a device on Windows, and one with ".." reaches outside the session's folder.
+  it.each([
+    ["CON", "CON"],
+    ["a path outside the session's folder", "../../../x"],
+    ["a path that leaves raw/ again", "raw/nvda-log.txt/../../session.txt"],
+    ["a name voicecap doesn't give it", "raw/nvda-log.txt.bak"],
+    ["a path that isn't a name", 7],
+  ])("reports a raw copy named %s as a name voicecap never writes", async (_name, rawPath) => {
+    const home = await copyOfHome();
+    await editJson<ManualSessionJson>(at(home, `${SESSION}/session.json`), (session) => {
+      (session.input.raw as { path: unknown }).path = rawPath;
+      session.seal = sealOf(session);
+    });
+    expect((await verify(home)).lines).toEqual([
+      `${SESSION}/session.json: its raw copy has a name voicecap never writes, so it wasn't read`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
+  it.runIf(process.platform !== "win32")(
+    "reports a raw copy that is a symbolic link, without following it",
+    async () => {
+      const home = await copyOfHome();
+      const raw = at(home, `${SESSION}/raw/nvda-log.txt`);
+      // A link to a file with the bytes the session recorded, which a read through it would pass.
+      const target = at(home, "elsewhere.txt");
+      await cp(raw, target);
+      await rm(raw);
+      await symlink(target, raw);
+      expect((await verify(home)).lines).toEqual([
+        `${SESSION}/raw/nvda-log.txt: changed since it was recorded (SHA-256 differs)`,
+        `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+      ]);
+    },
+  );
 
   it("counts unsealed records as problems, and lists incomplete runs, which aren't", async () => {
     const home = await copyOfHome();

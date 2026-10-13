@@ -178,6 +178,33 @@ describe("runWizard", () => {
     expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
   });
 
+  // The command init composes is the run's, so a website the run would refuse is asked for again, and
+  // an address with a user name or password in it is said not to take them.
+  it("asks again for a website with an empty part in its host, or with a user name and password", async () => {
+    const hint =
+      "Enter the site's address, such as dvfr.illinois.gov or https://dvfr.illinois.gov.";
+    const credentials = "Enter the address without a user name or password in it.";
+    const { result, screen } = await session([
+      "http://../",
+      "https://dvfr.illinois.gov.",
+      "https://jane:secret@dvfr.illinois.gov",
+      "dvfr.illinois.gov",
+      "",
+      "",
+      "",
+      "",
+    ]);
+
+    expect(screen).toContain(
+      `Website: http://../\n${hint}\n` +
+        `Website: https://dvfr.illinois.gov.\n${hint}\n` +
+        `Website: https://jane:secret@dvfr.illinois.gov\n${credentials}\n` +
+        "Website: dvfr.illinois.gov\n",
+    );
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
+    expect(result.command).not.toContain("secret");
+  });
+
   it("asks about a site that doesn't answer", async () => {
     const fetch = realSitesFetch({
       "https://i2i.illinois.gov/": () => new Response("Forbidden", { status: 403 }),
@@ -336,6 +363,49 @@ describe("runWizard", () => {
       "npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/faq/" +
         R,
     );
+  });
+
+  it("asks again for a page with a user name and password in its address, and a sitemap with one", async () => {
+    const credentials = "Enter the address without a user name or password in it.";
+    const page = await session([
+      "dvfr.illinois.gov",
+      "4",
+      "https://jane:secret@dvfr.illinois.gov/faq/",
+      "//jane:secret@dvfr.illinois.gov/faq/",
+      "/faq/",
+      "",
+      "",
+    ]);
+
+    expect(page.screen).toContain(
+      "Page (a full URL, or a path like /faq/) [https://dvfr.illinois.gov/]: https://jane:secret@dvfr.illinois.gov/faq/\n" +
+        `${credentials}\n` +
+        "Page (a full URL, or a path like /faq/) [https://dvfr.illinois.gov/]: //jane:secret@dvfr.illinois.gov/faq/\n" +
+        `${credentials}\n` +
+        "Page (a full URL, or a path like /faq/) [https://dvfr.illinois.gov/]: /faq/\n",
+    );
+    expect(page.result.command).toBe(
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/faq/" +
+        R,
+    );
+    expect(page.result.command).not.toContain("secret");
+
+    const sitemap = await session([
+      "dvfr.illinois.gov",
+      "2",
+      "https://jane:secret@dvfr.illinois.gov/sitemap.xml",
+      "sitemap.xml",
+      "",
+      "",
+      "",
+    ]);
+
+    expect(sitemap.screen).toContain(
+      "Sitemap (a full URL, or a name like sitemap.xml): https://jane:secret@dvfr.illinois.gov/sitemap.xml\n" +
+        `${credentials}\n` +
+        "Sitemap (a full URL, or a name like sitemap.xml): sitemap.xml\n",
+    );
+    expect(sitemap.result.command).toBe(DVFR_SITEMAP_COMMAND + R);
   });
 
   it("says what to change for cmd when the command has a value in single quotes", async () => {
@@ -725,6 +795,27 @@ describe("runWizard", () => {
 
     expect(screen).toContain("Reviewer, recorded with the run [icjia]: Jane Doe\n");
     expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --reviewer 'Jane Doe'`);
+  });
+
+  // PowerShell reads Doe, Jane as two arguments, and a quote as the end of the string, so the name
+  // goes in single quotes with its quote doubled, and cmd, which takes neither, is told to change them.
+  it("quotes a name with a comma or a quote as PowerShell reads it, and says what to change for cmd", async () => {
+    const comma = await session(["dvfr.illinois.gov", "", "", "", ""], {}, "Doe, Jane");
+    const quote = await session(["dvfr.illinois.gov", "", "", "", ""], {}, "Jane O'Brien");
+
+    expect(comma.result.command).toBe(`${DVFR_SITEMAP_COMMAND} --reviewer 'Doe, Jane'`);
+    expect(quote.result.command).toBe(`${DVFR_SITEMAP_COMMAND} --reviewer 'Jane O''Brien'`);
+    expect(quote.result.args.slice(-2)).toEqual(["--reviewer", "Jane O'Brien"]);
+    for (const { screen } of [comma, quote]) {
+      expect(screen).toContain("In cmd, use double quotes instead of single quotes.\n");
+    }
+  });
+
+  it("leaves the cmd note out when nothing in the command is quoted", async () => {
+    const { screen } = await session(["dvfr.illinois.gov", "", "", "", ""], {}, "me@example.org");
+
+    expect(screen).toContain(`${DVFR_SITEMAP_COMMAND} --reviewer me@example.org\n`);
+    expect(screen).not.toContain("In cmd");
   });
 
   it("offers VOICECAP_REVIEWER as the default, with no tip", async () => {

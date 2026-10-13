@@ -1,18 +1,40 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  addressWithCredentials,
   canonicalKey,
   displayPath,
+  hasCredentials,
+  hasEmptyLabel,
   isHtmlContentType,
   nonHtmlExtension,
   normalizeUrl,
   parseSiteUrl,
   resolvePageUrl,
+  resolveSitemapUrl,
   sameOrigin,
+  withoutCredentials,
+  withoutUserInfo,
 } from "../src/pages/url.js";
 import { UsageError } from "../src/util/errors.js";
 
 const site = parseSiteUrl("https://example.illinois.gov");
+
+/** What `--site` says of an address with a user name or password in it. */
+const SITE_CREDENTIALS =
+  "--site has a user name or password in it: give the site's address without them.";
+
+/** The error `parseSiteUrl` stops `input` with. */
+function siteRefusal(input: string): UsageError {
+  let error: unknown;
+  try {
+    parseSiteUrl(input);
+  } catch (caught) {
+    error = caught;
+  }
+  expect(error).toBeInstanceOf(UsageError);
+  return error as UsageError;
+}
 
 describe("parseSiteUrl", () => {
   it("returns the site's origin", () => {
@@ -20,11 +42,293 @@ describe("parseSiteUrl", () => {
       "https://example.illinois.gov/",
     );
     expect(parseSiteUrl("http://127.0.0.1:4747").href).toBe("http://127.0.0.1:4747/");
+    expect(parseSiteUrl("https://dvfr.illinois.gov").href).toBe("https://dvfr.illinois.gov/");
   });
 
   it("rejects values that aren't http(s) URLs", () => {
     expect(() => parseSiteUrl("example.illinois.gov")).toThrow(UsageError);
     expect(() => parseSiteUrl("ftp://example.illinois.gov")).toThrow(/http or https/);
+  });
+
+  // A host with an empty part isn't a site's name, and a folder named for one could be the
+  // transcripts home itself, or the folder that holds it (`new URL("http://../").host` is "..").
+  it.each([
+    "http://../",
+    "http://%2e%2e/",
+    "http://.../",
+    "http://./",
+    "https://a..b.org",
+    "https://.example.org",
+    "https://example.org.",
+    "https://example.org./path",
+  ])("refuses %s, as not a web address, naming --site", (address) => {
+    const message = siteRefusal(address).message;
+
+    expect(message).toContain("--site");
+    expect(message).toContain("web address");
+  });
+
+  it("says what the site must be, and what it was given, for a host with an empty part", () => {
+    expect(siteRefusal("https://a..b.org").message).toBe(
+      `--site must be a web address such as https://dvfr.illinois.gov: a host can't start or end with a dot or have two dots in a row (got "https://a..b.org").`,
+    );
+  });
+
+  it("refuses an address with a user name and a password, in words that hold neither", () => {
+    const message = siteRefusal("https://user:pw@example.org").message;
+
+    expect(message).toBe(SITE_CREDENTIALS);
+    expect(message).toContain("--site");
+    expect(message).not.toContain("pw");
+  });
+
+  it.each([
+    "https://jane:s3cret@example.org/some/path?x=1#top",
+    "http://jane@example.org",
+    "http://:s3cret@example.org",
+    // Not a web address either, and still no echo of what it holds.
+    "ftp://jane:s3cret@example.org",
+    "http:jane:s3cret@example.org/",
+    // A host with an empty part as well: the password is still not repeated.
+    "http://jane:s3cret@../",
+  ])("refuses %s, with words that hold no user name and no password", (address) => {
+    const message = siteRefusal(address).message;
+
+    expect(message).toBe(SITE_CREDENTIALS);
+    expect(message).not.toContain("jane");
+    expect(message).not.toContain("s3cret");
+  });
+
+  it("takes an address whose @ is in its path, query, or fragment, which is no user name", () => {
+    expect(parseSiteUrl("https://example.org/@pw").href).toBe("https://example.org/");
+    expect(parseSiteUrl("https://example.org/?mail=a@b.c").href).toBe("https://example.org/");
+    expect(parseSiteUrl("https://example.org/#@pw").href).toBe("https://example.org/");
+    // A bare @ is no user name and no password.
+    expect(parseSiteUrl("https://@example.org").href).toBe("https://example.org/");
+  });
+
+  // An address that reads as another scheme (`staging:secret@host` is the scheme `staging:`), or that isn't one
+  // (a space in its host), has no user name to the URL standard, but it has a name and a password to a person.
+  it("repeats nothing of a name and password in an address it refuses as no address", () => {
+    expect(siteRefusal("staging:secret@staging.example.org").message).toBe(
+      '--site must be an http or https URL (got "staging.example.org").',
+    );
+    expect(siteRefusal("https://jane:secret@exa mple.org").message).toBe(
+      '--site must be a full URL such as https://dvfr.illinois.gov (got "https://exa mple.org").',
+    );
+    for (const input of [
+      "staging:secret@staging.example.org/a",
+      "  staging:secret@staging.example.org",
+      "https://jane:secret@exa mple.org/a b",
+      "//jane:secret@example.org",
+    ]) {
+      const message = siteRefusal(input).message;
+      expect(message, input).not.toContain("secret");
+      expect(message, input).not.toContain("jane");
+    }
+  });
+
+  it("still takes a local address, an address with a port, and a host in capitals", () => {
+    expect(parseSiteUrl("http://127.0.0.1:4747").href).toBe("http://127.0.0.1:4747/");
+    expect(parseSiteUrl("http://localhost:3000/x").href).toBe("http://localhost:3000/");
+    expect(parseSiteUrl("http://[::1]:4747/").href).toBe("http://[::1]:4747/");
+    expect(parseSiteUrl("http://intranet").href).toBe("http://intranet/");
+    expect(parseSiteUrl("HTTPS://DVFR.Illinois.GOV").href).toBe("https://dvfr.illinois.gov/");
+  });
+});
+
+// An address that isn't one, or that reads as another scheme, can still hold a name and a password: the
+// text of a page list's row, a sitemap's entry, or what a person typed. It's repeated, and recorded, without them.
+describe("withoutUserInfo", () => {
+  it.each([
+    // An address with an authority: what comes before the last @ in it goes, whatever the rest is.
+    ["https://jane:secret@example.org/a", "https://example.org/a"],
+    ["https://jane@example.org/a", "https://example.org/a"],
+    ["//jane:secret@example.org/a", "//example.org/a"],
+    ["ftp://jane:secret@example.org/file.xml", "ftp://example.org/file.xml"],
+    ["https://jane:secret@exa mple.org/a", "https://exa mple.org/a"],
+    ["  https://jane:secret@example.org/a", "  https://example.org/a"],
+    ["https://jane:pa@ss@example.org/a", "https://example.org/a"],
+    [String.raw`https:\\jane:secret@example.org\a`, String.raw`https:\\example.org\a`],
+    // No scheme: a name, a colon, and a password before an @ are a name and a password.
+    ["staging:secret@staging.example.org/a", "staging.example.org/a"],
+    ["staging:secret@staging.example.org", "staging.example.org"],
+    ["staging:pa@ss@staging.example.org/a", "staging.example.org/a"],
+    ["  staging:secret@staging.example.org/a", "  staging.example.org/a"],
+    ["staging:@staging.example.org/a", "staging.example.org/a"],
+  ])("takes the user name and password out of %j", (text, without) => {
+    expect(withoutUserInfo(text)).toBe(without);
+  });
+
+  it.each([
+    // A mail address, in the scheme that has one, is not a name and a password.
+    "mailto:someone@example.org",
+    "MAILTO:someone@example.org",
+    "https://example.org/a",
+    "https://example.org/@jane",
+    "https://example.org/?mail=a@b.c",
+    "https://example.org/#a:b@c",
+    "/about",
+    "about@us",
+    "jane@example.org",
+    "localhost:3000",
+    "localhost:3000/faq",
+    "data:text/html,a:b@c",
+    "javascript:alert(1)",
+    String.raw`C:\Program Files\Git\about`,
+    "C:/Program Files/Git/about",
+    "",
+  ])("leaves %j as it is", (text) => {
+    expect(withoutUserInfo(text)).toBe(text);
+  });
+
+  it("reads a text of hundreds of thousands of characters in time that doesn't grow with its square", () => {
+    const texts = [
+      "a".repeat(300_000),
+      "a:".repeat(150_000),
+      ":".repeat(300_000),
+      "@".repeat(300_000),
+      `${"a:b".repeat(100_000)}@`,
+      `https://${"a:".repeat(150_000)}`,
+      `x:${"y".repeat(300_000)}@z`,
+      `//${"@".repeat(200_000)}`,
+      `${" ".repeat(300_000)}x:y@z`,
+      "mailto:" + "a".repeat(300_000),
+    ];
+    const started = performance.now();
+    for (const text of texts) withoutUserInfo(text);
+    expect(performance.now() - started).toBeLessThan(2_000);
+  });
+});
+
+describe("hasEmptyLabel", () => {
+  it.each([
+    ["a host that starts with a dot", ".example.com"],
+    ["a host with two dots together", "a..b.org"],
+    ["a host that ends with a dot", "example.com."],
+    ["a host of dots", ".."],
+    ["a single dot", "."],
+    ["nothing at all", ""],
+  ])("is true for %s", (_name, hostname) => {
+    expect(hasEmptyLabel(hostname)).toBe(true);
+  });
+
+  it.each([
+    "example.com",
+    "dvfr.illinois.gov",
+    "intranet",
+    "127.0.0.1",
+    "[::1]",
+    "xn--exmple-cua.gov",
+  ])("is false for %s", (hostname) => {
+    expect(hasEmptyLabel(hostname)).toBe(false);
+  });
+});
+
+describe("hasCredentials and withoutCredentials", () => {
+  it.each([
+    ["a user name and a password", "https://user:pw@example.org/a?b=1#c"],
+    ["a user name alone", "https://user@example.org/a"],
+    ["a password alone", "https://:pw@example.org/a"],
+  ])("see %s", (_name, address) => {
+    const url = new URL(address);
+
+    expect(hasCredentials(url)).toBe(true);
+    const without = withoutCredentials(url);
+    expect(without).toBe(address.replace(/\/\/[^@]*@/, "//"));
+    expect(without).not.toContain("pw");
+    expect(without).not.toContain("user");
+    expect(hasCredentials(new URL(without))).toBe(false);
+  });
+
+  it("see none in an address with an @ elsewhere, or a bare @", () => {
+    for (const address of [
+      "https://example.org/a@b",
+      "https://example.org/?x=a@b",
+      "https://example.org/#a@b",
+      "https://@example.org/",
+      "https://example.org/",
+    ]) {
+      expect(hasCredentials(new URL(address)), address).toBe(false);
+    }
+  });
+
+  it("gives the address back as it was when there's nothing to clear, and changes no URL it's given", () => {
+    const plain = new URL("https://example.org/a?b=1#c");
+    expect(withoutCredentials(plain)).toBe("https://example.org/a?b=1#c");
+
+    const url = new URL("https://user:pw@example.org/a");
+    withoutCredentials(url);
+    expect(url.username).toBe("user");
+    expect(url.password).toBe("pw");
+  });
+});
+
+describe("addressWithCredentials", () => {
+  it.each([
+    ["a full URL", "https://u:p@example.org/a", "https://u:p@example.org/a"],
+    [
+      "a full URL with a user name alone",
+      "https://jane@example.org/a",
+      "https://jane@example.org/a",
+    ],
+    ["a full URL of another scheme", "ftp://u:p@example.org/a", "ftp://u:p@example.org/a"],
+    ["a full URL, in spaces", "  https://u:p@example.org/a  ", "https://u:p@example.org/a"],
+    [
+      "an address with no slashes after its scheme",
+      "http:u:p@example.org/a",
+      "http://u:p@example.org/a",
+    ],
+  ])("gives %s, with its user name and password", (_name, input, href) => {
+    expect(addressWithCredentials(input)?.href).toBe(href);
+    expect(addressWithCredentials(input, site)?.href).toBe(href);
+  });
+
+  it("gives a path that names another host, whether or not there's a site to resolve it on", () => {
+    expect(addressWithCredentials("//u:p@example.org/a", site)?.href).toBe(
+      "https://u:p@example.org/a",
+    );
+    expect(addressWithCredentials("//u:p@example.org/a")?.username).toBe("u");
+  });
+
+  it.each([
+    "https://example.org/a",
+    "https://example.org/a@b",
+    "https://example.org/?mail=a@b.c",
+    "https://example.org/#a@b",
+    "https://@example.org/",
+    "mailto:someone@example.com",
+    "/about",
+    "about",
+    "sitemap.xml",
+    "",
+    "   ",
+    "http://[not-a-host]/",
+    "C:/Program Files/Git/about",
+  ])("gives none for %j", (input) => {
+    expect(addressWithCredentials(input)).toBeNull();
+    expect(addressWithCredentials(input, site)).toBeNull();
+  });
+});
+
+describe("resolveSitemapUrl", () => {
+  it("gives a sitemap's URL, as a full URL or as a name or path on the site", () => {
+    expect(resolveSitemapUrl("https://dvfr.illinois.gov/sitemap.xml", site)?.href).toBe(
+      "https://dvfr.illinois.gov/sitemap.xml",
+    );
+    expect(resolveSitemapUrl("sitemap.xml", site)?.href).toBe(
+      "https://example.illinois.gov/sitemap.xml",
+    );
+    expect(resolveSitemapUrl("/sitemaps/pages.xml", site)?.href).toBe(
+      "https://example.illinois.gov/sitemaps/pages.xml",
+    );
+  });
+
+  it("gives none for a sitemap whose address has a user name or password in it", () => {
+    expect(resolveSitemapUrl("https://user:pw@example.org/sitemap.xml", site)).toBeNull();
+    expect(resolveSitemapUrl("https://user@example.org/sitemap.xml")).toBeNull();
+    // A path that goes to another host, with its user name, is the same address.
+    expect(resolveSitemapUrl("//user:pw@example.org/sitemap.xml", site)).toBeNull();
   });
 });
 

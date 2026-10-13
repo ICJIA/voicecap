@@ -10,9 +10,10 @@
  * steps' icons are named here and drawn by the renderer, and the only markup is the bold and code
  * in the timeline's cells. A few are functions: for a line (./line.ts) with something in bold, in
  * code, or linked out, which holds those as data, never as markup, or for a sentence with a name, a
- * number, or a command in it (the verdict's headline, in `ATTENTION_TEXT`). What only the Word
- * copy says, the heads of its tables and the labels of their rows, is in `WORD_TEXT`, and what only
- * the files for AI tools say is last, in `AI_TEXT`.
+ * number, or a command in it (the verdict's headline, in `ATTENTION_TEXT`), or for a record's words
+ * where they name the library that drives the screen reader (`ownWords`). What only the Word copy
+ * says, the heads of its tables and the labels of their rows, is in `WORD_TEXT`, and what only the
+ * files for AI tools say is last, in `AI_TEXT`.
  *
  * The wording is the design's ("Fixed text: how voicecap works, and how it came to be"), and the
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
@@ -268,10 +269,12 @@ export const PAGES_TEXT = {
   heardFirst: "Heard first",
   fullTranscript: "The full transcript",
   /**
-   * What follows `fullTranscript` for a screen reader alone, before the page's address: "The full
-   * transcript of /about/: read, headings, and Tab transcripts". Every card's fold says the same on
-   * screen, so a reader moving from one fold to the next, or listing the page's folds, would hear
-   * them all alike; the page sets these words apart (`sr`), so each fold says which page it is of.
+   * What goes before the page's address, for a screen reader alone, after the fold's line: "The
+   * full transcript: read, headings, and Tab transcripts of /about/". Every card's fold says the
+   * same on screen, so a reader moving from one fold to the next, or listing the page's folds,
+   * would hear them all alike; the page sets these words apart (`sr`), after the words everyone
+   * sees, so each fold says which page it is of and its name starts with the words it shows (WCAG
+   * 2.5.3, label in name).
    */
   fullTranscriptOf: "of",
   /** The label of each number on a card: what each pass captured, and how long the page took. */
@@ -701,6 +704,23 @@ function unchangedTail(verify: string, printed: string): Line {
  */
 const REPEAT_EXACTLY =
   "To repeat this run exactly, with the same pages in the same order and the same passes and limits, ";
+
+/**
+ * What the page, its Word copy, and the files for AI tools say where a run's record names the
+ * library that drives the screen reader (the software, the driver, and the line on NVDA's
+ * settings): they name no library, and this stands in its place (`ownWords`). A run's record keeps
+ * the name as the run wrote it; only what the copies show says this.
+ */
+export const DRIVER_WORDS = "the screen reader driver";
+
+/**
+ * Words as a run's record has them, where the record may name the library that drives the screen
+ * reader (a row of the test environment, an error it recorded, a stack, a tool that changed between
+ * runs): the page, its Word copy, and the files for AI tools name no library, and say `DRIVER_WORDS`
+ * where a record does. Only what voicecap and its runs wrote goes through it; what a website said,
+ * in a transcript or a title, is never changed.
+ */
+export const ownWords = (words: string): string => words.replace(/guidepup/gi, DRIVER_WORDS);
 
 /**
  * "The evidence behind these results": its heading, that the runs read a copy of the site, what a
@@ -1792,9 +1812,10 @@ export const AI_TEXT = {
   setupKeys: { "to bottom": "Ctrl+End", "to top": "Ctrl+Home" } as Readonly<Record<string, string>>,
   /**
    * What the files say where a record names the library that drives the screen reader: they name
-   * no library, and this stands in its place.
+   * no library, and this stands in its place, as it does on the page and in its Word copy
+   * (`DRIVER_WORDS`).
    */
-  driver: "the screen reader driver",
+  driver: DRIVER_WORDS,
   /**
    * The sentence the JSON file adds to the note (`about`), after the sentences both files carry:
    * what the WCAG criteria in its `wcag` lists are, and that whether a finding relates to any of

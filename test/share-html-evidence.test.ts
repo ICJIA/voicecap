@@ -36,6 +36,7 @@ import { inRun } from "../src/share/words.js";
 import { TINY_RECORD } from "./helpers/jpeg.js";
 import { FIRST_COPY, keptLogsRun, nvdaFixtureSite } from "./helpers/nvda-log.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
+import { driverNamedModel, driverNamedRun } from "./helpers/share-driver.js";
 import { demoRun } from "./helpers/share-fixture.js";
 import {
   attributes,
@@ -144,6 +145,14 @@ function dataOf(html: string): CheckData {
 /** The markup without the check's data, which holds the records and transcripts as recorded. */
 function withoutData(html: string): string {
   return html.replace(/<script type="application\/json" id="fp-data">.*?<\/script>/s, "");
+}
+
+/**
+ * What a reader gets of a whole page as words: its markup with no style, no script, and none of the
+ * check's data, which holds the records as written; tags gone and entities decoded.
+ */
+function wordsOfPage(html: string): string {
+  return textOf(withoutData(html).replace(/<(style|script)\b[^>]*>.*?<\/\1>/gs, ""));
 }
 
 /** Each run's fold, from its opening tag to its closing one. */
@@ -806,8 +815,41 @@ describe("renderEvidence", () => {
             (found) => found[1],
           ),
         ).toEqual([
-          "npx @icjia/voicecap --walkthrough 127.0.0.1_4848_2026-09-29_1402_walkthrough.json",
-          "npx @icjia/voicecap --walkthrough 127.0.0.1_4848_2026-09-29_1315_walkthrough.json",
+          // The demo was read at an IP address, so a repeat of its file needs --site: the command names it.
+          "npx @icjia/voicecap --walkthrough 127.0.0.1_4848_2026-09-29_1402_walkthrough.json --site http://127.0.0.1:4848",
+          "npx @icjia/voicecap --walkthrough 127.0.0.1_4848_2026-09-29_1315_walkthrough.json --site http://127.0.0.1:4848",
+        ]);
+      });
+
+      it("names the address the run read after --site, never the canonical address the page names the site by", async () => {
+        const model = await demoModel(DEMO_ROOT);
+        const html = renderEvidence(model);
+
+        // The file is named for the site as the page names it, the commands' --site for the address read.
+        expect(attributes(html, "download")).toEqual([
+          "voicecap.icjia.app_2026-09-29_1402_walkthrough.json",
+          "voicecap.icjia.app_2026-09-29_1315_walkthrough.json",
+        ]);
+        expect(
+          [...html.matchAll(/<pre>(npx @icjia\/voicecap --walkthrough [^<]*)<\/pre>/g)].map(
+            (found) => found[1],
+          ),
+        ).toEqual([
+          "npx @icjia/voicecap --walkthrough voicecap.icjia.app_2026-09-29_1402_walkthrough.json --site http://127.0.0.1:4848",
+          "npx @icjia/voicecap --walkthrough voicecap.icjia.app_2026-09-29_1315_walkthrough.json --site http://127.0.0.1:4848",
+        ]);
+      });
+
+      it("is the file alone for a run read at a site people visit", () => {
+        const run = shareRun({ id: "2026-09-26_1405", pages: [{ path: "/" }] });
+        const html = renderEvidence(buildShareModel(inputOf([run])));
+
+        expect(
+          [...html.matchAll(/<pre>(npx @icjia\/voicecap --walkthrough [^<]*)<\/pre>/g)].map(
+            (found) => found[1],
+          ),
+        ).toEqual([
+          "npx @icjia/voicecap --walkthrough example.illinois.gov_2026-09-26_1405_walkthrough.json",
         ]);
       });
 
@@ -941,6 +983,47 @@ describe("renderEvidence", () => {
       // Its walkthrough file is the model's own, named for the run the model says it is.
       expect(attributes(html, "download")[0]).toBe(downloadOf(first).fileName);
       expect(html).not.toContain("_9999_walkthrough.json");
+    });
+  });
+
+  describe("a run whose record names the library that drives the screen reader", () => {
+    it("says 'the screen reader driver' in the software, driver, and settings rows of its test environment", () => {
+      const [fold = ""] = runFolds(renderEvidence(driverNamedModel()));
+      const rows = rowsOf(tableOf(partOf(fold, "Test environment"), "plain"));
+
+      expect(rows).toContain("Driver | the screen reader driver 0.34.0 (capture: complete)");
+      expect(rows).toContain(
+        "Software | Node.js 24.19.0, voicecap 0.6.0, the screen reader driver 0.34.0, Playwright 1.63.0",
+      );
+      expect(rows).toContain(
+        `NVDA recorded | "only settings that differ from NVDA 2026.2's defaults (the screen reader driver's configuration plus voicecap's nvdaSettings)"`,
+      );
+      expect(rows.join("\n")).not.toMatch(/guidepup/i);
+    });
+
+    it("says it where the tools changed during the run too: in its row, and in the technical limits", () => {
+      const model = driverNamedModel(true);
+      const [fold = ""] = runFolds(renderEvidence(model));
+      const rows = rowsOf(tableOf(partOf(fold, "Test environment"), "plain"));
+      const change =
+        "Driver differs: the screen reader driver 0.34.0 → the screen reader driver 0.35.0";
+
+      expect(rows).toContain(`Changed during the run | ${change}.`);
+      expect(rows).toContain("Driver | the screen reader driver 0.35.0 (capture: complete)");
+      expect(rows.join("\n")).not.toMatch(/guidepup/i);
+      expect(listsOf(renderCoverage(model))[1]).toContain(`${change} (during run r1).`);
+    });
+
+    it("names no library in any word of the page, and leaves the records as they were written", () => {
+      for (const resumed of [false, true]) {
+        const html = renderSharePage(driverNamedModel(resumed), { fontCss: "" });
+
+        expect(wordsOfPage(html), `resumed: ${resumed}`).not.toMatch(/guidepup/i);
+        // The check's data is the run's record exactly, which names the library (its seal covers
+        // it), so the words above are free of it because the page says it otherwise.
+        expect(dataOf(html).runs, `resumed: ${resumed}`).toEqual([driverNamedRun(resumed)]);
+        expect(html, `resumed: ${resumed}`).toMatch(/guidepup/i);
+      }
     });
   });
 

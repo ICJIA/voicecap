@@ -12,13 +12,19 @@ import { readPageList } from "./page-list.js";
 import { fetchSitemap } from "./sitemap.js";
 import { pageSlug } from "./slug.js";
 import {
+  addressWithCredentials,
   canonicalKey,
+  CREDENTIALS_REASON,
+  hasCredentials,
   hasScheme,
   nonHtmlExtension,
+  PAGE_CREDENTIALS_REFUSAL,
   resolvePageUrl,
   resolveSitemapUrl,
   sameOrigin,
   startsWithHost,
+  withoutCredentials,
+  withoutUserInfo,
 } from "./url.js";
 
 /** A walkthrough file as a repeat reads it: read once, as bytes, then parsed. */
@@ -70,6 +76,9 @@ export interface ResolvedPages {
 
 /** How many examples to print per kind of skipped or invalid URL. */
 const EXAMPLES = 3;
+
+/** Why an entry that isn't a page address is recorded as invalid: what a person can fix. */
+const NOT_A_PAGE = "not an http(s) URL or a root-relative path";
 
 /**
  * Read a walkthrough file for a repeat. A UsageError refuses a file that's over
@@ -196,7 +205,8 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
     const file = recordedPath(cwd, absolute);
     pageSource = { kind: "pages", file, sha256: list.sha256 };
     entries = list.entries;
-    invalid.push(...list.invalid);
+    // What a row held is recorded without a name and password it began with (see withoutUserInfo).
+    invalid.push(...list.invalid.map((row) => ({ ...row, value: withoutUserInfo(row.value) })));
     source = baseDetails("pages", list.entries.length + list.invalid.length, list.warnings);
     source.file = file;
     source.sha256 = list.sha256;
@@ -227,11 +237,26 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
   const duplicateLines: (number | null)[] = [];
   for (const entry of entries) {
     const url = resolvePageUrl(entry.value, site);
-    if (!url) {
+    // An address with a user name or password in it is never read, and never kept: it would be in
+    // the run's records, and so on the website. The entry is recorded without them. (An address
+    // that isn't a page, such as one of another scheme, may have them too.)
+    const named = url ?? addressWithCredentials(entry.value, site);
+    if (named !== null && hasCredentials(named)) {
       invalid.push({
         line: entry.line,
-        value: entry.value,
-        reason: "not an http(s) URL or a root-relative path",
+        value: withoutCredentials(named),
+        reason: CREDENTIALS_REASON,
+      });
+      continue;
+    }
+    if (!url) {
+      // A name and a password with no scheme (`staging:secret@host/a`) read as a scheme to the URL
+      // standard, so they weren't found above; they are left out of what is recorded, and said.
+      const recorded = withoutUserInfo(entry.value);
+      invalid.push({
+        line: entry.line,
+        value: recorded,
+        reason: recorded === entry.value ? NOT_A_PAGE : CREDENTIALS_REASON,
       });
       continue;
     }
@@ -355,14 +380,22 @@ function requireOneSource(options: {
 
 /**
  * Resolve --page's values against the site into absolute URLs, fragment dropped, in the order
- * given. Rejects a value Git Bash rewrote into a Windows path, or one that isn't a page URL or a
+ * given. Rejects a value Git Bash rewrote into a Windows path, one with a user name or password in
+ * its address (the address would be kept in the run's records), or one that isn't a page URL or a
  * root-relative path.
  */
 function resolvePageUrlOption(values: readonly string[], site: URL): string[] {
   return values.map((value) => {
     assertNotRewritten("--page", value);
+    if (addressWithCredentials(value, site) !== null) {
+      throw new UsageError(PAGE_CREDENTIALS_REFUSAL);
+    }
     const url = resolvePageUrl(value, site);
-    if (!url) throw new UsageError(`--page "${value}" isn't a page URL or a path like /faq/.`);
+    if (!url) {
+      throw new UsageError(
+        `--page "${withoutUserInfo(value)}" isn't a page URL or a path like /faq/.`,
+      );
+    }
     return url.href;
   });
 }
@@ -370,12 +403,18 @@ function resolvePageUrlOption(values: readonly string[], site: URL): string[] {
 /**
  * --sitemap's full URL: the value itself, or a name or path on `site`, from its root (see
  * resolveSitemapUrl). Rejects, before anything is fetched: a value Git Bash rewrote into a Windows
- * path; an address written without https:// (`dvfr.illinois.gov/sitemap.xml`), which would
- * otherwise be read as a path on the site; a name or path with no site to read it on; and anything
- * else that isn't a sitemap's address.
+ * path; an address with a user name or password in it (it would be kept in the run's records); an
+ * address written without https:// (`dvfr.illinois.gov/sitemap.xml`), which would otherwise be read
+ * as a path on the site; a name or path with no site to read it on; and anything else that isn't a
+ * sitemap's address.
  */
 function parseSitemapUrl(input: string, site: URL | undefined): string {
   assertNotRewritten("--sitemap", input);
+  if (addressWithCredentials(input, site) !== null) {
+    throw new UsageError(
+      `--sitemap ${CREDENTIALS_REASON}: give the sitemap's address without them.`,
+    );
+  }
   const value = input.trim();
   if (startsWithHost(value)) {
     throw new UsageError(
@@ -390,7 +429,7 @@ function parseSitemapUrl(input: string, site: URL | undefined): string {
     );
   }
   throw new UsageError(
-    `--sitemap must be a full URL such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on --site such as sitemap.xml (got "${input}").`,
+    `--sitemap must be a full URL such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on --site such as sitemap.xml (got "${withoutUserInfo(input)}").`,
   );
 }
 

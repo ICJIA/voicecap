@@ -4,6 +4,8 @@ import path from "node:path";
 import { isLocalHost, normalizeCanonical } from "../pages/canonical.js";
 import { readPageList } from "../pages/page-list.js";
 import {
+  addressWithCredentials,
+  hasCredentials,
   resolvePageUrl,
   resolveSitemapUrl,
   sameOrigin,
@@ -63,6 +65,8 @@ const SITE_HINT =
   "Enter the site's address, such as dvfr.illinois.gov or https://dvfr.illinois.gov.";
 const SITEMAP_HINT =
   "Enter a full URL, such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on the site, such as sitemap.xml.";
+/** What an address with a user name or password in it is told, whichever question it answers. */
+const CREDENTIALS_HINT = "Enter the address without a user name or password in it.";
 const LIMIT_HINT = "Enter a whole number of at least 1, or press Enter for all.";
 const CANONICAL_QUESTION =
   "This address is an IP address or a local address, so reports need the address people visit. What is it? (for example, https://dvfr.illinois.gov)";
@@ -156,7 +160,7 @@ async function askSite(deps: WizardDeps): Promise<AskedSite> {
   const { prompter } = deps;
   for (;;) {
     const answer = await prompter.ask("Website", {
-      check: (value) => (normalizeSiteAnswer(value) === null ? SITE_HINT : null),
+      check: siteProblem,
     });
     const given = normalizeSiteAnswer(answer)!;
     prompter.say(`Checking ${given.origin}…`);
@@ -269,7 +273,7 @@ async function askOtherSitemap(deps: WizardDeps, site: URL): Promise<PageChoice>
   const { prompter } = deps;
   for (;;) {
     const answer = await prompter.ask("Sitemap (a full URL, or a name like sitemap.xml)", {
-      check: (value) => (sitemapAnswer(value, site) === null ? SITEMAP_HINT : null),
+      check: (value) => sitemapProblem(value, site),
     });
     const url = sitemapAnswer(answer, site)!;
     const check = await checkSitemap(url, deps.fetch, deps.signal);
@@ -326,18 +330,39 @@ async function askPageList(deps: WizardDeps): Promise<PageChoice> {
 async function askPage(deps: WizardDeps, site: URL): Promise<PageChoice> {
   const answer = await deps.prompter.ask("Page (a full URL, or a path like /faq/)", {
     default: site.href,
-    check: (value) =>
-      pageOnSite(value, site) === null
-        ? `Enter a page on ${site.origin}: a full URL, or a path like /faq/.`
-        : null,
+    check: (value) => pageProblem(value, site),
   });
   return { kind: "page", url: pageOnSite(answer, site)!.href };
 }
 
-/** The page an answer names, resolved against the site, or null when it isn't on the site. */
+/**
+ * The page an answer names, resolved against the site, or null when it isn't on the site, or has a
+ * user name or password in its address, which a run refuses.
+ */
 function pageOnSite(answer: string, site: URL): URL | null {
   const url = resolvePageUrl(answer, site);
-  return url !== null && sameOrigin(url, site) ? url : null;
+  return url !== null && sameOrigin(url, site) && !hasCredentials(url) ? url : null;
+}
+
+/** What's wrong with an answer to the website question, in one line, or null when it's fine. */
+function siteProblem(answer: string): string | null {
+  if (normalizeSiteAnswer(answer) !== null) return null;
+  return addressWithCredentials(withScheme(answer.trim())) === null ? SITE_HINT : CREDENTIALS_HINT;
+}
+
+/** What's wrong with an answer to the sitemap question, in one line, or null when it's fine. */
+function sitemapProblem(answer: string, site: URL): string | null {
+  if (sitemapAnswer(answer, site) !== null) return null;
+  const address = startsWithHost(answer) ? withScheme(answer) : answer;
+  return addressWithCredentials(address, site) === null ? SITEMAP_HINT : CREDENTIALS_HINT;
+}
+
+/** What's wrong with an answer to the page question, in one line, or null when it's fine. */
+function pageProblem(answer: string, site: URL): string | null {
+  if (pageOnSite(answer, site) !== null) return null;
+  return addressWithCredentials(answer, site) === null
+    ? `Enter a page on ${site.origin}: a full URL, or a path like /faq/.`
+    : CREDENTIALS_HINT;
 }
 
 /** How many pages, for a sitemap or a page list; null for all (Enter, or "all"). */

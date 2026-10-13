@@ -198,6 +198,48 @@ describe("resolvePages: normalization and dedupe", () => {
       },
     ]);
   });
+
+  // An address with a user name or password in it would be kept in the run's records, and shown on
+  // the website. It's never read; the line that names it says so, without them.
+  it("reports sitemap locs whose address has a user name or password as invalid, without them", async () => {
+    const logger = createMemoryLogger();
+    const result = await resolvePages({
+      site,
+      sitemap: `${ORIGIN}/secret.xml`,
+      logger,
+      fetch: fetchFrom({
+        [`${ORIGIN}/secret.xml`]: urlset(
+          "https://u:p@example.org/a",
+          `http://u:p@127.0.0.1:4747/on-the-site`,
+          "https://jane@example.org/b",
+          // Not a page, and still not repeated with what it holds.
+          "ftp://u:p@example.org/file.xml",
+          `${ORIGIN}/ok`,
+        ),
+      }),
+    });
+
+    expect(result.pages.map((p) => p.url)).toEqual([`${ORIGIN}/ok`]);
+    expect(result.source.invalid).toEqual([
+      { line: null, value: "https://example.org/a", reason: "has a user name or password in it" },
+      { line: null, value: `${ORIGIN}/on-the-site`, reason: "has a user name or password in it" },
+      { line: null, value: "https://example.org/b", reason: "has a user name or password in it" },
+      {
+        line: null,
+        value: "ftp://example.org/file.xml",
+        reason: "has a user name or password in it",
+      },
+    ]);
+    expect(logger.text("warn")).toContain(
+      "Ignored an invalid entry (has a user name or password in it): https://example.org/a",
+    );
+    // Neither the record nor anything printed holds them.
+    for (const kept of [JSON.stringify(result), logger.text()]) {
+      expect(kept).not.toContain("u:p");
+      expect(kept).not.toContain("jane");
+    }
+    expect(result.skipped).toEqual([]);
+  });
 });
 
 describe("resolvePages: page list files", () => {
@@ -297,6 +339,89 @@ describe("resolvePages: page list files", () => {
       { url: `${ORIGIN}/files/x.pdf`, reason: "non-html-extension", line: 4 },
     ]);
   });
+
+  // The row is kept out of the run, and recorded without the user name and password, so that no
+  // record, report, or share ever holds one. The person is told which line, and why.
+  describe.each([
+    ["CSV", "secrets.csv", "url,label\nhttps://u:p@example.org/a,Secret\n/b,Fine\n"],
+    ["JSON", "secrets.json", '[\n"https://u:p@example.org/a",\n"/b"\n]\n'],
+  ])(
+    "a %s page list with an address that has a user name and a password in it",
+    (_format, name, text) => {
+      const example = parseSiteUrl("https://example.org");
+
+      it("reports the row as invalid, recorded without them, and reads the rest", async () => {
+        const file = path.join(dir, name);
+        await writeFile(file, text);
+        const logger = createMemoryLogger();
+
+        const result = await resolvePages({ site: example, pagesFile: file, cwd: dir, logger });
+
+        expect(result.pages.map((p) => p.url)).toEqual(["https://example.org/b"]);
+        expect(result.source.invalid).toEqual([
+          { line: 2, value: "https://example.org/a", reason: "has a user name or password in it" },
+        ]);
+        expect(logger.text("warn")).toContain(
+          "Ignored an invalid entry (line 2: has a user name or password in it): https://example.org/a",
+        );
+        // The listing counts it, as it counts any row it didn't read.
+        expect(result.source.listed).toBe(2);
+        expect(result.skipped).toEqual([]);
+        // Nothing recorded, and nothing printed, holds what was in the row.
+        for (const kept of [JSON.stringify(result), logger.text()])
+          expect(kept).not.toContain("u:p");
+      });
+    },
+  );
+
+  it("reads a page the list gives once without credentials, whatever it gives with them", async () => {
+    const file = path.join(dir, "both.json");
+    await writeFile(file, '[\n"https://u:p@example.org/a",\n"https://example.org/a"\n]\n');
+
+    const result = await resolvePages({
+      site: parseSiteUrl("https://example.org"),
+      pagesFile: file,
+      cwd: dir,
+    });
+
+    expect(result.pages.map((p) => p.url)).toEqual(["https://example.org/a"]);
+    expect(result.source.invalid).toHaveLength(1);
+    expect(result.source.duplicates).toBe(0);
+  });
+
+  it("reports a row with a password on a path-only address that names another host", async () => {
+    const file = path.join(dir, "protocol-relative.json");
+    await writeFile(file, '[\n"//u:p@example.org/a",\n"/b"\n]\n');
+
+    const result = await resolvePages({
+      site: parseSiteUrl("https://example.org"),
+      pagesFile: file,
+      cwd: dir,
+    });
+
+    expect(result.pages.map((p) => p.url)).toEqual(["https://example.org/b"]);
+    expect(result.source.invalid).toEqual([
+      { line: 2, value: "https://example.org/a", reason: "has a user name or password in it" },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("u:p");
+  });
+
+  it("keeps a row whose @ is in its path or query, which is no user name", async () => {
+    const file = path.join(dir, "ats.json");
+    await writeFile(file, '[\n"/@jane",\n"/x?mail=a@b.c"\n]\n');
+
+    const result = await resolvePages({
+      site: parseSiteUrl("https://example.org"),
+      pagesFile: file,
+      cwd: dir,
+    });
+
+    expect(result.pages.map((p) => p.url)).toEqual([
+      "https://example.org/@jane",
+      "https://example.org/x?mail=a@b.c",
+    ]);
+    expect(result.source.invalid).toEqual([]);
+  });
 });
 
 describe("resolvePages: --page", () => {
@@ -335,6 +460,134 @@ describe("resolvePages: --page", () => {
     await expect(resolvePages({ site, pageUrls: ["C:/Program Files/Git/faq/"] })).rejects.toThrow(
       /Git Bash rewrote it/,
     );
+  });
+
+  // A --page is kept in the run's records, so one with a user name or password in it is refused,
+  // before anything is read, in words that hold neither.
+  it.each([
+    "https://u:p@example.org/a",
+    "http://u:p@127.0.0.1:4747/a",
+    "https://jane@example.org/a",
+    "https://:p@example.org/a",
+    "//u:p@example.org/a",
+  ])("refuses a --page of %s, in words that hold no user name and no password", async (page) => {
+    const words =
+      "--page has a user name or password in its address: voicecap doesn't read pages that way, and the address would be kept in its records.";
+
+    for (const attempt of [
+      () => resolvePages({ site, pageUrls: [page] }),
+      () => pageSourceFor({ site, pageUrls: ["/fine", page] }),
+    ]) {
+      const error = await attempt().then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      expect((error as UsageError).message).toBe(words);
+    }
+  });
+
+  it("takes a --page whose @ is in its path or query, which is no user name", async () => {
+    const result = await resolvePages({ site, pageUrls: ["/@jane", "/x?mail=a@b.c"] });
+
+    expect(result.pages.map((p) => p.url)).toEqual([`${ORIGIN}/@jane`, `${ORIGIN}/x?mail=a@b.c`]);
+  });
+});
+
+// A name and a password written with no scheme (`staging:secret@staging.example.org/a`) read as the
+// scheme `staging:` to the URL standard, so the address has no user name to it. It's still a name and
+// a password to a person, and an entry that has them is recorded, and said, without them.
+describe("resolvePages: a name and a password that read as a scheme", () => {
+  const example = parseSiteUrl("https://example.org");
+
+  it.each([
+    ["CSV", "scheme-less.csv", "url,label\nstaging:secret@staging.example.org/a,Secret\n/b,Fine\n"],
+    ["JSON", "scheme-less.json", '[\n"staging:secret@staging.example.org/a",\n"/b"\n]\n'],
+  ])("is recorded as invalid in a %s page list, without them", async (_format, name, text) => {
+    const file = path.join(dir, name);
+    await writeFile(file, text);
+    const logger = createMemoryLogger();
+
+    const result = await resolvePages({ site: example, pagesFile: file, cwd: dir, logger });
+
+    expect(result.pages.map((p) => p.url)).toEqual(["https://example.org/b"]);
+    expect(result.source.invalid).toEqual([
+      { line: 2, value: "staging.example.org/a", reason: "has a user name or password in it" },
+    ]);
+    expect(logger.text("warn")).toContain(
+      "Ignored an invalid entry (line 2: has a user name or password in it): staging.example.org/a",
+    );
+    for (const kept of [JSON.stringify(result), logger.text()])
+      expect(kept).not.toContain("secret");
+  });
+
+  it("is recorded as invalid in a sitemap, without them, and a mail address is not one", async () => {
+    const logger = createMemoryLogger();
+    const result = await resolvePages({
+      site,
+      sitemap: `${ORIGIN}/scheme-less.xml`,
+      logger,
+      fetch: fetchFrom({
+        [`${ORIGIN}/scheme-less.xml`]: urlset(
+          "staging:secret@staging.example.org/a",
+          "mailto:web@example.com",
+          `${ORIGIN}/ok`,
+        ),
+      }),
+    });
+
+    expect(result.pages.map((p) => p.url)).toEqual([`${ORIGIN}/ok`]);
+    expect(result.source.invalid).toEqual([
+      { line: null, value: "staging.example.org/a", reason: "has a user name or password in it" },
+      {
+        line: null,
+        value: "mailto:web@example.com",
+        reason: "not an http(s) URL or a root-relative path",
+      },
+    ]);
+    for (const kept of [JSON.stringify(result), logger.text()])
+      expect(kept).not.toContain("secret");
+  });
+
+  it("is not repeated by the refusal of a --page", async () => {
+    for (const attempt of [
+      () => resolvePages({ site, pageUrls: ["staging:secret@example.org/a"] }),
+      () => pageSourceFor({ site, pageUrls: ["staging:secret@example.org/a"] }),
+    ]) {
+      const error = await attempt().then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      expect((error as UsageError).message).toBe(
+        `--page "example.org/a" isn't a page URL or a path like /faq/.`,
+      );
+    }
+  });
+
+  it("is not repeated by the refusal of a --sitemap, before anything is fetched", async () => {
+    let fetched = 0;
+    const counting: typeof fetch = () => {
+      fetched += 1;
+      return Promise.resolve(new Response("not found", { status: 404 }));
+    };
+    const sitemap = "staging:secret@example.org/sitemap.xml";
+    const words =
+      '--sitemap must be a full URL such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on --site such as sitemap.xml (got "example.org/sitemap.xml").';
+
+    for (const attempt of [
+      () => resolvePages({ site, sitemap, fetch: counting }),
+      () => pageSourceFor({ site, sitemap }),
+      () => pageSourceFor({ sitemap }),
+    ]) {
+      const error = await attempt().then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      expect((error as UsageError).message).toBe(words);
+    }
+    expect(fetched).toBe(0);
   });
 });
 
@@ -415,6 +668,48 @@ describe("resolvePages: a sitemap given by name or path", () => {
       await expect(pageSourceFor({ sitemap })).rejects.toThrow(message);
     }
     expect(fetched).toBe(0);
+  });
+
+  // A sitemap's address is kept in the run's records, so one with a user name or password in it is
+  // refused before anything is fetched, in words that hold neither.
+  it.each([
+    "https://u:p@example.org/sitemap.xml",
+    "https://jane@example.org/sitemap.xml",
+    "http://:p@127.0.0.1:4747/sitemap.xml",
+    "//u:p@example.org/sitemap.xml",
+    "ftp://u:p@example.org/sitemap.xml",
+  ])("refuses a --sitemap of %s, before fetching anything", async (sitemap) => {
+    let fetched = 0;
+    const counting: typeof fetch = () => {
+      fetched += 1;
+      return Promise.resolve(new Response("not found", { status: 404 }));
+    };
+    const words =
+      "--sitemap has a user name or password in it: give the sitemap's address without them.";
+
+    for (const attempt of [
+      () => resolvePages({ site, sitemap, fetch: counting }),
+      () => pageSourceFor({ site, sitemap }),
+      // With no site too: a full URL needs none.
+      () => pageSourceFor({ sitemap }),
+    ]) {
+      const error = await attempt().then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      expect((error as UsageError).message).toBe(words);
+    }
+    expect(fetched).toBe(0);
+  });
+
+  it("takes a --sitemap whose @ is in its path or query, which is no user name", async () => {
+    expect(await pageSourceFor({ site, sitemap: "https://example.org/@jane/sitemap.xml" })).toEqual(
+      {
+        kind: "sitemap",
+        url: "https://example.org/@jane/sitemap.xml",
+      },
+    );
   });
 
   it("needs a site to read a name or path against", async () => {

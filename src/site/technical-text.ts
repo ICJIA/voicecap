@@ -537,7 +537,13 @@ export const TECHNICAL_TEXT = {
         ],
         [
           { code: "voicecap verify" },
-          ` checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there. An incomplete run is listed, and its files aren't checked: they can change until it's sealed. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
+          ` checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there, and read only under the name voicecap gives it. An incomplete run is listed, and its files aren't checked: they can change until it's sealed. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
+        ],
+        [
+          { code: "voicecap share" },
+          " takes a transcript, screenshot, axe result, recording, event log, or copy of NVDA's own log into a report only when its file is a regular file, never a link, with the size and SHA-256 its run recorded. One that isn't is left out, the report says so, and ",
+          { code: "voicecap verify" },
+          " names it.",
         ],
         [
           "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, axe results, run seals, and review chain the report carries. It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",
@@ -717,7 +723,9 @@ export const TECHNICAL_TEXT = {
             ", in the spellings Windows gives them, the short one too when the temp folder is in the home folder. The shareable page names such a file by its name alone, for runs recorded before too.",
           ],
           [
-            "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser.",
+            "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser. A live repeat of one whose site is on the computer running the test, or on its network, needs the person to name that site with ",
+            { code: "--site" },
+            ".",
           ],
           [
             "A config is read as JSON from the folder voicecap runs in; one written as code runs only when the person names it.",

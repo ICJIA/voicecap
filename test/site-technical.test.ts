@@ -747,7 +747,12 @@ describe("renderTechnical", () => {
     // What verify checks, and what it doesn't: a raw copy that isn't there, which a clone of the
     // home never has, and an incomplete run's files (src/verify.ts).
     expect(evidence).toContain(
-      "voicecap verify checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there. An incomplete run is listed, and its files aren't checked: they can change until it's sealed.",
+      "voicecap verify checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there, and read only under the name voicecap gives it. An incomplete run is listed, and its files aren't checked: they can change until it's sealed.",
+    );
+    // What a share puts in a report: only a regular file with the size and SHA-256 its run recorded,
+    // never a link (readAsRecorded in src/share/load.ts, which reads each file a run's record lists).
+    expect(evidence).toContain(
+      "voicecap share takes a transcript, screenshot, axe result, recording, event log, or copy of NVDA's own log into a report only when its file is a regular file, never a link, with the size and SHA-256 its run recorded. One that isn't is left out, the report says so, and voicecap verify names it.",
     );
     for (const overstated of [
       "fingerprint of every file",
@@ -855,6 +860,12 @@ describe("renderTechnical", () => {
       "A page list or walkthrough file from outside the folder voicecap runs in is recorded by its name alone, and the home folder in the words of an error that a run keeps is written as %USERPROFILE% and the temp folder as %TEMP%, in the spellings Windows gives them, the short one too when the temp folder is in the home folder. The shareable page names such a file by its name alone, for runs recorded before too.",
     );
     expect(part("privacy-and-security")).not.toContain("in every spelling");
+    // A walkthrough file may come from anyone, so a live repeat of one whose site is on the computer
+    // running the test or on its network (an IP address, a local address, a one-word name) needs the
+    // person to name that site with --site. The page doesn't say "this computer" (Ruling P8).
+    expect(part("privacy-and-security")).toContain(
+      "Walkthrough files may come from anyone, so they're read with strict limits, and never change NVDA's settings or the browser. A live repeat of one whose site is on the computer running the test, or on its network, needs the person to name that site with --site.",
+    );
     // What a website, a sitemap, a server, or a record says is printed as text, so it can't act on
     // the terminal, and the warning about the browser not coming forward names a program, never a
     // window's title.

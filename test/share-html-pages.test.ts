@@ -66,13 +66,16 @@ const NO_STOPS_FLAG: FlagResult = {
   message: "Tab reached no focusable elements on the page.",
 };
 
+/** The line of a card's fold of its page's transcripts, as everyone sees it, when it has all three. */
+const SEEN_ALL_THREE = "The full transcript: read, headings, and Tab transcripts";
+
 /**
  * The line of a card's fold of its page's transcripts as a screen reader gets it, when the page has
- * all three: "The full transcript of /about/: read, headings, and Tab transcripts". A sighted
- * reader sees the same without "of /about/", which is set apart for a screen reader alone.
+ * all three: "The full transcript: read, headings, and Tab transcripts of /about/". A sighted reader
+ * sees the same without " of /about/", which is set apart for a screen reader alone and follows the
+ * words everyone sees, so those are whole and first in the name (WCAG 2.5.3, label in name).
  */
-const allThree = (path: string): string =>
-  `The full transcript of ${path}: read, headings, and Tab transcripts`;
+const allThree = (path: string): string => `${SEEN_ALL_THREE} of ${path}`;
 
 /** Pages whose read pass has fewer than the three lines a card shows first. */
 const LESS = { two: { read: ["One", "Two"] }, one: { read: ["Only"] } } satisfies Record<
@@ -784,7 +787,7 @@ describe("renderPages", () => {
       expect(markup, card.path).not.toContain(" open>");
       expect(foldLines(markup), card.path).toEqual([allThree(card.path)]);
       expect(markup, card.path).toContain(
-        `<summary><span class="what">The full transcript<span class="sr"> of ${esc(card.path)}</span>:</span> <span class="sub">read, headings, and Tab transcripts</span></summary>`,
+        `<summary><span class="what">The full transcript:</span> <span class="sub">read, headings, and Tab transcripts</span><span class="sr"> of ${esc(card.path)}</span></summary>`,
       );
       // Its three transcripts keep the names the fingerprint check finds them by, and a heading
       // each, one level under the card's own.
@@ -843,7 +846,7 @@ describe("renderPages", () => {
     }
   });
 
-  it("names each page's fold of its transcripts by its page for a screen reader, and looks the same to everyone else", () => {
+  it("names each page's fold of its transcripts by its page for a screen reader, after the words everyone sees, and looks the same to everyone else", () => {
     const model = manyPages(13, 2);
     const html = renderPages(model);
     const cards = cardsIn(html);
@@ -858,10 +861,11 @@ describe("renderPages", () => {
       const lines = foldLines(markup);
 
       // The fold in a card says which page it is of, by the card's own path as a screen reader gets
-      // it (the path ends at the colon, so "/page-1" isn't taken for "/page-10").
+      // it, as the line's last words (the line is compared whole, so "/page-1" isn't taken for
+      // "/page-10").
       expect(card, slug).toBeDefined();
       expect(lines, slug).toHaveLength(1);
-      expect(lines[0], slug).toContain(` of ${card?.path}:`);
+      expect(lines[0], slug).toBe(allThree(card?.path ?? ""));
       heard.push(...lines);
     }
     // So no two are alike.
@@ -872,9 +876,14 @@ describe("renderPages", () => {
     const seen = foldSummaries(html).map((line) =>
       textOf(line.replace(/<span class="sr">.*?<\/span>/g, ""), ""),
     );
-    expect(seen).toEqual(
-      Array.from({ length: 13 }, () => "The full transcript: read, headings, and Tab transcripts"),
-    );
+    expect(seen).toEqual(Array.from({ length: 13 }, () => SEEN_ALL_THREE));
+
+    // And a screen reader's name for each fold starts with those words, whole (WCAG 2.5.3, label in
+    // name): a voice command that says the words on the screen finds the fold.
+    expect(foldLines(html)).toHaveLength(13);
+    for (const [at, line] of foldLines(html).entries()) {
+      expect(line.startsWith(seen[at] ?? "\0"), line).toBe(true);
+    }
   });
 
   it("has no first lines and no transcript fold for a page never read", () => {
@@ -1117,12 +1126,12 @@ describe("a card's full transcript", () => {
 
     expect(summary(only(["read", "headings", "tab"]))).toBe(allThree("/a"));
     expect(summary(only(["read", "tab"]))).toBe(
-      "The full transcript of /a: read and Tab transcripts",
+      "The full transcript: read and Tab transcripts of /a",
     );
-    expect(summary(only(["headings"]))).toBe("The full transcript of /a: headings transcript");
+    expect(summary(only(["headings"]))).toBe("The full transcript: headings transcript of /a");
     // A page whose record lists no transcript says so, rather than offer an empty fold.
     const none = modelOf([done("/a", { files: [] })]);
-    expect(summary(none)).toBe("The full transcript of /a: no transcripts");
+    expect(summary(none)).toBe("The full transcript: no transcripts of /a");
     expect(renderPages(none)).toContain(
       "<p>This run&#39;s record lists no transcript files for the page.</p>",
     );

@@ -24,7 +24,7 @@ import { describeChanges, distinctEnvironments } from "../report/compare.js";
 import { EVENT_LOG, isCopyPath } from "../run/events.js";
 import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
-import { formatCommand } from "../util/command-line.js";
+import { formatCommand, urlArg } from "../util/command-line.js";
 import { fileNameOf } from "../util/file-name.js";
 import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
 import type { LogCheck } from "./log-check.js";
@@ -33,7 +33,7 @@ import { keepsEventLog, keepsNvdaLog } from "./problems.js";
 import { axeRecordOf, isFileHash, screenshotRecordOf, voiceRecordOf } from "./records.js";
 import { checkRunAgainstLog, type GestureOf, type NotChecked } from "./run-log-check.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
-import { EVIDENCE_TEXT, NVDA_LOG_TEXT, TIMELINE_TEXT } from "./text.js";
+import { EVIDENCE_TEXT, NVDA_LOG_TEXT, ownWords, TIMELINE_TEXT } from "./text.js";
 import {
   isEventTime,
   restartsOf,
@@ -43,7 +43,12 @@ import {
   type SessionTimeline,
   type UnloggedSession,
 } from "./timeline.js";
-import { walkthroughJson, walkthroughOf, walkthroughProblem } from "./walkthrough.js";
+import {
+  repeatCommand,
+  walkthroughJson,
+  walkthroughOf,
+  walkthroughProblem,
+} from "./walkthrough.js";
 
 /** A line of a run's evidence: what it is, and what the record says. */
 export interface EvidenceRow {
@@ -61,7 +66,11 @@ export interface WalkthroughDownload {
   bytes: number;
   /** The command that writes the file from the run's record: "npx @icjia/voicecap walkthrough …". */
   get: string;
-  /** The command that repeats the run from the file: "npx @icjia/voicecap --walkthrough <file>". */
+  /**
+   * The command that repeats the run from the file: "npx @icjia/voicecap --walkthrough <file>", and,
+   * for a run read on the computer or the network it ran on, "--site <the address it read>" after
+   * the file (see repeatCommand), which a live repeat of such a file is refused without.
+   */
   repeat: string;
 }
 
@@ -481,7 +490,10 @@ function timelineOf(
  * named for the run and the site as the page names it: its host, made safe for a file name as a
  * site's folder is (`siteFolder`). voicecap never offers a file it would refuse to read back, so a
  * run beyond what the format holds (see `walkthroughProblem`) gets its reason instead, which is a
- * sentence already.
+ * sentence already. The command that repeats the run names the address voicecap read, which the file
+ * has as its site, never `site`, which can be the canonical address (see repeatCommand). The command
+ * that writes the file names `site`, and a canonical address is the site's own words: a single quote
+ * in it is written `%27` (see urlArg), so the command reads the same in PowerShell and in Git Bash.
  *
  * It never throws: the file is an extra, and a run whose record can't be made into one (a completed
  * run with no time of completion, or a value JSON can't write) must not stop the page or its Word
@@ -499,8 +511,8 @@ function walkthroughFor(record: RunJson, site: string): RunWalkthrough {
       fileName,
       base64: file.toString("base64"),
       bytes: file.length,
-      get: formatCommand(["walkthrough", "--site", site, "--run", record.id, fileName]),
-      repeat: formatCommand(["--walkthrough", fileName]),
+      get: formatCommand(["walkthrough", "--site", urlArg(site), "--run", record.id, fileName]),
+      repeat: repeatCommand(walkthrough, fileName),
     };
   } catch {
     return { problem: EVIDENCE_TEXT.walkthrough.unreadable };
@@ -629,7 +641,10 @@ function sourceShown(source: PageSource, shown: Shown): PageSource {
 /**
  * The test environment, from the run's latest session with one: who ran it, the computer, then the
  * screen reader, browser, driver, voicecap, and page source as a transcript's header lists them,
- * with the page source's addresses as the page shows them.
+ * with the page source's addresses as the page shows them. A row's value names no library that
+ * drives the screen reader (`ownWords`): where the record does, in the software, the driver, the
+ * line on NVDA's settings, and what changed during the run, the row says `DRIVER_WORDS`. The record
+ * keeps the name.
  */
 function environmentOf(
   run: RunJson,
@@ -665,7 +680,7 @@ function environmentOf(
       value: redact(`${describeChanges(first, last).join("; ")}.`),
     });
   }
-  return rows;
+  return rows.map((row) => ({ ...row, value: ownWords(row.value) }));
 }
 
 /** Said of a part of the computer the system wouldn't report. */

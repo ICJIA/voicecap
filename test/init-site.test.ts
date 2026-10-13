@@ -56,6 +56,36 @@ describe("normalizeSiteAnswer", () => {
   it("rejects an empty answer", () => {
     expect(normalizeSiteAnswer("")).toBeNull();
   });
+
+  // The command init composes is the run's, so init takes no site that the run refuses.
+  it.each([
+    "http://../",
+    "http://%2e%2e/",
+    "https://a..b.org",
+    "https://example.org.",
+    "example.org.",
+    ".example.org",
+    "localhost.",
+  ])("rejects %s, a host with an empty part", (answer) => {
+    expect(normalizeSiteAnswer(answer)).toBeNull();
+  });
+
+  it.each([
+    "https://jane:secret@dvfr.illinois.gov",
+    "https://jane@dvfr.illinois.gov/faq/",
+    "http://:secret@dvfr.illinois.gov",
+    "jane:secret@dvfr.illinois.gov",
+  ])("rejects %s, an address with a user name or password in it", (answer) => {
+    expect(normalizeSiteAnswer(answer)).toBeNull();
+  });
+
+  it("still takes a local address, a one-word name, and an address with an @ in its path", () => {
+    expect(normalizeSiteAnswer("http://127.0.0.1:4747")?.origin).toBe("http://127.0.0.1:4747");
+    expect(normalizeSiteAnswer("intranet")?.origin).toBe("https://intranet");
+    expect(normalizeSiteAnswer("dvfr.illinois.gov/@jane")?.origin).toBe(
+      "https://dvfr.illinois.gov",
+    );
+  });
 });
 
 describe("checkSite", () => {

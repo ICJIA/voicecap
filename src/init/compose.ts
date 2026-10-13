@@ -1,3 +1,5 @@
+import { urlArg } from "../util/command-line.js";
+
 /** Where `init` found the pages, as its second question answers it. */
 export type PageChoice =
   | { kind: "sitemap"; url: string }
@@ -25,19 +27,23 @@ export interface InitAnswers {
  * `canonical` isn't null, the page source (`--sitemap`, `--pages`, or `--page`), `--limit` when a
  * number was given, `--out` when `home` isn't null, and `--reviewer` last, where it's easy to find
  * and change for someone else.
+ *
+ * Each address is written with its single quotes as `%27` (see `urlArg`): a sitemap's address and
+ * the root of the canonical address are the site's own words, and written so, they read the same in
+ * PowerShell and in Git Bash.
  */
 export function composeArgs(answers: InitAnswers): string[] {
-  const args = ["--site", answers.site];
-  if (answers.canonical !== null) args.push("--canonical", answers.canonical);
+  const args = ["--site", urlArg(answers.site)];
+  if (answers.canonical !== null) args.push("--canonical", urlArg(answers.canonical));
   switch (answers.pages.kind) {
     case "sitemap":
-      args.push("--sitemap", answers.pages.url);
+      args.push("--sitemap", urlArg(answers.pages.url));
       break;
     case "pages":
       args.push("--pages", answers.pages.file);
       break;
     case "page":
-      args.push("--page", answers.pages.url);
+      args.push("--page", urlArg(answers.pages.url));
       break;
   }
   if (answers.limit !== null) args.push("--limit", String(answers.limit));
@@ -48,4 +54,4 @@ export function composeArgs(answers: InitAnswers): string[] {
 
 // Used beyond `init` now (a warning names the command to run next), so they live in util/. `init`
 // and its tests have them here, beside `composeArgs`, as before.
-export { formatCommand, quoteArg } from "../util/command-line.js";
+export { formatCommand, quoteArg, urlArg } from "../util/command-line.js";
