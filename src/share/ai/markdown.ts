@@ -29,9 +29,11 @@
  * backticks in it, so nothing in it can end the block or become a heading. What a person wrote, or
  * what the share worked out, in the middle of voicecap's own sentences is escaped, and a plain web
  * address in a sentence of voicecap's own (the site's, a page's) is set in code, where it reads as
- * it is. A run's record may name the library that drives the screen reader; the page, its Word
- * copy, and these files name none, and say `AI_TEXT.driver` where a record does (`ownWords`,
- * ../text.ts).
+ * it is. A run's record may name the library that drives the screen reader. These files say
+ * `AI_TEXT.driver` in its place in every line of a record they show, a problem's error and stack
+ * included (`ownWords`, ../text.ts). The page and its Word copy do so only in their test
+ * environment rows and their lines on a tool that changed, and show a problem's record as it was
+ * recorded.
  *
  * Deterministic: it reads the model and nothing else, so the same model gives the same bytes. The
  * file ends with one newline. Pure.

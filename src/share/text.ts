@@ -715,10 +715,12 @@ export const DRIVER_WORDS = "the screen reader driver";
 
 /**
  * Words as a run's record has them, where the record may name the library that drives the screen
- * reader (a row of the test environment, an error it recorded, a stack, a tool that changed between
- * runs): the page, its Word copy, and the files for AI tools name no library, and say `DRIVER_WORDS`
- * where a record does. Only what voicecap and its runs wrote goes through it; what a website said,
- * in a transcript or a title, is never changed.
+ * reader, with `DRIVER_WORDS` in the library's place. The files for AI tools put every line of a
+ * record they show through it: a row of the test environment, a tool that changed between runs,
+ * and a problem's record, its error and its stack too. The page and its Word copy put only their
+ * test environment rows and their lines on a tool that changed through it, and show a problem's
+ * record as it was recorded, which can name the library. Only what voicecap and its runs wrote goes
+ * through it; what a website said, in a transcript or a title, is never changed.
  */
 export const ownWords = (words: string): string => words.replace(/guidepup/gi, DRIVER_WORDS);
 
