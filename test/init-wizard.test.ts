@@ -797,6 +797,27 @@ describe("runWizard", () => {
     expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --reviewer 'Jane Doe'`);
   });
 
+  // PowerShell reads Doe, Jane as two arguments, and a quote as the end of the string, so the name
+  // goes in single quotes with its quote doubled, and cmd, which takes neither, is told to change them.
+  it("quotes a name with a comma or a quote as PowerShell reads it, and says what to change for cmd", async () => {
+    const comma = await session(["dvfr.illinois.gov", "", "", "", ""], {}, "Doe, Jane");
+    const quote = await session(["dvfr.illinois.gov", "", "", "", ""], {}, "Jane O'Brien");
+
+    expect(comma.result.command).toBe(`${DVFR_SITEMAP_COMMAND} --reviewer 'Doe, Jane'`);
+    expect(quote.result.command).toBe(`${DVFR_SITEMAP_COMMAND} --reviewer 'Jane O''Brien'`);
+    expect(quote.result.args.slice(-2)).toEqual(["--reviewer", "Jane O'Brien"]);
+    for (const { screen } of [comma, quote]) {
+      expect(screen).toContain("In cmd, use double quotes instead of single quotes.\n");
+    }
+  });
+
+  it("leaves the cmd note out when nothing in the command is quoted", async () => {
+    const { screen } = await session(["dvfr.illinois.gov", "", "", "", ""], {}, "me@example.org");
+
+    expect(screen).toContain(`${DVFR_SITEMAP_COMMAND} --reviewer me@example.org\n`);
+    expect(screen).not.toContain("In cmd");
+  });
+
   it("offers VOICECAP_REVIEWER as the default, with no tip", async () => {
     const { result, screen } = await session(["dvfr.illinois.gov", "", "", "", ""], {
       env: { VOICECAP_REVIEWER: " cschweda " },

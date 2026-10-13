@@ -4,10 +4,14 @@
  * its arguments to voicecap, to see that the command it printed is one voicecap takes.
  */
 
+/** A single quote as PowerShell reads one: the straight one and the four typographic ones. */
+const QUOTE = /['\u{2018}\u{2019}\u{201A}\u{201B}]/u;
+
 /**
- * A command line split into its arguments, as Git Bash splits what `formatCommand` writes (and
- * PowerShell too, unless a value has a single quote in it): words apart at spaces, a value in
- * single quotes whole, a backslash in it just a backslash, and `'\''` for a single quote inside one.
+ * A command line split into its arguments, as PowerShell splits what `formatCommand` writes (and
+ * Git Bash too, unless a value has a single quote in it): words apart at spaces, a value in single
+ * quotes whole, a backslash in it just a backslash, and a quote inside one written twice. Git Bash
+ * reads a doubled quote as a quote dropped (see `splitCommandInGitBash`).
  */
 export function splitCommand(line: string): string[] {
   const args: string[] = [];
@@ -18,16 +22,47 @@ export function splitCommand(line: string): string[] {
   for (let at = 0; at < line.length; at++) {
     const char = line.charAt(at);
     if (quoted) {
-      if (char === "'") quoted = false;
-      else word += char;
-    } else if (char === "'") {
+      if (!QUOTE.test(char)) {
+        word += char;
+      } else if (QUOTE.test(line.charAt(at + 1))) {
+        // Two quotes in a row are one, the second.
+        word += line.charAt(at + 1);
+        at++;
+      } else {
+        quoted = false;
+      }
+    } else if (QUOTE.test(char)) {
       quoted = true;
       started = true;
-    } else if (char === "\\" && line.charAt(at + 1) === "'") {
-      word += "'";
-      started = true;
-      at++;
     } else if (char === " ") {
+      if (started) args.push(word);
+      word = "";
+      started = false;
+    } else {
+      word += char;
+      started = true;
+    }
+  }
+  if (started) args.push(word);
+  return args;
+}
+
+/**
+ * A command line split into its arguments as Git Bash splits it: words apart at spaces, and a
+ * straight single quote opening or closing a stretch in which everything is as it is, so a doubled
+ * quote (`'O''Brien'`) closes the stretch and opens the next, and no quote is left in the word
+ * (`OBrien`). The typographic single quotes are no quotes to Git Bash.
+ */
+export function splitCommandInGitBash(line: string): string[] {
+  const args: string[] = [];
+  let word = "";
+  let started = false;
+  let quoted = false;
+  for (const char of line) {
+    if (char === "'") {
+      quoted = !quoted;
+      started = true;
+    } else if (char === " " && !quoted) {
       if (started) args.push(word);
       word = "";
       started = false;

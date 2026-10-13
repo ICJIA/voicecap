@@ -3360,6 +3360,40 @@ describe("the walkthrough file each run's evidence offers", () => {
     );
   });
 
+  // The canonical address comes from the site's own pages, so it is the site's words in a command
+  // that a person pastes. A single quote in it is written %27, as in any address voicecap prints:
+  // the command reads the same in PowerShell and in Git Bash, and the address can't end its quotes.
+  it("writes a single quote in the site's canonical address as %27 in the command that writes the file", () => {
+    const canonical = "https://x.org/o'brien/";
+    const run = shareRun({ id: "2026-09-26_1405", canonical, pages: [{ path: "/" }] });
+    const file = downloadOf(latestEvidence(buildShareModel(inputOf([run], { canonical }))));
+
+    expect(file.fileName).toBe("x.org_2026-09-26_1405_walkthrough.json");
+    expect(file.get).toBe(
+      `npx @icjia/voicecap walkthrough --site https://x.org/o%27brien/ --run 2026-09-26_1405 ${file.fileName}`,
+    );
+    expect(file.get).not.toContain("'");
+    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${file.fileName}`);
+  });
+
+  it("writes a single quote in the address voicecap read as %27 in the commands that name it", () => {
+    const site = "http://o'brien:3000";
+    const run = {
+      ...shareRun({ id: "2026-09-26_1405", pages: [{ path: new URL("/", site).href }] }),
+      site,
+    };
+    const file = downloadOf(latestEvidence(buildShareModel(inputOf([run], { readOrigin: site }))));
+
+    expect(file.get).toBe(
+      `npx @icjia/voicecap walkthrough --site http://o%27brien:3000 --run 2026-09-26_1405 ${file.fileName}`,
+    );
+    expect(file.repeat).toBe(
+      `npx @icjia/voicecap --walkthrough ${file.fileName} --site http://o%27brien:3000`,
+    );
+    expect(file.get).not.toContain("'");
+    expect(file.repeat).not.toContain("'");
+  });
+
   it("says why there is no file for a run beyond what a walkthrough file can hold, a step limit of 100,001", () => {
     const run = withStepLimit(shareRun({ id: "r1", pages: [{ path: "/" }] }), 100_001);
 

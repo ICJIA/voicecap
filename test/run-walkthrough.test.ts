@@ -947,6 +947,23 @@ describe("a repeat of a file whose site is on this computer or its network", () 
     expect(repeat.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
   });
 
+  // A single quote in the address is written %27, so the command reads the same in PowerShell and in
+  // Git Bash. The program reads that as the same site: a URL decodes %27 in a host.
+  it("is repeated by the command voicecap prints for a one-word host with a single quote in it", async () => {
+    const origin = "http://o'brien:3000";
+    const { file, command } = await originalAt(origin);
+    const args = argumentsOf(command);
+    expect(args).toEqual(["--walkthrough", file, "--site", "http://o%27brien:3000"]);
+
+    const repeat = await runAudit(
+      repeating(await newFolder(), new ScriptedDriver(pagesAt(origin)), file, repeatOptions(args)),
+    );
+
+    expect(repeat.outcome).toBe("completed");
+    expect(repeat.run.site).toBe(origin);
+    expect(repeat.run.pages.map((page) => page.status)).toEqual(["done", "done", "done"]);
+  });
+
   it("is the file alone for a site people visit, and a repeat of it asks for nothing more", async () => {
     const { file, command } = await original();
     const args = argumentsOf(command);

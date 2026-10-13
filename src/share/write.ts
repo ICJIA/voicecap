@@ -15,7 +15,7 @@ import type { VoicecapConfig } from "../config/schema.js";
 import { sharePath, shareWordPath } from "../run/paths.js";
 import { listRuns } from "../run/store.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
-import { formatCommand } from "../util/command-line.js";
+import { formatCommand, urlArg } from "../util/command-line.js";
 import { errorMessage } from "../util/errors.js";
 import type { Logger } from "../util/log.js";
 import { renderWordCopy } from "./docx.js";
@@ -81,10 +81,11 @@ function heldCode(error: unknown): string | null {
  * command to run then. A bare `voicecap report` isn't it: it refuses in a home of several sites
  * without `--site`, and it looks in the default home, not one that `--out` gave. So the command
  * names the site by the address voicecap read, as terminal output does, which finds the site's
- * folder, and the home that the folder is in.
+ * folder, and the home that the folder is in. The address is written as any printed command writes
+ * one (see urlArg), with a single quote in it as `%27`.
  */
 function heldReason(code: string, site: string, siteDir: string): string {
-  const command = formatCommand(["report", "--site", site, "--out", path.dirname(siteDir)]);
+  const command = formatCommand(["report", "--site", urlArg(site), "--out", path.dirname(siteDir)]);
   return `current.docx couldn't be replaced (${code}). That happens while it's open in Word. If it is, close it, then run: ${command}`;
 }
 

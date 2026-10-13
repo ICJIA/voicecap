@@ -24,7 +24,7 @@ import { describeChanges, distinctEnvironments } from "../report/compare.js";
 import { EVENT_LOG, isCopyPath } from "../run/events.js";
 import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
-import { formatCommand } from "../util/command-line.js";
+import { formatCommand, urlArg } from "../util/command-line.js";
 import { fileNameOf } from "../util/file-name.js";
 import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
 import type { LogCheck } from "./log-check.js";
@@ -491,7 +491,9 @@ function timelineOf(
  * site's folder is (`siteFolder`). voicecap never offers a file it would refuse to read back, so a
  * run beyond what the format holds (see `walkthroughProblem`) gets its reason instead, which is a
  * sentence already. The command that repeats the run names the address voicecap read, which the file
- * has as its site, never `site`, which can be the canonical address (see repeatCommand).
+ * has as its site, never `site`, which can be the canonical address (see repeatCommand). The command
+ * that writes the file names `site`, and a canonical address is the site's own words: a single quote
+ * in it is written `%27` (see urlArg), so the command reads the same in PowerShell and in Git Bash.
  *
  * It never throws: the file is an extra, and a run whose record can't be made into one (a completed
  * run with no time of completion, or a value JSON can't write) must not stop the page or its Word
@@ -509,7 +511,7 @@ function walkthroughFor(record: RunJson, site: string): RunWalkthrough {
       fileName,
       base64: file.toString("base64"),
       bytes: file.length,
-      get: formatCommand(["walkthrough", "--site", site, "--run", record.id, fileName]),
+      get: formatCommand(["walkthrough", "--site", urlArg(site), "--run", record.id, fileName]),
       repeat: repeatCommand(walkthrough, fileName),
     };
   } catch {

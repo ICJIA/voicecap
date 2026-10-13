@@ -41,6 +41,7 @@ import type { ShareResult } from "../model.js";
 import { canonicalName, recordedCanonical } from "../pages/canonical.js";
 import { esc } from "../report/html.js";
 import { folderSafe } from "../run/paths.js";
+import { markdownInline } from "../share/ai/escape.js";
 import { count as countWords, sizeWords } from "../share/format.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf } from "../share/verdict.js";
@@ -618,7 +619,10 @@ export function renderSiteIndex(content: SiteContent, voicecap: VoicecapFacts): 
  * page links to its files: no address of the website is known to the build.
  *
  * What a record supplies, a site's name and each file's address, comes vetted from the build, and
- * is written so that it stays on its line all the same (see printable). Pure.
+ * is written so that it stays on its line all the same (see printable). A site's name is the words
+ * of a heading, so it is set as Markdown words too (markdownInline), as the report for AI tools sets
+ * every word of a record: nothing in it is emphasis, a link, HTML, or an address a viewer would
+ * link. Pure.
  */
 export function renderLlmsTxt(content: SiteContent): string {
   const words = SITE_TEXT.llms;
@@ -635,7 +639,7 @@ export function renderLlmsTxt(content: SiteContent): string {
       const verdictWords = hasVerdict(current.result) ? verdictOf(current.result).headline : null;
       return [`- [${format}](${printable(file.href)}): ${words.report(current.at, verdictWords)}`];
     });
-    return lines.length === 0 ? [] : [[`## ${printable(name)}`, "", ...lines]];
+    return lines.length === 0 ? [] : [[`## ${markdownInline(printable(name))}`, "", ...lines]];
   });
   return [
     `# ${SITE_TEXT.siteName}`,

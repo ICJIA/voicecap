@@ -46,7 +46,7 @@ import {
   hasEmptyLabel,
   withoutUserInfo,
 } from "../pages/url.js";
-import { formatCommand } from "../util/command-line.js";
+import { formatCommand, urlArg } from "../util/command-line.js";
 import { UsageError } from "../util/errors.js";
 import { fileNameOf } from "../util/file-name.js";
 import { canonicalJson } from "../util/hash.js";
@@ -232,14 +232,16 @@ export function walkthroughJson(walkthrough: Walkthrough): string {
  * address voicecap read, never the canonical address a page names the site by, which is a site a
  * repeat doesn't read. It is the one place a repeat's command is made, so that the terminal's, the
  * shareable page's, and the Word copy's are the same command. `walkthrough` is one that
- * `walkthroughProblem` finds nothing wrong with, so its site is a web address.
+ * `walkthroughProblem` finds nothing wrong with, so its site is a web address, which is written with
+ * a single quote in its host as `%27` (see urlArg): the file's site is a record's, and it reads the
+ * same in PowerShell and in Git Bash.
  */
 export function repeatCommand(walkthrough: Pick<Walkthrough, "site">, file: string): string {
   const site = new URL(walkthrough.site);
   return formatCommand([
     "--walkthrough",
     file,
-    ...(isNearbyHost(site.hostname) ? ["--site", site.origin] : []),
+    ...(isNearbyHost(site.hostname) ? ["--site", urlArg(site.origin)] : []),
   ]);
 }
 

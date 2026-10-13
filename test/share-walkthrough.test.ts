@@ -3023,6 +3023,18 @@ describe("repeatCommand", () => {
       `npx @icjia/voicecap --walkthrough '${file}' --site http://127.0.0.1:4848`,
     );
   });
+
+  // A host can hold a single quote, and it is the address the file's site names, so the command
+  // writes it %27, which PowerShell and Git Bash both read as it is. A file's name is no address:
+  // a quote in it is doubled, as PowerShell reads it.
+  it("writes a single quote in the site's name as %27, and doubles one in the file's name", () => {
+    expect(repeatCommand({ site: "http://o'brien:3000/some/path" }, "w.json")).toBe(
+      "npx @icjia/voicecap --walkthrough w.json --site http://o%27brien:3000",
+    );
+    expect(repeatCommand({ site: "http://127.0.0.1:4848" }, "O'Brien walks.json")).toBe(
+      "npx @icjia/voicecap --walkthrough 'O''Brien walks.json' --site http://127.0.0.1:4848",
+    );
+  });
 });
 
 // A run id names a folder (a path is built from it), so a value made only of dots is no id: `.` is

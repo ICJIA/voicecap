@@ -2333,7 +2333,9 @@ describe("renderLlmsTxt", () => {
     // A line feed, a line separator (U+2028), and the escape that starts red text, in a name.
     const separator = String.fromCodePoint(0x2028);
     const hostile = `a\n## Optional${separator}b\u001b[31m<img src=x>"c`;
-    const written = 'a\\u000a## Optional\\u2028b\\u001b[31m<img src=x>"c';
+    // The escapes are written as text, and then the Markdown in the name is escaped: the backslash
+    // of each escape too, so a viewer shows `\u000a` as it is, and the `[` and the `<`.
+    const written = String.raw`a\\u000a## Optional\\u2028b\\u001b\[31m\<img src=x>"c`;
     const text = renderLlmsTxt(sites([hostile, [DVFR_NEWEST]]));
 
     // The name makes the one heading, its line-ending characters written as escapes.
@@ -2343,6 +2345,30 @@ describe("renderLlmsTxt", () => {
       "## Optional",
     ]);
     expect(text.replaceAll("\n", "")).not.toMatch(/[\p{Cc}\u{2028}\u{2029}]/u);
+  });
+
+  // A site's name is a record's, so the heading it makes can't be Markdown of the record's making:
+  // emphasis, a link, HTML, or an address a viewer would link. The name is set as every word of a
+  // record is in the report for AI tools (markdownInline, in share/ai/escape.ts), where an
+  // underscore between two letters is left alone, as it makes no emphasis.
+  it("escapes the Markdown in a site's name, so the heading is the name and nothing else", () => {
+    const heading = (name: string): string | undefined =>
+      renderLlmsTxt(sites([name, [DVFR_NEWEST]]))
+        .split("\n")
+        .find((line) => line.startsWith("## ") && line !== "## Optional");
+
+    expect(heading("a*b_c")).toBe(String.raw`## a\*b_c`);
+    expect(heading("_a_ [b](c) <i>")).toBe(String.raw`## \_a\_ \[b\](c) \<i>`);
+    expect(heading("`code` ~~gone~~ | $x$ & &amp;")).toBe(
+      String.raw`## \`code\` \~\~gone\~\~ \| \$x\$ & \&amp;`,
+    );
+    expect(heading("www.example.org")).toBe(String.raw`## www\.example.org`);
+    expect(heading("see https://example.org/x")).toBe(String.raw`## see https\://example.org/x`);
+    // A hash at the end would be the heading's own closing mark.
+    expect(heading("Fund #")).toBe(String.raw`## Fund \#`);
+    // A site named as a site is: a host, with dots and a hyphen.
+    expect(heading("dvfr.illinois.gov")).toBe("## dvfr.illinois.gov");
+    expect(heading("127.0.0.1_4848")).toBe("## 127.0.0.1_4848");
   });
 
   it("is the same text for the same content, and changes none of it", () => {

@@ -405,7 +405,7 @@ You don't have to: npx runs voicecap without installing it. `npx @icjia/voicecap
 
 To install it anyway: `npm install -g @icjia/voicecap`, and `npm install -g @icjia/voicecap@latest` to update. Then `voicecap` does what `npx @icjia/voicecap` does: `voicecap init`, `voicecap setup`, `voicecap --site …`. On Windows 11 this creates `voicecap`, `voicecap.cmd`, and `voicecap.ps1` commands, for Git Bash, cmd, and PowerShell, with no administrator rights needed.
 
-The command `init` prints always starts with `npx @icjia/voicecap`, so it works on any computer with Node.js. It's quoted for Git Bash, PowerShell, and a Mac's terminal; in cmd, its single quotes must become double quotes (`init` says so when it uses any), or answer "Run it now?" with y, which uses no shell.
+The command `init` prints always starts with `npx @icjia/voicecap`, so it works on any computer with Node.js. It's quoted for PowerShell, Git Bash, and a Mac's terminal. A value with a space, a comma, or a quote goes in single quotes, with a single quote in it doubled, as PowerShell reads it (`'O''Brien'`). Git Bash reads that as `OBrien`, so type such a value by hand there. A single quote in an address is written `%27`. In cmd, its single quotes must become double quotes (`init` says so when it uses any), or answer "Run it now?" with y, which uses no shell.
 
 npm may say it skipped `ffmpeg-static`'s install script, or it may download ffmpeg (about 30 MB): `@guidepup/setup` can screen-record its own macOS setup with it, which voicecap never does. Either way, voicecap works the same.
 

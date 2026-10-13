@@ -60,6 +60,7 @@ voicecap now records what NVDA said aloud on each page, sealed with the run, wit
   - A copy of NVDA's log never replaces a file.
   - Each manual session that keeps a raw NVDA log writes a `.gitignore` of its own into `raw/`.
 - **A shared page carries a transcript only when it's as its run recorded it.** A transcript whose file isn't (its size or SHA-256 differs, or it's a link) is left out, and the page says so, as for a missing one. `voicecap verify` names it. A link in the place of a screenshot, an axe result, a recording, an event log, or a copy of NVDA's log is left out the same way; the page already left out one whose size or SHA-256 differed. The live report (`report.html`) escapes every field it takes from a record, and links only to web addresses.
+- **Commands voicecap prints for pasting read the same in PowerShell as in Git Bash.** A value with a single quote is written as PowerShell reads it (`'O''Brien'`), a value with a comma, or one that starts with `@`, is quoted, and a single quote in an address is written `%27`. So text from a website, such as a sitemap's address in `init`'s command or a canonical root in the Word copy's walkthrough command, can never become a command. A transcript's header writes a control character as an escape, and a step's speech is folded onto one line in time that grows with its length. A site's name in the website's `llms.txt` is escaped as Markdown.
 
 ## [0.17.0] - 2026-10-10
 
