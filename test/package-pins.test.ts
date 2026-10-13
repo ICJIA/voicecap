@@ -12,9 +12,9 @@ const pkg = JSON.parse(repositoryFile("package.json")) as {
   publishConfig: Record<string, string>;
 };
 
-// A release installs what it was checked with: the packages it needs are named by one version
-// each, and the workflow that checks it runs the actions at one commit each. A range ("^1.2.3")
-// or a moving tag ("v4") would let a newer one in the next time someone installs or CI runs.
+// A release names the packages it needs by one version each, and the workflow that checks it runs
+// each action at one commit. A range ("^1.2.3") or a moving tag ("v4") would let a newer one in
+// the next time someone installs or CI runs.
 describe("the pins", () => {
   it("name every dependency of the package by one exact version", () => {
     const names = Object.keys(pkg.dependencies);
