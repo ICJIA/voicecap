@@ -907,18 +907,22 @@ describe("renderSharePage", () => {
     // label in name), so the hidden words that name the page (` of /about/`) now follow the line's
     // two visible parts and no longer sit inside the first. The same characters are in another
     // order, so each page is as long as before, and the Word copies' blocks are as they were.
+    // Prepare 0.18.0 re-pinned all three for the timeline, which every report shows: its 0.18.0
+    // row came in (its day, and one line across both tracks), and the Next row's Windows PC entry,
+    // NVDA's voice, which the new row announces, went out. Each page grew by 166 characters, and
+    // each Word copy's blocks by 89, the same for all three, as a change to the timeline gives.
     const before = {
       i2i: {
-        page: [218_326, "c3c66e9513354861f068ffb4a0065164bc69e768ce07398be4c8cbb4683c381b"],
-        word: [59_915, "71c51e3d96e44ba28288a240af30acfc786180b1fb042bd2cad8ee0c99eeaa1e"],
+        page: [218_492, "6d8693267ba6b1ea93f597b36e085e0d6f79e899d9ab755797cd765e6f4a69d3"],
+        word: [60_004, "fc828a9b6ef3ec3acc3c79ea1a16143df011d5c5af12b0954298f2d466111ac6"],
       },
       demo: {
-        page: [252_868, "041801ddefdcd66735a6de3862fa5bbc6f566570513800f52d1f266091f9dd5a"],
-        word: [82_753, "5e1937c51573450a920fd77b62ac6b81bb7c9773eef963f2fd36f536e38dad93"],
+        page: [253_034, "13ecf31bef5523993e10f8cdaf43a7474fa4d8adb8b34d2c6e53012b206d53eb"],
+        word: [82_842, "ab85cf93ccdbe03f2f063de5838ddcdbc392ad235729bc5560cbe65e130094ca"],
       },
       logged: {
-        page: [135_256, "61b6b6674c0417820f8f1ee9de0713353a51eade3e32158190e844cfbe058d42"],
-        word: [41_417, "3f431c5299bf2ac1035ec609b9b85b1faf4b95410859f9e8b95666e11e59a0f0"],
+        page: [135_422, "ca3f44eca63d6768adcdc4f58a02ab8e567f048c795927fac8e3018edd3aaff5"],
+        word: [41_506, "7e893b30827c4e4616f6d93edeeef1089c07c75c0e6ae2e1623d8dc7210cdeaa"],
       },
     };
     const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };
