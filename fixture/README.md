@@ -1,6 +1,6 @@
 # voicecap test fixture
 
-A tiny fictional agency site plus everything voicecap needs to test itself without NVDA: page lists, a run to replay, sample reviews, manual-session captures, and a run with NVDA's own log, cleaned.
+A tiny fictional agency site plus everything voicecap needs to test itself without NVDA: page lists, a run to replay, sample reviews, manual-session captures, a run with NVDA's own log, cleaned, and one attempt at a real page with that log, trimmed.
 
 The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 2026.2 with Chrome 153 on Windows 11, captured with `pnpm fixture:capture`. Its environment record says exactly what produced it. Everything on the site itself is fictional.
 
@@ -24,6 +24,7 @@ The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 20
 | `manual/nvda-io-log.txt` | An NVDA log excerpt at Input/output level, written by hand in NVDA's log format, for manual-session import. It includes log noise, typing into the search field, and a session that crosses midnight. Windows line endings. |
 | `i2i-v3-run/` | A real run of the new version of i2i.illinois.gov, made by voicecap 0.11.0 with NVDA 2026.2 on 6 October 2026: 32 pages, each with its screenshot, and the run's event log. It's kept as a transcripts home with the one site's folder, `v3--i2i.netlify.app/` (its `latest.txt`, and the run's folder, `2026-10-06/1134`: `run.json`, `events.jsonl`, and `pages/<slug>/` with each page's transcripts and `screenshot.jpg`, but no `report.html`). `pnpm readme:screenshots` shares it in a temporary home and draws the README's screenshots from the page and the website. Its records name the person who ran it, and no account or local path, which `test/readme-screenshots.test.ts` checks. |
 | `nvda-io-run/` | A real run made with NVDA's own log turned on, and that log, **cleaned**. `run/` is the run as voicecap wrote it, without its screenshots and `report.html`: `run.json`, `events.jsonl`, and `pages/<slug>/{read,headings,tab}.{txt,json}`. `nvda-log/1-1.txt` is NVDA's log of the run's one session, cleaned as a run keeps it (see below). |
+| `nvda-io-r3-eligibility/` | One real attempt at a page, with the run's cleaned copy of NVDA's log **trimmed to it**: r3.illinois.gov's /eligibility/, read by voicecap 0.17.0 on 10 October 2026. `events.jsonl` is the attempt's start and finish, `pages/eligibility-2793ac885f/{read,headings,tab}.json` its transcripts, each with its page, its pass, and its steps only, and `nvda-log/1-1.txt` the copy (see below). `test/share-log-check.test.ts` checks it. |
 
 `.gitattributes` marks the CRLF and Windows-1252 files `-text`, so Git never converts them.
 
@@ -44,6 +45,18 @@ The speech includes what NVDA said outside voicecap's steps: the window in front
 The run's tab passes have 41 Tab steps, and the log has 34 `tab` keys: the first Tab on each page goes to the browser, not through NVDA, so NVDA logs no key for it, and what NVDA said for it follows the key before it.
 
 The raw log isn't in the repository, and Git ignores `*.log` files: it holds the account's name, and whatever was typed while it was written. So the copy can't be made again here. It is the fixture, and `test/nvda-log-clean.test.ts` checks it: its counts, that it holds no account name and no key but voicecap's, and that cleaning it again changes nothing.
+
+## One attempt, trimmed: r3.illinois.gov's /eligibility/
+
+`nvda-io-r3-eligibility/` is the attempt at https://r3.illinois.gov/eligibility/ in r3.illinois.gov's run of 10 October 2026 (voicecap 0.17.0, NVDA 2026.2, Chrome 155, Windows 11), where the check of NVDA's own log once paired the headings and Tab passes one step off. The page embeds a map in a frame, which went on talking as some steps began, so voicecap's capture waited for NVDA to be quiet before their keys: the headings pass's 6th key, and the Tab pass's 17th and 24th, came about 2 seconds into their steps.
+
+It holds only the site's public text, NVDA's speech of it, and voicecap's keys:
+
+- `nvda-log/1-1.txt` is the run's cleaned copy, trimmed to the entries inside the attempt (09:41:45.702 to 09:48:38.101). Its first line is the copy's own; a second says what was trimmed. Left out are what NVDA said of the code editor that was in front before the read pass and between the passes (64 entries), and the one error NVDA logged in the attempt, from its remote connection. It has 297 speech entries and 270 keys, all of them voicecap's.
+- The transcripts keep each pass's page, its name, and its steps (`n`, `command`, `spoken`, `durationMs`, and `offsetMs`), and leave out the environment, with the computer's details, and the `.txt` copies.
+- `events.jsonl` is the attempt's `page-started` and `page-finished`, as the run's event log has them.
+
+The check pairs every step with its own key, and 260 of the 261 steps agree. The one that differs is real: the Read pass's step 33, whose line in the transcript is empty, where NVDA's log has NVDA saying "Scale 1 to 4622324" and "blank" after the step's key. `test/share-log-check.test.ts` checks the result, and that the copy holds nothing from outside the attempt, nothing of another window, and no key but voicecap's.
 
 ## Serving the site
 

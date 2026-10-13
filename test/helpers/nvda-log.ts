@@ -77,7 +77,8 @@ export const PAGE_PASSES: PassWords[] = (["read", "headings", "tab"] as const).m
  * NVDA's entries for a page read in one attempt that began at `from` (milliseconds since midnight):
  * its passes one after another, each opened as voicecap opens a page (NVDA+T, with what NVDA says of
  * the window; Escape; Ctrl+Home, with the page's first line), then a key for each step and what NVDA
- * said after it. A step takes 1.2 s (storeOf's steps do), its key 0.27 s in and NVDA's words 40 ms
+ * said after it. A Tab pass's first Tab has no key, as on the real run: it goes to the browser, not
+ * through NVDA. A step takes 1.2 s (storeOf's steps do), its key 0.27 s in and NVDA's words 40 ms
  * after that, as on the real run.
  */
 export function pageEntries(from: number, passes: PassWords[] = PAGE_PASSES): string[][] {
@@ -94,7 +95,9 @@ export function pageEntries(from: number, passes: PassWords[] = PAGE_PASSES): st
     const begin = start + 2300;
     pass.spoken.forEach((line, step) => {
       const pressed = begin + step * 1200 + 270;
-      entries.push(keyAt(pressed, gestureOf(pass.command)!));
+      if (step > 0 || pass.command !== "nextFocusable") {
+        entries.push(keyAt(pressed, gestureOf(pass.command)!));
+      }
       entries.push(saidAt(pressed + 40, ...line.split(", ")));
     });
   });

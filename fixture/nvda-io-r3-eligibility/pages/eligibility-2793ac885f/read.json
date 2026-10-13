@@ -1,0 +1,1352 @@
+{
+  "pass": "read",
+  "page": {
+    "url": "https://r3.illinois.gov/eligibility/"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "Site footer, content info landmark, link, Contact",
+      "durationMs": 1286,
+      "offsetMs": 1286
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "Skip navigation, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1283,
+      "offsetMs": 2570
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1288,
+      "offsetMs": 3858
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, R 3 RESTORE. REINVEST. RENEW. — Go to home page",
+      "durationMs": 1290,
+      "offsetMs": 5148
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "Primary navigation, navigation landmark, list, with 4 items, link, HOME",
+      "durationMs": 1282,
+      "offsetMs": 6430
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "button, collapsed, ABOUT",
+      "durationMs": 1286,
+      "offsetMs": 7716
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "same page, link, current page, ELIGIBILITY",
+      "durationMs": 1273,
+      "offsetMs": 8989
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, CONTACT",
+      "durationMs": 1278,
+      "offsetMs": 10267
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "out of list, link, Search",
+      "durationMs": 1288,
+      "offsetMs": 11555
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "main landmark, clickable, heading, level 1, Eligibility",
+      "durationMs": 1273,
+      "offsetMs": 12828
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Eligible Applicants",
+      "durationMs": 1279,
+      "offsetMs": 14107
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "In order to be eligible, organizations must have a DUNS number, a, link, SAM dot gov, account, a, link, Grants dot gov, ",
+      "durationMs": 1290,
+      "offsetMs": 15397
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "account, be in good standing with the Illinois Secretary of State, and not be on the state no-pay",
+      "durationMs": 1278,
+      "offsetMs": 16676
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "list (See, link, Prequalification Steps, for details). Common types of eligible applicants are nonprofit",
+      "durationMs": 1276,
+      "offsetMs": 17951
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "organizations, local units of government, and tax-exempt faith-based organizations. Other",
+      "durationMs": 1276,
+      "offsetMs": 19228
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "organizations may also be eligible to join the proposed program as members of a collaborative.",
+      "durationMs": 1283,
+      "offsetMs": 20511
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "Click here to, link, learn more about collaboratives, in the R 3 program.",
+      "durationMs": 1284,
+      "offsetMs": 21795
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Eligible Service Areas",
+      "durationMs": 1290,
+      "offsetMs": 23085
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "In order to be eligible for R 3 grant funding, the activities proposed in a submitted grant",
+      "durationMs": 1276,
+      "offsetMs": 24362
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "application must be focused on a designated R 3 area (the shaded areas in the map below). This means",
+      "durationMs": 1288,
+      "offsetMs": 25649
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "that an organization’s service area under the R 3 NOFO must include one or more R 3 areas.",
+      "durationMs": 1280,
+      "offsetMs": 26929
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "Organizations applying for funding do not need to be located within these R 3 areas, but",
+      "durationMs": 1279,
+      "offsetMs": 28208
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "applications will be given priority if they are submitted by organizations within these R 3 areas,",
+      "durationMs": 1287,
+      "offsetMs": 29495
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "if they are on behalf of collaboratives that contain such organizations, or if the majority of",
+      "durationMs": 1285,
+      "offsetMs": 30780
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "their employees live within R 3 areas.",
+      "durationMs": 1284,
+      "offsetMs": 32064
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Using the R 3 Map to Determine Eligibility and Funding Level",
+      "durationMs": 1283,
+      "offsetMs": 33348
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "To find out if an address is located in an R 3 area, or to get information on an R 3 area for",
+      "durationMs": 1282,
+      "offsetMs": 34629
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "application purposes, enter the address into the search bar (top right) or zoom in ( plus ) on the",
+      "durationMs": 1284,
+      "offsetMs": 35913
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "address on the map. Any address appearing in a color-coded, shaded area is within an R 3 area. Click",
+      "durationMs": 1280,
+      "offsetMs": 37194
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "the shaded area to see its R 3 Area ID and funding information needed for the grant application's",
+      "durationMs": 1279,
+      "offsetMs": 38473
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "Program Narrative.",
+      "durationMs": 1276,
+      "offsetMs": 39748
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "blank. R 3 Eligibility and Service Area Selector",
+      "durationMs": 2171,
+      "offsetMs": 41920
+    },
+    {
+      "n": 33,
+      "command": "nextLine",
+      "spoken": "",
+      "durationMs": 1971,
+      "offsetMs": 43891
+    },
+    {
+      "n": 34,
+      "command": "nextLine",
+      "spoken": "R 3 Eligibility and Service Area Map, frame, clickable, banner landmark, link, graphic, State of Illinois seal",
+      "durationMs": 1288,
+      "offsetMs": 45179
+    },
+    {
+      "n": 35,
+      "command": "nextLine",
+      "spoken": "button, R 3 Service Area Selection: Return to top",
+      "durationMs": 1281,
+      "offsetMs": 46460
+    },
+    {
+      "n": 36,
+      "command": "nextLine",
+      "spoken": "button, Share",
+      "durationMs": 1285,
+      "offsetMs": 47745
+    },
+    {
+      "n": 37,
+      "command": "nextLine",
+      "spoken": "main landmark, Heading links, navigation landmark, list, with 4 items, link, Video Tutorial",
+      "durationMs": 1280,
+      "offsetMs": 49025
+    },
+    {
+      "n": 38,
+      "command": "nextLine",
+      "spoken": "link, 1. Locate Areas",
+      "durationMs": 1284,
+      "offsetMs": 50309
+    },
+    {
+      "n": 39,
+      "command": "nextLine",
+      "spoken": "link, 2. Select Areas",
+      "durationMs": 1286,
+      "offsetMs": 51595
+    },
+    {
+      "n": 40,
+      "command": "nextLine",
+      "spoken": "link, 3. Export plus Upload",
+      "durationMs": 1288,
+      "offsetMs": 52883
+    },
+    {
+      "n": 41,
+      "command": "nextLine",
+      "spoken": "out of list, heading, level 4, Use the tool below to select the geographic area in which your organization proposes to provide",
+      "durationMs": 1278,
+      "offsetMs": 54160
+    },
+    {
+      "n": 42,
+      "command": "nextLine",
+      "spoken": "heading, level 4, services for the R 3 Cohort 4 grant program. Please note your service area must be located entirely",
+      "durationMs": 1290,
+      "offsetMs": 55451
+    },
+    {
+      "n": 43,
+      "command": "nextLine",
+      "spoken": "heading, level 4, within the R 3 funding region that corresponds with the region in your application. Your service",
+      "durationMs": 1288,
+      "offsetMs": 56738
+    },
+    {
+      "n": 44,
+      "command": "nextLine",
+      "spoken": "heading, level 4, area must contain at least one R 3 Area to be eligible for funding. See detailed instructions below",
+      "durationMs": 1287,
+      "offsetMs": 58025
+    },
+    {
+      "n": 45,
+      "command": "nextLine",
+      "spoken": "heading, level 4, the tool.",
+      "durationMs": 1280,
+      "offsetMs": 59305
+    },
+    {
+      "n": 46,
+      "command": "nextLine",
+      "spoken": "figure, button, Enable interaction",
+      "durationMs": 1278,
+      "offsetMs": 60583
+    },
+    {
+      "n": 47,
+      "command": "nextLine",
+      "spoken": "application",
+      "durationMs": 1281,
+      "offsetMs": 61864
+    },
+    {
+      "n": 48,
+      "command": "nextLine",
+      "spoken": "caption, NOTE, : The tool may reset when scrolling down the page. We recommend opening the tool in a separate",
+      "durationMs": 1281,
+      "offsetMs": 63145
+    },
+    {
+      "n": 49,
+      "command": "nextLine",
+      "spoken": "window using the following link --, link, R 3 Eligibility and Service Area Selection",
+      "durationMs": 1281,
+      "offsetMs": 64425
+    },
+    {
+      "n": 50,
+      "command": "nextLine",
+      "spoken": "out of caption, out of figure, heading, level 2, Video Tutorial",
+      "durationMs": 1280,
+      "offsetMs": 65706
+    },
+    {
+      "n": 51,
+      "command": "nextLine",
+      "spoken": "Watch the guided walkthrough or follow the steps below for help finding, selecting, and exporting",
+      "durationMs": 1279,
+      "offsetMs": 66985
+    },
+    {
+      "n": 52,
+      "command": "nextLine",
+      "spoken": "R 3 Service Area information.",
+      "durationMs": 1278,
+      "offsetMs": 68262
+    },
+    {
+      "n": 53,
+      "command": "nextLine",
+      "spoken": "figure, application, This is a video demonstration on how to use the R 3 Service Area Selector tool.",
+      "durationMs": 1276,
+      "offsetMs": 69539
+    },
+    {
+      "n": 54,
+      "command": "nextLine",
+      "spoken": "caption, Finding your R 3 Service Areas - Guided Walkthrough",
+      "durationMs": 1274,
+      "offsetMs": 70813
+    },
+    {
+      "n": 55,
+      "command": "nextLine",
+      "spoken": "out of caption, out of figure, heading, level 2, 1. Locate Areas",
+      "durationMs": 1277,
+      "offsetMs": 72090
+    },
+    {
+      "n": 56,
+      "command": "nextLine",
+      "spoken": "R 3 funds are awarded regionally and based on population size to ensure grant equity across",
+      "durationMs": 1280,
+      "offsetMs": 73370
+    },
+    {
+      "n": 57,
+      "command": "nextLine",
+      "spoken": "Illinois. There are 12 total R 3 funding regions, which are composed of Illinois counties.",
+      "durationMs": 1285,
+      "offsetMs": 74655
+    },
+    {
+      "n": 58,
+      "command": "nextLine",
+      "spoken": "Applicants may provide services across multiple regions but must submit applications for each",
+      "durationMs": 1280,
+      "offsetMs": 75935
+    },
+    {
+      "n": 59,
+      "command": "nextLine",
+      "spoken": "specific region they intend to serve. The eligibility map above depicts the boundaries of each",
+      "durationMs": 1281,
+      "offsetMs": 77216
+    },
+    {
+      "n": 60,
+      "command": "nextLine",
+      "spoken": "service region and you may select your region in step 1. If you are unsure what funding region your",
+      "durationMs": 1281,
+      "offsetMs": 78497
+    },
+    {
+      "n": 61,
+      "command": "nextLine",
+      "spoken": "services fall under, skip to step 2 and search your address using the search tool and zoom out to",
+      "durationMs": 1290,
+      "offsetMs": 79787
+    },
+    {
+      "n": 62,
+      "command": "nextLine",
+      "spoken": "determine your region.",
+      "durationMs": 1283,
+      "offsetMs": 81070
+    },
+    {
+      "n": 63,
+      "command": "nextLine",
+      "spoken": "figure, application",
+      "durationMs": 1281,
+      "offsetMs": 82351
+    },
+    {
+      "n": 64,
+      "command": "nextLine",
+      "spoken": "caption, Using bookmarks to zoom and filter funding regions.",
+      "durationMs": 1282,
+      "offsetMs": 83634
+    },
+    {
+      "n": 65,
+      "command": "nextLine",
+      "spoken": "out of caption, out of figure, list, with 1 item, bullet The Zoom to funding region’ panel includes bookmarks with the 12 R 3 funding regions within",
+      "durationMs": 1280,
+      "offsetMs": 84914
+    },
+    {
+      "n": 66,
+      "command": "nextLine",
+      "spoken": "Illinois. Click a region name from the list to zoom to that location on the map.",
+      "durationMs": 1278,
+      "offsetMs": 86192
+    },
+    {
+      "n": 67,
+      "command": "nextLine",
+      "spoken": "out of list, list, with 1 item, bullet Use the search feature at the top right of the map to find a street address, city, county, or zip",
+      "durationMs": 1282,
+      "offsetMs": 87474
+    },
+    {
+      "n": 68,
+      "command": "nextLine",
+      "spoken": "code.",
+      "durationMs": 1278,
+      "offsetMs": 88752
+    },
+    {
+      "n": 69,
+      "command": "nextLine",
+      "spoken": "list, with 1 item, white bullet A marker will appear at the centroid of your searched geography. To remove this marker, click the",
+      "durationMs": 1285,
+      "offsetMs": 90037
+    },
+    {
+      "n": 70,
+      "command": "nextLine",
+      "spoken": "X in the search box.",
+      "durationMs": 1276,
+      "offsetMs": 91313
+    },
+    {
+      "n": 71,
+      "command": "nextLine",
+      "spoken": "out of list, out of list, list, with 1 item, bullet To zoom to your current location, click the compass button ( Find my location’) in the top left",
+      "durationMs": 1279,
+      "offsetMs": 92592
+    },
+    {
+      "n": 72,
+      "command": "nextLine",
+      "spoken": "of the map.",
+      "durationMs": 1280,
+      "offsetMs": 93872
+    },
+    {
+      "n": 73,
+      "command": "nextLine",
+      "spoken": "list, with 1 item, white bullet You may need to zoom out to view your entire proposed service area.",
+      "durationMs": 1284,
+      "offsetMs": 95156
+    },
+    {
+      "n": 74,
+      "command": "nextLine",
+      "spoken": "out of list, out of list, heading, level 2, 2. Select Areas",
+      "durationMs": 1279,
+      "offsetMs": 96435
+    },
+    {
+      "n": 75,
+      "command": "nextLine",
+      "spoken": "list, with 1 item, bullet R 3 Areas are displayed in blue and non-R 3 Areas are grey. R 3 Areas are labeled with their",
+      "durationMs": 1282,
+      "offsetMs": 97717
+    },
+    {
+      "n": 76,
+      "command": "nextLine",
+      "spoken": "four-digit R 3 Area ID number. Please select, ALL areas (both R 3 Areas, and, non-R 3 Areas), that",
+      "durationMs": 1275,
+      "offsetMs": 98992
+    },
+    {
+      "n": 77,
+      "command": "nextLine",
+      "spoken": "correspond with your proposed service area.",
+      "durationMs": 1279,
+      "offsetMs": 100271
+    },
+    {
+      "n": 78,
+      "command": "nextLine",
+      "spoken": "list, with 1 item, white bullet Note: Per R 3 funding eligibility rules, all applicants must include at least one R 3 Area in their",
+      "durationMs": 1285,
+      "offsetMs": 101557
+    },
+    {
+      "n": 79,
+      "command": "nextLine",
+      "spoken": "proposed service area.",
+      "durationMs": 1274,
+      "offsetMs": 102831
+    },
+    {
+      "n": 80,
+      "command": "nextLine",
+      "spoken": "out of list, out of list, list, with 1 item, bullet If any portion of a tract is contained in the boundary of the selection drawn,, the entire tract",
+      "durationMs": 1277,
+      "offsetMs": 104108
+    },
+    {
+      "n": 81,
+      "command": "nextLine",
+      "spoken": "will be included in the selection., If your service area geography covers part (but not all of a",
+      "durationMs": 1277,
+      "offsetMs": 105384
+    },
+    {
+      "n": 82,
+      "command": "nextLine",
+      "spoken": "tract), please, include, the tract as part of your proposed service area table in response to the",
+      "durationMs": 1284,
+      "offsetMs": 106669
+    },
+    {
+      "n": 83,
+      "command": "nextLine",
+      "spoken": "application question.",
+      "durationMs": 1281,
+      "offsetMs": 107950
+    },
+    {
+      "n": 84,
+      "command": "nextLine",
+      "spoken": "out of list, list, with 2 items, bullet Click to activate the Select tool’ at the bottom left of the map.",
+      "durationMs": 1278,
+      "offsetMs": 109228
+    },
+    {
+      "n": 85,
+      "command": "nextLine",
+      "spoken": "list, with 3 items, white bullet The select tool is active when it is filled in blue.",
+      "durationMs": 1281,
+      "offsetMs": 110508
+    },
+    {
+      "n": 86,
+      "command": "nextLine",
+      "spoken": "white bullet When the select tool is inactive, your standard cursor allows you pan around the map and display",
+      "durationMs": 1276,
+      "offsetMs": 111784
+    },
+    {
+      "n": 87,
+      "command": "nextLine",
+      "spoken": "popups for individual tracts or regions.",
+      "durationMs": 1282,
+      "offsetMs": 113066
+    },
+    {
+      "n": 88,
+      "command": "nextLine",
+      "spoken": "white bullet Hovering over the select tool displays a tooltip with instructions for use.",
+      "durationMs": 1282,
+      "offsetMs": 114348
+    },
+    {
+      "n": 89,
+      "command": "nextLine",
+      "spoken": "out of list, bullet Ensure the checkbox next to Illinois Tracts and R 3 Areas is checked in order for the layer to",
+      "durationMs": 1284,
+      "offsetMs": 115632
+    },
+    {
+      "n": 90,
+      "command": "nextLine",
+      "spoken": "be selectable.",
+      "durationMs": 1283,
+      "offsetMs": 116915
+    },
+    {
+      "n": 91,
+      "command": "nextLine",
+      "spoken": "out of list, A dropdown arrow at right of the select tool allows you to select service areas using three",
+      "durationMs": 1275,
+      "offsetMs": 118190
+    },
+    {
+      "n": 92,
+      "command": "nextLine",
+      "spoken": "different methods:",
+      "durationMs": 1282,
+      "offsetMs": 119473
+    },
+    {
+      "n": 93,
+      "command": "nextLine",
+      "spoken": "separator",
+      "durationMs": 1282,
+      "offsetMs": 120755
+    },
+    {
+      "n": 94,
+      "command": "nextLine",
+      "spoken": "figure, application",
+      "durationMs": 1279,
+      "offsetMs": 122034
+    },
+    {
+      "n": 95,
+      "command": "nextLine",
+      "spoken": "caption, Using the Select by lasso' tool to select service areas.",
+      "durationMs": 1282,
+      "offsetMs": 123316
+    },
+    {
+      "n": 96,
+      "command": "nextLine",
+      "spoken": "out of caption, out of figure, heading, level 3, 2a. Select by lasso",
+      "durationMs": 1286,
+      "offsetMs": 124602
+    },
+    {
+      "n": 97,
+      "command": "nextLine",
+      "spoken": "(Default)— Click on the map multiple times to create the vertices of a polygon or draw with the",
+      "durationMs": 1284,
+      "offsetMs": 125886
+    },
+    {
+      "n": 98,
+      "command": "nextLine",
+      "spoken": "pointer to create a freehand shape around your service areas. Double-click anywhere, or click the",
+      "durationMs": 1289,
+      "offsetMs": 127175
+    },
+    {
+      "n": 99,
+      "command": "nextLine",
+      "spoken": "first vertex again, to select all areas within the shape.",
+      "durationMs": 1276,
+      "offsetMs": 128451
+    },
+    {
+      "n": 100,
+      "command": "nextLine",
+      "spoken": "separator",
+      "durationMs": 1281,
+      "offsetMs": 129733
+    },
+    {
+      "n": 101,
+      "command": "nextLine",
+      "spoken": "figure, application",
+      "durationMs": 1276,
+      "offsetMs": 131009
+    },
+    {
+      "n": 102,
+      "command": "nextLine",
+      "spoken": "caption, Using the Select by circle' tool to select service areas.",
+      "durationMs": 1277,
+      "offsetMs": 132286
+    },
+    {
+      "n": 103,
+      "command": "nextLine",
+      "spoken": "out of caption, out of figure, heading, level 3, 2b. Select by circle",
+      "durationMs": 1285,
+      "offsetMs": 133571
+    },
+    {
+      "n": 104,
+      "command": "nextLine",
+      "spoken": "Click roughly in the center of the area that you would like to include. Drag the pointer outwards",
+      "durationMs": 1284,
+      "offsetMs": 134855
+    },
+    {
+      "n": 105,
+      "command": "nextLine",
+      "spoken": "in any direction until you have highlighted all relevant areas, then click again to complete the",
+      "durationMs": 1273,
+      "offsetMs": 136128
+    },
+    {
+      "n": 106,
+      "command": "nextLine",
+      "spoken": "selection.",
+      "durationMs": 1285,
+      "offsetMs": 137412
+    },
+    {
+      "n": 107,
+      "command": "nextLine",
+      "spoken": "separator",
+      "durationMs": 1279,
+      "offsetMs": 138691
+    },
+    {
+      "n": 108,
+      "command": "nextLine",
+      "spoken": "figure, application",
+      "durationMs": 1284,
+      "offsetMs": 139975
+    },
+    {
+      "n": 109,
+      "command": "nextLine",
+      "spoken": "caption, Using the Select by point' tool to add, remove, and select service areas.",
+      "durationMs": 1281,
+      "offsetMs": 141256
+    },
+    {
+      "n": 110,
+      "command": "nextLine",
+      "spoken": "out of caption, out of figure, heading, level 3, 2c. Select by point",
+      "durationMs": 1274,
+      "offsetMs": 142531
+    },
+    {
+      "n": 111,
+      "command": "nextLine",
+      "spoken": "Click any area to select it.",
+      "durationMs": 1282,
+      "offsetMs": 143812
+    },
+    {
+      "n": 112,
+      "command": "nextLine",
+      "spoken": "list, with 1 item, bullet, NOTE:, , For all 3 tools, you MUST hold down the Shift key while clicking in order to add to your",
+      "durationMs": 1277,
+      "offsetMs": 145089
+    },
+    {
+      "n": 113,
+      "command": "nextLine",
+      "spoken": "current selection., If you do not hold down the Shift key, each additional selection will reset",
+      "durationMs": 1283,
+      "offsetMs": 146373
+    },
+    {
+      "n": 114,
+      "command": "nextLine",
+      "spoken": "previous selections.",
+      "durationMs": 1280,
+      "offsetMs": 147653
+    },
+    {
+      "n": 115,
+      "command": "nextLine",
+      "spoken": "list, with 1 item, white bullet, To deselect an area, hold down the Ctrl key while clicking.",
+      "durationMs": 1278,
+      "offsetMs": 148931
+    },
+    {
+      "n": 116,
+      "command": "nextLine",
+      "spoken": "out of list, out of list, separator",
+      "durationMs": 1281,
+      "offsetMs": 150212
+    },
+    {
+      "n": 117,
+      "command": "nextLine",
+      "spoken": "heading, level 2, 3. Export plus Upload",
+      "durationMs": 1279,
+      "offsetMs": 151491
+    },
+    {
+      "n": 118,
+      "command": "nextLine",
+      "spoken": "figure, application",
+      "durationMs": 1278,
+      "offsetMs": 152770
+    },
+    {
+      "n": 119,
+      "command": "nextLine",
+      "spoken": "caption, Exporting data using the Actions button in the Select tool box.",
+      "durationMs": 1279,
+      "offsetMs": 154049
+    },
+    {
+      "n": 120,
+      "command": "nextLine",
+      "spoken": "out of caption, out of figure, list, with 1 item, bullet Review the table of selected areas in the bottom left panel to ensure all tracts that correspond",
+      "durationMs": 1283,
+      "offsetMs": 155332
+    },
+    {
+      "n": 121,
+      "command": "nextLine",
+      "spoken": "with your service area are included (both R 3 Areas and non-R 3 Areas).",
+      "durationMs": 1282,
+      "offsetMs": 156614
+    },
+    {
+      "n": 122,
+      "command": "nextLine",
+      "spoken": "list, with 1 item, white bullet The total number of selected areas will be displayed at the bottom on the table panel.",
+      "durationMs": 1286,
+      "offsetMs": 157899
+    },
+    {
+      "n": 123,
+      "command": "nextLine",
+      "spoken": "out of list, out of list, list, with 1 item, bullet Click the Actions button (four circles) in the top right corner of the table panel, or, in the",
+      "durationMs": 1275,
+      "offsetMs": 159174
+    },
+    {
+      "n": 124,
+      "command": "nextLine",
+      "spoken": "Select tool box. Select Export to CSV.",
+      "durationMs": 1278,
+      "offsetMs": 160452
+    },
+    {
+      "n": 125,
+      "command": "nextLine",
+      "spoken": "out of list, list, with 1 item, bullet Return to the online Amplifund application and upload the exported CSV as your response to the",
+      "durationMs": 1278,
+      "offsetMs": 161731
+    },
+    {
+      "n": 126,
+      "command": "nextLine",
+      "spoken": "required service areas question.",
+      "durationMs": 1274,
+      "offsetMs": 163004
+    },
+    {
+      "n": 127,
+      "command": "nextLine",
+      "spoken": "out of list, clickable",
+      "durationMs": 1282,
+      "offsetMs": 164286
+    },
+    {
+      "n": 128,
+      "command": "nextLine",
+      "spoken": "clickable",
+      "durationMs": 1276,
+      "offsetMs": 165562
+    },
+    {
+      "n": 129,
+      "command": "nextLine",
+      "spoken": "clickable",
+      "durationMs": 1278,
+      "offsetMs": 166840
+    },
+    {
+      "n": 130,
+      "command": "nextLine",
+      "spoken": "clickable",
+      "durationMs": 1278,
+      "offsetMs": 168117
+    },
+    {
+      "n": 131,
+      "command": "nextLine",
+      "spoken": "out of frame, blank",
+      "durationMs": 1285,
+      "offsetMs": 169403
+    },
+    {
+      "n": 132,
+      "command": "nextLine",
+      "spoken": "blank",
+      "durationMs": 1279,
+      "offsetMs": 170682
+    },
+    {
+      "n": 133,
+      "command": "nextLine",
+      "spoken": "blank",
+      "durationMs": 1278,
+      "offsetMs": 171960
+    },
+    {
+      "n": 134,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Analysis",
+      "durationMs": 1279,
+      "offsetMs": 173239
+    },
+    {
+      "n": 135,
+      "command": "nextLine",
+      "spoken": "R 3 areas were identified via an analysis of community-level data on gun injury, child poverty,",
+      "durationMs": 1281,
+      "offsetMs": 174520
+    },
+    {
+      "n": 136,
+      "command": "nextLine",
+      "spoken": "unemployment, and state prison commitments and returns, combined with Disproportionately Impacted",
+      "durationMs": 1278,
+      "offsetMs": 175798
+    },
+    {
+      "n": 137,
+      "command": "nextLine",
+      "spoken": "Areas identified by the Illinois Department of Commerce and Economic Opportunity (DCEO). This",
+      "durationMs": 1280,
+      "offsetMs": 177078
+    },
+    {
+      "n": 138,
+      "command": "nextLine",
+      "spoken": "document outlines the criteria and data sources used to define R 3 areas, analyzed by census tract",
+      "durationMs": 1283,
+      "offsetMs": 178361
+    },
+    {
+      "n": 139,
+      "command": "nextLine",
+      "spoken": "in Illinois. Identified R 3 areas were required to meet all criteria listed in Part I or Part 2.",
+      "durationMs": 1273,
+      "offsetMs": 179634
+    },
+    {
+      "n": 140,
+      "command": "nextLine",
+      "spoken": "heading, level 3, Part I Criteria",
+      "durationMs": 1283,
+      "offsetMs": 180917
+    },
+    {
+      "n": 141,
+      "command": "nextLine",
+      "spoken": "heading, level 4, 1. Highest rates of gun injury",
+      "durationMs": 1277,
+      "offsetMs": 182194
+    },
+    {
+      "n": 142,
+      "command": "nextLine",
+      "spoken": "Cutoff, : Gun injury hospitalization rate of greater 2.7 per 10,000 residents or gun injury death rate of greater",
+      "durationMs": 1280,
+      "offsetMs": 183474
+    },
+    {
+      "n": 143,
+      "command": "nextLine",
+      "spoken": "0.49 per 10,000 residents",
+      "durationMs": 1279,
+      "offsetMs": 184753
+    },
+    {
+      "n": 144,
+      "command": "nextLine",
+      "spoken": "Data, : Hospital discharge records and vital records death records; records limited to",
+      "durationMs": 1278,
+      "offsetMs": 186031
+    },
+    {
+      "n": 145,
+      "command": "nextLine",
+      "spoken": "assault-related gun injury and assault-related gun death records",
+      "durationMs": 1280,
+      "offsetMs": 187312
+    },
+    {
+      "n": 146,
+      "command": "nextLine",
+      "spoken": "Source, : Illinois Department of Public Health",
+      "durationMs": 1278,
+      "offsetMs": 188589
+    },
+    {
+      "n": 147,
+      "command": "nextLine",
+      "spoken": "Time Period, : 2018-2022",
+      "durationMs": 1277,
+      "offsetMs": 189866
+    },
+    {
+      "n": 148,
+      "command": "nextLine",
+      "spoken": "heading, level 4, 2. Highest rates of unemployment",
+      "durationMs": 1277,
+      "offsetMs": 191143
+    },
+    {
+      "n": 149,
+      "command": "nextLine",
+      "spoken": "Cutoff, : Greater than 7.1 percent unemployment rate or less than 77.2 percent labor force participation rate",
+      "durationMs": 1285,
+      "offsetMs": 192428
+    },
+    {
+      "n": 150,
+      "command": "nextLine",
+      "spoken": "Source, : 5-year American Community Survey",
+      "durationMs": 1276,
+      "offsetMs": 193704
+    },
+    {
+      "n": 151,
+      "command": "nextLine",
+      "spoken": "Time Period, : 2017-2021",
+      "durationMs": 1278,
+      "offsetMs": 194982
+    },
+    {
+      "n": 152,
+      "command": "nextLine",
+      "spoken": "heading, level 4, 3. Highest child poverty rates",
+      "durationMs": 1283,
+      "offsetMs": 196265
+    },
+    {
+      "n": 153,
+      "command": "nextLine",
+      "spoken": "Cutoff, : Greater than 48.9 percent of children under six years-old living at or below 200 percent of the federal",
+      "durationMs": 1280,
+      "offsetMs": 197545
+    },
+    {
+      "n": 154,
+      "command": "nextLine",
+      "spoken": "poverty line",
+      "durationMs": 1281,
+      "offsetMs": 198827
+    },
+    {
+      "n": 155,
+      "command": "nextLine",
+      "spoken": "Source, : 5-year American Community Survey",
+      "durationMs": 1289,
+      "offsetMs": 200115
+    },
+    {
+      "n": 156,
+      "command": "nextLine",
+      "spoken": "Time Period, : 2017-2021",
+      "durationMs": 1284,
+      "offsetMs": 201399
+    },
+    {
+      "n": 157,
+      "command": "nextLine",
+      "spoken": "heading, level 4, 4. Highest rates of commitments to and returns from the Illinois Department of Corrections",
+      "durationMs": 1278,
+      "offsetMs": 202677
+    },
+    {
+      "n": 158,
+      "command": "nextLine",
+      "spoken": "Cutoff, : Greater than 57.9 prison commitments per 10,000 residents or greater than 53.8 prison",
+      "durationMs": 1285,
+      "offsetMs": 203962
+    },
+    {
+      "n": 159,
+      "command": "nextLine",
+      "spoken": "returns per 10,000 residents",
+      "durationMs": 1283,
+      "offsetMs": 205245
+    },
+    {
+      "n": 160,
+      "command": "nextLine",
+      "spoken": "Data, : Criminal History Record Information (CHRI); Prison and Mandatory Supervised Release (MSR)",
+      "durationMs": 1277,
+      "offsetMs": 206522
+    },
+    {
+      "n": 161,
+      "command": "nextLine",
+      "spoken": "stock files",
+      "durationMs": 1281,
+      "offsetMs": 207803
+    },
+    {
+      "n": 162,
+      "command": "nextLine",
+      "spoken": "Sources, : Illinois State Police; Illinois Department of Corrections",
+      "durationMs": 1279,
+      "offsetMs": 209082
+    },
+    {
+      "n": 163,
+      "command": "nextLine",
+      "spoken": "Time Periods, : 2018-2022",
+      "durationMs": 1279,
+      "offsetMs": 210361
+    },
+    {
+      "n": 164,
+      "command": "nextLine",
+      "spoken": "heading, level 3, Part II Criterion",
+      "durationMs": 1283,
+      "offsetMs": 211644
+    },
+    {
+      "n": 165,
+      "command": "nextLine",
+      "spoken": "heading, level 4, 1. High need, underserved, disproportionately impacted by historical economic disinvestment",
+      "durationMs": 1283,
+      "offsetMs": 212927
+    },
+    {
+      "n": 166,
+      "command": "nextLine",
+      "spoken": "Cutoff, : Defined as a Disproportionately Impacted Area",
+      "durationMs": 1282,
+      "offsetMs": 214209
+    },
+    {
+      "n": 167,
+      "command": "nextLine",
+      "spoken": "Source, : Illinois Department of Commerce and Economic Opportunity (DCEO) analysis",
+      "durationMs": 1281,
+      "offsetMs": 215490
+    },
+    {
+      "n": 168,
+      "command": "nextLine",
+      "spoken": "Site footer, content info landmark, Footer navigation, navigation landmark, list, with 10 items, link, HOME",
+      "durationMs": 1277,
+      "offsetMs": 216767
+    },
+    {
+      "n": 169,
+      "command": "nextLine",
+      "spoken": "link, FAQS",
+      "durationMs": 1284,
+      "offsetMs": 218051
+    },
+    {
+      "n": 170,
+      "command": "nextLine",
+      "spoken": "link, NEWS",
+      "durationMs": 1277,
+      "offsetMs": 219328
+    },
+    {
+      "n": 171,
+      "command": "nextLine",
+      "spoken": "link, CONTACT",
+      "durationMs": 1278,
+      "offsetMs": 220606
+    },
+    {
+      "n": 172,
+      "command": "nextLine",
+      "spoken": "link, MEETINGS",
+      "durationMs": 1279,
+      "offsetMs": 221885
+    },
+    {
+      "n": 173,
+      "command": "nextLine",
+      "spoken": "same page, link, ELIGIBILITY",
+      "durationMs": 1277,
+      "offsetMs": 223162
+    },
+    {
+      "n": 174,
+      "command": "nextLine",
+      "spoken": "link, COLLABORATIVES",
+      "durationMs": 1277,
+      "offsetMs": 224439
+    },
+    {
+      "n": 175,
+      "command": "nextLine",
+      "spoken": "link, RESEARCH",
+      "durationMs": 1276,
+      "offsetMs": 225715
+    },
+    {
+      "n": 176,
+      "command": "nextLine",
+      "spoken": "link, RESOURCES",
+      "durationMs": 1283,
+      "offsetMs": 226998
+    },
+    {
+      "n": 177,
+      "command": "nextLine",
+      "spoken": "link, SEARCH",
+      "durationMs": 1282,
+      "offsetMs": 228280
+    },
+    {
+      "n": 178,
+      "command": "nextLine",
+      "spoken": "out of list, copyright 2026, link, State of Illinois",
+      "durationMs": 1280,
+      "offsetMs": 229560
+    },
+    {
+      "n": 179,
+      "command": "nextLine",
+      "spoken": "link, Governor JB Pritzker",
+      "durationMs": 1278,
+      "offsetMs": 230838
+    },
+    {
+      "n": 180,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1278,
+      "offsetMs": 232116
+    },
+    {
+      "n": 181,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1283,
+      "offsetMs": 233399
+    },
+    {
+      "n": 182,
+      "command": "nextLine",
+      "spoken": "button, Scroll to top",
+      "durationMs": 1282,
+      "offsetMs": 234680
+    },
+    {
+      "n": 183,
+      "command": "nextLine",
+      "spoken": "button, Scroll to top",
+      "durationMs": 1278,
+      "offsetMs": 235959
+    },
+    {
+      "n": 184,
+      "command": "nextLine",
+      "spoken": "button, Scroll to top",
+      "durationMs": 1277,
+      "offsetMs": 237236
+    },
+    {
+      "n": 185,
+      "command": "nextLine",
+      "spoken": "button, Scroll to top",
+      "durationMs": 1273,
+      "offsetMs": 238509
+    },
+    {
+      "n": 186,
+      "command": "nextLine",
+      "spoken": "button, Scroll to top",
+      "durationMs": 1277,
+      "offsetMs": 239786
+    },
+    {
+      "n": 187,
+      "command": "nextLine",
+      "spoken": "button, Scroll to top",
+      "durationMs": 1281,
+      "offsetMs": 241067
+    },
+    {
+      "n": 188,
+      "command": "nextLine",
+      "spoken": "button, Scroll to top",
+      "durationMs": 1279,
+      "offsetMs": 242347
+    },
+    {
+      "n": 189,
+      "command": "nextLine",
+      "spoken": "button, Scroll to top",
+      "durationMs": 1278,
+      "offsetMs": 243624
+    },
+    {
+      "n": 190,
+      "command": "nextLine",
+      "spoken": "button, Scroll to top",
+      "durationMs": 1280,
+      "offsetMs": 244904
+    },
+    {
+      "n": 191,
+      "command": "nextLine",
+      "spoken": "button, Scroll to top",
+      "durationMs": 1277,
+      "offsetMs": 246181
+    },
+    {
+      "n": 192,
+      "command": "toBottom",
+      "spoken": "button, Scroll to top",
+      "durationMs": 1278,
+      "offsetMs": 247460
+    }
+  ]
+}
