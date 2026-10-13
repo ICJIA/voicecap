@@ -3,6 +3,7 @@ import { z } from "zod";
 import { PASS_NAMES } from "../model.js";
 import { normalizeCanonical } from "../pages/canonical.js";
 import { UsageError } from "../util/errors.js";
+import { inertText } from "../util/inert.js";
 
 const passName = z.enum(PASS_NAMES);
 const positiveInt = z.number().int().positive();
@@ -36,6 +37,91 @@ function isRemoteAccessSection(name: string): boolean {
 }
 
 /**
+ * What a config is told, after the place and the code point, when a name or a word of its
+ * nvdaSettings holds a control character. Why: see firstControlCharacter.
+ */
+const CONTROL_CHARACTER_REASON =
+  "NVDA's settings are plain text: voicecap writes each name and word into NVDA's settings file as it is, so a control character or a line break could start a section of its own there, such as the one for NVDA's Remote Access settings (remote).";
+
+/**
+ * A control character (Unicode's Cc: U+0000 to U+001F and U+007F to U+009F), or a line or paragraph
+ * separator (U+2028, U+2029). No name or word of NVDA's settings needs one, and several end a line.
+ */
+const CONTROL_OR_SEPARATOR = /[\p{Cc}\u{2028}\u{2029}]/u;
+
+/** Where something is in nvdaSettings: its name, and the place of the section that holds it. */
+interface Place {
+  name: string;
+  within: Place | null;
+}
+
+/**
+ * The first control character or separator (see CONTROL_OR_SEPARATOR) in a name or a string of
+ * `settings`, at any depth and in lists too: the names that lead to it, the last being the name or
+ * the string that holds it, and its code point as Unicode writes it (`U+000A`). Null when there is
+ * none. The shallowest comes first, and the first is all a refusal says: taking it out shows the
+ * next.
+ *
+ * Guidepup writes each name and string of nvdaSettings into NVDA's settings file as it is, and a
+ * line break ends a line there: a name such as "x]\n[remote" writes the line "[remote]", a section
+ * header, so refusing the name `remote` alone would not keep a config out of NVDA's Remote Access
+ * settings.
+ *
+ * It looks with a queue of what's left, never by calling itself: the settings may come from a file
+ * built to be deep enough to overflow the call stack, or (in memory) to hold themselves, so each
+ * object is looked at once.
+ */
+function firstControlCharacter(
+  settings: Record<string, unknown>,
+): { names: string[]; code: string } | null {
+  const seen = new Set<object>([settings]);
+  const queue: { table: Record<string, unknown>; place: Place | null }[] = [
+    { table: settings, place: null },
+  ];
+  // The queue grows as it's read: a loop over an array follows its length as it goes.
+  for (const { table, place } of queue) {
+    for (const [name, value] of Object.entries(table)) {
+      const held =
+        CONTROL_OR_SEPARATOR.exec(name) ??
+        (typeof value === "string" ? CONTROL_OR_SEPARATOR.exec(value) : null);
+      if (held !== null) {
+        const code = held[0].codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0");
+        return { names: namesOf({ name, within: place }), code: `U+${code}` };
+      }
+      if (typeof value === "object" && value !== null && !seen.has(value)) {
+        seen.add(value);
+        queue.push({ table: value as Record<string, unknown>, place: { name, within: place } });
+      }
+    }
+  }
+  return null;
+}
+
+/** The names that lead to a place, outermost first. */
+function namesOf(place: Place): string[] {
+  const names: string[] = [];
+  for (let at: Place | null = place; at !== null; at = at.within) names.push(at.name);
+  return names.reverse();
+}
+
+/**
+ * `name`, written to be shown in a message: every control character, invisible formatting
+ * character, and separator is an escape such as \u{a}. inertText does that, but leaves a line feed
+ * and a tab as they are, and a name that holds one is what the message points at.
+ */
+function written(name: string): string {
+  return inertText(
+    name.replace(/[\r\n\t]/g, (character) => `\\u{${character.codePointAt(0)!.toString(16)}}`),
+  );
+}
+
+/** What a config is told when a name or a string in its nvdaSettings holds a control character. */
+function controlCharacterRefusal(names: string[], code: string): string {
+  const place = ["nvdaSettings", ...names].map(written).join(".");
+  return `${place} holds ${code}. ${CONTROL_CHARACTER_REASON}`;
+}
+
+/**
  * The resolved config. Defaults (defaults.ts) are merged under the user's config before this
  * schema validates it, so every field is required here. Unknown keys are errors, to catch typos.
  */
@@ -55,13 +141,20 @@ export const configSchema = z.strictObject({
   /**
    * NVDA settings overrides, applied through Guidepup's start({ settings }) and recorded. They may
    * not set NVDA's Remote Access settings, a section named `remote` in any case: voicecap's
-   * connection to NVDA depends on them, and Guidepup's own configuration sets them.
+   * connection to NVDA depends on them, and Guidepup's own configuration sets them. And no name or
+   * string in them, at any depth, may hold a control character or a line or paragraph separator,
+   * which could write a section of NVDA's settings file, that one included, past the check of names.
    */
   nvdaSettings: z
     .record(z.string(), z.unknown())
     .refine((settings) => !Object.keys(settings).some(isRemoteAccessSection), {
       path: ["remote"],
       message: REMOTE_ACCESS_REFUSAL,
+    })
+    .superRefine((settings, ctx) => {
+      const found = firstControlCharacter(settings);
+      if (found === null) return;
+      ctx.addIssue({ code: "custom", message: controlCharacterRefusal(found.names, found.code) });
     }),
   readiness: z.strictObject({
     /** Wait for this selector after network idle (Nuxt sites keep rendering after load). */

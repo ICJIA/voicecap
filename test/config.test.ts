@@ -37,6 +37,17 @@ function codeConfigRefusal(name: string, folder: string): string {
   return `${name} in ${folder} is code, and voicecap runs a config's code only when you name it: anyone who can add a file to this folder could have put it there. Write the same settings as voicecap.config.json, or set VOICECAP_CONFIG to the file's full path to run it.`;
 }
 
+/** The error `run` throws, or a failure of the test when it doesn't throw. */
+function thrownBy(run: () => unknown): Error {
+  try {
+    run();
+  } catch (error) {
+    if (error instanceof Error) return error;
+    throw error;
+  }
+  throw new Error("Expected the call to throw.");
+}
+
 describe("loadConfig", () => {
   it("uses the defaults when there's no config file", async () => {
     const loaded = await loadConfig({ cwd: await tmp() });
@@ -340,17 +351,6 @@ describe("a config's nvdaSettings and NVDA's Remote Access settings", () => {
   const REASON =
     "voicecap doesn't change NVDA's Remote Access settings (remote): Guidepup's own configuration sets them, and voicecap's connection to NVDA depends on them.";
 
-  /** The error `run` throws, or a failure of the test when it doesn't throw. */
-  function thrownBy(run: () => unknown): Error {
-    try {
-      run();
-    } catch (error) {
-      if (error instanceof Error) return error;
-      throw error;
-    }
-    throw new Error("Expected the call to throw.");
-  }
-
   it.each(["remote", "Remote", "REMOTE", " remote "])(
     "refuses a section named %j, with a reason that names nvdaSettings.remote",
     (key) => {
@@ -409,6 +409,101 @@ describe("a config's nvdaSettings and NVDA's Remote Access settings", () => {
     const nvdaSettings = { speech: { remote: true }, remoteness: { enabled: false } };
 
     expect(resolveConfig({ nvdaSettings }).nvdaSettings).toEqual(nvdaSettings);
+  });
+});
+
+// Guidepup writes each name and string of nvdaSettings into NVDA's settings file as it is, and a line
+// break ends a line there: a name such as "x]\n[remote" writes the line "[remote]", a section header,
+// which the check of the names above would never see. So a name or a word of nvdaSettings, at any
+// depth, may not hold a control character or a line or paragraph separator, and no NVDA setting
+// needs one.
+describe("a config's nvdaSettings and control characters", () => {
+  const HOW =
+    "NVDA's settings are plain text: voicecap writes each name and word into NVDA's settings file as it is, so a control character or a line break could start a section of its own there, such as the one for NVDA's Remote Access settings (remote).";
+
+  /** What a config that fails for one place in its nvdaSettings is told. */
+  const told = (place: string, code: string, config = "The config"): string =>
+    `${config} is invalid:\n  - nvdaSettings: ${place} holds ${code}. ${HOW}`;
+
+  it("refuses a name that would write a [remote] header, and says where and what", async () => {
+    const nvdaSettings = { "x]\n[remote": { controlServer: { host: "x" } } };
+
+    const error = thrownBy(() => resolveConfig({ nvdaSettings }));
+
+    expect(error).toBeInstanceOf(ConfigError);
+    // The name is written out in the message, so its line break doesn't break the message's lines.
+    expect(error.message).toBe(told("nvdaSettings.x]\\u{a}[remote", "U+000A"));
+    expect(error.message.split("\n")).toHaveLength(2);
+
+    // From a config file, the same, naming the file.
+    const dir = await tmp();
+    await writeFile(path.join(dir, "voicecap.config.json"), JSON.stringify({ nvdaSettings }));
+    await expect(loadConfig({ cwd: dir, env: {} })).rejects.toMatchObject({
+      message: told("nvdaSettings.x]\\u{a}[remote", "U+000A", "The config in voicecap.config.json"),
+    });
+  });
+
+  it("refuses a string that holds a line break, in a section or in a list", () => {
+    const section = thrownBy(() =>
+      resolveConfig({ nvdaSettings: { speech: { note: "1\n[remote]\nfoo = bar" } } }),
+    );
+    const list = thrownBy(() =>
+      resolveConfig({ nvdaSettings: { general: { words: ["fine", "not\nfine"] } } }),
+    );
+
+    expect(section.message).toBe(told("nvdaSettings.speech.note", "U+000A"));
+    expect(list.message).toBe(told("nvdaSettings.general.words.1", "U+000A"));
+  });
+
+  const HELD: [string, number][] = [
+    ["U+0000", 0x0],
+    ["U+0009", 0x9],
+    ["U+000A", 0xa],
+    ["U+000D", 0xd],
+    ["U+001B", 0x1b],
+    ["U+007F", 0x7f],
+    ["U+0085", 0x85],
+    ["U+2028", 0x2028],
+    ["U+2029", 0x2029],
+  ];
+
+  it.each(HELD)(
+    "refuses a nested name that holds %s, naming its path and the code point",
+    (code, codePoint) => {
+      const name = `x${String.fromCodePoint(codePoint)}y`;
+
+      const error = thrownBy(() =>
+        resolveConfig({ nvdaSettings: { speech: { oneCore: { [name]: 1 } } } }),
+      );
+
+      expect(error).toBeInstanceOf(ConfigError);
+      // Written out as an escape, so the character reaches the message nowhere.
+      expect(error.message).toBe(
+        told(`nvdaSettings.speech.oneCore.x\\u{${codePoint.toString(16)}}y`, code),
+      );
+    },
+  );
+
+  it("still loads the settings a person writes", () => {
+    expect(resolveConfig({ nvdaSettings: { speech: { rate: 50 } } }).nvdaSettings).toEqual({
+      speech: { rate: 50 },
+    });
+    // Plain strings, whatever else they hold: spaces, brackets on one line, and letters past ASCII.
+    const nvdaSettings = {
+      general: { language: "en", loggingLevel: "OFF" },
+      braille: { tables: ["en-ueb-g1.ctb", "über – naïve"], note: "[remote] = 1" },
+    };
+    expect(resolveConfig({ nvdaSettings }).nvdaSettings).toEqual(nvdaSettings);
+  });
+
+  it("looks at settings nested very deep, or holding themselves, without stopping", () => {
+    let deep: Record<string, unknown> = {};
+    for (let level = 0; level < 100_000; level += 1) deep = { inside: deep };
+    const loop: Record<string, unknown> = {};
+    loop.again = loop;
+
+    expect(() => resolveConfig({ nvdaSettings: deep })).not.toThrow();
+    expect(() => resolveConfig({ nvdaSettings: loop })).not.toThrow();
   });
 });
 
