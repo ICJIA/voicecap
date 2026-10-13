@@ -31,7 +31,7 @@ set -euo pipefail
 #   - the packed files are right, with nothing in the package but what this script expects, and the
 #     packed tarball installs and runs.
 # It then shows the commits since the last release and who made them, and asks for the version to be
-# typed. What it publishes is the tarball it tested.
+# typed. What it publishes is the same tarball it installed and ran in the scratch project.
 # If anything fails before the publish, package.json and npm-shrinkwrap.json are restored.
 
 PACKAGE_NAME="@icjia/voicecap"
@@ -83,10 +83,13 @@ restore() {
     git checkout -- package.json
     warn "Restored package.json (nothing was published)."
   fi
-  if [[ "$LOCKED" == true && "$PUBLISHED" == false ]]; then
-    # Back to the last release's lock, or to none if there wasn't one.
+  if [[ ( "$BUMPED" == true || "$LOCKED" == true ) && "$PUBLISHED" == false ]]; then
+    # `npm version` rewrites a committed lock along with package.json, before the lock step makes
+    # a new one, so a bump alone can leave it changed. Back to the last release's lock, or to none
+    # if there wasn't one. A command of its own: one checkout of both files fails as a whole when
+    # the lock isn't in Git yet.
     git checkout -- npm-shrinkwrap.json 2>/dev/null || rm -f npm-shrinkwrap.json
-    warn "Restored npm-shrinkwrap.json (nothing was published)."
+    warn "Put npm-shrinkwrap.json back as it was (nothing was published)."
   fi
   # The scratch project holds the tarball that gets published, so it stays until after the publish.
   [[ -z "$LOCKDIR" ]] || rm -rf "$LOCKDIR"
