@@ -2529,7 +2529,7 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 | --- | --- |
 | `pnpm install` | Installs the dependencies. |
 | `pnpm exec playwright install chromium` | Installs Playwright's Chromium, for the report's accessibility test. |
-| `pnpm test` | Runs the tests (Vitest). |
+| `pnpm test` | Runs the tests (Vitest), in one temp folder of their own that is removed when they finish. |
 | `pnpm lint` | ESLint, then Prettier. |
 | `pnpm typecheck` | Checks the types. |
 | `pnpm build` | Builds `dist/`. |
@@ -2543,7 +2543,7 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 
 On Windows, `VOICECAP_SOUND_TEST=1` makes `pnpm test` also run the tests of the real recorder helper (see [NVDA's voice](#nvdas-voice)). They record a Windows PowerShell that only sleeps, so no sound is made and no screen reader starts, and they never run in CI.
 
-`fixture/` holds the test site (with a deliberately flawed page and a page that tests end-of-page detection), sitemaps, page lists (including CRLF and Windows-1252 CSVs), a sample `reviews.json`, a real Speech Viewer capture, an NVDA log excerpt, a run recorded with real NVDA that the replay driver plays back, and the i2i v3 run that the README's screenshots are made from; see `fixture/README.md`. CI runs lint, type checks, and tests on Ubuntu, macOS, and Windows (the tests use the replay driver and Playwright's Chromium; the real-NVDA checks run locally with `pnpm test:nvda`).
+`fixture/` holds the test site (with a deliberately flawed page and a page that tests end-of-page detection), sitemaps, page lists (including CRLF and Windows-1252 CSVs), a sample `reviews.json`, a real Speech Viewer capture, an NVDA log excerpt, a run recorded with real NVDA that the replay driver plays back, and the i2i v3 run that the README's screenshots are made from; see `fixture/README.md`. CI runs lint, type checks, and tests on Ubuntu, macOS, and Windows (the tests use the replay driver and Playwright's Chromium; the real-NVDA checks run locally with `pnpm test:nvda`). It also audits the packages voicecap ships (`pnpm audit --prod`), runs each action at a commit it is pinned to, and stops a run after 30 minutes. Dependabot opens a pull request each week for a newer package or action.
 
 `docs/build-prompt.md` is the specification and `docs/plan.md` the approved plan. `docs/phase-b-handoff.md` and `docs/phase-c-handoff.md` are the notes for Phase B (the real NVDA driver) and Phase C (VoiceOver on the Mac), and `docs/superpowers/` holds the specs and plans for the audit record, `init`, and the readiness checks. `WINDOWS-SETUP.md` is the checklist for setting up a new Windows machine for development.
 
@@ -2558,19 +2558,22 @@ Always publish with `publish.sh`, from an up-to-date `main`. It's a bash script,
 
 | Command | What it does |
 | --- | --- |
-| `./publish.sh --dry-run` | Every check, plus a dry-run publish. It changes nothing, and doesn't log you in to npm. |
+| `./publish.sh --dry-run` | Every check, plus a dry-run publish. It shows the commits since the last release and who made them. It changes nothing, and doesn't log you in to npm. |
 | `./publish.sh` | The first publish: package.json's version. Afterwards: the next patch version. |
 | `./publish.sh minor` | Or `patch`, `major`, `current`, or an exact version like `1.2.3`. |
-| `./publish.sh minor 123456` | With an npm 2FA code, which skips the confirmation prompt. |
+| `./publish.sh minor 123456` | With an npm 2FA code, which skips the prompt for the version. |
 
 It stops before publishing unless:
 - you're logged in to npm, the version isn't published yet, and `CHANGELOG.md` has an entry for it;
-- CI passed for the commit (checked when the GitHub CLI is available);
+- CI finished and passed for the commit. That needs the GitHub CLI, logged in: without it, or with a run that hasn't finished or isn't there, a publish stops, and a dry run only warns;
 - lint, typecheck, tests, and build pass, and the release's facts are recorded: after the build, it writes `dist/release-facts.json` from its own run of every test (how many passed, how many were skipped, in how many files, and on which system), from Git (the commits behind the release, and the date of the first; in a shallow clone, which can't count them, it stops and says how to fetch the whole history), and from the matrix of CI's workflow. The website's trust page and its Technical details state them (see [Can I trust this?](#can-i-trust-this) and [Technical details](#technical-details));
-- the package contains `dist/`, with `dist/release-facts.json`, and the docs (no source, tests, or fixtures);
-- the packed tarball installs in a scratch project and `voicecap --version` prints the new version.
+- every dependency is locked: `npm-shrinkwrap.json` is made from the package's own dependencies (not the development tools), and `npm audit` finds no high or critical advisory in them. The file goes in the package, so `npx @icjia/voicecap` installs the same packages for everyone;
+- the package contains `dist/`, with `dist/release-facts.json`, the demo site, `npm-shrinkwrap.json`, and the docs, and nothing else (no source, tests, or fixtures);
+- the packed tarball installs in a scratch project, with npm's install scripts off, and `voicecap --version` prints the new version.
 
-It restores `package.json` if anything fails before publishing. After publishing it commits the version bump, tags `vX.Y.Z`, and pushes.
+Then it lists the commits since the last release and who made them (a dry run does too), and asks for the version to be typed; giving a 2FA code skips the question. What it publishes is the tarball it tested, not a new one.
+
+It restores `package.json` and `npm-shrinkwrap.json` if anything fails before publishing. After publishing it commits the version bump and `npm-shrinkwrap.json`, tags `vX.Y.Z`, and pushes.
 
 </details>
 

@@ -1,0 +1,13 @@
+# Each week Dependabot looks for newer versions of the packages voicecap installs (it reads
+# pnpm-lock.yaml) and of the actions CI runs, and opens a pull request for each. Nothing merges
+# until a person does.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

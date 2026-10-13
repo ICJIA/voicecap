@@ -34,13 +34,15 @@
     "demo",
     "README.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "npm-shrinkwrap.json"
   ],
   "engines": {
     "node": ">=22.19"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "packageManager": "pnpm@10.33.4",
   "scripts": {
@@ -63,17 +65,17 @@
     "@guidepup/guidepup": "0.34.0",
     "@guidepup/setup": "0.28.0",
     "axe-core": "4.13.0",
-    "commander": "^15.0.0",
-    "csv-parse": "^7.0.3",
-    "diff": "^9.0.0",
+    "commander": "15.0.0",
+    "csv-parse": "7.0.3",
+    "diff": "9.0.0",
     "docx": "9.8.1",
-    "fast-xml-parser": "^5.11.1",
-    "jiti": "^2.7.0",
-    "jsonc-parser": "^3.3.1",
+    "fast-xml-parser": "5.11.1",
+    "jiti": "2.7.0",
+    "jsonc-parser": "3.3.1",
     "libopus-wasm": "0.4.1",
-    "picomatch": "^4.0.7",
-    "playwright": "^1.63.0",
-    "zod": "^4.6.5"
+    "picomatch": "4.0.7",
+    "playwright": "1.63.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
