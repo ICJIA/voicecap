@@ -1767,6 +1767,7 @@ describe("wordStory", () => {
         ["9 October"],
         ["9 October"],
         ["10 October"],
+        ["13 October"],
         ["Next"],
       ]);
       // Each day is what the page says: a date is read as the day it begins.
@@ -1798,7 +1799,7 @@ describe("wordStory", () => {
 
         expect(cellLines(rows[at]?.[0])).toEqual(["2 January 2027"]);
         expect(cellLines(rows[at]?.[1])).toEqual(["A line in the next year."]);
-        expect(cellLines(rows[at - 1]?.[0])).toEqual(["10 October"]);
+        expect(cellLines(rows[at - 1]?.[0])).toEqual(["13 October"]);
         expect(cellLines(rows.at(-1)?.[0])).toEqual(["Next"]);
       } finally {
         TIMELINE.splice(at, 1);
@@ -1852,11 +1853,10 @@ describe("wordStory", () => {
       ]);
     });
 
-    it("says what isn't done yet as the others, a line for each track", async () => {
+    it("says what isn't done yet as the others, a line for the track that has words", async () => {
       const { rows } = tableAt(wordStory(await demoModel()), 0);
 
       expect(cellLines(rows.at(-1)?.[1])).toEqual([
-        "Windows PC, with NVDA: NVDA's voice: a recording of what NVDA said on each page, sealed with the run.",
         "Mac, with VoiceOver: Full runs with VoiceOver, with voicecap's VoiceOver driver.",
       ]);
     });

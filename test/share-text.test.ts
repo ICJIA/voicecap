@@ -247,17 +247,15 @@ describe("the timeline", () => {
     expect(TIMELINE.filter((row) => row.date === "2026-10-04" && row.release === null)).toEqual([]);
   });
 
-  it("leaves only NVDA's voice on the PC and the VoiceOver runs in Next, which is last, with no day and no release", () => {
+  it("leaves only the VoiceOver runs in Next, which is last, with no day and no release", () => {
     const next = TIMELINE.at(-1);
 
     expect(next?.date).toBeNull();
     expect(next?.release).toBeNull();
-    // The event log and the screenshots are recorded from 0.11.0, and NVDA's own log, checked
-    // against the transcripts, from 0.17.0 (its row comes with the release): what comes next on the
-    // Windows PC is a recording of NVDA's own voice on each page.
-    expect(next?.pc).toBe(
-      "NVDA's voice: a recording of what NVDA said on each page, sealed with the run.",
-    );
+    // The event log and the screenshots are recorded from 0.11.0, NVDA's own log from 0.17.0, and
+    // NVDA's voice from 0.18.0 (each row comes with its release): nothing is left to come on the
+    // Windows PC, and the Mac's full runs with VoiceOver are what comes next.
+    expect(next?.pc).toBeNull();
     expect(next?.mac).toBe("Full runs with VoiceOver, with voicecap's VoiceOver driver.");
     expect(next?.both).toBeNull();
   });

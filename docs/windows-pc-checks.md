@@ -93,3 +93,5 @@ The owner's release steps:
 4. Run `npm version minor --no-git-tag-version`, then ask the owner for a fresh 2FA code.
 5. Run `npm publish --access public --ignore-scripts --otp <code>` right away.
 6. Commit `package.json` as "Release v0.5.0", add an annotated tag with `git tag -a v0.5.0 -m "voicecap 0.5.0"`, then push `main` and the tag.
+
+From 0.18.0, steps 4 to 6 are `publish.sh`'s own: `./publish.sh <bump>` asks for the version to be typed, then for npm's 6-digit code just before it publishes, and commits, tags and pushes.

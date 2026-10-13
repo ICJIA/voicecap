@@ -212,11 +212,9 @@ The owner's standing rules, from Phases A and B:
 
 - **Commit messages are one subject line, with no trailers of any kind.**
 - **Commit and push only when asked.** Check CI on a pushed branch before merging to main: CI can't run on a branch that isn't pushed.
-- **Publish to npm only when asked.** The owner's npm account uses 2FA codes that expire in about 30 seconds, while `publish.sh` spends about 3 minutes on checks. So:
-  1. run `./publish.sh --dry-run <bump>` once CI has passed on `main`;
-  2. `npm version <bump> --no-git-tag-version`, then ask the owner for a fresh code;
-  3. the moment it arrives: `npm publish --access public --ignore-scripts --otp <code>`;
-  4. commit `package.json` as "Release vX.Y.Z", add an annotated tag `vX.Y.Z` ("voicecap X.Y.Z"), and push `main` and the tag.
+- **Publish to npm only when asked.** The owner's npm account requires a two-factor code for each publish, and a code expires in about 30 seconds, while `publish.sh` spends about 8 minutes on checks. So a release is two commands, once CI has passed on `main`:
+  1. `./publish.sh --dry-run <bump>`: it checks everything, publishes nothing, and asks for no code;
+  2. `./publish.sh <bump>`: it runs the checks again, asks for the new version to be typed, and then, just before it publishes, for npm's 6-digit code; the owner gets a fresh one at that moment. It publishes the tarball it checked, commits `package.json` and `npm-shrinkwrap.json` as "Release vX.Y.Z", adds the annotated tag `vX.Y.Z` ("voicecap X.Y.Z"), and pushes `main` and the tag. The version is its only argument: a code on the command line is refused (from 0.18.0).
 - **Ask before building** rather than silently working around something that conflicts with how Guidepup or VoiceOver actually work.
 - **Keep screen-reader specifics in the driver layer and config** as far as possible, not in the core.
 - **Never use or repeat a password or PIN** pasted into the chat.

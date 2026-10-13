@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-13
+
 voicecap now records what NVDA said aloud on each page, sealed with the run, with a voice page that plays the recordings at slower speeds, and each shared report now comes as Markdown and as JSON too, for AI tools such as Claude or ChatGPT, and voicecap closes the gaps a security review of the PC work found (see Security).
 
 ### Added
@@ -43,6 +45,7 @@ voicecap now records what NVDA said aloud on each page, sealed with the run, wit
 - **Programmatic API:** `shareReport`'s `files`, and the `files` of the share's entry, list the Markdown and the JSON after the Word copy and the voice page, when there is one; a `PublishedFile`'s `kind` has two new values, `"markdown"` and `"data"`, so code that switches on `kind` needs a case for each; `buildSite` writes `llms.txt` beside `index.html`; and the JSON's shape is exported as types, `AiReport` for the whole file and `AiPage`, `AiCard`, `AiFlag`, `AiAxeResults`, `AiTranscript`, `AiStep`, and the rest for the parts it is made of, so a program that reads one can type it. Nothing is removed.
 - **The shareable page and its Word copy name no driver library in their test environment rows or their lines on a changed tool.** Their test environment rows say "the screen reader driver" where a run's record names Guidepup (the software, the driver, and the line on NVDA's settings), as the files for AI tools already do. So do their lines on a tool that changed between runs, under what changed since the last run and in the technical limits. The page's style carries the IBM Plex fonts' copyright and license line.
 - **A page's fold of its transcripts is named by the words it shows, then its page.** A screen reader now hears "The full transcript: read, headings, and Tab transcripts of /about/" where it heard "The full transcript of /about/: read, headings, and Tab transcripts", so a voice command that says the words on the screen finds the fold (WCAG 2.5.3, label in name), and no two folds are named alike. Nothing changes on screen.
+- **The story's "Next" now lists only full runs with VoiceOver,** since NVDA's voice, which it listed, is recorded from this release.
 
 ### Fixed
 
@@ -745,7 +748,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/ICJIA/voicecap/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/ICJIA/voicecap/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/ICJIA/voicecap/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/ICJIA/voicecap/compare/v0.15.0...v0.16.0

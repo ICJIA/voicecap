@@ -1543,9 +1543,16 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.17.0</b>: NVDA's own log, kept cleaned with each run and checked against the transcripts, line by line.",
   },
   {
+    date: "2026-10-13",
+    release: "0.18.0",
+    pc: null,
+    mac: null,
+    both: "<b>0.18.0</b>: NVDA's voice on each page, the report as Markdown and JSON for AI tools, and the fixes of a security review of the PC work.",
+  },
+  {
     date: null,
     release: null,
-    pc: "NVDA's voice: a recording of what NVDA said on each page, sealed with the run.",
+    pc: null,
     mac: "Full runs with VoiceOver, with voicecap's VoiceOver driver.",
     both: null,
   },
