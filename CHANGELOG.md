@@ -4,6 +4,12 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-10-14
+
+### Fixed
+
+- **The website publishes each page exactly as shared, a report with a voice page included.** Netlify's Pretty URLs, on by default, rewrote a report's links to its voice page, and the voice page's links back, in the published copies, so that a copy downloaded from the website no longer matched the fingerprint the share recorded, while the report itself was untouched. The `netlify.toml` that `voicecap site` writes now turns Pretty URLs off (`[build.processing.html]`, `pretty_urls = false`), and each page is published byte for byte as the build wrote it. A `netlify.toml` written before 0.18.1 stays as it was: add the table by hand, as the README's "The files it writes, and the headers" shows. Found on 2026-10-14, with the first shared reports that have a voice page; the Technical details page says so too.
+
 ## [0.18.0] - 2026-10-13
 
 voicecap now records what NVDA said aloud on each page, sealed with the run, with a voice page that plays the recordings at slower speeds, and each shared report now comes as Markdown and as JSON too, for AI tools such as Claude or ChatGPT, and voicecap closes the gaps a security review of the PC work found (see Security).
@@ -748,7 +754,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.18.1...HEAD
+[0.18.1]: https://github.com/ICJIA/voicecap/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/ICJIA/voicecap/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/ICJIA/voicecap/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/ICJIA/voicecap/compare/v0.16.0...v0.16.1
