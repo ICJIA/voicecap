@@ -628,6 +628,11 @@ export const TECHNICAL_TEXT = {
             { code: command },
             ".",
           ],
+          [
+            "Each page is published as the build wrote it: the same ",
+            { code: "netlify.toml" },
+            " turns Netlify's Pretty URLs off, which would otherwise rewrite a report's links to its voice page and change the published copy's fingerprint.",
+          ],
         ],
       },
       now: {

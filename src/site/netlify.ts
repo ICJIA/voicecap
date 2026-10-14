@@ -1,8 +1,9 @@
 /**
  * The two files Netlify needs at the top of the transcripts home, which `voicecap site` writes
  * there the first time and never again, as it does .gitattributes: netlify.toml, with the build
- * command, the setting that turns npm's install scripts off in the build, and the headers that
- * every file gets, and .nvmrc, with the Node version of the build. They belong to the home's owner
+ * command, the setting that turns npm's install scripts off in the build, the setting that keeps
+ * Netlify from rewriting the links in a page, and the headers that every file gets, and .nvmrc,
+ * with the Node version of the build. They belong to the home's owner
  * after that, and an edit of theirs stays.
  */
 import { writeEachIfMissing } from "../run/git-files.js";
@@ -22,7 +23,11 @@ export const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
  * build installs that release and nothing newer, whatever is published later. The owner changes the
  * version in the command after each release, a patch included. Its `[build.environment]` turns
  * npm's install scripts off, so no package's install script runs in the build, which holds a
- * checkout of the records. `version` is voicecap's own, so one that isn't a version (see
+ * checkout of the records. Its `[build.processing.html]` turns Netlify's Pretty URLs off, which
+ * would otherwise rewrite each link to another page of the site in the pages it publishes (a
+ * report's links to its voice page, and the voice page's back), so that the published copy no
+ * longer matched the fingerprint recorded for the file; with them off, each page is published as
+ * built, byte for byte. `version` is voicecap's own, so one that isn't a version (see
  * EXACT_VERSION) is a mistake, and throws.
  */
 export function netlifyToml(version: string): string {
@@ -40,6 +45,10 @@ export function netlifyToml(version: string): string {
 [build.environment]
   # No package's install script runs in the build.
   NPM_CONFIG_IGNORE_SCRIPTS = "true"
+
+[build.processing.html]
+  # Each page is published as built: no link in it is rewritten (Netlify's Pretty URLs are off).
+  pretty_urls = false
 
 [[headers]]
   for = "/*"

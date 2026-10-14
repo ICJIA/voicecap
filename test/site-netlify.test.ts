@@ -23,6 +23,10 @@ const tomlFor = (
   # No package's install script runs in the build.
   NPM_CONFIG_IGNORE_SCRIPTS = "true"
 
+[build.processing.html]
+  # Each page is published as built: no link in it is rewritten (Netlify's Pretty URLs are off).
+  pretty_urls = false
+
 [[headers]]
   for = "/*"
   [headers.values]
@@ -71,7 +75,13 @@ describe("netlifyToml", () => {
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.startsWith("["));
-    expect(tables).toEqual(["[build]", "[build.environment]", "[[headers]]", "[headers.values]"]);
+    expect(tables).toEqual([
+      "[build]",
+      "[build.environment]",
+      "[build.processing.html]",
+      "[[headers]]",
+      "[headers.values]",
+    ]);
     expect(tableOf(toml, "[build.environment]")).toEqual([
       "  # No package's install script runs in the build.",
       '  NPM_CONFIG_IGNORE_SCRIPTS = "true"',
@@ -81,6 +91,22 @@ describe("netlifyToml", () => {
       '  command = "npx --yes @icjia/voicecap@0.18.0 site --home . --out _site"',
       '  publish = "_site"',
     ]);
+  });
+
+  it("turns Netlify's Pretty URLs off, so each page is published as built, in a table of its own", () => {
+    const toml = netlifyToml("0.18.1");
+
+    // With Pretty URLs on, Netlify rewrote each link to another page of the site in the pages it
+    // published: a report's links to its voice page, and the voice page's links back, so that the
+    // published copy no longer matched the fingerprint recorded for the file (found 2026-10-14).
+    expect(tableOf(toml, "[build.processing.html]")).toEqual([
+      "  # Each page is published as built: no link in it is rewritten (Netlify's Pretty URLs are off).",
+      "  pretty_urls = false",
+    ]);
+    // Netlify reads the setting from netlify.toml over the one in its own settings, so it holds for
+    // every build of the home, whatever the site's settings say.
+    expect(toml).not.toContain("pretty_urls = true");
+    expect(toml).not.toContain("skip_processing");
   });
 
   it.each([
