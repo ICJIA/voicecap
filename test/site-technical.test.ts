@@ -3,8 +3,9 @@
  * voicecap works, for auditors and developers. Its passes, flag rules, and defaults are voicecap's
  * own code's, the version and its tests are the facts', the shares a site keeps are the build's, and
  * the toolchain's licenses are held to the packages voicecap installs, and the encoder's version to
- * the one package.json pins. What it says of NVDA's voice, the voice page, and the Windows build the
- * recording needs is held to the code's own words. Every command, file, and rule it names exists.
+ * the one package.json pins. What it says of NVDA's voice, the voice page, its stretcher's filter,
+ * and the Windows build the recording needs is held to the code's own words. Every command, file,
+ * and rule it names exists.
  * And the website's rules for a page: one file, with one style block and one script under its own
  * policy, and no style attribute.
  *
@@ -25,6 +26,7 @@ import { NVDA_LOG_FOLDER } from "../src/run/events.js";
 import { count, names } from "../src/share/format.js";
 import { VOICE_TEXT } from "../src/share/text.js";
 import { VOICE_SCRIPT } from "../src/share/voice-page.js";
+import { STRETCH_LIBRARY } from "../src/share/voice-stretch.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import { recordFactsOf, type VoicecapFacts } from "../src/site/facts.js";
 import { backLink, siteBar, siteFooter } from "../src/site/frame.js";
@@ -965,13 +967,24 @@ describe("renderTechnical", () => {
     );
 
     // The voice page, which a share adds when a page has a recording: it plays each recording at the
-    // speeds its own words give, with the pitch kept as its script sets it, and the recording is
-    // evidence, as the page's lead says, since the transcripts are the record of what was reviewed.
+    // speeds its own words give, 1× as recorded and each slower speed made in the reader's browser
+    // by voicecap's own stretcher, with the pitch kept, and the recording is evidence, as the
+    // page's lead says, since the transcripts are the record of what was reviewed.
     const speeds = names(VOICE_TEXT.speed.rates.map((rate) => VOICE_TEXT.speed.label(rate)));
     expect(speeds).toBe("1×, 0.75×, 0.5×, and 0.3×");
     expect(flow).toContain(
-      `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${speeds}, with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
+      `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${speeds}: 1× as recorded, and each slower speed made in the reader's browser by voicecap's own stretcher, a phase vocoder with phase locking, then a gentle filter (a low cut at 100 Hz, and the highs eased by 6 dB from 6 kHz), with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
     );
+    // The filter's numbers in that sentence are the stretcher's own (STRETCH_LIBRARY's constants):
+    // the low cut and the high shelf's start, in Hz, and the shelf's gain in dB, a cut.
+    const stretcher = (name: string): number =>
+      Number(new RegExp(`var ${name} = (-?\\d+);`).exec(STRETCH_LIBRARY)?.[1]);
+    expect([
+      stretcher("VOICE_LOW_CUT"),
+      stretcher("VOICE_SHELF"),
+      stretcher("VOICE_SHELF_DB"),
+    ]).toEqual([100, 6_000, -6]);
+    // Where the browser has to slow a recording itself, the script keeps its pitch too.
     expect(VOICE_SCRIPT).toContain("sound.preservesPitch = true;");
     expect(VOICE_TEXT.lead).toContain("recorded from NVDA alone and sealed with the run");
     expect(VOICE_TEXT.lead).toContain(

@@ -4,7 +4,7 @@
  * The wording is voicecap's, as on the shareable page and in the README: voicecap is a human
  * review, sped up; a person hears NVDA at work, reads the transcripts, and decides.
  *
- * Every number about voicecap in these words is taken, and none is typed here, but three that the
+ * Every number about voicecap in these words is taken, and none is typed here, but six that the
  * test of the page holds to where they come from (see below):
  * - from voicecap's own code, which this module imports: its passes (PASS_NAMES), its built-in flag
  *   rules (BUILT_IN_RULES) and their thresholds, its defaults (DEFAULT_CONFIG), the exit codes of
@@ -20,14 +20,17 @@
  * command it names is one voicecap's command line declares, with its options, every file is in the
  * repository, every rule is a built-in one, and every npm package's license is the one of the
  * package voicecap installs (libopus-wasm's row adds the license of the libopus inside it, which
- * its own notice gives). The three numbers typed are the version of the encoder in the
+ * its own notice gives). The six numbers typed are the version of the encoder in the
  * toolchain (0.4.1), which is the one package.json pins and the installed package is; the version of
  * libopus inside it (1.6.1), which the test holds to what the library itself says
- * (`loadLibopus()`); and the Windows build that recording needs (20348), which is the one the
- * recorder checks for (WINDOWS_BUILD). The same test holds what the page says of NVDA's voice to
- * the recorder's own code: that it records one program's sound, and picks no device, so no
- * microphone and no speaker's mix is in it. The stop reasons are typed against the model's
- * (`StopReason`), so a reason added there and not here doesn't compile.
+ * (`loadLibopus()`); the Windows build that recording needs (20348), which is the one the
+ * recorder checks for (WINDOWS_BUILD); and three of the voice page's stretcher: the filter's low
+ * cut (100 Hz), and the start (6 kHz) and the cut (6 dB) of its high shelf, which the test holds to
+ * the constants of the stretcher's library (`VOICE_LOW_CUT`, `VOICE_SHELF`, and `VOICE_SHELF_DB`).
+ * The same test holds what the page says of NVDA's voice to the recorder's own code: that it
+ * records one program's sound, and picks no device, so no microphone and no speaker's mix is in it.
+ * The stop reasons are typed against the model's (`StopReason`), so a reason added there and not
+ * here doesn't compile.
  *
  * Guidepup is named only in the toolchain's rows, as the owner chose: everywhere else, it's
  * voicecap's NVDA driver.
@@ -315,7 +318,7 @@ export const TECHNICAL_TEXT = {
               ".",
             ],
             [
-              `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${VOICE_SPEEDS}, with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
+              `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${VOICE_SPEEDS}: 1× as recorded, and each slower speed made in the reader's browser by voicecap's own stretcher, a phase vocoder with phase locking, then a gentle filter (a low cut at 100 Hz, and the highs eased by 6 dB from 6 kHz), with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
             ],
           ],
         },
