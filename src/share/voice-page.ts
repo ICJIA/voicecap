@@ -399,21 +399,21 @@ function footer(model: ShareModel): string {
  *   `OfflineAudioContext`), the stretcher makes the copy in slices of about 20 ms of work with the
  *   page free between them, and then the finisher filters the copy, scales it to the recording's
  *   loudness, and writes it as a WAV file, in slices of the same size: the stretch, the filter, the
- *   loudness match, and the file are all done in slices of about 20 ms, however long the recording,
- *   apart from two closing steps of under 0.1 s each (the stretcher's last call, which evens out
- *   the whole copy, and the `Blob` made of the whole file). The second player plays the file from
- *   a `blob:` address. Nothing else of a copy's making is kept, as the stretcher is let go when the
- *   finishing begins, and the decoded recording with it. A choice made while a copy is being made
- *   drops that copy and starts the one chosen: each slice first checks that its copy is still the
- *   choice made last, so the last choice wins, and a copy finished for an earlier choice never
- *   takes the place of the one chosen last.
+ *   loudness match, and the file are all done in slices of about 20 ms, apart from two closing
+ *   steps that grow with the recording (the stretcher's last call, which evens out the whole copy,
+ *   and the `Blob` made of the whole file), under 0.1 s each for a recording of 10 minutes. The
+ *   second player plays the file from a `blob:` address. Nothing else of a copy's making is kept,
+ *   as the stretcher is let go when the finishing begins, and the decoded recording with it. A
+ *   choice made while a copy is being made drops that copy and starts the one chosen: each slice
+ *   first checks that its copy is still the choice made last, so the last choice wins, and a copy
+ *   finished for an earlier choice never takes the place of the one chosen last.
  * - The copies are kept for the visit, so a speed made once is shown again at once, but on the page
- *   as a whole at most 4 are: a list of them in the order they were shown, to the end of which a
- *   copy made or shown again goes. While there are more than 4, the one shown longest ago that
- *   isn't in view (a visible second player's address) is let go of: its address is revoked and
- *   it's out of its section's copies, so choosing that speed again makes it anew. A copy in view
- *   is never let go of, and each section can have one, so the page holds more than 4 while more
- *   than 4 sections show one.
+ *   as a whole at most 4 are, unless more than 4 are in view: a list of them in the order they were
+ *   shown, to the end of which a copy made or shown again goes. While there are more than 4, the
+ *   one shown longest ago that isn't in view (a visible second player's address) is let go of: its
+ *   address is revoked and it's out of its section's copies, so choosing that speed again makes it
+ *   anew. A copy in view is never let go of, and each section can have one, so the page holds more
+ *   than 4 while more than 4 sections show one.
  * - The place in the speech is the player in view's `currentTime` times its speed (1 for the first
  *   player); the player shown is put at that place divided by its own speed. If the player in view
  *   was playing it's paused, and the one shown plays on; if it wasn't, nothing plays. If it had the

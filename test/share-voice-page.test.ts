@@ -1338,7 +1338,7 @@ describe("the player's script and rules", () => {
     expect(() => new vm.Script(SHARE_SCRIPT + CHECK_SCRIPT + VOICE_SCRIPT)).not.toThrow();
     // The stretcher and its finisher (the filter, the loudness match, and the WAV writer, which a
     // copy goes through in slices) are most of it; the limit was raised for the copies the page keeps
-    // (a list of at most four, and the check of which are in view, so that one never goes).
+    // (a list it cuts back to four, and the check of which copies are in view, as those never go).
     expect(VOICE_SCRIPT.length).toBeLessThan(22_000);
     expect(VOICE_CSS.length).toBeLessThan(2_500);
   });

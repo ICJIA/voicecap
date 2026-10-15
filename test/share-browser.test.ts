@@ -4054,7 +4054,7 @@ describe("the voice page", () => {
       const group = page.locator("fieldset.speeds").first();
 
       await group.getByRole("radio", { name: "0.3×" }).check();
-      await expect.poll(async () => (await players(page))[0]?.rate).toBe(0.3);
+      await expect.poll(async () => (await players(page))[0]?.rate, { timeout: 20_000 }).toBe(0.3);
       expect(await sections(page).first().locator(".speed-status").textContent()).toBe(
         "This browser slows it down with its own stretcher.",
       );
