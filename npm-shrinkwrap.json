@@ -1,12 +1,12 @@
 {
   "name": "@icjia/voicecap",
-  "version": "0.18.1",
+  "version": "0.19.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "@icjia/voicecap",
-      "version": "0.18.1",
+      "version": "0.19.0",
       "license": "MIT",
       "dependencies": {
         "@guidepup/guidepup": "0.34.0",
@@ -830,9 +830,9 @@
       "optional": true
     },
     "node_modules/undici": {
-      "version": "8.12.1",
-      "resolved": "https://registry.npmjs.org/undici/-/undici-8.12.1.tgz",
-      "integrity": "sha512-usz3OVQBeh1LxNn0DzU0voLXMgn5CU/WUdpBsY6Ti5afNao+vTkmn4H/NxoXolc10cOqe2+YIG0Hspq2rsl64w==",
+      "version": "8.12.2",
+      "resolved": "https://registry.npmjs.org/undici/-/undici-8.12.2.tgz",
+      "integrity": "sha512-XtuDWVdqTLr3NAxm2ly9/hU6kUsJOgGh1RASzMBbsw6aWCOaQzHdW+QQDfdERjfJ2V5vL5pRPa4RetO9UfivDg==",
       "license": "MIT",
       "engines": {
         "node": ">=22.19.0"
