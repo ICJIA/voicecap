@@ -3005,7 +3005,7 @@ describe("a site whose only run was a replay", () => {
  */
 describe("the voice page", () => {
   /** What the page's speed choice offers, in its order. */
-  const SPEEDS = [1, 0.75, 0.5, 0.25];
+  const SPEEDS = [1, 0.75, 0.5, 0.3];
 
   /** The page's file, and the slug of each of its pages in order. */
   let voice: { file: string; slugs: string[] };
@@ -3151,22 +3151,22 @@ describe("the voice page", () => {
     await page.evaluate(() => {
       for (const sound of document.querySelectorAll("audio")) sound.preservesPitch = false;
     });
-    await groups.nth(0).getByRole("radio", { name: "0.25×" }).check();
+    await groups.nth(0).getByRole("radio", { name: "0.3×" }).check();
     expect(await players(page)).toEqual([
-      { rate: 0.25, pitch: true, paused: true, at: 0 },
+      { rate: 0.3, pitch: true, paused: true, at: 0 },
       { rate: 1, pitch: false, paused: true, at: 0 },
       { rate: 1, pitch: false, paused: true, at: 0 },
     ]);
 
     // Every speed it offers, in any order, and back to 1×.
-    for (const speed of [0.75, 0.5, 0.25, 1, 0.5]) {
+    for (const speed of [0.75, 0.5, 0.3, 1, 0.5]) {
       await groups
         .nth(1)
         .getByRole("radio", { name: `${speed}×` })
         .check();
       expect((await players(page))[1]).toEqual({ rate: speed, pitch: true, paused: true, at: 0 });
     }
-    expect((await players(page))[0]?.rate).toBe(0.25);
+    expect((await players(page))[0]?.rate).toBe(0.3);
     // The speed is the player's default too, so it keeps when the browser loads the file again.
     await page.evaluate(() => {
       document.querySelectorAll("audio")[1]?.load();
@@ -3198,7 +3198,7 @@ describe("the voice page", () => {
 
     await group.getByRole("radio", { name: "0.5×" }).check();
     // Clicked, not checked: a check asks that the button's state change, and here it won't.
-    await group.getByRole("radio", { name: "0.25×" }).click();
+    await group.getByRole("radio", { name: "0.3×" }).click();
 
     // The page reported nothing (the test ends by checking that), the player is where it was, and
     // the choice shows it: the browser's refusal isn't left looking like a speed it's at.
@@ -3224,17 +3224,17 @@ describe("the voice page", () => {
     // A speed this page doesn't offer is no choice it has: none is shown as chosen.
     await setRate(1.5);
     await expect.poll(() => chosenIn(group)).toEqual([]);
-    await setRate(0.25);
-    await expect.poll(() => chosenIn(group)).toEqual(["0.25"]);
+    await setRate(0.3);
+    await expect.poll(() => chosenIn(group)).toEqual(["0.3"]);
   });
 
   it("shows the speed its player starts at, whatever the browser kept of an earlier choice", async () => {
-    // A browser that loads a page again can bring back the button that was chosen (here, 0.25× in
+    // A browser that loads a page again can bring back the button that was chosen (here, 0.3× in
     // the first player's group), while the player starts at 1× as it always does: the page's markup
     // as such a browser has it. The choice shows the player's speed, not the browser's memory.
     const kept = (await readFile(voice.file, "utf8"))
       .replace('value="1" checked>', 'value="1">')
-      .replace('value="0.25">', 'value="0.25" checked>');
+      .replace('value="0.3">', 'value="0.3" checked>');
     const page = await (await newContext()).newPage();
     await page.setContent(kept, { waitUntil: "load" });
 
@@ -3262,8 +3262,8 @@ describe("the voice page", () => {
 
     // Every player has it on before anything is chosen, and still has it on at a slower speed.
     expect((await players(page)).map(({ pitch }) => pitch)).toEqual([true, true, true]);
-    await page.locator("fieldset.speeds").first().getByRole("radio", { name: "0.25×" }).check();
-    expect((await players(page))[0]).toEqual({ rate: 0.25, pitch: true, paused: true, at: 0 });
+    await page.locator("fieldset.speeds").first().getByRole("radio", { name: "0.3×" }).check();
+    expect((await players(page))[0]).toEqual({ rate: 0.3, pitch: true, paused: true, at: 0 });
   });
 
   it("plays each recording as a file the browser loads, as long as its record says", async () => {
@@ -3464,7 +3464,7 @@ describe("the voice page", () => {
     for (const [key, speed] of [
       ["ArrowDown", 0.75],
       ["ArrowRight", 0.5],
-      ["ArrowDown", 0.25],
+      ["ArrowDown", 0.3],
       ["ArrowUp", 0.5],
     ] as const) {
       await page.keyboard.press(key);

@@ -10,6 +10,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { VOICE_FILE, type RunJson, type VoiceRecord } from "../src/model.js";
+import { esc } from "../src/report/html.js";
 import { UNFINISHED_ATTEMPT } from "../src/run/page-runner.js";
 import { CHECK_LIBRARY, CHECK_SCRIPT, type CheckData } from "../src/share/check.js";
 import { sizeLine } from "../src/share/format.js";
@@ -23,7 +24,7 @@ import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { KEEPS_VOICE_FROM, keepsVoice } from "../src/share/run-evidence.js";
 import { cardRecord, standingOf } from "../src/share/standing.js";
 import { EVIDENCE_TEXT, VOICE_TEXT } from "../src/share/text.js";
-import { renderVoicePage, VOICE_SCRIPT } from "../src/share/voice-page.js";
+import { renderVoicePage, SPEED_TOKEN, VOICE_SCRIPT } from "../src/share/voice-page.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, decode, textOf } from "./helpers/share-html.js";
 import {
@@ -222,7 +223,7 @@ describe("renderVoicePage", () => {
       "NVDA's voice: dvfr.illinois.gov, 29 September 2026, 14:02",
     );
     expect(VOICE_TEXT.lead).toBe(
-      "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast; choose a slower speed, and the pitch stays the same. The transcripts on the shareable page are the record of what was reviewed.",
+      "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast: choose a slower speed, and voicecap's own stretcher slows it down in your browser, with the pitch kept and nothing sent anywhere. The transcripts on the shareable page are the record of what was reviewed.",
     );
     // Each pass's stretch starts with its title check, and between the passes the recording is
     // silenced (the NVDA driver's stretches, which the run keeps).
@@ -234,7 +235,7 @@ describe("renderVoicePage", () => {
       "1×",
       "0.75×",
       "0.5×",
-      "0.25×",
+      "0.3×",
     ]);
     // The lead is under the name, and the note once, before the first page's section.
     expect(text).toContain(VOICE_TEXT.lead);
@@ -474,7 +475,7 @@ describe("renderVoicePage", () => {
     const home = sectionOf(html, model.pages[0]?.slug ?? "");
     const group = /<fieldset\b[^>]*>[\s\S]*?<\/fieldset>/.exec(home)?.[0] ?? "";
 
-    expect(group).toMatch(/^<fieldset class="speeds" hidden>/);
+    expect(group).toMatch(/^<fieldset class="speeds" hidden[ >]/);
     expect(textOf(/<legend>(.*?)<\/legend>/.exec(group)?.[1] ?? "")).toBe("Speed on /");
     expect(/<legend>Speed<span class="sr"> on \/<\/span><\/legend>/.test(group)).toBe(true);
     const radios = group.match(/<input\b[^>]*>/g) ?? [];
@@ -482,7 +483,7 @@ describe("renderVoicePage", () => {
       ["1"],
       ["0.75"],
       ["0.5"],
-      ["0.25"],
+      ["0.3"],
     ]);
     expect(radios.every((tag) => tag.includes('type="radio"'))).toBe(true);
     // One group of them for the player: they share a name, which no other player's has.
@@ -490,10 +491,48 @@ describe("renderVoicePage", () => {
     expect(radios.map((tag) => tag.includes(" checked"))).toEqual([true, false, false, false]);
     expect(
       [...group.matchAll(/<label>(.*?)<\/label>/gs)].map(([, label = ""]) => textOf(label)),
-    ).toEqual(["1×", "0.75×", "0.5×", "0.25×"]);
+    ).toEqual(["1×", "0.75×", "0.5×", "0.3×"]);
     const names = (html.match(/<input\b[^>]*>/g) ?? []).flatMap((tag) => attributes(tag, "name"));
     expect(new Set(names).size).toBe(2);
     expect(names).toHaveLength(8);
+  });
+
+  it("gives each speed choice the words its script says, with the speed left to fill in", () => {
+    const { html, model } = recorded;
+    const groupOf = (index: number): string =>
+      /<fieldset\b[^>]*>[\s\S]*?<\/fieldset>/.exec(
+        sectionOf(html, model.pages[index]?.slug ?? ""),
+      )?.[0] ?? "";
+    const [home, about] = [groupOf(0), groupOf(1)];
+
+    // The words are VOICE_TEXT's, and where a speed goes they hold the token the script fills in
+    // with the speed's label ("0.3×"), since the markup is made before any speed is chosen.
+    expect(SPEED_TOKEN).toBe("{speed}");
+    expect(VOICE_TEXT.speed.making("0.3×")).toBe("Getting 0.3× ready…");
+    expect(VOICE_TEXT.speed.made("0.3×")).toBe("0.3× is ready.");
+    expect(VOICE_TEXT.speed.own).toBe("This browser slows it down with its own stretcher.");
+    expect(VOICE_TEXT.slowed("/about/", "0.3×")).toBe("NVDA's voice on /about/, at 0.3×");
+
+    // A section's fieldset carries all four, after `hidden`, in this order, escaped as every value
+    // is (the apostrophe in "NVDA's"), with its own page's address in the name of its slowed copy.
+    expect(/^<fieldset\b[^>]*>/.exec(about)?.[0]).toBe(
+      '<fieldset class="speeds" hidden data-making="Getting {speed} ready…" data-made="{speed} is ready." data-own="This browser slows it down with its own stretcher." data-slowed="NVDA&#39;s voice on /about/, at {speed}">',
+    );
+    for (const [group, path] of [
+      [home, "/"],
+      [about, "/about/"],
+    ] as const) {
+      expect(attributes(group, "data-making")).toEqual([esc(VOICE_TEXT.speed.making(SPEED_TOKEN))]);
+      expect(attributes(group, "data-made")).toEqual([esc(VOICE_TEXT.speed.made(SPEED_TOKEN))]);
+      expect(attributes(group, "data-own")).toEqual([esc(VOICE_TEXT.speed.own)]);
+      expect(attributes(group, "data-slowed")).toEqual([esc(VOICE_TEXT.slowed(path, SPEED_TOKEN))]);
+      // The status line is last, empty, and polite: the script writes in it, and says what it's
+      // doing and when it's done.
+      expect(group.endsWith('</div><p class="speed-status" role="status"></p></fieldset>')).toBe(
+        true,
+      );
+      expect(group.match(/<p\b/g)).toHaveLength(1);
+    }
   });
 
   it("names the run a page's recording is from when it isn't the latest, as its card does", () => {
@@ -762,11 +801,13 @@ describe("renderVoicePage", () => {
     expect(textOf(/<p class="not-recorded">(.*?)<\/p>/.exec(second)?.[1] ?? "")).toBe(
       `Not recorded: </script><script>window.__pwned = 1</script> <b>bold</b> & "q".`,
     );
-    // An address is text too: in the page's name, the player's label, and its speeds' legend.
+    // An address is text too: in the page's name, the player's label, its speeds' legend, and the
+    // name its speed choice carries for a slowed copy.
     const search = sectionOf(html, model.pages[2]?.slug ?? "");
     expect(search).toContain('<h3><span class="num">3</span> /search?q=a&amp;b=c</h3>');
     expect(search).toContain('aria-label="NVDA&#39;s voice on /search?q=a&amp;b=c"');
     expect(search).toContain('<span class="sr"> on /search?q=a&amp;b=c</span>');
+    expect(search).toContain('data-slowed="NVDA&#39;s voice on /search?q=a&amp;b=c, at {speed}"');
     expect(textOf(/<h3>(.*?)<\/h3>/.exec(search)?.[1] ?? "")).toBe("3 /search?q=a&b=c");
     // The check's data keeps it intact: nothing in it can end its block.
     const json = /<script type="application\/json" id="fp-data">([\s\S]*?)<\/script>/.exec(

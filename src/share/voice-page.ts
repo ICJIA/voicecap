@@ -7,7 +7,7 @@
  *
  * The recording is evidence. The person's review is made from the transcripts, by reading what NVDA
  * said (NVDA speaks too fast to follow), so the page says so, and plays each recording at a speed a
- * person can follow: 1×, 0.75×, 0.5×, and 0.25×, with the pitch kept (`playbackRate`, and
+ * person can follow: 1×, 0.75×, 0.5×, and 0.3×, with the pitch kept (`playbackRate`, and
  * `preservesPitch` set on, never left to the browser's default).
  *
  * In order: the head, with the page's one style block (the fonts, if the caller has them, then
@@ -202,10 +202,24 @@ function player(card: PageCard, page: PageRecord, bytes: Uint8Array): string {
 }
 
 /**
+ * What stands for the speed in the words a speed choice carries (`VOICE_TEXT.speed.making`, `made`,
+ * and `slowed` are given it as their speed). The page's script says those words, and the markup is
+ * made before any speed is chosen, so the script puts the chosen speed's label ("0.3×") in its place.
+ */
+export const SPEED_TOKEN = "{speed}";
+
+/**
  * The speed choice: a group of radio buttons under the legend "Speed", 1× chosen, named for the page
- * for a screen reader alone. It sets the player's speed, and does nothing without the script, so it
- * starts hidden and the script shows it, as the check's buttons are. Every group has a name of its
- * own, which its page's slug makes.
+ * for a screen reader alone, and under them a status line, empty (`role="status"`, so what the
+ * script writes in it is said politely). Its choice sets the speed the recording plays at, and does
+ * nothing without the script, so it starts hidden and the script shows it, as the check's buttons
+ * are. Every group has a name of its own, which its page's slug makes.
+ *
+ * The words the script says are VOICE_TEXT's, so that it holds none of its own: the group carries
+ * them in `data-` attributes, escaped as every value is, with `SPEED_TOKEN` where the speed goes.
+ * They are what the status line says while a copy is made (`data-making`) and when it's ready
+ * (`data-made`), what it says where the browser slows the player itself (`data-own`), and the name
+ * of the slowed copy's player, which holds this page's address (`data-slowed`).
  */
 function speeds(card: PageCard): string {
   const { speed } = VOICE_TEXT;
@@ -215,7 +229,16 @@ function speeds(card: PageCard): string {
       `<label><input type="radio" name="${name}" value="${rate}"${rate === 1 ? " checked" : ""}> ${esc(speed.label(rate))}</label>`,
   );
   const legend = `<legend>${esc(speed.legend)}<span class="sr">${esc(speed.on(card.path))}</span></legend>`;
-  return `<fieldset class="speeds" hidden>${legend}<div class="speed-choices">${choices.join("")}</div></fieldset>`;
+  const words = Object.entries({
+    making: speed.making(SPEED_TOKEN),
+    made: speed.made(SPEED_TOKEN),
+    own: speed.own,
+    slowed: VOICE_TEXT.slowed(card.path, SPEED_TOKEN),
+  })
+    .map(([key, said]) => ` data-${key}="${esc(said)}"`)
+    .join("");
+  const status = `<p class="speed-status" role="status"></p>`;
+  return `<fieldset class="speeds" hidden${words}>${legend}<div class="speed-choices">${choices.join("")}</div>${status}</fieldset>`;
 }
 
 /**

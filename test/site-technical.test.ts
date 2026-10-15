@@ -968,7 +968,7 @@ describe("renderTechnical", () => {
     // speeds its own words give, with the pitch kept as its script sets it, and the recording is
     // evidence, as the page's lead says, since the transcripts are the record of what was reviewed.
     const speeds = names(VOICE_TEXT.speed.rates.map((rate) => VOICE_TEXT.speed.label(rate)));
-    expect(speeds).toBe("1×, 0.75×, 0.5×, and 0.25×");
+    expect(speeds).toBe("1×, 0.75×, 0.5×, and 0.3×");
     expect(flow).toContain(
       `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${speeds}, with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
     );

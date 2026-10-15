@@ -125,7 +125,7 @@ const WAYS = inWords(PASS_NAMES.length);
 
 /**
  * The speeds a share's voice page plays a recording at, as its own words give them: "1×, 0.75×, 0.5×,
- * and 0.25×".
+ * and 0.3×".
  */
 const VOICE_SPEEDS = names(VOICE_TEXT.speed.rates.map((rate) => VOICE_TEXT.speed.label(rate)));
 

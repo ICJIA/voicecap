@@ -431,7 +431,9 @@ table.tracks td.none { background: transparent; border: 1px dashed var(--line); 
  * - its speed choice (`.speeds`) is a group of radio buttons under a small label, as a card's
  *   numbers are, in a row that wraps, each a target of at least 24 pixels (WCAG 2.5.8) with its
  *   words beside it. It starts hidden, as everything that needs the script does, and the script
- *   shows it;
+ *   shows it. Under the buttons is its status line (`.speed-status`), small and muted as what is
+ *   said of a recording is, which keeps a line's height while it's empty so that the card doesn't
+ *   jump when the script writes in it;
  * - what is said of a recording (`.voice-facts`) is small and muted, as a card's fingerprints are,
  *   and its SHA-256 breaks where it must rather than widen the page (`code` already does);
  * - the check's list of every file checked wraps its file cells (`#fp-list`), since a recording's
@@ -446,6 +448,7 @@ export const VOICE_CSS = `/* the voice page: a page's player, its speed choice, 
 .speed-choices { display: flex; flex-wrap: wrap; gap: 2px 18px; }
 .speeds label { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; cursor: pointer; font: 500 0.95rem var(--body); font-variant-numeric: tabular-nums; }
 .speeds input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.speed-status { margin: 4px 0 0; min-height: 1.25em; font-size: 0.82rem; color: var(--muted); }
 .voice-facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 0.82rem; color: var(--muted); }
 .voice-facts code { color: var(--fg); }
 /* the check's list of every file checked: a recording's name holds its page's address, which can be long, so its file cells wrap (the shareable page's list is its own) */
