@@ -397,15 +397,20 @@ function footer(model: ShareModel): string {
  *   line says that it's being made (`data-making`) and then that it's ready (`data-made`). The
  *   first player's address is decoded to samples at the stretcher's rate (`decodeAudioData`, on an
  *   `OfflineAudioContext`), the stretcher makes the copy in slices of about 20 ms of work with the
- *   page free between them, and the copy is filtered, scaled to the recording's loudness, and
- *   written as a WAV file, which the second player plays from a `blob:` address. Each copy is kept
- *   for the visit, so a speed made once is shown again at once; nothing else of its making is
- *   kept, as the stretcher and the decoded recording are let go once it's made. A choice made
- *   while a copy is being made drops that copy and starts the one chosen: the last choice wins, and
- *   a copy finished for an earlier choice never takes the place of the one chosen last.
+ *   page free between them, and then the finisher filters the copy, scales it to the recording's
+ *   loudness, and writes it as a WAV file, in slices of the same size: nothing a copy needs is done
+ *   in one block, however long the recording. The second player plays the file from a `blob:`
+ *   address. Each copy is kept for the visit, so a speed made once is shown again at once; nothing
+ *   else of its making is kept, as the stretcher is let go when the finishing begins, and the
+ *   decoded recording with it. A choice made while a copy is being made drops that copy and starts
+ *   the one chosen: each slice first checks that its copy is still the choice made last, so the
+ *   last choice wins, and a copy finished for an earlier choice never takes the place of the one
+ *   chosen last.
  * - The place in the speech is the player in view's `currentTime` times its speed (1 for the first
  *   player); the player shown is put at that place divided by its own speed. If the player in view
- *   was playing it's paused, and the one shown plays on; if it wasn't, nothing plays.
+ *   was playing it's paused, and the one shown plays on; if it wasn't, nothing plays. If it had the
+ *   focus (a person had the keyboard on it) the one shown has it, without scrolling, so that a key,
+ *   to pause it, still reaches the player in view and never falls to the page.
  * - Where the browser can't decode a recording or make its copy (it has no `OfflineAudioContext`,
  *   `decodeAudioData` refuses the recording, or making the copy throws), that section slows the
  *   recording the browser's own way for the rest of the visit, and its status line says so
@@ -450,25 +455,33 @@ function decode(sound, done, fail) {
     if (asked && asked.then) asked.then(resolve, reject);
   }).then(function (buffer) { done(buffer.getChannelData(0)); }, fail);
 }
-// A copy at this speed, made in slices of about 20 ms, as the address of its WAV file.
+// A copy at this speed, made in slices of about 20 ms, as the address of its WAV file: the stretch,
+// then the finish (the filter, the loudness, the file). A slice that finds it's no longer wanted stops.
 function slow(signal, speed, current, done, fail) {
   if (!current()) return;
-  var level, made;
+  var level, made, finish = null;
   try { level = voiceRms(signal); made = voiceStretcher(signal, speed); } catch (error) { return fail(); }
+  // One step: 8 frames of the stretch; when it's whole, the finish begins with the stretcher let go,
+  // and goes on in steps of 16384 samples.
+  function step() {
+    if (!made) return finish.next(16384);
+    if (made.next(8)) {
+      finish = voiceFinisher(made.output, level);
+      made = null;
+    }
+    return false;
+  }
   function slice() {
-    if (!current()) { made = null; return; }
+    if (!current()) { made = finish = null; return; }
     var address = "", finished, start = performance.now();
     try {
-      finished = made.next(8);
-      while (!finished && performance.now() - start < 20) finished = made.next(8);
-      if (finished) {
-        var filtered = voiceFilter(made.output);
-        made = null;
-        var wav = voiceWav(voiceLevel(filtered, level));
-        address = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
-      }
-    } catch (error) { made = null; return fail(); }
-    if (finished) done(address); else setTimeout(slice, 0);
+      finished = step();
+      while (!finished && performance.now() - start < 20) finished = step();
+      if (finished) address = URL.createObjectURL(new Blob([finish.wav], { type: "audio/wav" }));
+    } catch (error) { made = finish = null; return fail(); }
+    if (!finished) { setTimeout(slice, 0); return; }
+    finish = null;
+    done(address);
   }
   slice();
 }
@@ -487,13 +500,16 @@ function wire(group) {
     var rate = view().playbackRate, speed = fallen ? rate : Math.abs(rate - 1) < 0.001 ? chosen : 0;
     for (var i = 0; i < radios.length; i++) radios[i].checked = Math.abs(Number(radios[i].value) - speed) < 0.001;
   }
-  // Puts a player in view at the place in the speech; it plays on if the one it replaces was playing.
+  // Puts a player in view at the place in the speech, in place of the one in view: it plays on if
+  // that was playing, and has the focus (without scrolling) if that had it.
   function put(player, speed, address) {
     var from = view(), at = from.currentTime * shown, playing = !from.paused;
+    var focused = document.activeElement === from;
     if (player !== from) { if (playing) from.pause(); from.hidden = true; }
     if (address) player.src = address;
     if (address || player !== from) player.currentTime = at / speed;
     player.hidden = false;
+    if (focused && player !== from) player.focus({ preventScroll: true });
     shown = speed;
     var started = playing ? player.play() : null;
     if (started && started.catch) started.catch(function () {});

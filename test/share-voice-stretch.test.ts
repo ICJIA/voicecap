@@ -1,8 +1,8 @@
 /**
  * The voice page's stretcher (src/share/voice-stretch.ts): the library that slows a recording of
  * NVDA's voice, run here in node:vm the way a browser runs it: plain script, no imports, nothing
- * from outside. The sounds are made here, from sine waves and a few awkward signals, so no test
- * needs a recording or a browser.
+ * from outside. The sounds are made here, from sine waves, a few awkward signals, and the speech-like
+ * sound the voice tests share, so no test needs a recording or a browser.
  */
 import vm from "node:vm";
 
@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import { STRETCH_LIBRARY } from "../src/share/voice-stretch.js";
 import { VOICE_SAMPLE_RATE } from "../src/voice/encode.js";
+import { speechAndPauses } from "./helpers/voice-signal.js";
 
 interface Library {
   voiceStretcher: (
@@ -20,13 +21,17 @@ interface Library {
   voiceRms: (signal: Float32Array) => number;
   voiceLevel: (signal: Float32Array, target: number) => Float32Array;
   voiceWav: (signal: Float32Array) => Uint8Array;
+  voiceFinisher: (
+    signal: Float32Array,
+    target: number,
+  ) => { next: (samples: number) => boolean; wav: Uint8Array | null };
   VOICE_RATE: number;
 }
 
 // The library as a browser gets it, with nothing from outside.
 const lib = vm.runInNewContext(
   STRETCH_LIBRARY +
-    ";({ voiceStretcher, voiceFilter, voiceRms, voiceLevel, voiceWav, VOICE_RATE })",
+    ";({ voiceStretcher, voiceFilter, voiceRms, voiceLevel, voiceWav, voiceFinisher, VOICE_RATE })",
   {},
 ) as Library;
 
@@ -247,6 +252,112 @@ describe("the filter, the loudness match, and the WAV writer", () => {
       ...littleEndian(-32_767, 2),
       ...littleEndian(32_767, 2),
     ]);
+  });
+});
+
+describe("the finisher", () => {
+  /** The recorder's kind of sound, 2 s of speech and pauses, as samples between -1 and 1. */
+  const speech = Float32Array.from(speechAndPauses(), (x) => x / 32_768);
+
+  /** Sounds to finish: that one, and the awkward ones, down to a sound shorter than a slice and none. */
+  const SIGNALS: [string, Float32Array][] = [
+    ["speech and pauses", speech],
+    ["an impulse", Float32Array.from({ length: R }, (_, i) => (i === R / 2 ? 1 : 0))],
+    ["silence", new Float32Array(R)],
+    [
+      "a full-scale square wave",
+      Float32Array.from({ length: R }, (_, i) => (i % 80 < 40 ? 1 : -1)),
+    ],
+    ["a sound shorter than a slice", Float32Array.from([0.3, -0.2, 0.9])],
+    ["no sound", new Float32Array(0)],
+  ];
+
+  /**
+   * Two loudnesses to match: one the gain reaches, and one that is more than the peak allows for
+   * most of these, so that the peak's cap is what holds the copy.
+   */
+  const TARGETS = [0.1, 0.9];
+
+  /**
+   * The finisher's work on a copy of `signal`: the file it makes, the samples it leaves in place,
+   * and how many calls it took, `slice` samples to a call.
+   */
+  function finish(signal: Float32Array, target: number, slice: number) {
+    const worked = Float32Array.from(signal);
+    const finisher = lib.voiceFinisher(worked, target);
+    let calls = 1;
+    while (!finisher.next(slice)) calls++;
+    if (finisher.wav === null) throw new Error("The finisher said it was done, and gave no file.");
+    return { wav: finisher.wav, worked, calls };
+  }
+
+  it("gives, byte for byte, the file the filter, the loudness match, and the WAV writer give", () => {
+    // The finisher does what voiceWav(voiceLevel(voiceFilter(x), target)) does, but in place and in
+    // passes, with each biquad's four numbers carried from one range to the next, the sum of
+    // squares added in the same order, and the same gain. It works to the last bit, so the file is
+    // the same byte for byte, whether it's made at once or a slice at a time.
+    for (const [what, signal] of SIGNALS) {
+      for (const target of TARGETS) {
+        const leveled = lib.voiceLevel(lib.voiceFilter(signal), target);
+        const wav = lib.voiceWav(leveled);
+
+        for (const slice of [1e9, 997]) {
+          const label = `${what}, to ${target}, ${slice} samples at a time`;
+          const made = finish(signal, target, slice);
+
+          expect(made.wav.length, label).toBe(wav.length);
+          expect(
+            made.wav.findIndex((byte, i) => byte !== wav[i]),
+            label,
+          ).toBe(-1);
+          // And the samples it leaves in the array it was given are the ones the others leave.
+          expect(
+            made.worked.findIndex((x, i) => x !== leveled[i]),
+            label,
+          ).toBe(-1);
+        }
+      }
+    }
+  });
+
+  it("matches the loudness and holds the peak, as the loudness match does", () => {
+    const quiet = finish(speech, 0.1, 997).worked;
+    expect(Math.abs(rms(quiet) - 0.1)).toBeLessThan(0.001);
+
+    // 0.9 is more than the peak allows: the peak is what's held, so the RMS falls short of it.
+    const loud = finish(speech, 0.9, 997).worked;
+    expect(Math.abs(peakOf(loud) - 0.98)).toBeLessThan(1e-6);
+    expect(rms(loud)).toBeLessThan(0.9);
+
+    // Nothing to match in silence: it stays silent, in its samples and in its file.
+    const silent = finish(new Float32Array(R), 0.1, 997);
+    expect(allZero(silent.worked)).toBe(true);
+    expect(silent.wav.slice(44).every((byte) => byte === 0)).toBe(true);
+  });
+
+  it("works on the signal itself, a slice at a time, from where it left off", () => {
+    const worked = Float32Array.from(speech);
+    const finisher = lib.voiceFinisher(worked, 0.1);
+
+    // A first slice reaches the first samples only: the rest are as they were, and there is no
+    // file yet.
+    expect(finisher.next(997)).toBe(false);
+    expect(finisher.wav === null).toBe(true);
+    expect(worked.subarray(0, 997).some((x, i) => x !== speech[i])).toBe(true);
+    expect(worked.subarray(997).findIndex((x, i) => x !== speech[997 + i])).toBe(-1);
+
+    // It takes five passes (the low cut, the high shelf, the sum of squares and the peak, the gain,
+    // and the file), a sample of work each, so a slice of 997 samples makes 5 × length ÷ 997 calls.
+    const { calls } = finish(speech, 0.1, 997);
+    expect(calls).toBe(Math.ceil((5 * speech.length) / 997));
+
+    // Once it's done, it stays done, and gives the same file.
+    const done = lib.voiceFinisher(Float32Array.from(speech), 0.1);
+    expect(done.next(1e9)).toBe(true);
+    const wav = done.wav;
+    expect(wav === null).toBe(false);
+    expect(done.next(1)).toBe(true);
+    expect(done.wav === wav).toBe(true);
   });
 });
 

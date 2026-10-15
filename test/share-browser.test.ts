@@ -3146,27 +3146,91 @@ describe("the voice page", () => {
 
   /**
    * A context of a browser that refuses to decode a recording: `decodeAudioData` answers with an
-   * error, for each of its first `count` calls. The page then slows a recording the browser's own
-   * way, as it does where it can't decode.
+   * error, for `count` calls from the `from`th on (the first, by default). The page then slows a
+   * recording the browser's own way, as it does where it can't decode.
    */
-  async function refusingContext(count: number): Promise<BrowserContext> {
+  async function refusingContext(count: number, from = 1): Promise<BrowserContext> {
     const context = await newContext();
-    await context.addInitScript((refusals: number) => {
-      const own = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, "decodeAudioData");
-      const decode = own?.value as (...args: unknown[]) => Promise<AudioBuffer>;
-      let calls = 0;
-      BaseAudioContext.prototype.decodeAudioData = function (
-        this: BaseAudioContext,
-        ...args: unknown[]
-      ) {
-        calls++;
-        return calls <= refusals
-          ? Promise.reject(new DOMException("This test refuses to decode.", "EncodingError"))
-          : decode.apply(this, args);
-      };
-    }, count);
+    await context.addInitScript(
+      ({ refusals, first }: { refusals: number; first: number }) => {
+        const own = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, "decodeAudioData");
+        const decode = own?.value as (...args: unknown[]) => Promise<AudioBuffer>;
+        let calls = 0;
+        BaseAudioContext.prototype.decodeAudioData = function (
+          this: BaseAudioContext,
+          ...args: unknown[]
+        ) {
+          calls++;
+          return calls >= first && calls < first + refusals
+            ? Promise.reject(new DOMException("This test refuses to decode.", "EncodingError"))
+            : decode.apply(this, args);
+        };
+      },
+      { refusals: count, first: from },
+    );
     return context;
   }
+
+  /**
+   * What a slow clock keeps, as `window.clock`: how many times the page has read the clock
+   * (`reads`), the reading at which the stretcher gave its copy (`stretched`, -1 until then; what
+   * the page does after it is the copy's last steps), the size of each blob the page made
+   * (`blobs`), and a click to make, as a task of its own, a number of readings (`after`) from the
+   * start or from `stretched` (`trigger`).
+   */
+  interface SlowClock {
+    reads: number;
+    stretched: number;
+    blobs: number[];
+    trigger: { from: "start" | "stretched"; after: number; run: () => void } | null;
+  }
+
+  /**
+   * A context whose pages have a slow clock: each reading of `performance.now()` moves it on 25
+   * ms. The page works in slices of 20 ms by that clock, so each slice does one step (8 frames of
+   * the stretcher, or a share of the last steps) and takes two readings, and a copy takes a slice
+   * for each step, which a test can count and can act between, to the reading.
+   */
+  async function slowClockContext(): Promise<BrowserContext> {
+    const context = await newContext();
+    await context.addInitScript(() => {
+      const clock: SlowClock = { reads: 0, stretched: -1, blobs: [], trigger: null };
+      Object.assign(window, { clock });
+      performance.now = () => {
+        clock.reads++;
+        const { trigger } = clock;
+        const from = trigger?.from === "stretched" ? clock.stretched : 0;
+        if (trigger !== null && from >= 0 && clock.reads - from === trigger.after) {
+          clock.trigger = null;
+          setTimeout(trigger.run, 0);
+        }
+        return clock.reads * 25;
+      };
+      // The stretcher takes its copy with `subarray` when it has made all of it, and the last
+      // steps follow.
+      const subarray = Reflect.get(Float32Array.prototype, "subarray");
+      Float32Array.prototype.subarray = function (
+        this: Float32Array,
+        ...range: [number?, number?]
+      ) {
+        if (clock.stretched < 0) clock.stretched = clock.reads;
+        return subarray.apply(this, range);
+      };
+      const create = Reflect.get(URL, "createObjectURL");
+      URL.createObjectURL = (blob) => {
+        if (blob instanceof Blob) clock.blobs.push(blob.size);
+        return create.call(URL, blob);
+      };
+    });
+    return context;
+  }
+
+  const clockOf = (page: Page) =>
+    page.evaluate(() => {
+      const { reads, stretched, blobs, trigger } = (window as unknown as { clock: SlowClock })
+        .clock;
+      return { reads, stretched, blobs: [...blobs], armed: trigger !== null };
+    });
 
   /**
    * The voice page, opened in a browser where no player plays: `play()` and `pause()` only record
@@ -3435,6 +3499,62 @@ describe("the voice page", () => {
     expect((await players(page)).every((player) => player.paused && player.at === 0)).toBe(true);
   });
 
+  // The focus goes with the player in view. A copy comes in when it's ready, and 1× or a fallback
+  // brings the first player back, each as a task of its own, so a person can have the keyboard on
+  // the player that is being replaced: it hides, and a key (Space, to pause it) must still reach
+  // the player that takes its place, and not fall to the page, which it would scroll.
+  it("keeps the focus with the player in view when a copy, or the first player, takes its place", async () => {
+    const page = await open(voice.file);
+    const group = page.locator("fieldset.speeds").first();
+    const focusIs = (selector: string) =>
+      page.evaluate((wanted) => document.activeElement?.matches(wanted) ?? false, selector);
+    const FIRST = "audio[data-file]";
+    const SECOND = "audio:not([data-file])";
+
+    // The first player has the focus when 0.5× is chosen, before its copy is ready (both in one
+    // turn, so it can't be): the copy takes its place, and the focus goes to the copy.
+    await page.evaluate(() => {
+      document.querySelector<HTMLInputElement>('input[value="0.5"]')?.click();
+      document.querySelector<HTMLElement>("audio[data-file]")?.focus();
+    });
+    expect(await focusIs(FIRST)).toBe(true);
+    await copyShown(page, 0, 0.5);
+    expect(await focusIs(SECOND)).toBe(true);
+
+    // The copy has the focus when 1× is chosen: the first player comes back, and has it.
+    await page.evaluate(() => {
+      document.querySelector<HTMLElement>("audio:not([data-file])")?.focus();
+      document.querySelector<HTMLInputElement>('input[value="1"]')?.click();
+    });
+    expect(await focusIs(FIRST)).toBe(true);
+
+    // And a player that doesn't have the focus doesn't take it: from the speed choice, a copy that
+    // comes in leaves the focus on the choice.
+    await group.getByRole("radio", { name: "0.75×" }).check();
+    await copyShown(page, 0, 0.75);
+    expect(await focusIs('input[name^="speed-"]')).toBe(true);
+  });
+
+  it("keeps the focus with the player in view when a fallback brings the first player back", async () => {
+    // The first recording decoded is made into a copy; the second is refused.
+    const page = await (await refusingContext(1_000, 2)).newPage();
+    await page.goto(addressOf(voice.file));
+    const group = page.locator("fieldset.speeds").first();
+
+    await group.getByRole("radio", { name: "0.5×" }).check();
+    await copyShown(page, 0, 0.5);
+    // The copy has the focus when 0.3× is chosen, and the browser can't make that copy: the section
+    // falls back, and the first player comes back, at 0.3×, with the focus.
+    await page.evaluate(() => {
+      document.querySelector<HTMLElement>("audio:not([data-file])")?.focus();
+      document.querySelector<HTMLInputElement>('input[value="0.3"]')?.click();
+    });
+    await expect.poll(async () => (await players(page))[0]?.rate).toBe(0.3);
+    expect(
+      await page.evaluate(() => document.activeElement?.matches("audio[data-file]") ?? false),
+    ).toBe(true);
+  });
+
   // Review Focus 1: a choice made while a copy is being made drops that copy. The copy for 0.3× is
   // the slower to make, so it would finish after the one for 0.5× if it weren't dropped.
   it("the last choice wins while a copy is being made", async () => {
@@ -3469,6 +3589,86 @@ describe("the voice page", () => {
     await copyShown(page, 0, 0.3);
     expect((await saidOf(page)).slice(3)).toEqual(["Getting 0.3× ready…", "0.3× is ready."]);
   });
+
+  // The page never stops answering while a copy is made: its work is in slices of about 20 ms, the
+  // copy's last steps (the filter, the loudness, and the file: five passes over its samples, which
+  // are many for a long recording) as the stretcher's are, not one block after them. With the slow
+  // clock each slice is one step, so the steps can be counted, and a choice can come between them.
+  it("makes the last steps of a copy in slices too, so the page keeps answering", async () => {
+    const page = await (await slowClockContext()).newPage();
+    await page.goto(addressOf(voice.file));
+
+    await page.locator("fieldset.speeds").first().getByRole("radio", { name: "0.3×" }).check();
+    await copyShown(page, 0, 0.3);
+
+    // A slice reads the clock twice. After the stretcher's last step, the last steps of a copy of
+    // 100,000 samples and more are many slices, not the one that a block would be.
+    const { reads, stretched, blobs } = await clockOf(page);
+    expect(stretched).toBeGreaterThan(0);
+    expect((reads - stretched) / 2).toBeGreaterThanOrEqual(10);
+    expect(blobs).toHaveLength(1);
+  });
+
+  // A job checks, before each slice, that it's still the choice made last. The two checks that
+  // matter are in the copy's stretching and in its last steps: a choice made in the middle of
+  // either, as a task between two slices, drops the copy being made, which is never shown and never
+  // kept: no blob is made for it, and the page stops working on it at its next slice.
+  it.each([
+    ["stretching", "1×", "1", { from: "start", after: 20 }],
+    ["last steps", "1×", "1", { from: "stretched", after: 6 }],
+    ["stretching", "0.5×", "0.5", { from: "start", after: 20 }],
+    ["last steps", "0.5×", "0.5", { from: "stretched", after: 6 }],
+  ] as const)(
+    "drops a copy in its %s when %s is chosen, so it's never shown",
+    async (_phase, _choice, value, when) => {
+      const page = await (await slowClockContext()).newPage();
+      await page.goto(addressOf(voice.file));
+      const group = page.locator("fieldset.speeds").first();
+      const status = sections(page).first().locator(".speed-status");
+
+      // The second choice is a click the page's clock makes, a task of its own, at the reading
+      // given: it comes between two slices of the copy for 0.3×, which is being made.
+      await page.evaluate(
+        ([wanted, from, after]) => {
+          const clock = (window as unknown as { clock: SlowClock }).clock;
+          const radio = document.querySelector<HTMLInputElement>(`input[value="${wanted}"]`);
+          clock.trigger = { from, after, run: () => radio?.click() };
+        },
+        [value, when.from, when.after] as const,
+      );
+      await group.getByRole("radio", { name: "0.3×" }).check();
+      await expect.poll(async () => (await clockOf(page)).armed, { timeout: 20_000 }).toBe(false);
+      if (value === "1") await expect.poll(() => chosenIn(group)).toEqual(["1"]);
+      else await copyShown(page, 0, 0.5);
+      // Time enough for the copy that was dropped to be finished, if it were still being made.
+      await page.waitForTimeout(1_000);
+
+      const clock = await clockOf(page);
+      if (value === "1") {
+        // The first player is back, there was never a second, and nothing was made: no blob, and
+        // the page stopped working on the copy at once: it read the clock a few times after the
+        // click at most (a slice reads it twice), where working on at 20 ms a slice would be
+        // hundreds of readings.
+        expect(await page.locator("audio:not([data-file])").count()).toBe(0);
+        expect(await status.textContent()).toBe("");
+        expect(clock.blobs).toEqual([]);
+        expect(clock.reads).toBeLessThanOrEqual(
+          (when.from === "start" ? 0 : clock.stretched) + when.after + 4,
+        );
+        // In the last steps, the stretcher had made its copy; in the stretching, it hadn't.
+        expect(clock.stretched >= 0).toBe(when.from === "stretched");
+      } else {
+        // The second player shows the copy for 0.5×, and it alone was made: one blob, the size of
+        // that copy's file (44 bytes and two for each sample of a copy twice as long as the
+        // recording), not the size the copy for 0.3× would have been.
+        const wanted = 44 + 2 * ((secondsOf(0) * 16_000) / 0.5);
+        expect(await status.textContent()).toBe("0.5× is ready.");
+        expect(await chosenIn(group)).toEqual(["0.5"]);
+        expect(clock.blobs).toHaveLength(1);
+        expect(Math.abs((clock.blobs[0] ?? 0) - wanted)).toBeLessThan(wanted * 0.01);
+      }
+    },
+  );
 
   it("falls back to the browser's own slow-down when it can't decode", async () => {
     const page = await (await refusingContext(1_000)).newPage();
@@ -3909,6 +4109,10 @@ describe("the voice page", () => {
       await page.keyboard.press(key);
       await copyShown(page, 0, speed);
     }
+    // The focus stays on the speed choice while the copies come in and take the first player's place.
+    expect(
+      await page.evaluate(() => document.activeElement?.matches('input[name^="speed-"]') ?? false),
+    ).toBe(true);
     // The first player is out of the page's order, as it's hidden: the player before the group is
     // the copy's, and from the group Tab goes on to the next section's controls and never to a
     // hidden player, as far as the check.

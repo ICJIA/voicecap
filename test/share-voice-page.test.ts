@@ -1336,8 +1336,9 @@ describe("the player's script and rules", () => {
     expect(VOICE_SCRIPT).not.toMatch(/\?\.(?!\d)|\?\?|\bclass\b|\bimport\b/);
     // It parses, as the page's one script does, after the page's and the check's.
     expect(() => new vm.Script(SHARE_SCRIPT + CHECK_SCRIPT + VOICE_SCRIPT)).not.toThrow();
-    // The stretcher is most of it.
-    expect(VOICE_SCRIPT.length).toBeLessThan(16_000);
+    // The stretcher and its finisher (the filter, the loudness match, and the WAV writer, which a
+    // copy goes through in slices) are most of it.
+    expect(VOICE_SCRIPT.length).toBeLessThan(20_000);
     expect(VOICE_CSS.length).toBeLessThan(2_500);
   });
 

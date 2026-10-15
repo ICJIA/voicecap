@@ -21,7 +21,9 @@
  * - After the copy come the filter, which takes the rumble from under the voice and eases the hiss
  *   a slowed voice makes plainer; the loudness match, which scales the copy to the loudness of the
  *   recording it came from and never past a peak of 0.98; and a WAV writer, which gives the bytes
- *   a player plays.
+ *   a player plays. Each is one call over a whole signal, and the finisher does all three to the
+ *   same bytes, in place and in slices, as the stretcher does its work, so that the last steps of
+ *   a long copy don't stop a page either.
  *
  * Why this one: of three stretchers tried on one recording at 0.3×, the two that splice repeated
  * pieces of it (a WSOLA) warbled, at about the rate of their splices. This one has no pieces to
@@ -34,10 +36,10 @@
 
 /**
  * The stretcher's library, as plain browser JavaScript (ES2017, no imports, no DOM, nothing from
- * outside): `voiceStretcher(signal, speed)`, `voiceFilter(signal)`, `voiceRms(signal)`,
- * `voiceLevel(signal, target)`, and `voiceWav(signal)`, with the constants they share, of which a
- * page needs `VOICE_RATE`. A signal is a `Float32Array` of samples at `VOICE_RATE` (16,000 Hz, one
- * channel), as a recording decodes to.
+ * outside): `voiceStretcher(signal, speed)`, `voiceFinisher(signal, target)`, `voiceFilter(signal)`,
+ * `voiceRms(signal)`, `voiceLevel(signal, target)`, and `voiceWav(signal)`, with the constants they
+ * share, of which a page needs `VOICE_RATE`. A signal is a `Float32Array` of samples at
+ * `VOICE_RATE` (16,000 Hz, one channel), as a recording decodes to.
  *
  * `voiceStretcher` gives `{ next, output }`, to make the copy of `signal` at `speed`, one of the
  * page's 0.75, 0.5, or 0.3: a copy 1 ÷ `speed` times as long, with the pitch kept. `next(frames)`
@@ -52,6 +54,14 @@
  * instead (a silent signal stays as it is), and gives it back. `voiceWav` gives the whole WAV file
  * of a signal as bytes: 16-bit PCM, one channel, at `VOICE_RATE`, each sample held to -1 to 1 and
  * rounded to a whole number of 32767ths.
+ *
+ * `voiceFinisher` gives `{ next, wav }`, to do all three of those to a copy, one after the other,
+ * as `voiceWav(voiceLevel(voiceFilter(signal), target))` does, and give the same bytes. It works on
+ * `signal` itself, in place, and in five passes over it (the low cut, the high shelf, the sum of
+ * squares and the peak, the gain, and the file), each of which it can leave and go back to:
+ * `next(samples)` does up to that many more samples of them, from where it left off, and returns
+ * true once the file is whole, when `wav` is the file (null until then). A caller asks for as many
+ * samples as fit in a slice of its time, lets the page answer, and asks again.
  */
 export const STRETCH_LIBRARY = String.raw`
 // The recordings' rate: 16 kHz, one channel.
@@ -189,22 +199,30 @@ function voiceStretcher(signal, speed) {
   return self;
 }
 
-// One biquad over a whole signal, in direct form I: each sample from the two inputs and the two
-// outputs before it, with the coefficients c already divided by a0. Gives a new array.
-function voiceBiquad(signal, c) {
-  var out = new Float32Array(signal.length);
-  var x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-  for (var n = 0; n < signal.length; n++) {
+// One biquad over signal from index from up to (not including) to, in place, in direct form I, with
+// the coefficients c already divided by a0. s holds the two inputs and two outputs before from (four
+// numbers, 0 at the start of a signal) and is left holding those before to, so that a signal run in
+// ranges gives the same samples as one run at once.
+function voiceBiquadRun(signal, c, s, from, to) {
+  var x1 = s[0], x2 = s[1], y1 = s[2], y2 = s[3];
+  for (var n = from; n < to; n++) {
     var x0 = signal[n];
     var y0 = c.b0 * x0 + c.b1 * x1 + c.b2 * x2 - c.a1 * y1 - c.a2 * y2;
-    out[n] = y0;
+    signal[n] = y0;
     x2 = x1; x1 = x0; y2 = y1; y1 = y0;
   }
+  s[0] = x1; s[1] = x2; s[2] = y1; s[3] = y2;
+}
+
+// One biquad over a whole signal. Gives a new array.
+function voiceBiquad(signal, c) {
+  var out = new Float32Array(signal);
+  voiceBiquadRun(out, c, new Float64Array(4), 0, out.length);
   return out;
 }
 
 // The RBJ audio EQ cookbook's high-pass of the second order, at hz and with the quality q, as the
-// coefficients of a biquad at VOICE_RATE, divided by a0 as voiceBiquad has them.
+// coefficients of a biquad at VOICE_RATE, divided by a0 as voiceBiquadRun has them.
 function voiceHighPass(hz, q) {
   var w = (2 * Math.PI * hz) / VOICE_RATE, cw = Math.cos(w);
   var alpha = Math.sin(w) / (2 * q), a0 = 1 + alpha;
@@ -231,43 +249,58 @@ function voiceHighShelf(hz, db) {
   };
 }
 
-// The gentle filter, as a new array: the low cut, then the high shelf. The low cut's Q of
-// 1 / sqrt(2) is the flattest there is without a bump at its corner.
+// The gentle filter's two sections, as coefficients: the low cut, then the high shelf. The low cut's
+// Q of 1 / sqrt(2) is the flattest there is without a bump at its corner.
+function voiceSections() {
+  return [voiceHighPass(VOICE_LOW_CUT, Math.SQRT1_2), voiceHighShelf(VOICE_SHELF, VOICE_SHELF_DB)];
+}
+
+// The gentle filter, as a new array: the low cut, then the high shelf.
 function voiceFilter(signal) {
-  var lowCut = voiceHighPass(VOICE_LOW_CUT, Math.SQRT1_2);
-  var shelf = voiceHighShelf(VOICE_SHELF, VOICE_SHELF_DB);
-  return voiceBiquad(voiceBiquad(signal, lowCut), shelf);
+  var sections = voiceSections();
+  return voiceBiquad(voiceBiquad(signal, sections[0]), sections[1]);
+}
+
+// The root mean square of length samples whose squares add up to sum: 0 for no samples.
+function voiceRoot(sum, length) {
+  return Math.sqrt(sum / Math.max(1, length));
 }
 
 // A signal's root mean square, its loudness: 0 for no samples.
 function voiceRms(signal) {
   var sum = 0;
   for (var i = 0; i < signal.length; i++) sum += signal[i] * signal[i];
-  return Math.sqrt(sum / Math.max(1, signal.length));
+  return voiceRoot(sum, signal.length);
+}
+
+// The gain that takes a signal of loudness level and peak peak to an RMS of target, or to a peak of
+// VOICE_PEAK if that would take its peak past it. A silent signal has a gain of 1.
+function voiceGain(level, peak, target) {
+  var gain = level > 0 ? target / level : 1;
+  return peak * gain > VOICE_PEAK ? VOICE_PEAK / peak : gain;
 }
 
 // Scales signal in place to an RMS of target, unless that would take its peak past VOICE_PEAK: then
 // to a peak of VOICE_PEAK. A silent signal has no loudness to scale, and stays as it is. Gives the
 // signal back.
 function voiceLevel(signal, target) {
-  var peak = 0, level = voiceRms(signal), i;
+  var peak = 0, i;
   for (i = 0; i < signal.length; i++) peak = Math.max(peak, Math.abs(signal[i]));
-  var gain = level > 0 ? target / level : 1;
-  if (peak * gain > VOICE_PEAK) gain = VOICE_PEAK / peak;
+  var gain = voiceGain(voiceRms(signal), peak, target);
   for (i = 0; i < signal.length; i++) signal[i] *= gain;
   return signal;
 }
 
-// The whole WAV file for a signal, as bytes: a header of 44 bytes for 16-bit PCM, one channel, at
-// VOICE_RATE, then each sample held to -1 to 1 and written as a little-endian 16-bit whole number.
-function voiceWav(signal) {
-  var bytes = new Uint8Array(44 + signal.length * 2), view = new DataView(bytes.buffer);
+// The start of the WAV file for a signal of length samples, as bytes with room for the samples after
+// it: a header of 44 bytes for 16-bit PCM, one channel, at VOICE_RATE.
+function voiceWavHeader(length) {
+  var bytes = new Uint8Array(44 + length * 2), view = new DataView(bytes.buffer);
   function text(at, words) {
     for (var t = 0; t < words.length; t++) bytes[at + t] = words.charCodeAt(t);
   }
   // The RIFF chunk, whose size is everything after these eight bytes.
   text(0, "RIFF");
-  view.setUint32(4, 36 + signal.length * 2, true);
+  view.setUint32(4, 36 + length * 2, true);
   text(8, "WAVE");
   // The format chunk, 16 bytes: PCM (1), one channel, the rate, bytes a second, bytes a frame, and
   // bits a sample.
@@ -279,13 +312,65 @@ function voiceWav(signal) {
   view.setUint32(28, VOICE_RATE * 2, true);
   view.setUint16(32, 2, true);
   view.setUint16(34, 16, true);
-  // The data chunk: the samples.
+  // The data chunk's start: the samples follow.
   text(36, "data");
-  view.setUint32(40, signal.length * 2, true);
-  for (var n = 0; n < signal.length; n++) {
+  view.setUint32(40, length * 2, true);
+  return bytes;
+}
+
+// Writes the samples of signal from index from up to (not including) to at their places in the file
+// that view looks at: each held to -1 to 1 and written as a little-endian 16-bit whole number.
+function voiceWavSamples(view, signal, from, to) {
+  for (var n = from; n < to; n++) {
     var x = Math.max(-1, Math.min(1, signal[n]));
     view.setInt16(44 + n * 2, Math.round(x * 32767), true);
   }
+}
+
+// The whole WAV file for a signal, as bytes.
+function voiceWav(signal) {
+  var bytes = voiceWavHeader(signal.length);
+  voiceWavSamples(new DataView(bytes.buffer), signal, 0, signal.length);
   return bytes;
+}
+
+// The finisher: voiceFilter, voiceLevel, and voiceWav done to a copy in slices, to the same bytes, so
+// that a page goes on answering. It works on signal itself, in five passes, each of which it can leave
+// and go back to: the low cut, the high shelf, the sum of squares and the peak, the gain, and the
+// samples written into the file, whose header is made at the start. next(samples) does up to that
+// many more samples, from where it left off, and returns true once the file is whole, when wav is it.
+function voiceFinisher(signal, target) {
+  var n = signal.length, sections = voiceSections(), states = [new Float64Array(4), new Float64Array(4)];
+  var bytes = voiceWavHeader(n), view = new DataView(bytes.buffer);
+  var pass = 0, at = 0, sum = 0, peak = 0, gain = 1;
+  var self = { wav: null, next: next };
+
+  function next(samples) {
+    while (pass < 5 && samples > 0) {
+      var to = Math.min(n, at + samples), i;
+      if (pass < 2) {
+        voiceBiquadRun(signal, sections[pass], states[pass], at, to);
+      } else if (pass === 2) {
+        for (i = at; i < to; i++) {
+          sum += signal[i] * signal[i];
+          peak = Math.max(peak, Math.abs(signal[i]));
+        }
+      } else if (pass === 3) {
+        for (i = at; i < to; i++) signal[i] *= gain;
+      } else {
+        voiceWavSamples(view, signal, at, to);
+      }
+      samples -= to - at;
+      at = to;
+      if (at === n) {
+        pass++;
+        at = 0;
+        if (pass === 3) gain = voiceGain(voiceRoot(sum, n), peak, target);
+      }
+    }
+    if (pass === 5) self.wav = bytes;
+    return pass === 5;
+  }
+  return self;
 }
 `;
