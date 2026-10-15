@@ -3,12 +3,17 @@
  * from the recordings a run keeps of it (plan 11, from voicecap 0.18.0). It's one file, like the
  * shareable page: each recording is in it as a `data:audio/webm;base64,` address, in an audio
  * element, so it can be sent on its own, and a Content Security Policy can allow exactly what it
- * holds (one style block, one script, and the media its own addresses hold).
+ * holds and makes (one style block, one script, the media its own addresses hold, and the slowed
+ * copies its script makes of them, which it plays as `blob:` addresses).
  *
  * The recording is evidence. The person's review is made from the transcripts, by reading what NVDA
  * said (NVDA speaks too fast to follow), so the page says so, and plays each recording at a speed a
- * person can follow: 1×, 0.75×, 0.5×, and 0.3×, with the pitch kept (`playbackRate`, and
- * `preservesPitch` set on, never left to the browser's default).
+ * person can follow: 1×, 0.75×, 0.5×, and 0.3×. 1× is the recording as recorded. A slower speed is
+ * a copy that voicecap's own stretcher (./voice-stretch.ts) makes in the reader's browser, from the
+ * recording the page holds, with the pitch kept, which a second player plays in the first one's
+ * place. Where the browser can't make one, the page slows the recording with the browser's own
+ * stretcher instead (`playbackRate`, and `preservesPitch` set on, never left to the browser's
+ * default).
  *
  * In order: the head, with the page's one style block (the fonts, if the caller has them, then
  * SHARE_CSS and VOICE_CSS); a skip link; the top, which leads with the site's name and when it was
@@ -71,6 +76,7 @@ import {
 } from "./run-evidence.js";
 import { standingOf } from "./standing.js";
 import { ABOUT, EVIDENCE_TEXT, FOOTER_TEXT, PAGES_TEXT, TOP_TEXT, VOICE_TEXT } from "./text.js";
+import { STRETCH_LIBRARY } from "./voice-stretch.js";
 import { generatedLine, testedLine } from "./words.js";
 
 /** A page's recording as its run keeps it: the file's fingerprint, its length, and the sound lost. */
@@ -378,60 +384,172 @@ function footer(model: ShareModel): string {
 /**
  * The voice page's own script, plain browser JavaScript (ES2017, no imports), held as a string as
  * the shareable page's is. It follows the page's script and the check's in the page's one `<script>`
- * (so, as theirs do, it starts and ends on a new line and keeps its names inside one function), and
- * it does one thing: it gives each speed choice its work, and shows it.
- * - A choice sets its player's speed (`playbackRate`) and its pitch kept (`preservesPitch`, set on
- *   each time, never left to the browser's default), and the speed it keeps if the browser loads the
- *   file again (`defaultPlaybackRate`). A browser throws for a speed it won't play at (Chromium, for
- *   one outside 0.0625 to 16): the player stays as it was, and the choice shows that, so a refusal
- *   is never left looking like a speed the player is at.
- * - The choice follows the player: when something else changes its speed (the browser's own
- *   controls have a menu for it), the speed it's at is the one shown, and none is shown when it's at
- *   a speed the page doesn't offer. The page starts with each player at 1×, with its pitch kept, set
- *   as a choice is, and the choice showing it: a browser that loads a page again may bring back the
- *   button a person chose, while the player starts over.
+ * (so, as theirs do, it starts and ends on a new line), and keeps its names inside one function,
+ * which holds the stretcher's library (STRETCH_LIBRARY) too. It does one thing: it gives each speed
+ * choice its work, and shows it.
+ * - 1× is the recording as recorded: the section's first player, which holds it as its address,
+ *   and which this script never changes, so the check reads it as it was. A slower speed is a copy
+ *   of the recording at that speed, which a second player shows in the first one's place. That
+ *   player is made the first time a copy is shown, right after the first, with its controls and
+ *   none of the first's names (`data-slug`, `data-file`), and is named for its page and speed
+ *   (`data-slowed`); until then the page has its first players alone.
+ * - The copy is made when its speed is chosen, while the player in view carries on, and the status
+ *   line says that it's being made (`data-making`) and then that it's ready (`data-made`). The
+ *   first player's address is decoded to samples at the stretcher's rate (`decodeAudioData`, on an
+ *   `OfflineAudioContext`), the stretcher makes the copy in slices of about 20 ms of work with the
+ *   page free between them, and the copy is filtered, scaled to the recording's loudness, and
+ *   written as a WAV file, which the second player plays from a `blob:` address. Each copy is kept
+ *   for the visit, so a speed made once is shown again at once; nothing else of its making is
+ *   kept, as the stretcher and the decoded recording are let go once it's made. A choice made
+ *   while a copy is being made drops that copy and starts the one chosen: the last choice wins, and
+ *   a copy finished for an earlier choice never takes the place of the one chosen last.
+ * - The place in the speech is the player in view's `currentTime` times its speed (1 for the first
+ *   player); the player shown is put at that place divided by its own speed. If the player in view
+ *   was playing it's paused, and the one shown plays on; if it wasn't, nothing plays.
+ * - Where the browser can't decode a recording or make its copy (it has no `OfflineAudioContext`,
+ *   `decodeAudioData` refuses the recording, or making the copy throws), that section slows the
+ *   recording the browser's own way for the rest of the visit, and its status line says so
+ *   (`data-own`). A choice then sets the first player's speed (`playbackRate`) and its pitch kept
+ *   (`preservesPitch`, set on each time, never left to the browser's default), and the speed it
+ *   keeps if the browser loads the file again (`defaultPlaybackRate`). A browser throws for a speed
+ *   it won't play at (Chromium, for one outside 0.0625 to 16): the player stays as it was, and the
+ *   choice shows that, so a refusal is never left looking like a speed the player is at. Every
+ *   other section carries on as it was.
+ * - The choice follows the player: it shows the speed chosen while the player in view is at its
+ *   normal speed, and none while it isn't (the browser's own controls have a menu for the speed);
+ *   where the browser slows the recording itself it shows the speed the player is at, and none when
+ *   that's a speed the page doesn't offer. The page starts with each player at 1×, with its pitch
+ *   kept, set as a choice is, and the choice showing it: a browser that loads a page again may
+ *   bring back the button a person chose, while the player starts over.
  * - Each choice starts hidden, since it does nothing without this script, and the script shows it;
- *   a page whose markup isn't there is left alone.
- * Nothing here plays a sound.
+ *   a page whose markup isn't there is left alone, and the script uses nothing of the window until
+ *   a choice is made.
+ * Nothing here plays by itself: a copy plays only where the player in view was playing.
  */
 export const VOICE_SCRIPT = String.raw`
 (function () {
   "use strict";
-  function choose(group) {
-    var card = group.closest("article");
-    var sound = card ? card.querySelector("audio") : null;
-    if (!sound) return;
-    var radios = group.querySelectorAll('input[type="radio"]');
-    function show() {
-      Array.prototype.forEach.call(radios, function (radio) {
-        radio.checked = Math.abs(Number(radio.value) - sound.playbackRate) < 0.001;
-      });
-    }
-    function set(rate) {
-      try {
-        sound.preservesPitch = true;
-        sound.playbackRate = rate;
-        sound.defaultPlaybackRate = rate;
-      } catch (error) {
-        // The browser won't play at this speed: the player stays as it was.
-      }
-      show();
-    }
-    group.addEventListener("change", function (event) {
-      var radio = event.target;
-      if (radio && radio.checked) set(Number(radio.value));
-    });
-    sound.addEventListener("ratechange", show);
-    set(1);
-    group.hidden = false;
+${STRETCH_LIBRARY}
+// A player's speed, its pitch kept; a browser throws for a speed it won't play at.
+function pace(sound, rate) {
+  try {
+    sound.preservesPitch = true;
+    sound.playbackRate = rate;
+    sound.defaultPlaybackRate = rate;
+  } catch (error) {
+    // The browser won't play at this speed: the player stays as it was.
   }
-  Array.prototype.forEach.call(document.querySelectorAll("fieldset.speeds"), function (group) {
+}
+// A player's recording as samples at VOICE_RATE; fail() where it can't be decoded.
+function decode(sound, done, fail) {
+  new Promise(function (resolve, reject) {
+    var text = atob(sound.getAttribute("src").split(",")[1]), bytes = new Uint8Array(text.length);
+    for (var i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i);
+    var Context = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    var asked = new Context(1, 1, VOICE_RATE).decodeAudioData(bytes.buffer, resolve, reject);
+    if (asked && asked.then) asked.then(resolve, reject);
+  }).then(function (buffer) { done(buffer.getChannelData(0)); }, fail);
+}
+// A copy at this speed, made in slices of about 20 ms, as the address of its WAV file.
+function slow(signal, speed, current, done, fail) {
+  if (!current()) return;
+  var level, made;
+  try { level = voiceRms(signal); made = voiceStretcher(signal, speed); } catch (error) { return fail(); }
+  function slice() {
+    if (!current()) { made = null; return; }
+    var address = "", finished, start = performance.now();
     try {
-      choose(group);
-    } catch (error) {
-      if (window.console) window.console.error(error);
+      finished = made.next(8);
+      while (!finished && performance.now() - start < 20) finished = made.next(8);
+      if (finished) {
+        var filtered = voiceFilter(made.output);
+        made = null;
+        var wav = voiceWav(voiceLevel(filtered, level));
+        address = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
+      }
+    } catch (error) { made = null; return fail(); }
+    if (finished) done(address); else setTimeout(slice, 0);
+  }
+  slice();
+}
+// One speed choice's work: its players, copies, status line, and radios.
+function wire(group) {
+  var card = group.closest("article"), sound = card ? card.querySelector("audio[data-file]") : null;
+  var status = group.querySelector(".speed-status"), radios = group.querySelectorAll('input[type="radio"]');
+  if (!sound || !status) return;
+  // State: the second player, the copies by speed, the speed in view (1 is the first player), the
+  // speed chosen, the choice's number, and whether this browser slows the recording itself.
+  var copy = null, kept = {}, shown = 1, chosen = 1, job = 0, fallen = false;
+  function view() { return shown === 1 ? sound : copy; }
+  function said(key, label) { return (group.dataset[key] || "").split("${SPEED_TOKEN}").join(label); }
+  // The radios show the chosen speed, or none if the player in view is at another rate.
+  function mark() {
+    var rate = view().playbackRate, speed = fallen ? rate : Math.abs(rate - 1) < 0.001 ? chosen : 0;
+    for (var i = 0; i < radios.length; i++) radios[i].checked = Math.abs(Number(radios[i].value) - speed) < 0.001;
+  }
+  // Puts a player in view at the place in the speech; it plays on if the one it replaces was playing.
+  function put(player, speed, address) {
+    var from = view(), at = from.currentTime * shown, playing = !from.paused;
+    if (player !== from) { if (playing) from.pause(); from.hidden = true; }
+    if (address) player.src = address;
+    if (address || player !== from) player.currentTime = at / speed;
+    player.hidden = false;
+    shown = speed;
+    var started = playing ? player.play() : null;
+    if (started && started.catch) started.catch(function () {});
+  }
+  // Shows the copy at this speed in the second player, made the first time, after the first.
+  function showCopy(speed, label) {
+    if (!copy) {
+      copy = document.createElement("audio");
+      copy.controls = true;
+      copy.preload = "auto";
+      copy.addEventListener("ratechange", mark);
+      sound.parentNode.insertBefore(copy, sound.nextSibling);
+    }
+    copy.setAttribute("aria-label", said("slowed", label));
+    put(copy, speed, kept[speed]);
+    status.textContent = said("made", label);
+    mark();
+  }
+  // Shows the first player at this speed: 1x as recorded, any other the browser's own way.
+  function first(speed) {
+    put(sound, 1);
+    pace(sound, speed);
+    status.textContent = speed === 1 ? "" : said("own");
+    mark();
+  }
+  group.addEventListener("change", function (event) {
+    var radio = event.target;
+    if (!radio || !radio.checked) return;
+    var speed = Number(radio.value), label = radio.parentNode.textContent.trim(), mine = ++job;
+    function current() { return job === mine; }
+    // Where the copy can't be made, this section slows the recording itself from now on.
+    function failed() { if (current()) { fallen = true; first(speed); } }
+    chosen = speed;
+    if (speed === 1 || fallen) first(speed);
+    else if (kept[speed]) showCopy(speed, label);
+    else {
+      status.textContent = said("making", label);
+      decode(sound, function (signal) {
+        slow(signal, speed, current, function (address) {
+          kept[speed] = address;
+          showCopy(speed, label);
+        }, failed);
+      }, failed);
     }
   });
+  sound.addEventListener("ratechange", mark);
+  first(1); // The page starts at 1x, as a choice of it leaves the player.
+  group.hidden = false;
+}
+Array.prototype.forEach.call(document.querySelectorAll("fieldset.speeds"), function (group) {
+  try {
+    wire(group);
+  } catch (error) {
+    if (window.console) window.console.error(error);
+  }
+});
 })();
 `;
 

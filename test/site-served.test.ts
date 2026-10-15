@@ -3,9 +3,10 @@
  * served over HTTP with each path's headers from the site's _headers (test/helpers/site-server.ts),
  * and opened in headless Chromium. The pages' own tests open them from files, where no Content
  * Security Policy applies. Here each page runs under the policy its own bytes make, and a download is
- * an attachment. A share's voice page loads the recordings it holds under its own policy, which
- * lets it, and would be refused them under the shareable page's: they are loaded and measured, and
- * never played. Nothing here starts a screen reader or Word, or makes a sound.
+ * an attachment. A share's voice page loads the recordings it holds, and the slowed copies its
+ * script makes of them, under its own policy, which lets it, and would be refused the recordings
+ * under the shareable page's: they are loaded and measured, and never played. Nothing here starts a
+ * screen reader or Word, or makes a sound.
  */
 import { createHash } from "node:crypto";
 import { readFile, rm, writeFile } from "node:fs/promises";
@@ -768,8 +769,10 @@ describe("the demo's own pages, served as Netlify serves them", () => {
 });
 
 // A share's voice page is published beside its report, and plays the recordings it holds: each is in
-// its player's address, as data:, which its policy allows (and the shareable page's doesn't). The
-// recordings are loaded and measured here, never played: nothing in these tests makes a sound.
+// its player's address, as data:, which its policy allows (and the shareable page's doesn't), and a
+// slower speed plays a copy its script makes of it, from a blob: address, which the policy allows
+// too. The recordings and the copies are loaded and measured here, never played: nothing in these
+// tests makes a sound.
 describe("a share's voice page, served as Netlify serves it", () => {
   let voiceBuilt: BuildSiteResult;
   let voiceServer: SiteServer;
@@ -887,19 +890,38 @@ describe("a share's voice page, served as Netlify serves it", () => {
     for (const message of messages) expect(message).toContain("Content Security Policy");
   });
 
+  /**
+   * Waits until the page shows a copy of a recording that its script made: a second player (it has
+   * no data-file) whose address is a blob: one and which has loaded far enough to know its length.
+   * Nothing is played.
+   */
+  const copyLoaded = (page: Page): Promise<void> =>
+    expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const copy = document.querySelector<HTMLAudioElement>("audio:not([data-file])");
+            return copy !== null && copy.src.startsWith("blob:") && copy.duration > 0;
+          }),
+        { timeout: 20_000 },
+      )
+      .toBe(true);
+
   it("runs its speed choice and its check under the policy, and the check matches its recordings", async () => {
     const page = await newPage();
     await visit(page, addressOf(VOICE_HREF));
 
-    // The script showed each choice, and a choice sets the speed with the pitch kept.
+    // The script showed each choice, and a choice makes a slowed copy in the page, which a second
+    // player loads from its blob: address, while the first player is as it was, at 1×.
     const group = page.locator("fieldset.speeds").first();
     await group.getByRole("radio", { name: "0.5×" }).check();
+    await copyLoaded(page);
     expect(
       await page.evaluate(() => {
-        const sound = document.querySelector("audio");
+        const sound = document.querySelector<HTMLAudioElement>("audio[data-file]");
         return sound === null ? null : [sound.playbackRate, sound.preservesPitch, sound.paused];
       }),
-    ).toEqual([0.5, true, true]);
+    ).toEqual([1, true, true]);
     // The check reads each recording from its own address and hashes it, with nothing sent anywhere.
     await page.locator("#fp-run").click();
     await expect
@@ -909,6 +931,27 @@ describe("a share's voice page, served as Netlify serves it", () => {
           "3 of 3 recordings match their fingerprints, and the run's seal checks out.",
       );
     await page.locator("#theme-toggle").click();
+    expect(await violationsOf(page)).toEqual([]);
+  });
+
+  // Review Focus 4. The copy is played as the recordings are here: loaded from its blob: address,
+  // which only the policy's media-src lets a page do, and measured, and never played.
+  it("makes and plays a copy under its policy, with no violation", async () => {
+    const page = await newPage();
+    const policy = await visit(page, addressOf(VOICE_HREF));
+    expect(policy).toContain("; media-src data: blob:;");
+
+    await page.locator("fieldset.speeds").first().getByRole("radio", { name: "0.3×" }).check();
+    await copyLoaded(page);
+
+    // It is a second player in view, from a blob: address, and never played.
+    const copy = await page.evaluate(() => {
+      const second = document.querySelector<HTMLAudioElement>("audio:not([data-file])");
+      return second === null
+        ? null
+        : { address: second.src.slice(0, 5), hidden: second.hidden, paused: second.paused };
+    });
+    expect(copy).toEqual({ address: "blob:", hidden: false, paused: true });
     expect(await violationsOf(page)).toEqual([]);
   });
 

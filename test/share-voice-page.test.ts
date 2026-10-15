@@ -25,6 +25,7 @@ import { KEEPS_VOICE_FROM, keepsVoice } from "../src/share/run-evidence.js";
 import { cardRecord, standingOf } from "../src/share/standing.js";
 import { EVIDENCE_TEXT, VOICE_TEXT } from "../src/share/text.js";
 import { renderVoicePage, SPEED_TOKEN, VOICE_SCRIPT } from "../src/share/voice-page.js";
+import { STRETCH_LIBRARY } from "../src/share/voice-stretch.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, decode, textOf } from "./helpers/share-html.js";
 import {
@@ -1320,13 +1321,23 @@ describe("the voice page of the demo's runs", () => {
 
 describe("the player's script and rules", () => {
   it("is plain browser JavaScript that can follow the check's script in the page's one script", () => {
-    expect(VOICE_SCRIPT).not.toMatch(/<!--|<\/?script/i);
-    expect(VOICE_SCRIPT).not.toMatch(/\b(style|src|href)\s*=/i);
-    expect(VOICE_SCRIPT.startsWith("\n")).toBe(true);
-    expect(VOICE_SCRIPT.endsWith("\n")).toBe(true);
+    // The stretcher's library and the words' token are in it, inside the one function.
+    expect(VOICE_SCRIPT).toContain(STRETCH_LIBRARY);
+    expect(VOICE_SCRIPT).toContain(SPEED_TOKEN);
+    expect(VOICE_SCRIPT.startsWith("\n(function () {\n")).toBe(true);
+    expect(VOICE_SCRIPT.endsWith("})();\n")).toBe(true);
+    // No tag, comment, or closing tag can begin in it (`<` is only ever an operator, as in a loop's
+    // test), and it writes no markup: a player's address is set as a property, never an attribute.
+    expect(VOICE_SCRIPT).not.toMatch(/<[a-z!/]/i);
+    expect(VOICE_SCRIPT).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML/);
+    expect(VOICE_SCRIPT).not.toMatch(/\b(style|src|href)\s*=\s*["'`]/i);
+    // Plain ES2017: no optional chaining, nullish coalescing, class, or import, which an older
+    // browser can't read.
+    expect(VOICE_SCRIPT).not.toMatch(/\?\.(?!\d)|\?\?|\bclass\b|\bimport\b/);
     // It parses, as the page's one script does, after the page's and the check's.
     expect(() => new vm.Script(SHARE_SCRIPT + CHECK_SCRIPT + VOICE_SCRIPT)).not.toThrow();
-    expect(VOICE_SCRIPT.length).toBeLessThan(3_500);
+    // The stretcher is most of it.
+    expect(VOICE_SCRIPT.length).toBeLessThan(16_000);
     expect(VOICE_CSS.length).toBeLessThan(2_500);
   });
 
