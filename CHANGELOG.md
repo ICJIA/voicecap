@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-15
+
+The voice page now slows a recording with voicecap's own stretcher, made in the reader's browser, at 0.75×, 0.5×, and 0.3×, for a clearer slow-down than the browser's own.
+
 ### Changed
 
 - **A clearer slow-down on the voice page: voicecap's own stretcher, in the reader's browser.** The voice page slowed a recording with the browser's own stretcher, and NVDA's words were hard to make out at the slower speeds. It now makes each slower speed itself, in the reader's browser, from the recording the page already holds, and plays the slowed copy in a second player in the first one's place. 1× is still the recording as recorded, with no filter, and the recording is still the evidence: the review is made from the transcripts.
@@ -764,7 +768,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.18.1...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/ICJIA/voicecap/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/ICJIA/voicecap/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/ICJIA/voicecap/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/ICJIA/voicecap/compare/v0.16.1...v0.17.0
