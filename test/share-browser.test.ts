@@ -3730,12 +3730,15 @@ describe("the voice page", () => {
     const SECOND = "audio:not([data-file])";
 
     // The first player has the focus when 0.5× is chosen, before its copy is ready (both in one
-    // turn, so it can't be): the copy takes its place, and the focus goes to the copy.
-    await page.evaluate(() => {
+    // turn, so it can't be): the copy takes its place, and the focus goes to the copy. The focus is
+    // read in that same turn, as the test identifies it: a copy of this short recording can be
+    // ready within tens of milliseconds, so a round trip later it may have the focus already.
+    const focusedFirst = await page.evaluate((wanted) => {
       document.querySelector<HTMLInputElement>('input[value="0.5"]')?.click();
       document.querySelector<HTMLElement>("audio[data-file]")?.focus();
-    });
-    expect(await focusIs(FIRST)).toBe(true);
+      return document.activeElement?.matches(wanted) ?? false;
+    }, FIRST);
+    expect(focusedFirst).toBe(true);
     await copyShown(page, 0, 0.5);
     expect(await focusIs(SECOND)).toBe(true);
 
@@ -3854,7 +3857,10 @@ describe("the voice page", () => {
         },
         [value, when.from, when.after] as const,
       );
-      await group.getByRole("radio", { name: "0.3×" }).check();
+      // Clicked, not checked: after its click, a check asks that the button's state has changed, and
+      // the page's clock makes its own click, on 1× or 0.5×, some 20 to 40 ms after this one, which
+      // can come first and leave 0.3× unchecked.
+      await group.getByRole("radio", { name: "0.3×" }).click();
       await expect.poll(async () => (await clockOf(page)).armed, { timeout: 20_000 }).toBe(false);
       if (value === "1") await expect.poll(() => chosenIn(group)).toEqual(["1"]);
       else await copyShown(page, 0, 0.5);
@@ -3968,8 +3974,8 @@ describe("the voice page", () => {
   });
 
   // The page falls back wherever it can't make a copy, not only where a recording is refused: the
-  // browser can be without the means, decoding can throw as it's asked for, and making the copy can
-  // throw (here, when its address is made).
+  // browser can be without the means, or decoding can throw as it's asked for. Both are ordinary
+  // for a browser, so the page says nothing of either (every test ends by checking that).
   it.each([
     [
       "has no OfflineAudioContext",
@@ -3983,14 +3989,6 @@ describe("the voice page", () => {
       () => {
         BaseAudioContext.prototype.decodeAudioData = () => {
           throw new DOMException("This test throws.", "InvalidStateError");
-        };
-      },
-    ],
-    [
-      "throws as it makes the copy's address",
-      () => {
-        URL.createObjectURL = () => {
-          throw new DOMException("This test throws.", "NotSupportedError");
         };
       },
     ],
@@ -4012,6 +4010,61 @@ describe("the voice page", () => {
     await group.getByRole("radio", { name: "0.5×" }).check();
     expect((await players(page))[0]?.rate).toBe(0.5);
   });
+
+  // The page falls back where its own work throws too, but it doesn't hide that: it writes the
+  // error to the console first, once, where a browser that can't decode says nothing. Each part is
+  // made to throw by a stand-in for something only it calls: the stretcher is the first to take a
+  // cosine (for its window), the finisher the only one to take a power (for its shelf), and the
+  // address of the copy is made last.
+  it.each([
+    [
+      "the stretcher",
+      "The stretcher throws.",
+      (message: string) => {
+        Math.cos = () => {
+          throw new Error(message);
+        };
+      },
+    ],
+    [
+      "the finisher",
+      "The finisher throws.",
+      (message: string) => {
+        Math.pow = () => {
+          throw new Error(message);
+        };
+      },
+    ],
+    [
+      "the copy's address",
+      "The address throws.",
+      (message: string) => {
+        URL.createObjectURL = () => {
+          throw new DOMException(message, "NotSupportedError");
+        };
+      },
+    ],
+  ] as const)(
+    "falls back, and writes the error to the console, where %s throws",
+    async (_, message, breakIt) => {
+      const context = await newContext();
+      await context.addInitScript(breakIt, message);
+      const page = await context.newPage();
+      await page.goto(addressOf(voice.file));
+      const group = page.locator("fieldset.speeds").first();
+
+      await group.getByRole("radio", { name: "0.3×" }).check();
+      await expect.poll(async () => (await players(page))[0]?.rate).toBe(0.3);
+      expect(await sections(page).first().locator(".speed-status").textContent()).toBe(
+        "This browser slows it down with its own stretcher.",
+      );
+      expect(await page.locator("audio:not([data-file])").count()).toBe(0);
+      expect(await chosenIn(group)).toEqual(["0.3"]);
+      // One console error, which names what failed. It is expected, so the test takes it out of
+      // what the pages reported, which every test ends by holding to be nothing.
+      expect(reported.splice(0)).toEqual([expect.stringContaining(message)]);
+    },
+  );
 
   it("catches the error a browser throws for a speed it won't play at, and keeps showing the speed it's at", async () => {
     // A browser that can't decode, so the page slows the recording itself, with `playbackRate`.

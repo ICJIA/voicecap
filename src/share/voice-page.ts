@@ -398,9 +398,11 @@ function footer(model: ShareModel): string {
  *   first player's address is decoded to samples at the stretcher's rate (`decodeAudioData`, on an
  *   `OfflineAudioContext`), the stretcher makes the copy in slices of about 20 ms of work with the
  *   page free between them, and then the finisher filters the copy, scales it to the recording's
- *   loudness, and writes it as a WAV file, in slices of the same size: nothing a copy needs is done
- *   in one block, however long the recording. The second player plays the file from a `blob:`
- *   address. Nothing else of a copy's making is kept, as the stretcher is let go when the
+ *   loudness, and writes it as a WAV file, in slices of the same size: the stretch, the filter, the
+ *   loudness match, and the file are all done in slices of about 20 ms, however long the recording,
+ *   apart from two closing steps of under 0.1 s each (the stretcher's last call, which evens out
+ *   the whole copy, and the `Blob` made of the whole file). The second player plays the file from
+ *   a `blob:` address. Nothing else of a copy's making is kept, as the stretcher is let go when the
  *   finishing begins, and the decoded recording with it. A choice made while a copy is being made
  *   drops that copy and starts the one chosen: each slice first checks that its copy is still the
  *   choice made last, so the last choice wins, and a copy finished for an earlier choice never
@@ -420,7 +422,10 @@ function footer(model: ShareModel): string {
  * - Where the browser can't decode a recording or make its copy (it has no `OfflineAudioContext`,
  *   `decodeAudioData` refuses the recording, or making the copy throws), that section slows the
  *   recording the browser's own way for the rest of the visit, and its status line says so
- *   (`data-own`). A choice then sets the first player's speed (`playbackRate`) and its pitch kept
+ *   (`data-own`). A browser that can't decode is ordinary, and falls back without a word; a throw
+ *   from voicecap's own work (its stretcher, its finisher, or the copy's file and address) is not:
+ *   its error is written to the console first, as an error in the wiring is, so that the fallback
+ *   never hides it. A choice then sets the first player's speed (`playbackRate`) and its pitch kept
  *   (`preservesPitch`, set on each time, never left to the browser's default), and the speed it
  *   keeps if the browser loads the file again (`defaultPlaybackRate`). A browser throws for a speed
  *   it won't play at (Chromium, for one outside 0.0625 to 16): the player stays as it was, and the
@@ -461,12 +466,17 @@ function decode(sound, done, fail) {
     if (asked && asked.then) asked.then(resolve, reject);
   }).then(function (buffer) { done(buffer.getChannelData(0)); }, fail);
 }
+// An error of voicecap's own to the console, so the fallback it leads to doesn't hide it.
+function report(error) {
+  if (window.console) window.console.error(error);
+}
 // A copy at this speed, made in slices of about 20 ms, as the address of its WAV file: the stretch,
 // then the finish (the filter, the loudness, the file). A slice that finds it's no longer wanted stops.
+// Where this work throws, the error goes to the console and fail() is called.
 function slow(signal, speed, current, done, fail) {
   if (!current()) return;
   var level, made, finish = null;
-  try { level = voiceRms(signal); made = voiceStretcher(signal, speed); } catch (error) { return fail(); }
+  try { level = voiceRms(signal); made = voiceStretcher(signal, speed); } catch (error) { report(error); return fail(); }
   // One step: 8 frames of the stretch; when it's whole, the finish begins with the stretcher let go,
   // and goes on in steps of 16384 samples.
   function step() {
@@ -484,7 +494,7 @@ function slow(signal, speed, current, done, fail) {
       finished = step();
       while (!finished && performance.now() - start < 20) finished = step();
       if (finished) address = URL.createObjectURL(new Blob([finish.wav], { type: "audio/wav" }));
-    } catch (error) { made = finish = null; return fail(); }
+    } catch (error) { made = finish = null; report(error); return fail(); }
     if (!finished) { setTimeout(slice, 0); return; }
     finish = null;
     done(address);
@@ -593,7 +603,7 @@ Array.prototype.forEach.call(document.querySelectorAll("fieldset.speeds"), funct
   try {
     wire(group);
   } catch (error) {
-    if (window.console) window.console.error(error);
+    report(error);
   }
 });
 })();
