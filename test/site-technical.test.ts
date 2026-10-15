@@ -998,10 +998,10 @@ describe("renderTechnical", () => {
     );
     // The website's policy for it: the one addition (src/site/headers.ts), made only when asked.
     expect(part("this-website")).toContain(
-      "A voice page's policy also lets it play audio from the recordings it holds, which are in the page as data: addresses (media-src data:); no other page's does.",
+      "A voice page's policy also lets it play audio from the recordings it holds, as data: addresses, and from the slowed copies its script makes of them, as blob: addresses (media-src data: blob:); no other page's does.",
     );
     const none = { styles: [], scripts: [] };
-    expect(contentSecurityPolicy(none, { media: true })).toContain("; media-src data:;");
+    expect(contentSecurityPolicy(none, { media: true })).toContain("; media-src data: blob:;");
     expect(contentSecurityPolicy(none)).not.toContain("media-src");
     // And what the other pages' policy is, said as it was: no connection, one style, one script.
     expect(part("this-website")).toContain(

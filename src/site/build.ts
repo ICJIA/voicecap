@@ -55,7 +55,8 @@
  * and Technical details at "/technical-details.html" and "/technical-details", whose policies
  * allow no font, since they embed none, where a report's allows the fonts it embeds, and a share's
  * voice page's also allows the media it plays: its recordings, which it holds as data: addresses,
- * so it has `media-src data:` and no other page has), the demo's pages theirs at each address they
+ * and the slowed copies its script makes of them, as blob: addresses, so it has
+ * `media-src data: blob:` and no other page has), the demo's pages theirs at each address they
  * answer at (see demoSiteRules), each download its Content-Disposition, and each report for AI
  * tools its type and a policy of its own: a share's Markdown and JSON are read in the browser, not
  * saved. In the home it writes .gitattributes and .gitignore when they aren't there, as a run does,
@@ -988,11 +989,12 @@ async function readCopy(
 /**
  * The rules of _headers for one published file, from the bytes written: a page is given the policy of
  * its own bytes at its address and at the same without ".html", which is how Netlify serves it too;
- * a share's voice page is given that too, with one more directive, `media-src data:`, so that it can
- * play the recordings it holds as data: addresses, and no other page's policy has it; a Word copy and
- * a walkthrough file are downloads; the report for AI tools is text to read in the browser, given
- * its type and a policy that runs nothing in it (the Markdown's and the JSON's, see ./headers.ts)
- * and no attachment; any other file has none.
+ * a share's voice page is given that too, with one more directive, `media-src data: blob:`, so that
+ * it can play the recordings it holds as data: addresses and the slowed copies its script makes of
+ * them as blob: addresses, and no other page's policy has it; a Word copy and a walkthrough file
+ * are downloads; the report for AI tools is text to read in the browser, given its type and a
+ * policy that runs nothing in it (the Markdown's and the JSON's, see ./headers.ts) and no
+ * attachment; any other file has none.
  *
  * Every kind is met here, with `never` after them, so a kind that is added to `PublishedFile` and
  * left without its rules is a type error, not a file served with no policy and no type.

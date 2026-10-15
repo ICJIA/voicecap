@@ -3829,7 +3829,7 @@ describe("buildSite", () => {
       expect(index).not.toContain(`href="${voice?.href}" download`);
     });
 
-    it("gives only the voice page media-src data:, at both its addresses, and leaves every other page's policy unchanged", async () => {
+    it("gives only the voice page media-src data: blob:, at both its addresses, and leaves every other page's policy unchanged", async () => {
       const home = await newVoiceHome();
 
       const { out, content } = await build(home);
@@ -3905,9 +3905,11 @@ describe("buildSite", () => {
       expect(plain).not.toContain("media-src");
       for (const [, headers] of playing) {
         expect(headers).toEqual([
-          [CSP, plain.replace("; img-src data:;", "; img-src data:; media-src data:;")],
+          [CSP, plain.replace("; img-src data:;", "; img-src data:; media-src data: blob:;")],
         ]);
-        expect(headers[0]?.[1]).toContain("; media-src data:; font-src data:; connect-src 'none';");
+        expect(headers[0]?.[1]).toContain(
+          "; media-src data: blob:; font-src data:; connect-src 'none';",
+        );
       }
       // The report's own page, which plays nothing, has none, nor has any other page's policy.
       const page = content.sites[0]?.reports[0]?.files[0];

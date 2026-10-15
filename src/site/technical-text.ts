@@ -595,8 +595,8 @@ export const TECHNICAL_TEXT = {
             "Each one's Content Security Policy is made from the SHA-256 of its own style and script, and allows no connection.",
           ],
           [
-            "A voice page's policy also lets it play audio from the recordings it holds, which are in the page as data: addresses (",
-            { code: "media-src data:" },
+            "A voice page's policy also lets it play audio from the recordings it holds, as data: addresses, and from the slowed copies its script makes of them, as blob: addresses (",
+            { code: "media-src data: blob:" },
             "); no other page's does.",
           ],
           [

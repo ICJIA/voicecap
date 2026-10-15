@@ -819,10 +819,10 @@ describe("a share's voice page, served as Netlify serves it", () => {
     const policy = await visit(page, addressOf(VOICE_HREF));
 
     // The policy of its own bytes, which allows its style and script by their hashes, and the data:
-    // addresses of its recordings as media.
+    // addresses of its recordings (and the blob: addresses of its copies of them) as media.
     expect(policy).toMatch(A_HASHED_POLICY);
     expect(policy).toBe(contentSecurityPolicy(inlineHashes(voice), { media: true }));
-    expect(policy).toContain("; img-src data:; media-src data:; font-src data:;");
+    expect(policy).toContain("; img-src data:; media-src data: blob:; font-src data:;");
     // Each of the three pages has a player, and the browser knows how long its file is: two seconds
     // of the first page's sound, and a second and a half of each other's.
     const lengths = await lengthsOf(page);
@@ -845,7 +845,7 @@ describe("a share's voice page, served as Netlify serves it", () => {
     ]);
   });
 
-  it("would be refused its recordings under the shareable page's policy, so media-src data: is what lets it play", async () => {
+  it("would be refused its recordings under the shareable page's policy, so media-src data: blob: is what lets it play", async () => {
     const page = await newPage();
     const address = addressOf(VOICE_HREF);
     const voice = await readFile(path.join(voiceBuilt.out, VOICE_HREF), "utf8");
@@ -934,7 +934,7 @@ describe("a share's voice page, served as Netlify serves it", () => {
       // The page they lead to is there, under its policy, and each lands on a section of it that
       // has its player.
       const policy = await visit(page, addressOf(VOICE_HREF));
-      expect(policy, where).toContain("; media-src data:;");
+      expect(policy, where).toContain("; media-src data: blob:;");
       for (const section of sections) {
         expect(await page.locator(`article[id="${section}"] audio`).count(), section).toBe(1);
       }
@@ -958,7 +958,7 @@ describe("a share's voice page, served as Netlify serves it", () => {
 
     expect(await page.title()).toMatch(/^NVDA's voice: example\.illinois\.gov, /);
     const response = await page.request.get(addressOf(VOICE_HREF));
-    expect(response.headers()["content-security-policy"]).toContain("; media-src data:;");
+    expect(response.headers()["content-security-policy"]).toContain("; media-src data: blob:;");
     expect(response.headers()["content-disposition"]).toBeUndefined();
     expect(await violationsOf(page)).toEqual([]);
   });
