@@ -27,11 +27,11 @@
 
 ## Review Focus
 
-1. **Speeds changed while a copy is being made:** the last choice wins, and a copy finished for an earlier choice never takes the place of the one picked last. (Task 3: "the last choice wins…")
-2. **A page with more than four slowed copies:** never more than 4 `blob:` addresses alive, and never the one in view revoked. (Task 4: "keeps at most four copies…")
-3. **One recording the browser can't decode:** only its section falls back; the others still make copies. (Task 3: "falls back for one section…")
-4. **The website under its real policy:** making and playing a copy raises no policy violation. (Task 5: "makes and plays a copy under its policy…")
-5. **The place in the speech across changes:** 1× at t, then 0.5× lands at t ÷ 0.5, then 0.3× at t ÷ 0.3, then 1× back at t, within 0.1 s; a player that was playing plays on. (Task 3: "keeps the place in the speech…")
+1. **Speeds changed while a copy is being made:** the last choice wins, and a copy finished for an earlier choice never takes the place of the one picked last. (Task 4: "the last choice wins…")
+2. **A page with more than four slowed copies:** never more than 4 `blob:` addresses alive, and never the one in view revoked. (Task 5: "keeps at most four copies…")
+3. **One recording the browser can't decode:** only its section falls back; the others still make copies. (Task 4: "falls back for one section…")
+4. **The website under its real policy:** making and playing a copy raises no policy violation. (Task 4: "makes and plays a copy under its policy…")
+5. **The place in the speech across changes:** 1× at t, then 0.5× lands at t ÷ 0.5, then 0.3× at t ÷ 0.3, then 1× back at t, within 0.1 s; a player that was playing plays on. (Task 4: "keeps the place in the speech…")
 
 ## Files
 
@@ -219,7 +219,7 @@ git commit -m "Add voicecap's own stretcher for the voice page: a phase vocoder 
 - Test: `test/share-voice-page.test.ts`, `test/site-technical.test.ts`, `test/share-browser.test.ts`
 
 **Interfaces:**
-- Produces, for Task 3:
+- Produces, for Task 4:
   - `export const SPEED_TOKEN = "{speed}"` in `src/share/voice-page.ts`;
   - `VOICE_TEXT.speed.rates = [1, 0.75, 0.5, 0.3]`;
   - `VOICE_TEXT.speed.making(speed: string): string` → `Getting ${speed} ready…`;
@@ -261,18 +261,53 @@ git commit -m "Offer the voice page's speeds as 1x, 0.75x, 0.5x, and 0.3x, and g
 
 ---
 
-### Task 3: The page's script: a copy made and shown, and the fallback
+### Task 3: The website's policy
+
+**Files:**
+- Modify: `src/site/headers.ts` (`contentSecurityPolicy`, its comment), `src/site/build.ts` (the comments at lines 58 and 991), `src/site/technical-text.ts` (the policy's line, about line 597)
+- Test: `test/site-headers.test.ts`, `test/site-build.test.ts`, `test/site-served.test.ts`, `test/site-technical.test.ts`
+
+**Interfaces:**
+- Produces: `contentSecurityPolicy(hashes, { media: true })` gives `media-src data: blob:` where it gave `media-src data:`; nothing else changes.
+
+- [ ] **Step 1: Write the failing tests:**
+- `test/site-headers.test.ts` (lines 428–453) and `test/site-build.test.ts` (lines 3832–3915): every `media-src data:` expected is `media-src data: blob:`; a policy without `media` still has no `media-src`.
+- `test/site-served.test.ts`: the expected `media-src data:;` (lines 825, 937, 961) is `media-src data: blob:;`, and "would be refused its recordings under the shareable page's policy…" keeps its assertions. (The served page's test of a copy comes with the script, in Task 4.)
+- `test/site-technical.test.ts:1001`: "A voice page's policy also lets it play audio from the recordings it holds, as data: addresses, and from the slowed copies its script makes of them, as blob: addresses (media-src data: blob:); no other page's does."
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `pnpm exec vitest run test/site-headers.test.ts test/site-build.test.ts test/site-served.test.ts test/site-technical.test.ts`
+Expected: FAIL where they expect `blob:`.
+
+- [ ] **Step 3: Make the change:** the directive, `headers.ts`'s comment (the recordings as `data:` addresses, and the copies its script makes as `blob:` addresses, made in the reader's browser by the page's own script), the two comments in `build.ts`, and the line in `technical-text.ts` as the test has it (`{ code: "media-src data: blob:" }`).
+
+- [ ] **Step 4: Run them to see them pass**
+
+Run: `pnpm exec vitest run test/site-headers.test.ts test/site-build.test.ts test/site-served.test.ts test/site-technical.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Lint, types, commit**
+
+```bash
+git add src/site/headers.ts src/site/build.ts src/site/technical-text.ts test/site-headers.test.ts test/site-build.test.ts test/site-served.test.ts test/site-technical.test.ts
+git commit -m "Let a voice page play the slowed copies its script makes: media-src data: blob: in its policy, and no other change"
+```
+
+---
+
+### Task 4: The page's script: a copy made and shown, and the fallback
 
 **Files:**
 - Modify: `src/share/voice-page.ts` (`VOICE_SCRIPT` and its comment)
-- Test: `test/share-voice-page.test.ts` ("the player's script and rules"), `test/share-browser.test.ts` ("the voice page")
+- Test: `test/share-voice-page.test.ts` ("the player's script and rules"), `test/share-browser.test.ts` ("the voice page"), `test/site-served.test.ts` (the voice page's tests)
 
 **Interfaces:**
-- Consumes: `STRETCH_LIBRARY` (Task 1); the markup and `SPEED_TOKEN` (Task 2).
+- Consumes: `STRETCH_LIBRARY` (Task 1); the markup and `SPEED_TOKEN` (Task 2); the policy's `media-src data: blob:` (Task 3).
 - Produces: `VOICE_SCRIPT` = `"\n(function () {\n  \"use strict\";\n"` + `STRETCH_LIBRARY` + the page's part + `"})();\n"`. The behavior below.
 
 **The behavior** (for each `fieldset.speeds`, wired inside a `try` as now):
-- The first player is its `article`'s `audio[data-file]`. On load: `preservesPitch = true`, `playbackRate` and `defaultPlaybackRate` 1, as now; a second `audio` (`controls`, `preload="auto"`, `hidden`, no `data-` attributes) is inserted right after it; 1× is chosen; the group is shown.
+- The first player is its `article`'s `audio[data-file]`. On load: `preservesPitch = true`, `playbackRate` and `defaultPlaybackRate` 1, as now; 1× is chosen; the group is shown. The second player, an `audio` with `controls`, `preload="auto"`, and no `data-` attributes, is made the first time a copy is shown, right after the first; until then the page has only its first players. The script touches `window` only when a choice is made (a test runs it with a `document` and nothing else).
 - **The place in the speech** is the player in view's `currentTime` times its speed (1 for the first). A player shown is given `currentTime` = that place ÷ its speed, set straight after its `src` (a browser keeps it as the start of a file still loading). If the player in view was playing (`!paused`), it's paused and the one shown is played (`play()`'s promise caught).
 - **1×:** the section's job, if any, is dropped; the first player is shown at the place; the second is hidden; the status line is emptied.
 - **0.75×, 0.5×, 0.3×:** with a copy at that speed kept, it's shown at once. Otherwise the status line says `data-making` with the speed's label, and a job starts, while the player in view carries on: decode the first player's `data:` address (`atob` to bytes, then `decodeAudioData` on `new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 1, VOICE_RATE)`, by its promise or its callbacks); make the copy with `voiceStretcher`, in slices of `next(8)` until 20 ms have passed (`performance.now()`), with `setTimeout(…, 0)` between slices; then `voiceFilter`, `voiceLevel` to the decoded recording's `voiceRms`, `voiceWav`, `new Blob([bytes], { type: "audio/wav" })`, `URL.createObjectURL`. Shown: the second player gets the copy's address, its `aria-label` is `data-slowed` with the label, the first is hidden, and the status line says `data-made` with the label.
@@ -292,42 +327,47 @@ In `test/share-browser.test.ts`'s "the voice page", replace "the speed choice se
 - "falls back for one section, and the others still make copies" (Review Focus 3): the same refusal for the first call only; the first section falls back at 0.5×, and the second makes a `blob:` copy at 0.5×.
 - The old "catches the error a browser throws…", "shows the speed a player is at when something else changes it", and "keeps the pitch from the start…" each run with `decodeAudioData` refused (the fallback), with 0.3 for 0.25.
 - "Check the fingerprints passes…": first make a 0.3× copy in the first section; the check still reads "3 of 3 recordings match their fingerprints".
+- "works by keyboard alone": the arrow keys on the first group now give copies: after each of `ArrowDown` (0.75), `ArrowRight` (0.5), `ArrowDown` (0.3), and `ArrowUp` (0.5), poll until the second player shows a copy whose `duration` is the recording's length ÷ that speed within 1%; Tab from the group reaches the next section's controls, and never a hidden player.
+- Wherever a test counts or lists the page's players after a slower speed was picked, it takes the first players, `audio[data-file]`, unless it means the second.
+
+In `test/site-served.test.ts`'s voice page tests:
+- "runs its speed choice and its check under the policy…": checking 0.5× now makes a copy: poll until a second player has a `blob:` `src` and a `duration`, and the first player is still at `playbackRate` 1; the check and the theme as before; no violation.
+- A new test, "makes and plays a copy under its policy, with no violation" (Review Focus 4): on the served voice page, check 0.3× in the first group; poll until the second player has a `blob:` `src` and a `duration` (it loaded, as `lengthsOf` waits for one); `violationsOf(page)` is `[]`.
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `pnpm exec vitest run test/share-voice-page.test.ts`, then `pnpm exec vitest run test/share-browser.test.ts -t "the voice page"`
+Run: `pnpm exec vitest run test/share-voice-page.test.ts test/site-served.test.ts`, then `pnpm exec vitest run test/share-browser.test.ts -t "the voice page"`
 Expected: FAIL: no second player, no `blob:` address, the old script's size.
 
 - [ ] **Step 3: Write `VOICE_SCRIPT`'s page part** to the behavior above, and its comment in the style of the current one: what it does, step by step, and that nothing plays by itself.
 
 - [ ] **Step 4: Run them to see them pass**
 
-Run: `pnpm exec vitest run test/share-voice-page.test.ts`, then `pnpm exec vitest run test/share-browser.test.ts -t "the voice page"`
+Run: `pnpm exec vitest run test/share-voice-page.test.ts test/site-served.test.ts`, then `pnpm exec vitest run test/share-browser.test.ts -t "the voice page"`, then the whole suite once, `pnpm test`, since every page with a voice page carries this script
 Expected: PASS.
 
 - [ ] **Step 5: Lint, types, commit**
 
 ```bash
-git add src/share/voice-page.ts test/share-voice-page.test.ts test/share-browser.test.ts
+git add src/share/voice-page.ts test/share-voice-page.test.ts test/share-browser.test.ts test/site-served.test.ts
 git commit -m "Slow a recording on the voice page with voicecap's own stretcher: a copy made in the reader's browser, played in a second player in the first one's place, and the browser's own slow-down where it can't"
 ```
 
 ---
 
-### Task 4: Copies kept, the browser's own speed menu, and the page's checks
+### Task 5: Copies kept, the browser's own speed menu, and the page's checks
 
 **Files:**
 - Modify: `src/share/voice-page.ts` (`VOICE_SCRIPT`)
 - Test: `test/share-browser.test.ts` ("the voice page")
 
 **Interfaces:**
-- Consumes: Task 3's script.
+- Consumes: Task 4's script.
 - Produces: the copies kept, page-wide: a list of `{ section, speed, url }`, the most recently shown last. A copy made or shown again goes to the end. While there are more than 4, the oldest one that isn't in view (a visible second player's `src`) is dropped: `URL.revokeObjectURL`, and out of its section's copies.
 
 - [ ] **Step 1: Write the failing tests** in "the voice page":
 - "keeps at most four copies on the page, never the one in view" (Review Focus 2): `addInitScript` wraps `URL.createObjectURL` and `URL.revokeObjectURL` to keep the set of live `blob:` addresses. Make, in order: the first section at 0.3×, 0.5×, 0.75×; the second at 0.3×; the third at 0.3×. Then 4 are live; the first made (the first section's 0.3×) was revoked; each section's copy in view is live; checking the first section's 0.3× again makes it anew and shows it.
 - "shows no speed chosen while a copy plays at another speed": with the 0.5× copy shown, setting its `playbackRate` to 1.5 checks none; back to 1 checks 0.5 again.
-- "works by keyboard alone": the arrow keys on the first group now give copies: after each of `ArrowDown` (0.75), `ArrowRight` (0.5), `ArrowDown` (0.3), and `ArrowUp` (0.5), poll until the second player shows a copy whose `duration` is the recording's length ÷ that speed within 1%; Tab from the group reaches the next section's controls, and never a hidden player.
 - "is axe-clean in both themes at %i px…": before the first axe run, the first section shows its 0.3× copy, and the status line has its words.
 - "loads nothing from outside the file": also after a 0.3× copy is made.
 - "plays with scripts off…": unchanged, and passes (no second player, the groups hidden).
@@ -349,41 +389,6 @@ Expected: PASS.
 ```bash
 git add src/share/voice-page.ts src/share/html/style.ts test/share-browser.test.ts
 git commit -m "Keep at most four slowed copies on a voice page, never dropping the one in view, and check the page by keyboard, with axe, and with no script with a copy showing"
-```
-
----
-
-### Task 5: The website's policy
-
-**Files:**
-- Modify: `src/site/headers.ts` (`contentSecurityPolicy`, its comment), `src/site/build.ts` (the comments at lines 58 and 991), `src/site/technical-text.ts` (the policy's line, about line 597)
-- Test: `test/site-headers.test.ts`, `test/site-build.test.ts`, `test/site-served.test.ts`, `test/site-technical.test.ts`
-
-**Interfaces:**
-- Produces: `contentSecurityPolicy(hashes, { media: true })` gives `media-src data: blob:` where it gave `media-src data:`; nothing else changes.
-
-- [ ] **Step 1: Write the failing tests:**
-- `test/site-headers.test.ts` (lines 428–453) and `test/site-build.test.ts` (lines 3832–3915): every `media-src data:` expected is `media-src data: blob:`; a policy without `media` still has no `media-src`.
-- `test/site-served.test.ts`: the expected `media-src data:;` (lines 825, 937, 961) is `media-src data: blob:;`; and a new test, "makes and plays a copy under its policy, with no violation" (Review Focus 4): on the served voice page, check 0.3× in the first group; poll until the second player has a `blob:` `src` and a `duration` (it loaded, as `lengthsOf` waits for one); `violationsOf(page)` is `[]`. "would be refused its recordings under the shareable page's policy…" keeps its assertions.
-- `test/site-technical.test.ts:1001`: "A voice page's policy also lets it play audio from the recordings it holds, as data: addresses, and from the slowed copies its script makes of them, as blob: addresses (media-src data: blob:); no other page's does."
-
-- [ ] **Step 2: Run them to see them fail**
-
-Run: `pnpm exec vitest run test/site-headers.test.ts test/site-build.test.ts test/site-served.test.ts test/site-technical.test.ts`
-Expected: FAIL where they expect `blob:`.
-
-- [ ] **Step 3: Make the change:** the directive, `headers.ts`'s comment (the recordings as `data:` addresses, and the copies its script makes as `blob:` addresses, made in the reader's browser by the page's own script), the two comments in `build.ts`, and the line in `technical-text.ts` as the test has it (`{ code: "media-src data: blob:" }`).
-
-- [ ] **Step 4: Run them to see them pass**
-
-Run: `pnpm exec vitest run test/site-headers.test.ts test/site-build.test.ts test/site-served.test.ts test/site-technical.test.ts`
-Expected: PASS.
-
-- [ ] **Step 5: Lint, types, commit**
-
-```bash
-git add src/site/headers.ts src/site/build.ts src/site/technical-text.ts test/site-headers.test.ts test/site-build.test.ts test/site-served.test.ts test/site-technical.test.ts
-git commit -m "Let a voice page play the slowed copies its script makes: media-src data: blob: in its policy, and no other change"
 ```
 
 ---
