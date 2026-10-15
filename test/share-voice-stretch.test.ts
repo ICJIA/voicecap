@@ -67,6 +67,19 @@ function rms(signal: Float32Array): number {
 const peakOf = (signal: Float32Array): number =>
   signal.reduce((most, x) => Math.max(most, Math.abs(x)), 0);
 
+/** The energy of `signal`: the squares of its samples, added up. */
+const energyOf = (signal: Float32Array): number => signal.reduce((sum, x) => sum + x * x, 0);
+
+/**
+ * Where the sound of `signal` is, in samples: the mean of its sample indexes, each weighted by the
+ * energy of its sample.
+ */
+function centreOfEnergy(signal: Float32Array): number {
+  let weighted = 0;
+  for (const [i, x] of signal.entries()) weighted += i * x * x;
+  return weighted / energyOf(signal);
+}
+
 /** The middle second of `signal`, where a copy is steady. */
 function middleSecond(signal: Float32Array): Float32Array {
   const from = Math.floor((signal.length - R) / 2);
@@ -128,6 +141,33 @@ describe("voicecap's own stretcher", () => {
       const ratio = rms(middleSecond(stretch(input, speed))) / rms(input);
 
       expect(Math.abs(ratio - 1), `${ratio} times as loud at ${speed}`).toBeLessThan(0.05);
+    }
+  });
+
+  it("puts a sound where it belongs in time: 1 ÷ speed times as far in", () => {
+    // 2 s of silence with a burst of a 1 kHz tone in the middle, 50 ms long under a Hann window,
+    // centred at 1 s. A frame is read from the recording 128 × speed samples on and put in the copy
+    // 128 samples on, so the burst comes out at 1 s ÷ speed. Frames are put by their starts, which
+    // runs a copy early by up to 256 × (1 ÷ speed − 1) samples (37 ms at 0.3×), by design, and the
+    // 60 ms allows for that: an input hop a tenth off would put the burst 100 ms or more away.
+    const length = 0.05 * R;
+    const burst = new Float32Array(2 * R);
+    for (let i = 0; i < length; i++) {
+      const hann = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / length);
+      burst[R - length / 2 + i] = 0.5 * hann * Math.sin((2 * Math.PI * 1_000 * i) / R);
+    }
+
+    for (const speed of SLOWED) {
+      const copy = stretch(burst, speed);
+      const belongs = R / speed;
+      const off = ((centreOfEnergy(copy) - belongs) / R) * 1000;
+
+      expect(Math.abs(off), `${off} ms from where it belongs at ${speed}`).toBeLessThanOrEqual(60);
+      // And it's still a burst: all but a hundredth of the copy's energy is within 0.25 s of there.
+      const near = copy.subarray(Math.round(belongs - 0.25 * R), Math.round(belongs + 0.25 * R));
+      expect(energyOf(near) / energyOf(copy), `the burst's energy at ${speed}`).toBeGreaterThan(
+        0.99,
+      );
     }
   });
 
