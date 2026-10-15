@@ -421,7 +421,7 @@ describe("contentSecurityPolicy", () => {
     expect(policy).toContain(`style-src ${hashOf(`\n\n${SHARE_CSS}`)};`);
   });
 
-  it("allows media as data: only when asked, and adds nothing else", () => {
+  it("allows media as data: and blob: only when asked, and adds nothing else", () => {
     const hashes = { styles: [STYLE], scripts: [SCRIPT_ONE] };
     const plain = contentSecurityPolicy(hashes);
 
@@ -430,28 +430,30 @@ describe("contentSecurityPolicy", () => {
     expect(plain).not.toContain("media-src");
     expect(contentSecurityPolicy(hashes, { media: false })).toBe(plain);
     expect(contentSecurityPolicy(hashes, { fonts: false })).not.toContain("media-src");
-    // Asked for, it's one directive more, after the images: media from data: addresses alone.
+    // Asked for, it's one directive more, after the images: media from data: addresses (the
+    // recordings) and blob: addresses (the copies the page's script makes of them) alone.
     const withMedia = contentSecurityPolicy(hashes, { media: true });
     expect(withMedia).toBe(
-      `default-src 'none'; script-src ${SCRIPT_ONE}; style-src ${STYLE}; img-src data:; media-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+      `default-src 'none'; script-src ${SCRIPT_ONE}; style-src ${STYLE}; img-src data:; media-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
     );
-    expect(withMedia.replace("media-src data:; ", "")).toBe(plain);
+    expect(withMedia.replace("media-src data: blob:; ", "")).toBe(plain);
     // Beside the fonts' choice, the two are independent.
     expect(contentSecurityPolicy(hashes, { media: true, fonts: false })).toBe(
-      `default-src 'none'; script-src ${SCRIPT_ONE}; style-src ${STYLE}; img-src data:; media-src data:; font-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+      `default-src 'none'; script-src ${SCRIPT_ONE}; style-src ${STYLE}; img-src data:; media-src data: blob:; font-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
     );
     // Whatever it's given, nothing may connect, so a recording is never fetched from anywhere.
     expect(withMedia).toContain("; connect-src 'none';");
   });
 
-  it("allows the code of the voice page by its own hashes, and the recordings it holds, as data: addresses", async () => {
+  it("allows the code of the voice page by its own hashes, the recordings it holds as data: addresses, and its slowed copies as blob: addresses", async () => {
     const page = await voicePage();
     const policy = contentSecurityPolicy(inlineHashes(page), { media: true });
 
     expect(policy).toContain(`script-src ${hashOf(SHARE_SCRIPT + CHECK_SCRIPT + VOICE_SCRIPT)};`);
     expect(policy).toContain(`style-src ${hashOf(`\n\n${SHARE_CSS}${VOICE_CSS}`)};`);
-    expect(policy).toContain("; img-src data:; media-src data:; font-src data:;");
-    // The page's players hold their sound in their own addresses, and nowhere else is it fetched.
+    expect(policy).toContain("; img-src data:; media-src data: blob:; font-src data:;");
+    // The page's players hold their sound in their own addresses, as data: or as the blob: of a
+    // copy its script made, and nowhere else is it fetched.
     expect(policy).toContain("; connect-src 'none';");
   });
 });

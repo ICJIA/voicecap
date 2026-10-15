@@ -911,18 +911,21 @@ describe("renderSharePage", () => {
     // row came in (its day, and one line across both tracks), and the Next row's Windows PC entry,
     // NVDA's voice, which the new row announces, went out. Each page grew by 166 characters, and
     // each Word copy's blocks by 89, the same for all three, as a change to the timeline gives.
+    // Prepare 0.19.0 re-pinned all three for the timeline's 0.19.0 row. Each page grew by
+    // 237 characters, and each Word copy's blocks by 212, the same for all three, as a timeline
+    // row gives.
     const before = {
       i2i: {
-        page: [218_492, "6d8693267ba6b1ea93f597b36e085e0d6f79e899d9ab755797cd765e6f4a69d3"],
-        word: [60_004, "fc828a9b6ef3ec3acc3c79ea1a16143df011d5c5af12b0954298f2d466111ac6"],
+        page: [218_729, "62608944bd59fdafce306bbcab63cbfe497e595eb53aa0870544bec9f7e86c15"],
+        word: [60_216, "def695902bb031ea52ff5dd3c061c5459161f469f2dbca9d5abdf7e69b5b6920"],
       },
       demo: {
-        page: [253_034, "13ecf31bef5523993e10f8cdaf43a7474fa4d8adb8b34d2c6e53012b206d53eb"],
-        word: [82_842, "ab85cf93ccdbe03f2f063de5838ddcdbc392ad235729bc5560cbe65e130094ca"],
+        page: [253_271, "a89aa7983eec9cdb48e339145288cfc72e8cb1198ce60cda18449669a07f0b62"],
+        word: [83_054, "3a493a6d688fc450a46fe974aea4f66d28e89476ec7487499df463f04f8f70bc"],
       },
       logged: {
-        page: [135_422, "ca3f44eca63d6768adcdc4f58a02ab8e567f048c795927fac8e3018edd3aaff5"],
-        word: [41_506, "7e893b30827c4e4616f6d93edeeef1089c07c75c0e6ae2e1623d8dc7210cdeaa"],
+        page: [135_659, "2e177bad43a6bb9fbe626813543583ee0b8364b8c08725ecfff9718dc5e2f74c"],
+        word: [41_718, "4459560e084862d1d2dabdedd651796005bd1b7e3e9b664d40d3f85cd63b0d12"],
       },
     };
     const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };

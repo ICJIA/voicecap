@@ -918,8 +918,9 @@ export const NVDA_LOG_TEXT = {
 /**
  * The voice page (./voice-page.ts): the companion of the shareable page that plays what NVDA said
  * aloud on each page, from the recordings a run keeps (from voicecap 0.18.0, `KEEPS_VOICE_FROM`).
- * Its title and lead, the note on what each pass begins with, the speed choice, what it says of each
- * recording, what it says of a page that has none, and the words of its own check.
+ * Its title and lead, the note on what each pass begins with, the speed choice and the words its
+ * status line says, what it says of each recording, what it says of a page that has none, and the
+ * words of its own check.
  *
  * The recording is evidence, and the person's review is made from the transcripts, by reading what
  * NVDA said: the lead says so, and nothing here says a person listened to a run, calls voicecap
@@ -935,9 +936,10 @@ export const VOICE_TEXT = {
   eyebrow: "NVDA's voice",
   /**
    * Under the site's name: what the recordings are, that they are NVDA's alone, how to slow them
-   * down, and which words are the record of what was reviewed.
+   * down and how that is done (by voicecap's own stretcher, in the reader's browser, with the pitch
+   * kept and nothing sent anywhere), and which words are the record of what was reviewed.
    */
-  lead: "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast; choose a slower speed, and the pitch stays the same. The transcripts on the shareable page are the record of what was reviewed.",
+  lead: "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast: choose a slower speed, and voicecap's own stretcher slows it down in your browser, with the pitch kept and nothing sent anywhere. The transcripts on the shareable page are the record of what was reviewed.",
   /**
    * Said once, above the pages: why each pass's recording starts with a code, and why it's silent
    * between the passes (the run keeps only each pass's stretch: see confirmFront, in the driver).
@@ -946,15 +948,28 @@ export const VOICE_TEXT = {
   /** What names a page's player for a screen reader, and the page it plays: "NVDA's voice on /about/". */
   player: (path: string): string => `NVDA's voice on ${path}`,
   /**
+   * What names the player of a page's slowed copy, for a screen reader: what names the page's own
+   * player (`player`), then the speed it's at, as the speed's label says it ("NVDA's voice on
+   * /about/, at 0.3×").
+   */
+  slowed: (path: string, speed: string): string => `NVDA's voice on ${path}, at ${speed}`,
+  /**
    * A player's speed choice: the legend over its radio buttons, with the page it's for after it for
-   * a screen reader alone (`on`), and the speeds, in order, with 1× chosen. A speed is a
-   * `playbackRate`, and the page keeps the pitch at each.
+   * a screen reader alone (`on`), and the speeds, in order, with 1× chosen. 1× is the recording as
+   * recorded, and the pitch is kept at each slower speed. Under the buttons is a status line, which
+   * says what is happening to the speed chosen, by its label ("0.3×"): that a copy is being made
+   * (`making`), and that it's ready (`made`), or, where the page can't make one and the browser
+   * slows the player itself, that it does (`own`). The page's script says these words, so the markup
+   * carries them, with the speed left to fill in (`speeds`, in ./voice-page.ts).
    */
   speed: {
     legend: "Speed",
     on: (path: string): string => ` on ${path}`,
-    rates: [1, 0.75, 0.5, 0.25] as readonly number[],
+    rates: [1, 0.75, 0.5, 0.3] as readonly number[],
     label: (rate: number): string => `${rate}×`,
+    making: (speed: string): string => `Getting ${speed} ready…`,
+    made: (speed: string): string => `${speed} is ready.`,
+    own: "This browser slows it down with its own stretcher.",
   },
   /**
    * What is said of a recording, each on a line of its own: its length ("2 min 14 s", with the
@@ -1548,6 +1563,13 @@ export const TIMELINE: TimelineRow[] = [
     pc: null,
     mac: null,
     both: "<b>0.18.0</b>: NVDA's voice on each page, the report as Markdown and JSON for AI tools, and the fixes of a security review of the PC work.",
+  },
+  {
+    date: "2026-10-15",
+    release: "0.19.0",
+    pc: null,
+    mac: null,
+    both: "<b>0.19.0</b>: a clearer slow-down of NVDA's voice: voicecap's own stretcher, in the reader's browser, at 0.75×, 0.5×, and 0.3×.",
   },
   {
     date: null,
