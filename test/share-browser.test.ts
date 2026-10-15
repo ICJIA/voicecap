@@ -3095,29 +3095,127 @@ describe("the voice page", () => {
    * Waits until the `at`th section shows a copy at `speed`: a second player in view, whose address
    * is a blob: one, and whose length (which it knows once it has loaded) is its recording's length
    * divided by the speed, within 1%. While it waits it says what it found, so a failure says why.
+   * `seconds` is the recording's length, which is this page's record of the `at`th section's unless
+   * a test says it (for a page of its own).
    */
-  async function copyShown(page: Page, at: number, speed: number): Promise<void> {
+  async function copyShown(
+    page: Page,
+    at: number,
+    speed: number,
+    seconds = secondsOf(at),
+  ): Promise<void> {
     await expect
       .poll(
         () =>
           sections(page)
             .nth(at)
-            .evaluate(
-              (card, wanted) => {
-                const second = card.querySelector<HTMLAudioElement>("audio:not([data-file])");
-                if (second === null) return "no second player";
-                if (second.hidden) return "the second player is hidden";
-                if (!second.src.startsWith("blob:"))
-                  return `its address is ${second.src.slice(0, 30)}`;
-                return Math.abs(second.duration - wanted) <= wanted * 0.01
-                  ? "shown"
-                  : `it is ${second.duration} s long, not ${wanted}`;
-              },
-              secondsOf(at) / speed,
-            ),
+            .evaluate((card, wanted) => {
+              const second = card.querySelector<HTMLAudioElement>("audio:not([data-file])");
+              if (second === null) return "no second player";
+              if (second.hidden) return "the second player is hidden";
+              if (!second.src.startsWith("blob:"))
+                return `its address is ${second.src.slice(0, 30)}`;
+              return Math.abs(second.duration - wanted) <= wanted * 0.01
+                ? "shown"
+                : `it is ${second.duration} s long, not ${wanted}`;
+            }, seconds / speed),
         { timeout: 20_000 },
       )
       .toBe("shown");
+  }
+
+  /**
+   * Chooses `speed` in the `at`th section that has a player, and waits until that section shows a
+   * copy at it (`seconds` is how long its recording is, when it isn't one of this page's).
+   */
+  async function slowTo(page: Page, at: number, speed: number, seconds?: number): Promise<void> {
+    await page
+      .locator("fieldset.speeds")
+      .nth(at)
+      .getByRole("radio", { name: `${speed}×` })
+      .check();
+    await copyShown(page, at, speed, seconds);
+  }
+
+  /**
+   * The `blob:` addresses a page has made and let go of, as `window.book` keeps them, in order: the
+   * addresses alive are the first list less the second.
+   */
+  interface Book {
+    made: string[];
+    revoked: string[];
+  }
+
+  /** A context whose pages keep that book, as their addresses are made and let go of. */
+  async function bookkeepingContext(): Promise<BrowserContext> {
+    const context = await newContext();
+    await context.addInitScript(() => {
+      const book: Book = { made: [], revoked: [] };
+      Object.assign(window, { book });
+      const create = Reflect.get(URL, "createObjectURL");
+      const revoke = Reflect.get(URL, "revokeObjectURL");
+      URL.createObjectURL = (blob) => {
+        const address = create.call(URL, blob);
+        book.made.push(address);
+        return address;
+      };
+      URL.revokeObjectURL = (address) => {
+        book.revoked.push(address);
+        revoke.call(URL, address);
+      };
+    });
+    return context;
+  }
+
+  const bookOf = (page: Page) =>
+    page.evaluate(() => {
+      const { made, revoked } = (window as unknown as { book: Book }).book;
+      return {
+        made: [...made],
+        revoked: [...revoked],
+        alive: made.filter((address) => !revoked.includes(address)),
+      };
+    });
+
+  /**
+   * The address of the copy each section that has a player shows, in order: the visible second
+   * player's, and "" for a section that shows its first player.
+   */
+  const shownCopies = (page: Page) =>
+    sections(page).evaluateAll((cards) =>
+      cards.map((card) => {
+        const second = card.querySelector<HTMLAudioElement>("audio:not([data-file])");
+        return second === null || second.hidden ? "" : second.src;
+      }),
+    );
+
+  /**
+   * A voice page of `count` pages that each have a player, all of /about/'s recording (`seconds`
+   * long), written to a folder of its own: for what the page does when more sections than it keeps
+   * copies for each show one (the page the other tests open has three).
+   */
+  async function pageOfPlayers(count: number): Promise<{ file: string; seconds: number }> {
+    const about = kept.get(voice.slugs[1] ?? "");
+    if (about === undefined) throw new Error("No recording of /about/.");
+    const read = { files: TRANSCRIPTS, passes: LINES };
+    const run = shareRun({
+      id: "2026-09-29_1402",
+      createdAt: "2026-09-29T14:02:51-05:00",
+      voicecapVersion: "0.18.0",
+      pages: Array.from({ length: count }, (_, at) => ({
+        path: `/page-${at + 1}/`,
+        ...read,
+        voice: about,
+      })),
+    });
+    const model = buildShareModel(inputOf([run], { transcripts: storeOf(), canonical: CANONICAL }));
+    const html = renderVoicePage(model, recordingsOf([run]), { fontCss: "" });
+    if (html === null) throw new Error("The voice page wasn't made.");
+    const folder = await mkdtemp(path.join(tmpdir(), "voicecap-share-voice-"));
+    folders.push(folder);
+    const file = path.join(folder, "voice.html");
+    await writeFile(file, html);
+    return { file, seconds: about.seconds };
   }
 
   /**
@@ -3425,6 +3523,126 @@ describe("the voice page", () => {
       "0.3× is ready.",
       "0.5× is ready.",
     ]);
+  });
+
+  // Review Focus 2: the page keeps at most four copies at once, across its sections. A copy let go
+  // of has its address revoked and is out of its section's copies, so it's made anew when chosen
+  // again, and a copy a section has in view is never let go of.
+  it("keeps at most four copies on the page, never the one in view", async () => {
+    const page = await (await bookkeepingContext()).newPage();
+    await page.goto(addressOf(voice.file));
+
+    // Four copies, three in the first section and one in the second: nothing is let go of.
+    await slowTo(page, 0, 0.3);
+    await slowTo(page, 0, 0.5);
+    await slowTo(page, 0, 0.75);
+    await slowTo(page, 1, 0.3);
+    const four = await bookOf(page);
+    expect(four.alive).toHaveLength(4);
+    expect(four.revoked).toEqual([]);
+
+    // A fifth, in the third section: the first one made, the first section's 0.3×, is let go of.
+    await slowTo(page, 2, 0.3);
+    const five = await bookOf(page);
+    expect(five.made).toHaveLength(5);
+    expect(five.revoked).toEqual([five.made[0]]);
+    expect(five.alive).toHaveLength(4);
+    // Each section's copy in view is alive: the first's 0.75×, the second's 0.3×, the third's 0.3×.
+    expect(await shownCopies(page)).toEqual([five.made[2], five.made[3], five.made[4]]);
+    for (const address of await shownCopies(page)) expect(five.alive).toContain(address);
+
+    // The first section's 0.3× again: it isn't kept, so it's made anew (a sixth address) and shown,
+    // and to make room the first section's 0.5×, no longer in view and shown longest ago, goes.
+    await slowTo(page, 0, 0.3);
+    const six = await bookOf(page);
+    expect(six.made).toHaveLength(6);
+    expect((await shownCopies(page))[0]).toBe(six.made[5]);
+    expect(await sections(page).first().locator(".speed-status").textContent()).toBe(
+      "0.3× is ready.",
+    );
+    expect(six.revoked).toEqual([five.made[0], five.made[1]]);
+    expect(six.alive).toHaveLength(4);
+    for (const address of await shownCopies(page)) expect(six.alive).toContain(address);
+  });
+
+  // A copy made or shown again goes to the end of the list, so the one let go of is the one shown
+  // longest ago, and not the one made first.
+  it("lets go of the copy shown longest ago, so a copy shown again is kept", async () => {
+    const page = await (await bookkeepingContext()).newPage();
+    await page.goto(addressOf(voice.file));
+
+    await slowTo(page, 0, 0.3);
+    await slowTo(page, 0, 0.5);
+    await slowTo(page, 0, 0.75);
+    await slowTo(page, 1, 0.3);
+    // The first section's 0.3× and then its 0.5× are shown again: both are kept, so nothing is made.
+    await slowTo(page, 0, 0.3);
+    await slowTo(page, 0, 0.5);
+    expect((await bookOf(page)).made).toHaveLength(4);
+    // A fifth copy: the first section's 0.75× has been out of view the longest, since it was shown
+    // before the other two were shown again. (The first made, its 0.3×, would go if only the order
+    // they were made in counted.)
+    await slowTo(page, 2, 0.3);
+    const book = await bookOf(page);
+    expect(book.made).toHaveLength(5);
+    expect(book.revoked).toEqual([book.made[2]]);
+    expect(book.alive).toHaveLength(4);
+  });
+
+  // A copy isn't in view when its player is hidden (1× brings the first player back), though the
+  // hidden player still has its address: it's let go of like any other, with no error from the player.
+  it("lets go of a copy its player hides, and makes it anew when it's chosen again", async () => {
+    const page = await (await bookkeepingContext()).newPage();
+    await page.goto(addressOf(voice.file));
+    const group = page.locator("fieldset.speeds").first();
+
+    await slowTo(page, 0, 0.3);
+    await group.getByRole("radio", { name: "1×" }).check();
+    expect(await shownCopies(page)).toEqual(["", "", ""]);
+    await slowTo(page, 1, 0.3);
+    await slowTo(page, 1, 0.5);
+    await slowTo(page, 2, 0.3);
+    await slowTo(page, 2, 0.5);
+    // The fifth copy: the first section's 0.3×, shown first and out of view since 1×, goes.
+    const five = await bookOf(page);
+    expect(five.made).toHaveLength(5);
+    expect(five.revoked).toEqual([five.made[0]]);
+    expect(await sections(page).first().locator("audio:not([data-file])").getAttribute("src")).toBe(
+      five.made[0],
+    );
+    expect(await sections(page).first().locator("audio:not([data-file])").isVisible()).toBe(false);
+
+    // Chosen again, it is made anew, and shown.
+    await slowTo(page, 0, 0.3);
+    const six = await bookOf(page);
+    expect(six.made).toHaveLength(6);
+    expect((await shownCopies(page))[0]).toBe(six.made[5]);
+    expect(await sections(page).first().locator(".speed-status").textContent()).toBe(
+      "0.3× is ready.",
+    );
+  });
+
+  // A section's copy in view is never let go of, so when more sections than the page keeps copies
+  // for each show one, it keeps all of them, which is more than four.
+  it("keeps every copy that is in view, even when that is more than four", async () => {
+    const { file, seconds } = await pageOfPlayers(6);
+    const page = await (await bookkeepingContext()).newPage();
+    await page.goto(addressOf(file));
+    expect(await sections(page).count()).toBe(6);
+
+    for (let at = 0; at < 6; at++) await slowTo(page, at, 0.5, seconds);
+    const six = await bookOf(page);
+    expect(six.made).toHaveLength(6);
+    expect(six.revoked).toEqual([]);
+    expect(await shownCopies(page)).toEqual(six.made);
+
+    // A seventh, in the first section: its 0.5× is out of view now, and it alone is let go of.
+    await slowTo(page, 0, 0.3, seconds);
+    const seven = await bookOf(page);
+    expect(seven.made).toHaveLength(7);
+    expect(seven.revoked).toEqual([six.made[0]]);
+    expect(seven.alive).toHaveLength(6);
+    expect(await shownCopies(page)).toEqual([seven.made[6], ...six.made.slice(1)]);
   });
 
   // Review Focus 5: the place in the speech is the same across speeds. A recording is as long as it
@@ -3859,6 +4077,34 @@ describe("the voice page", () => {
     await expect.poll(() => chosenIn(group)).toEqual(["0.3"]);
   });
 
+  // The browser's own controls have a speed menu, on a copy's player as on the first player's. A
+  // copy plays at the rate it was made for, so while the player in view is at another one, the speed
+  // it's at is none of the copies the page made, and no choice is shown chosen.
+  it("shows no speed chosen while a copy plays at another speed", async () => {
+    const page = await open(voice.file);
+    const group = page.locator("fieldset.speeds").first();
+    const second = sections(page).first().locator("audio:not([data-file])");
+    const setRate = (rate: number) =>
+      second.evaluate((sound, to) => {
+        (sound as HTMLAudioElement).playbackRate = to;
+      }, rate);
+
+    await group.getByRole("radio", { name: "0.5×" }).check();
+    await copyShown(page, 0, 0.5);
+    expect(await chosenIn(group)).toEqual(["0.5"]);
+
+    await setRate(1.5);
+    await expect.poll(() => chosenIn(group)).toEqual([]);
+    // Nothing else changes: the copy is still the player in view, and the first player is as it was.
+    expect(await second.isVisible()).toBe(true);
+    expect((await players(page))[0]).toMatchObject({ rate: 1, pitch: true, paused: true });
+    expect(await sections(page).first().locator(".speed-status").textContent()).toBe(
+      "0.5× is ready.",
+    );
+    await setRate(1);
+    await expect.poll(() => chosenIn(group)).toEqual(["0.5"]);
+  });
+
   it("shows the speed its player starts at, whatever the browser kept of an earlier choice", async () => {
     // A browser that loads a page again can bring back the button that was chosen (here, 0.3× in
     // the first player's group), while the player starts at 1× as it always does: the page's markup
@@ -4019,6 +4265,13 @@ describe("the voice page", () => {
       const page = await open(voice.file);
       const fits = { beyondTheWindow: 0, boxes: [] };
 
+      // With a slowed copy in view in the first section, as a reader has the page: its second
+      // player in the first one's place, and the words of the status line under the speeds.
+      await page.locator("fieldset.speeds").first().getByRole("radio", { name: "0.3×" }).check();
+      await copyShown(page, 0, 0.3);
+      expect(await sections(page).first().locator(".speed-status").textContent()).toBe(
+        "0.3× is ready.",
+      );
       expect(await axeFindings(page, width), "dark").toEqual([]);
       expect(await overflowOf(page), "dark").toEqual(fits);
       // With the check's result showing, which is more of the page.
@@ -4072,6 +4325,27 @@ describe("the voice page", () => {
     expect(await axeFindings(page, 1280), "dark").toEqual([]);
     await page.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
     expect(await axeFindings(page, 320), "light, 320 px").toEqual([]);
+  });
+
+  // The status line as it's drawn once it has words. Its margin only applies if its rule is as
+  // specific as the cards' own rule for every paragraph in them (which sets each margin to 0), and
+  // a line of words only fits the height it keeps while it's empty if its line is no taller than
+  // that: otherwise the card grows by a few pixels when the script writes in it.
+  it("gives its status line its margin, and a line of words doesn't make its group grow", async () => {
+    const page = await open(voice.file);
+    const group = page.locator("fieldset.speeds").first();
+    const status = sections(page).first().locator(".speed-status");
+    const heightOf = async (box: Locator) => (await box.boundingBox())?.height ?? Number.NaN;
+
+    expect(await status.textContent()).toBe("");
+    const empty = { group: await heightOf(group), status: await heightOf(status) };
+    await group.getByRole("radio", { name: "0.3×" }).check();
+    await copyShown(page, 0, 0.3);
+    expect(await status.textContent()).toBe("0.3× is ready.");
+
+    expect(await status.evaluate((line) => getComputedStyle(line).marginTop)).toBe("4px");
+    expect(await heightOf(status)).toBeCloseTo(empty.status, 0);
+    expect(await heightOf(group)).toBeCloseTo(empty.group, 0);
   });
 
   it("works by keyboard alone", async () => {
@@ -4207,6 +4481,10 @@ describe("the voice page", () => {
     });
     const page = await context.newPage();
     await page.goto(addressOf(voice.file));
+    await page.waitForLoadState("networkidle");
+    // A slowed copy is made in the page and played from its own address: that loads nothing either.
+    await page.locator("fieldset.speeds").first().getByRole("radio", { name: "0.3×" }).check();
+    await copyShown(page, 0, 0.3);
     await page.waitForLoadState("networkidle");
     await page.locator("#fp-run").click();
     await expect.poll(() => result(page), { timeout: 10_000 }).toMatch(/^Checked just now/);

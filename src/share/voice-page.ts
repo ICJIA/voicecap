@@ -400,12 +400,18 @@ function footer(model: ShareModel): string {
  *   page free between them, and then the finisher filters the copy, scales it to the recording's
  *   loudness, and writes it as a WAV file, in slices of the same size: nothing a copy needs is done
  *   in one block, however long the recording. The second player plays the file from a `blob:`
- *   address. Each copy is kept for the visit, so a speed made once is shown again at once; nothing
- *   else of its making is kept, as the stretcher is let go when the finishing begins, and the
- *   decoded recording with it. A choice made while a copy is being made drops that copy and starts
- *   the one chosen: each slice first checks that its copy is still the choice made last, so the
- *   last choice wins, and a copy finished for an earlier choice never takes the place of the one
- *   chosen last.
+ *   address. Nothing else of a copy's making is kept, as the stretcher is let go when the
+ *   finishing begins, and the decoded recording with it. A choice made while a copy is being made
+ *   drops that copy and starts the one chosen: each slice first checks that its copy is still the
+ *   choice made last, so the last choice wins, and a copy finished for an earlier choice never
+ *   takes the place of the one chosen last.
+ * - The copies are kept for the visit, so a speed made once is shown again at once, but on the page
+ *   as a whole at most 4 are: a list of them in the order they were shown, to the end of which a
+ *   copy made or shown again goes. While there are more than 4, the one shown longest ago that
+ *   isn't in view (a visible second player's address) is let go of: its address is revoked and
+ *   it's out of its section's copies, so choosing that speed again makes it anew. A copy in view
+ *   is never let go of, and each section can have one, so the page holds more than 4 while more
+ *   than 4 sections show one.
  * - The place in the speech is the player in view's `currentTime` times its speed (1 for the first
  *   player); the player shown is put at that place divided by its own speed. If the player in view
  *   was playing it's paused, and the one shown plays on; if it wasn't, nothing plays. If it had the
@@ -485,6 +491,29 @@ function slow(signal, speed, current, done, fail) {
   }
   slice();
 }
+// The copies kept on the page, in the order they were shown (the latest last), as { section, speed,
+// url }, where a section is its own copies by speed.
+var copies = [];
+// Whether a second player in view has this address.
+function inView(url) {
+  var seconds = document.querySelectorAll("audio:not([data-file])");
+  return Array.prototype.some.call(seconds, function (player) {
+    return !player.hidden && player.src === url;
+  });
+}
+// Keeps a copy as the one shown last. While there are more than 4, the one shown longest ago that
+// isn't in view is let go of: its address revoked, and it's out of its section's copies.
+function keep(section, speed, url) {
+  copies = copies.filter(function (each) { return each.url !== url; });
+  copies.push({ section: section, speed: speed, url: url });
+  var spare = copies.filter(function (each) { return !inView(each.url); });
+  while (copies.length > 4 && spare.length) {
+    var gone = spare.shift();
+    copies.splice(copies.indexOf(gone), 1);
+    URL.revokeObjectURL(gone.url);
+    delete gone.section[gone.speed];
+  }
+}
 // One speed choice's work: its players, copies, status line, and radios.
 function wire(group) {
   var card = group.closest("article"), sound = card ? card.querySelector("audio[data-file]") : null;
@@ -525,6 +554,7 @@ function wire(group) {
     }
     copy.setAttribute("aria-label", said("slowed", label));
     put(copy, speed, kept[speed]);
+    keep(kept, speed, kept[speed]);
     status.textContent = said("made", label);
     mark();
   }

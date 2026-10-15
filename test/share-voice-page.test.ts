@@ -1337,8 +1337,9 @@ describe("the player's script and rules", () => {
     // It parses, as the page's one script does, after the page's and the check's.
     expect(() => new vm.Script(SHARE_SCRIPT + CHECK_SCRIPT + VOICE_SCRIPT)).not.toThrow();
     // The stretcher and its finisher (the filter, the loudness match, and the WAV writer, which a
-    // copy goes through in slices) are most of it.
-    expect(VOICE_SCRIPT.length).toBeLessThan(20_000);
+    // copy goes through in slices) are most of it; the limit was raised for the copies the page keeps
+    // (a list of at most four, and the check of which are in view, so that one never goes).
+    expect(VOICE_SCRIPT.length).toBeLessThan(22_000);
     expect(VOICE_CSS.length).toBeLessThan(2_500);
   });
 
