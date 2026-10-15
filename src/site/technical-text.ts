@@ -318,7 +318,7 @@ export const TECHNICAL_TEXT = {
               ".",
             ],
             [
-              `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${VOICE_SPEEDS}: 1× as recorded, and each slower speed made in the reader's browser by voicecap's own stretcher, a phase vocoder with phase locking, then a gentle filter (a low cut at 100 Hz, and the highs eased by 6 dB from 6 kHz), with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
+              `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${VOICE_SPEEDS}: ${VOICE_TEXT.speed.label(1)} as recorded, and each slower speed made in the reader's browser by voicecap's own stretcher, a phase vocoder with phase locking, then a gentle filter (a low cut at 100 Hz, and the highs eased by 6 dB from 6 kHz), with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
             ],
           ],
         },
