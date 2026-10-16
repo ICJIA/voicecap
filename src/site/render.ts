@@ -45,7 +45,7 @@ import { folderSafe } from "../run/paths.js";
 import { markdownInline } from "../share/ai/escape.js";
 import { count as countWords, sizeWords } from "../share/format.js";
 import { track } from "../share/html/parts.js";
-import { verdictOf } from "../share/verdict.js";
+import { verdictOf, type VerdictKind } from "../share/verdict.js";
 import type { VoicecapFacts, VoicecapRelease } from "./facts.js";
 import { sitePage, TECHNICAL_HREF, TRUST_HREF, WHATS_NEW_HREF } from "./frame.js";
 import { SITE_ICONS } from "./icons.js";
@@ -450,14 +450,25 @@ function site({ name, reports, address }: SiteContent["sites"][number], id: stri
 }
 
 /**
- * The sites' view: each site, or, with none, that no report has been shared. A site's section has an
- * id made from its name, written as a folder's name is (see folderSafe): "site-example.gov_8080" for
- * "example.gov:8080". Two names can be the same once written so, so a later site's id has "-2" added,
- * then "-3", and the page gives each id once.
+ * Each site, in the order given, with the id of its section on the page: made from its name, written
+ * as a folder's name is (see folderSafe), "site-example.gov_8080" for "example.gov:8080". Two names
+ * can be the same once written so, so a later site's id has "-2" added, then "-3", and each id is
+ * given once. The page's sections and sites.json's links (renderSitesJson) both take their ids from
+ * here, so a link can't miss its section.
+ */
+function withSectionIds(
+  sites: SiteContent["sites"],
+): [site: SiteContent["sites"][number], id: string][] {
+  const taken = new Set<string>();
+  return sites.map((each) => [each, uniqueId(`site-${folderSafe(each.name)}`, taken)]);
+}
+
+/**
+ * The sites' view: each site, in its section (see withSectionIds), or, with none, that no report has
+ * been shared.
  */
 function sitesView(sites: SiteContent["sites"]): string {
   const { title, lead } = SITE_TEXT.views.sites;
-  const taken = new Set<string>();
   if (sites.length === 0) {
     return view("sites", title, SITE_ICONS.sites, [`<p>${esc(SITE_TEXT.noReports)}</p>`]);
   }
@@ -465,10 +476,7 @@ function sitesView(sites: SiteContent["sites"]): string {
     "sites",
     title,
     SITE_ICONS.sites,
-    [
-      `<p>${esc(lead)}</p>`,
-      ...sites.map((each) => site(each, uniqueId(`site-${folderSafe(each.name)}`, taken))),
-    ],
+    [`<p>${esc(lead)}</p>`, ...withSectionIds(sites).map(([each, id]) => site(each, id))],
     { n: sites.length, unit: SITE_TEXT.siteUnit(sites.length) },
   );
 }
@@ -654,4 +662,73 @@ export function renderLlmsTxt(content: SiteContent): string {
     `- [${SITE_TEXT.technical}](${TECHNICAL_HREF}): ${words.technical}`,
     "",
   ].join("\n");
+}
+
+/** sites.json, format 1 (see renderSitesJson). */
+export interface SitesJson {
+  format: 1;
+  sites: SitesJsonSite[];
+}
+
+/** A site of sites.json, as the page shows it. */
+export interface SitesJsonSite {
+  /** The name the page heads it with: its canonical name, or else its folder's. */
+  name: string;
+  /** Where people visit it, the root that names it; null for a site its folder names. */
+  address: string | null;
+  /** Its section of the front page, from sites.json: "./#site-dvfr.illinois.gov". */
+  href: string;
+  /** Its current report, its newest; null for a site with none. */
+  current: SitesJsonReport | null;
+}
+
+/** A site's current report, as sites.json gives it. */
+export interface SitesJsonReport {
+  /** When it was shared: the share's `at`, a local ISO date and time, as recorded. */
+  shared: string;
+  /** The verdict's kind (see verdictOf); null for a report with no verdict (see hasVerdict). */
+  status: VerdictKind | null;
+  /** The verdict's headline, as its card says it: "Nothing needs attention"; null with no verdict. */
+  verdict: string | null;
+  /** How many pages NVDA read, as its card says it: "NVDA read all 9 pages."; null with no verdict. */
+  reading: string | null;
+  /**
+   * Its page, from the site's top: "dvfr.illinois.gov/dvfr.illinois.gov_2026-10-03.html"; null when
+   * it isn't published.
+   */
+  page: string | null;
+}
+
+/**
+ * sites.json, the website's sites for another website that links to the results, such as ICJIA's
+ * documentation index: JSON, with two spaces of indent and a line break at its end. It's format 1:
+ * for each site of the page, in its order, its name, its address, the link to its section of the
+ * page, and its current report: when it was shared, its verdict, as its card says it, and its page.
+ * The demo is no site's, so it's never one. Each link is relative to the file, as llms.txt's are:
+ * no address of the website is known to the build. The same content gives the same bytes: nothing in
+ * it is the time of the build. Pure.
+ */
+export function renderSitesJson(content: SiteContent): string {
+  const value: SitesJson = {
+    format: 1,
+    sites: withSectionIds(content.sites).map(([{ name, address, reports }, id]) => {
+      const [current] = reports;
+      return {
+        name,
+        address: address ?? null,
+        href: `./#${id}`,
+        current: current === undefined ? null : sitesJsonReport(current),
+      };
+    }),
+  };
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+/** A report as sites.json gives it: its verdict only when it has one to give (see hasVerdict). */
+function sitesJsonReport(report: PublishedReport): SitesJsonReport {
+  const { at: shared, result } = report;
+  const page = fileOf(report, "page")?.href ?? null;
+  if (!hasVerdict(result)) return { shared, status: null, verdict: null, reading: null, page };
+  const { kind, headline } = verdictOf(result);
+  return { shared, status: kind, verdict: headline, reading: SITE_TEXT.reading(result), page };
 }

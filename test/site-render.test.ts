@@ -33,7 +33,10 @@ import {
   type PublishedReport,
   renderLlmsTxt,
   renderSiteIndex,
+  renderSitesJson,
   type SiteContent,
+  type SitesJson,
+  type SitesJsonReport,
 } from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { renderTechnical } from "../src/site/technical.js";
@@ -2375,6 +2378,142 @@ describe("renderLlmsTxt", () => {
     const before = structuredClone(CONTENT);
 
     expect(renderLlmsTxt(CONTENT)).toBe(renderLlmsTxt(structuredClone(CONTENT)));
+    expect(CONTENT).toEqual(before);
+  });
+});
+
+// sites.json, at the website's top, for another website that links to the results, such as ICJIA's
+// documentation index: each site of the page, in its order, with its address, the link to its
+// section of the page, and its current report's time, verdict, and page. Format 1.
+describe("renderSitesJson", () => {
+  /** The file, read back. */
+  const parsed = (content: SiteContent): SitesJson =>
+    JSON.parse(renderSitesJson(content)) as SitesJson;
+  /** A content of these sites, each with its reports, the newest first. */
+  const sites = (...each: [name: string, reports: PublishedReport[]][]): SiteContent => ({
+    demo: DEMO_REPORT,
+    sites: each.map(([name, reports]) => ({ name, folders: [name], reports })),
+  });
+  /** The current report the file gives for a site whose newest report has this result. */
+  const current = (result: PublishedReport["result"]): SitesJsonReport | null | undefined =>
+    parsed(sites([DVFR, [{ ...DVFR_NEWEST, result }]])).sites[0]?.current;
+
+  it("lists each site of the page, in its order, with its name, its address, the link to its section, and its current report", () => {
+    expect(parsed(CONTENT)).toEqual({
+      format: 1,
+      sites: [
+        {
+          name: DVFR,
+          address: DVFR_ADDRESS,
+          href: "./#site-dvfr.illinois.gov",
+          current: {
+            shared: "2026-10-03T14:05:00-05:00",
+            status: null,
+            verdict: null,
+            reading: null,
+            page: "dvfr.illinois.gov/dvfr.illinois.gov_2026-10-03.html",
+          },
+        },
+        {
+          name: EXAMPLE,
+          address: null,
+          href: "./#site-example.illinois.gov",
+          current: {
+            shared: "2026-10-02T09:30:00-05:00",
+            status: null,
+            verdict: null,
+            reading: null,
+            page: "example.illinois.gov/example.illinois.gov_2026-10-02.html",
+          },
+        },
+      ],
+    });
+    // Two spaces of indent, a line break at its end, and its keys in this order.
+    const text = renderSitesJson(CONTENT);
+    expect(text).toBe(`${JSON.stringify(JSON.parse(text), null, 2)}\n`);
+    const [first] = parsed(CONTENT).sites;
+    expect(Object.keys(parsed(CONTENT))).toEqual(["format", "sites"]);
+    expect(Object.keys(first ?? {})).toEqual(["name", "address", "href", "current"]);
+    expect(Object.keys(first?.current ?? {})).toEqual([
+      "shared",
+      "status",
+      "verdict",
+      "reading",
+      "page",
+    ]);
+  });
+
+  it("says the verdict as the site's card says it, and none for a report that records no result, or no page", () => {
+    expect(current({ pages: 9, read: 9, problems: 0, problemPages: 0 })).toMatchObject({
+      status: "ok",
+      verdict: "Nothing needs attention",
+      reading: "NVDA read all 9 pages.",
+    });
+    expect(current({ pages: 32, read: 32, problems: 1, problemPages: 32 })).toMatchObject({
+      status: "warn",
+      verdict: "1 problem needs attention, on 32 pages",
+      reading: "NVDA read all 32 pages.",
+    });
+    expect(current({ pages: 9, read: 7, problems: 0, problemPages: 0 })).toMatchObject({
+      status: "bad",
+      verdict: "Nothing needs attention on the pages read",
+      reading: "NVDA read 7 of the 9 pages.",
+    });
+    // A report from before 0.12.3 records none, and one of no page has nothing to say.
+    for (const result of [undefined, { pages: 0, read: 0, problems: 0, problemPages: 0 }]) {
+      expect(current(result)).toMatchObject({ status: null, verdict: null, reading: null });
+    }
+  });
+
+  it("links each site to the id its section has on the page, -2 for a second name written to the same id", () => {
+    const content = sites(
+      ["example.gov:8080", [DVFR_NEWEST]],
+      ["example.gov_8080", [EXAMPLE_REPORT]],
+    );
+
+    expect(parsed(content).sites.map(({ href }) => href)).toEqual([
+      "./#site-example.gov_8080",
+      "./#site-example.gov_8080-2",
+    ]);
+    const page = frontPage(content);
+    expect(page).toContain('id="site-example.gov_8080"');
+    expect(page).toContain('id="site-example.gov_8080-2"');
+  });
+
+  it("gives no page when the current report's page isn't published, and no current report for a site with none", () => {
+    const changed: PublishedReport = {
+      ...DVFR_NEWEST,
+      files: DVFR_NEWEST.files.filter(({ kind }) => kind !== "page"),
+      notPublished: [{ name: `${DVFR}_2026-10-03.html`, reason: "changed" }],
+    };
+    const [first, second] = parsed(sites([DVFR, [changed]], [EXAMPLE, []])).sites;
+
+    expect(first?.current).toMatchObject({ shared: "2026-10-03T14:05:00-05:00", page: null });
+    expect(second).toEqual({
+      name: EXAMPLE,
+      address: null,
+      href: "./#site-example.illinois.gov",
+      current: null,
+    });
+  });
+
+  it("never lists the demo, and is an empty list when no site has a report", () => {
+    expect(renderSitesJson({ demo: DEMO_REPORT, sites: [] })).toBe(
+      '{\n  "format": 1,\n  "sites": []\n}\n',
+    );
+    expect(renderSitesJson(CONTENT)).not.toContain("demo");
+  });
+
+  it("keeps a name with quotes, a backslash, or a control character whole, in valid JSON", () => {
+    const name = 'a"b\\c\u0007d';
+
+    expect(parsed(sites([name, [DVFR_NEWEST]])).sites[0]?.name).toBe(name);
+  });
+
+  it("is the same text for the same content, and changes none of it", () => {
+    const before = structuredClone(CONTENT);
+
+    expect(renderSitesJson(CONTENT)).toBe(renderSitesJson(structuredClone(CONTENT)));
     expect(CONTENT).toEqual(before);
   });
 });
