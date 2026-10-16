@@ -30,8 +30,10 @@
  * has a picture before it, and the views of the sites and of every report by date say beside their
  * headings how many they hold (from 0.13.1).
  *
- * llms.txt (`renderLlmsTxt`) is the website's other file of this kind: a plain text file at its top,
- * for AI tools, that points to each site's current report as Markdown and as JSON.
+ * llms.txt (`renderLlmsTxt`) and sites.json (`renderSitesJson`) are the website's other files of
+ * this kind, at its top: llms.txt is plain text, for AI tools, that points to each site's current
+ * report as Markdown and as JSON, and sites.json lists each site and its current report as JSON, for
+ * another website that links to the results.
  *
  * The page is a page about accessibility, so it follows the report's rules: headings in order (the
  * page, then each view, then each site, then each report), landmarks, a skip link, visible keyboard
@@ -423,9 +425,19 @@ function uniqueId(id: string, taken: Set<string>): string {
  * ./netlify.ts), keeps the page's own address from it. Nothing, for a site with no such address.
  */
 function visit(name: string, address: string | undefined): string {
-  if (address === undefined || recordedCanonical(address) !== address) return "";
-  if (canonicalName(address) !== name) return "";
-  return `<a class="visit" href="${esc(address)}" target="_blank" rel="noopener noreferrer">${esc(SITE_TEXT.visit)}${hidden(SITE_TEXT.visitAt(name))}${SITE_ICONS.visit}</a>`;
+  const root = visitable(name, address);
+  if (root === null) return "";
+  return `<a class="visit" href="${esc(root)}" target="_blank" rel="noopener noreferrer">${esc(SITE_TEXT.visit)}${hidden(SITE_TEXT.visitAt(name))}${SITE_ICONS.visit}</a>`;
+}
+
+/**
+ * The address the page links beside a site's name (see visit), or null: only the root a share
+ * records as a site's canonical address (see recordedCanonical), at the host the site's name is.
+ * sites.json gives a site's address by the same rule, so it never names one the page doesn't link.
+ */
+function visitable(name: string, address: string | undefined): string | null {
+  if (address === undefined || recordedCanonical(address) !== address) return null;
+  return canonicalName(address) === name ? address : null;
 }
 
 /**
@@ -674,7 +686,10 @@ export interface SitesJson {
 export interface SitesJsonSite {
   /** The name the page heads it with: its canonical name, or else its folder's. */
   name: string;
-  /** Where people visit it, the root that names it; null for a site its folder names. */
+  /**
+   * Where people visit it, the root that names it, as the page links it (see visitable); null for a
+   * site its folder names.
+   */
   address: string | null;
   /** Its section of the front page, from sites.json: "./#site-dvfr.illinois.gov". */
   href: string;
@@ -715,7 +730,7 @@ export function renderSitesJson(content: SiteContent): string {
       const [current] = reports;
       return {
         name,
-        address: address ?? null,
+        address: visitable(name, address),
         href: `./#${id}`,
         current: current === undefined ? null : sitesJsonReport(current),
       };

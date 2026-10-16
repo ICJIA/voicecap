@@ -529,8 +529,8 @@ describe("buildSite", () => {
       // Each file is read once, and it's the same bytes that are checked and written.
       expect(reads.filter((read) => read === from)).toHaveLength(1);
     }
-    // Only those, the site's own eight files (its four pages, llms.txt, robots.txt, _redirects, and
-    // _headers), and the demo's own pages in demo-site/.
+    // Only those, the site's own nine files (its four pages, llms.txt, sites.json, robots.txt,
+    // _redirects, and _headers), and the demo's own pages in demo-site/.
     expect(await filesUnder(out)).toEqual(
       [
         ...SITE_OWN_FILES,

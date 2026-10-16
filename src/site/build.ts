@@ -45,24 +45,24 @@
  * be.
  *
  * Besides each report's files, a build writes the demo's own pages in demo-site/ (the demo site
- * that comes with voicecap, copied byte for byte, but for its 404 page, with a sitemap of its
- * pages at their canonical address: see DEMO_CANONICAL), the site's page (index.html), the trust
- * page (trust.html: see ./trust.ts), What's New (whats-new.html: see ./whats-new.ts), Technical
- * details (technical-details.html: see ./technical.ts), llms.txt (see renderLlmsTxt in
- * ./render.ts), sites.json (see renderSitesJson there), robots.txt, _redirects, and _headers, which
- * gives each page its Content Security
- * Policy, made from the hashes of that page's own bytes (the site's page at "/" and "/index.html",
- * the trust page at "/trust.html" and "/trust", What's New at "/whats-new.html" and "/whats-new",
- * and Technical details at "/technical-details.html" and "/technical-details", whose policies
- * allow no font, since they embed none, where a report's allows the fonts it embeds, and a share's
- * voice page's also allows the media it plays: its recordings, which it holds as data: addresses,
- * and the slowed copies its script makes of them, as blob: addresses, so it has
- * `media-src data: blob:` and no other page has), the demo's pages theirs at each address they
- * answer at (see demoSiteRules), each download its Content-Disposition, and each report for AI
- * tools its type and a policy of its own: a share's Markdown and JSON are read in the browser, not
- * saved, and sites.json has the JSON's. In the home it writes .gitattributes and .gitignore when they aren't there, as a run does,
- * so a home's first build keeps _site/ out of Git with the rest of what voicecap keeps out, then
- * netlify.toml and .nvmrc the first time. None of them is ever written again.
+ * that comes with voicecap, copied byte for byte, but for its 404 page, with a sitemap of its pages
+ * at their canonical address: see DEMO_CANONICAL), the site's page (index.html), the trust page
+ * (trust.html: see ./trust.ts), What's New (whats-new.html: see ./whats-new.ts), Technical details
+ * (technical-details.html: see ./technical.ts), llms.txt (see renderLlmsTxt in ./render.ts),
+ * sites.json (see renderSitesJson there), robots.txt, _redirects, and _headers, which gives each
+ * page its Content Security Policy, made from the hashes of that page's own bytes (the site's page
+ * at "/" and "/index.html", the trust page at "/trust.html" and "/trust", What's New at
+ * "/whats-new.html" and "/whats-new", and Technical details at "/technical-details.html" and
+ * "/technical-details", whose policies allow no font, since they embed none, where a report's
+ * allows the fonts it embeds, and a share's voice page's also allows the media it plays: its
+ * recordings, which it holds as data: addresses, and the slowed copies its script makes of them, as
+ * blob: addresses, so it has `media-src data: blob:` and no other page has), the demo's pages
+ * theirs at each address they answer at (see demoSiteRules), each download its Content-Disposition,
+ * and each report for AI tools its type and a policy of its own: a share's Markdown and JSON are
+ * read in the browser, not saved, and sites.json has the JSON's. In the home it writes
+ * .gitattributes and .gitignore when they aren't there, as a run does, so a home's first build
+ * keeps _site/ out of Git with the rest of what voicecap keeps out, then netlify.toml and .nvmrc
+ * the first time. None of them is ever written again.
  */
 import type { Dirent } from "node:fs";
 import {
@@ -255,11 +255,10 @@ function unreadable(error: unknown): Unpublished {
  * Build the site of the transcripts home: refuse a folder it mustn't empty, empty it, publish each
  * file of each site's newest shares that still matches its record, and write the site's page, the
  * trust page, What's New, Technical details, llms.txt, sites.json, robots.txt, _redirects, and
- * _headers beside
- * them, then .gitattributes, .gitignore, netlify.toml, and .nvmrc in the home when they aren't
- * there. Each thing left out is warned of, each site's older shares are counted, and the last line
- * says what was built. Refuses with a UsageError when the home isn't a folder, and when the folder
- * to build in is one that must not be emptied (see the top of this file).
+ * _headers beside them, then .gitattributes, .gitignore, netlify.toml, and .nvmrc in the home when
+ * they aren't there. Each thing left out is warned of, each site's older shares are counted, and
+ * the last line says what was built. Refuses with a UsageError when the home isn't a folder, and
+ * when the folder to build in is one that must not be emptied (see the top of this file).
  */
 export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSiteResult> {
   const cwd = options.cwd ?? process.cwd();
@@ -1059,11 +1058,11 @@ function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
  * The rules of _headers: the index at both its addresses, the trust page, What's New, and Technical
  * details at both their own, each with the policy of that page's own bytes (`pages`, the text of
  * each), which allows no font, since the website's own pages embed none; sites.json, with a share's
- * JSON's type and policy; the demo's own pages' rules
- * (`demoRules`, made by demoSiteRules: a rule for each address a page answers at); then each
- * published file's, in the order the site lists them (the demo's report first, then each site's
- * reports as they're shown), a report's page allowing the fonts it embeds, and a voice page the
- * media it plays besides (see rulesFor). A path has one rule, however many reports list its file.
+ * JSON's type and policy; the demo's own pages' rules (`demoRules`, made by demoSiteRules: a rule
+ * for each address a page answers at); then each published file's, in the order the site lists them
+ * (the demo's report first, then each site's reports as they're shown), a report's page allowing
+ * the fonts it embeds, and a voice page the media it plays besides (see rulesFor). A path has one
+ * rule, however many reports list its file.
  */
 function headerRules(
   content: SiteContent,

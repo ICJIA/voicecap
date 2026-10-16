@@ -2480,6 +2480,21 @@ describe("renderSitesJson", () => {
     expect(page).toContain('id="site-example.gov_8080-2"');
   });
 
+  it("gives a site's address only as the page links it beside the site's name", () => {
+    const content: SiteContent = {
+      demo: DEMO_REPORT,
+      sites: [
+        { name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST], address: DVFR_ADDRESS },
+        // An address at another host than the site's name: the page links none, and neither does
+        // sites.json.
+        { name: EXAMPLE, folders: [EXAMPLE], reports: [EXAMPLE_REPORT], address: DVFR_ADDRESS },
+      ],
+    };
+
+    expect(parsed(content).sites.map(({ address }) => address)).toEqual([DVFR_ADDRESS, null]);
+    expect(frontPage(content).match(/<a class="visit"/g)).toHaveLength(1);
+  });
+
   it("gives no page when the current report's page isn't published, and no current report for a site with none", () => {
     const changed: PublishedReport = {
       ...DVFR_NEWEST,
