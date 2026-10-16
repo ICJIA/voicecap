@@ -9,13 +9,13 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
 
-**voicecap has a real screen reader, NVDA, read each page of a website and saves every word it says, so one person can review a whole site the way a screen reader user hears it, and hand managers and auditors a dated record they can check to the byte.** No off-the-shelf checker does this: tools such as axe and Lighthouse inspect a page's code but can't tell you what a screen reader actually says, and checking by hand goes one page at a time and leaves no record, far too slow for the more than a dozen websites ICJIA must review before the April 2027 ADA Title II deadline for accessible digital content.
+**voicecap has a real screen reader, NVDA, read each page of a website and saves every word it says, so one person can review a whole site the way a screen reader user hears it, and hand managers and auditors a dated record they can check to the byte.** No off-the-shelf checker does this: tools such as axe, Siteimprove, and Lighthouse inspect a page's code but can't tell you what a screen reader actually says, and checking by hand goes one page at a time and leaves no record, far too slow for the more than a dozen websites ICJIA must review before the April 2027 ADA Title II deadline for accessible digital content.
 
 ## voicecap in brief
 
 voicecap is a free, open-source tool from the Illinois Criminal Justice Information Authority (ICJIA) that captures what a screen reader user actually hears on a website.
 
-Automated accessibility checkers such as axe and Lighthouse catch problems like missing labels, but they can't tell you what a page sounds like. voicecap is the other half: a listen-through with a real screen reader, **NVDA on a Windows PC, and VoiceOver on a Mac**. The screen reader reads each page from top to bottom, jumps from heading to heading, and tabs through links and buttons, the way a blind visitor would, and voicecap saves every word it says as plain-text transcripts. On a Mac, setup, checks, and a live VoiceOver test work today, and full VoiceOver audits come with voicecap's VoiceOver driver.
+Automated accessibility checkers such as axe, Siteimprove, and Lighthouse catch problems like missing labels, but they can't tell you what a page sounds like. voicecap is the other half (see [Two different checks](#two-different-checks-the-code-and-how-it-sounds)): a listen-through with a real screen reader, **NVDA on a Windows PC, and VoiceOver on a Mac**. The screen reader reads each page from top to bottom, jumps from heading to heading, and tabs through links and buttons, the way a blind visitor would, and voicecap saves every word it says as plain-text transcripts. On a Mac, setup, checks, and a live VoiceOver test work today, and full VoiceOver audits come with voicecap's VoiceOver driver.
 
 Every line of a transcript is what the screen reader actually said. voicecap presses the screen reader's keys the way a person would, and moves from page to page on its own, following the site's sitemap or a list of pages. Working from the list, it accounts for every page on it: none is missed or done twice, an easy slip when clicking through a site by hand. So one person can spot-check a large site, zero in on the pages that need attention, or go through a whole small site.
 
@@ -41,17 +41,59 @@ Here is the top of that report for the new version of i2i.illinois.gov, as NVDA 
 
 ## Why voicecap, and who it's for
 
-An accessibility review has two halves. Automated checkers such as axe, Lighthouse, and Pa11y test a page's code against rules, and they're quick: they catch a missing label or missing alt text. What they can't tell you is what a page sounds like:
+### Two different checks: the code, and how it sounds
 
-- whether its links make sense read aloud;
-- whether its headings tell a screen reader user where they are;
-- whether its buttons and fields are named in words that make sense when a screen reader says them.
+An accessibility review checks two different things, and a site needs both.
 
-That takes a person going through each page with a real screen reader. On a large site, or a dozen sites, it's weeks of work that's hard to write down and harder to repeat.
+**Code checkers, such as axe, Siteimprove, Lighthouse, and Pa11y, read a page's code and test it against rules:** that every image has alt text, every field has a label, every color has enough contrast, and every ARIA attribute has a valid value. They're quick, they can cover a whole site, and they catch a whole class of mistakes before anyone listens.
 
-voicecap speeds up that second half. It presses NVDA's keys the way a person would, moves from page to page along the site's sitemap or a list of pages, and saves every word NVDA says. The person running it hears NVDA at work, reads the transcripts, records what they found, and fixes it.
+**voicecap has a real screen reader, NVDA, read the page aloud, and saves every word it says.** NVDA reads what the browser makes of the page's code, so its transcript is that code as a blind visitor hears it: what's said, and in what order, line by line, heading by heading, and control by control.
 
-**How it's different:**
+| | Code checkers, such as axe and Siteimprove | voicecap, with NVDA |
+| --- | --- | --- |
+| **What they check** | The page's code: its HTML, ARIA, and styles. | What NVDA says as it reads the page. |
+| **The question they answer** | Does the code follow the rules? | What does a screen reader user actually hear? |
+| **What they find** | An image with no alt text, a field with no label, text without enough contrast, ARIA that isn't valid. | Alt text that says nothing useful, links that all say "Read more", headings that don't say where you are, a page that reads in a confusing order. |
+| **What you get** | A list of the rules each page fails, often with a score. | Every word NVDA said, page by page, with flags on what needs a closer listen. |
+
+**Both are critical, and neither can do the other's job.** A code checker can tell that an image has alt text, but not whether its words make sense read aloud. Listening can't measure contrast, or test every rule on every element. A page can pass every rule and still sound confusing, and a page can sound fine with a contrast failure that no one hears. That's why voicecap also runs axe on each page, before NVDA reads it, and shows what axe found beside what NVDA said (see [axe](#axe)).
+
+### Why the sound matters
+
+A blind visitor doesn't see a website. They hear it, through a screen reader, and what the screen reader says is, for them, the website. The code is how a site is built; the sound is what a blind visitor gets.
+
+Code can pass every automated rule and still sound wrong:
+
+- alt text that's there but says nothing useful, such as "image", "logo", or a file name;
+- links that make no sense read aloud, such as ten in a row that each say "Read more";
+- headings that don't tell a screen reader user where they are;
+- buttons and fields named in words that make no sense when a screen reader says them;
+- a page that's read in a different order from the one it shows.
+
+WCAG, the standard behind ADA Title II and Illinois's IITAA, asks for exactly these: a text alternative that serves the same purpose as its image (1.1.1), links whose purpose is clear (2.4.4), headings and labels that describe their topic or purpose (2.4.6), and a reading order that keeps the meaning (1.3.2). A rule can check that the alt text, the link, or the heading is there. Only listening tells you whether it makes sense.
+
+**Why NVDA.** NVDA is a free, open-source screen reader for Windows, and, with JAWS, one of the two most used. In WebAIM's survey of 1,780 screen reader users, in July and August 2026, 59.3% said they commonly use NVDA, second only to JAWS, at 69.2% ([WebAIM's Screen Reader User Survey #11](https://webaim.org/projects/screenreadersurvey11/)). Every screen reader gets a page from the same place, what the browser makes of its code, so a button with no name has no name in JAWS either, and a link that says only "click here" says it in every screen reader. And because NVDA is free, anyone can hear what voicecap heard: an auditor, a vendor, or a developer can repeat a run on their own PC, with no screen reader license to buy.
+
+### Why not just use NVDA?
+
+Anyone can open NVDA and listen to a page, and voicecap uses that same NVDA: every word in its transcripts is NVDA's own. The difference is what happens across a whole site, and afterwards. NVDA reads a page aloud, and what it said is gone unless someone writes it down. Going through every page that way, on a large site or a dozen sites, is weeks of work that's hard to write down and harder to repeat. voicecap takes NVDA through every page on its own, keeps everything it says, and turns it into a record that a manager can read and an auditor can check.
+
+| | NVDA by hand | NVDA with voicecap |
+| --- | --- | --- |
+| **The key presses** | A person presses every key on every page, three ways: line by line, heading by heading, and control by control. | voicecap presses them as a person would, and moves from page to page on its own. |
+| **What NVDA said** | Spoken once, then gone, unless someone copies it down. | Every word saved, page by page, with the key press that brought it, and, on Windows 11, a recording of NVDA's voice (see [NVDA's voice](#nvdas-voice)). |
+| **Which pages were checked** | The ones the person got to. | Every page on the site's sitemap or list: each one read in full, or recorded with the reason it couldn't be. |
+| **A window that gets in the way** | If a pop-up takes the screen, the person has to notice, and start that page again. | voicecap checks before and after every key press. If another window took the screen, it throws the step out and tries the page again. |
+| **Finding problems** | Whatever the person catches at NVDA's speed. | Flags for what's worth a closer look, such as an unlabeled graphic or a link that says only "click here", each with its likely cause and fix, beside what axe found on the same page. |
+| **After a fix** | Another session, done a little differently each time. | The same pages, keys, and order again, from a walkthrough file, compared line by line with the run before. |
+| **What a manager gets** | The person's word, or their notes. | A report that leads with a verdict, such as "Nothing needs attention", then each page's screenshot and what NVDA said; a Word copy for the files; and a website with each site's current report. |
+| **Proof it was done** | Whatever was written down. | A dated record, sealed and fingerprinted, that `voicecap verify` checks, with NVDA's own log checked against the transcripts, line by line. |
+
+On the new i2i site, NVDA spoke 2,219 lines across 32 pages in under an hour, and voicecap kept every one, with its key press. To keep that record by hand, someone would press each of those keys and copy down each line, then do it all again after every fix.
+
+voicecap is a human review, sped up. The person running it hears NVDA at work, reads the transcripts, decides what needs fixing, and records it with `voicecap review` (see [Reviews: the audit trail](#reviews-the-audit-trail)). voicecap does the key presses, the page turning, and the record keeping.
+
+### How it's different
 
 - **The real screen reader, never a simulation.** Every line of a transcript is what NVDA said.
 - **Every page on the list, three ways.** voicecap goes line by line, heading by heading, and control by control, as a blind visitor moves through a page. No page on the list is missed or done twice.
@@ -133,7 +175,7 @@ These stories were written for this page. Each is a composite of the people voic
 
 ![How voicecap works: a human review, sped up. Six steps, each described in the list below, and three lines NVDA said on voicecap's demo site.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/how-voicecap-works.png)
 
-Automated checkers such as axe and Lighthouse read a page's code and test it against rules. voicecap is a human review, sped up: it takes a real screen reader through each page the way a person would and saves every word it says, while the person running it reads the transcripts and fixes what they find. It also has axe check each page before NVDA reads it (from voicecap 0.16.0), and shows what axe found on the page's card, beside what NVDA said, as evidence for the person's review and never its verdict (see [axe](#axe)). From voicecap 0.18.0 it also records what NVDA said aloud on each page, as evidence that NVDA said it, and a voice page plays the recordings at slower speeds. The review is still made from the transcripts (see [NVDA's voice](#nvdas-voice)).
+Automated checkers such as axe, Siteimprove, and Lighthouse read a page's code and test it against rules. voicecap is a human review, sped up: it takes a real screen reader through each page the way a person would and saves every word it says, while the person running it reads the transcripts and fixes what they find. It also has axe check each page before NVDA reads it (from voicecap 0.16.0), and shows what axe found on the page's card, beside what NVDA said, as evidence for the person's review and never its verdict (see [axe](#axe)). From voicecap 0.18.0 it also records what NVDA said aloud on each page, as evidence that NVDA said it, and a voice page plays the recordings at slower speeds. The review is still made from the transcripts (see [NVDA's voice](#nvdas-voice)).
 
 1. **Every page on the list.** voicecap works from the site's sitemap, or a list of chosen pages in a CSV or JSON file. Each page is read once, in full, or recorded with the reason it couldn't be. None is missed or done twice, an easy slip when clicking through a site by hand.
 2. **The real screen reader.** voicecap runs NVDA itself, never a simulation, with a fresh browser for every page, so no page's results depend on the pages before it.
@@ -171,6 +213,10 @@ The "Unlabeled graphic" in two of those lines is the one problem the report find
 ## Contents
 
 - [Why voicecap, and who it's for](#why-voicecap-and-who-its-for)
+  - [Two different checks: the code, and how it sounds](#two-different-checks-the-code-and-how-it-sounds)
+  - [Why the sound matters](#why-the-sound-matters)
+  - [Why not just use NVDA?](#why-not-just-use-nvda)
+  - [How it's different](#how-its-different)
   - [Stories of the people it's for](#stories-of-the-people-its-for)
 - [How voicecap works](#how-voicecap-works)
 - [When to run voicecap](#when-to-run-voicecap)
