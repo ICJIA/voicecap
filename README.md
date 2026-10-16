@@ -56,7 +56,7 @@ An accessibility review checks two different things, and a site needs both.
 | **What they find** | An image with no alt text, a field with no label, text without enough contrast, ARIA that isn't valid. | Alt text that says nothing useful, links that all say "Read more", headings that don't say where you are, a page that reads in a confusing order. |
 | **What you get** | A list of the rules each page fails, often with a score. | Every word NVDA said, page by page, with flags on what needs a closer listen. |
 
-**Both are critical, and neither can do the other's job.** A code checker can tell that an image has alt text, but not whether its words make sense read aloud. Listening can't measure contrast, or test every rule on every element. A page can pass every rule and still sound confusing, and a page can sound fine with a contrast failure that no one hears. That's why voicecap also runs axe on each page, before NVDA reads it, and shows what axe found beside what NVDA said (see [axe](#axe)).
+**Both are critical, and neither can do the other's job.** A code checker can tell that an image has alt text, but not whether its words make sense read aloud. A listen-through can't measure contrast, or test every rule on every element. A page can pass every rule and still sound confusing, and a page can sound fine with a contrast failure that no one hears. That's why voicecap also runs axe on each page, before NVDA reads it, and shows what axe found beside what NVDA said (see [axe](#axe)).
 
 ### Why the sound matters
 
@@ -70,7 +70,7 @@ Code can pass every automated rule and still sound wrong:
 - buttons and fields named in words that make no sense when a screen reader says them;
 - a page that's read in a different order from the one it shows.
 
-WCAG, the standard behind ADA Title II and Illinois's IITAA, asks for exactly these: a text alternative that serves the same purpose as its image (1.1.1), links whose purpose is clear (2.4.4), headings and labels that describe their topic or purpose (2.4.6), and a reading order that keeps the meaning (1.3.2). A rule can check that the alt text, the link, or the heading is there. Only listening tells you whether it makes sense.
+WCAG, the standard behind ADA Title II and Illinois's IITAA, asks for exactly these: a text alternative that serves the same purpose as its image (1.1.1), links whose purpose is clear (2.4.4), headings and labels that describe their topic or purpose (2.4.6), and a reading order that keeps the meaning (1.3.2). A rule can check that the alt text, the link, or the heading is there. Only what the screen reader says tells you whether it makes sense.
 
 **Why NVDA.** NVDA is a free, open-source screen reader for Windows, and, with JAWS, one of the two most used. In WebAIM's survey of 1,780 screen reader users, in July and August 2026, 59.3% said they commonly use NVDA, second only to JAWS, at 69.2% ([WebAIM's Screen Reader User Survey #11](https://webaim.org/projects/screenreadersurvey11/)). Every screen reader gets a page from the same place, what the browser makes of its code, so a button with no name has no name in JAWS either, and a link that says only "click here" says it in every screen reader. And because NVDA is free, anyone can hear what voicecap heard: an auditor, a vendor, or a developer can repeat a run on their own PC, with no screen reader license to buy.
 
@@ -251,6 +251,7 @@ The "Unlabeled graphic" in two of those lines is the one problem the report find
   - [Can I trust this?](#can-i-trust-this)
   - [Technical details](#technical-details)
   - [What's New](#whats-new)
+  - [Linking to the results from another website: sites.json](#linking-to-the-results-from-another-website-sitesjson)
   - [What the build reads, and what it leaves out](#what-the-build-reads-and-what-it-leaves-out)
   - [The files it writes, and the headers](#the-files-it-writes-and-the-headers)
   - [Publishing it, and the demo](#publishing-it-and-the-demo)
@@ -2122,6 +2123,39 @@ Here is the top of the page, in the dark theme it opens in, through its first tw
 
 </details>
 
+### Linking to the results from another website: `sites.json`
+
+From 0.20.0, every build writes `sites.json` at the website's top: each site the front page shows, in its order, as JSON, for another website that links to the results. ICJIA's documentation index reads it each time it builds, and gives each site's part of the index an "NVDA Accessibility" card with the current report's date and verdict. voicecap's website tells the index to build again each time it deploys: a Netlify build hook, which the website's "Deploy succeeded" notification calls.
+
+```json
+{
+  "format": 1,
+  "sites": [
+    {
+      "name": "dvfr.illinois.gov",
+      "address": "https://dvfr.illinois.gov/",
+      "href": "./#site-dvfr.illinois.gov",
+      "current": {
+        "shared": "2026-10-03T14:05:00-05:00",
+        "status": "ok",
+        "verdict": "Nothing needs attention",
+        "reading": "NVDA read all 9 pages.",
+        "page": "dvfr.illinois.gov/dvfr.illinois.gov_2026-10-03.html"
+      }
+    }
+  ]
+}
+```
+
+- **`format`** is 1. A change to what's here would come with another number; a field added beside these keeps 1.
+- **`sites`** are the front page's sites, in its order. The demo is never one.
+- **`name`** is the name the page heads the site with: its canonical name (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)), or else its folder's.
+- **`address`** is the root people visit the site at, the one that names it, or `null` for a site its folder names.
+- **`href`** is the site's part of the front page, relative to `sites.json`: `./#site-` and its name, as the page writes it. That part always leads with the site's newest report, so it's the one link to keep.
+- **`current`** is the site's current report: `shared`, when it was shared, as recorded (a local date and time with its offset from UTC); `status` (`ok`, `warn`, or `bad`), `verdict`, and `reading`, as its card says them, or `null` for a report that records no result (one shared before 0.12.3); and `page`, its page, from the website's top, or `null` when the build left it out.
+
+Every link in it is relative to the file, as `llms.txt`'s are: the build knows no address of the website. It holds nothing of the build's own time, so the same records and the same voicecap write the same bytes.
+
 ### What the build reads, and what it leaves out
 
 <details>
@@ -2138,7 +2172,7 @@ Here is the top of the page, in the dark theme it opens in, through its first tw
 - **An entry whose seal no longer holds,** or whose fields aren't what voicecap records, and a `shares.json` that can't be read. The site shows nothing of it. Only the build's output names it.
 - **A copy that has changed since it was shared, is missing, can't be read, or isn't a regular file** (a link or a folder, say). The report's other files are still published, and under the report the site says that `<name> isn't here`, and why.
 - **A name voicecap never gives.** Only files whose names end in a lower-case `.html`, `.docx`, `.md`, or `.json` are published, and only when they and their folder are named as voicecap names them: letters, digits, `.`, `_`, and `-` (lower case for a site's folder), with no dot at the start or end of a file's name. A file named `index.html` is left out too, since Netlify would serve it at its site folder's own address, where it would have no Content Security Policy. A name that holds a path, such as `../notes.txt`, is never read.
-- **A site folder named `demo`,** which would take the demo's place on the site. One named `demo-site`, `index.html`, `trust.html`, `trust`, `technical-details.html`, `technical-details`, `whats-new.html`, `whats-new`, `llms.txt`, `robots.txt`, `_headers`, or `_redirects` is left out too: it would take the place of the site's own folder or file (`trust`, `technical-details`, and `whats-new` are the addresses those pages answer at, besides their `.html` ones).
+- **A site folder named `demo`,** which would take the demo's place on the site. One named `demo-site`, `index.html`, `trust.html`, `trust`, `technical-details.html`, `technical-details`, `whats-new.html`, `whats-new`, `llms.txt`, `sites.json`, `robots.txt`, `_headers`, or `_redirects` is left out too: it would take the place of the site's own folder or file (`trust`, `technical-details`, and `whats-new` are the addresses those pages answer at, besides their `.html` ones).
 - **A `voicecap-demo` that isn't a folder.** Git for Windows checks a committed link out as a plain file, so a file can be where the folder should be. The site is built without a demo.
 
 **The folder it builds into** is emptied first, so voicecap builds only into a folder it can be sure of. That's a folder that's new or empty, or one an earlier build made: its `_headers` starts with voicecap's own line.
@@ -2167,6 +2201,7 @@ Error: voicecap site won't build into C:\Users\jane\code\voicecap-transcripts\no
 - **A folder for each site, and `demo/`,** holding the files of their reports, with the names they were shared under. A report's files stay in the folder they were shared in, so two folders that name one site can hold files of one name, and neither takes the other's place.
 - **`demo-site/`:** the demo site's own pages and style sheet, copied from voicecap byte for byte, with a folder for each page, and a `sitemap.xml` that lists the pages at their canonical address. Every build writes it, whether or not the home has a share of the demo.
 - **`llms.txt`:** the website's file for AI tools (see [The report for AI tools](#the-report-for-ai-tools)): each site's current report's Markdown and JSON, when it has them, with relative links.
+- **`sites.json`:** each site, the link to its part of the front page, and its current report's date and verdict, as JSON, for another website that links to the results (see [Linking to the results from another website](#linking-to-the-results-from-another-website-sitesjson)).
 - **`robots.txt`:** `User-agent: *` and `Disallow: /`, which asks every bot to stay away. `llms.txt` doesn't change that: it's for a tool a person points at the website. Some AI tools honor `robots.txt` even when a person asks them to read a page, so they won't read `llms.txt` or the files from the website; others may. Saving the file from the report's card and giving it to the tool works with any of them.
 - **`_headers`:** Netlify's file of headers, with a rule for each path.
   - Each report's page gets its own Content Security Policy, made from the SHA-256 of that page's own style and script: `default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`. The page's own code runs, and nothing else does. It loads nothing from outside, makes no connection, and can't be put in a frame. A report embeds its fonts, so its policy allows fonts as `data:`. Each page was made by the voicecap that shared it, so each is hashed from its own bytes.
@@ -2175,6 +2210,7 @@ Error: voicecap site won't build into C:\Users\jane\code\voicecap-transcripts\no
   - Each of the demo's own pages gets a policy of its own, at every address it answers at: `default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`. The pages have a style sheet beside them and a form that goes to a page of their own, and no script.
   - Each Word copy and walkthrough file gets `Content-Disposition: attachment`, so a browser downloads it.
   - Each report for AI tools gets its type, `Content-Type: text/markdown; charset=utf-8` for the Markdown and `Content-Type: application/json; charset=utf-8` for the JSON, and the same policy for both, `Content-Security-Policy: default-src 'none'; sandbox`, which lets nothing in either load or run. It has no `Content-Disposition`, so a browser can show it.
+  - `sites.json` gets the type and the policy a share's JSON gets: `Content-Type: application/json; charset=utf-8` and `Content-Security-Policy: default-src 'none'; sandbox`.
   - Its first line, `# Made by voicecap site. Each build empties this folder and writes it again.`, is how a later build knows the folder is one it made.
 - **`_redirects`:** Netlify's file of redirects. The page of each share the site no longer shows (each site's shares beyond its newest three) sends its reader on to the site's current report, with a 302: at the page's own address, and at the same without `.html`, which is how Netlify serves a page too. A browser doesn't keep a 302, as it would a 301, so the next build can send the address on to a newer report. When the current report's page isn't published, it sends them to the site's front page instead. Only a report's page is sent on: an older share's voice page, like its Word copy, isn't redirected, and answers 404 once the share is off the site. Netlify follows a rule only where no file is published, so an address a newer share publishes is never sent on. The file's first line is a comment that says what it's for, and when every share is on the site, it's the only line.
 

@@ -585,6 +585,10 @@ export const TECHNICAL_TEXT = {
             { code: "llms.txt" },
             " at the website's top, which lists, for AI tools, each site's current report as Markdown and as JSON, when it has them.",
           ],
+          [
+            { code: "sites.json" },
+            " at the website's top, which lists each site, the link to its part of the front page, and its current report's date and verdict, for another website to link to.",
+          ],
           ["Anything else is left out, and the build names it."],
         ],
       },

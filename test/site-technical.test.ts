@@ -807,6 +807,10 @@ describe("renderTechnical", () => {
     expect(website).toContain(
       "llms.txt at the website's top, which lists, for AI tools, each site's current report as Markdown and as JSON, when it has them.",
     );
+    // sites.json, beside it, lists each site for another website that links to the results.
+    expect(website).toContain(
+      "sites.json at the website's top, which lists each site, the link to its part of the front page, and its current report's date and verdict, for another website to link to.",
+    );
 
     // The commands say what their code does.
     const jobs = Object.fromEntries(TECHNICAL_TEXT.commands.map(({ name, job }) => [name, job]));

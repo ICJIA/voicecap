@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **`sites.json`, the website's sites as JSON, for another website that links to the results.** Every build of the website writes it at its top, beside `llms.txt`: each site the front page shows, in its order, with its name, the address it's visited at, the link to its part of the front page, and its current report's time, verdict, and page, as the site's card says them. ICJIA's documentation index reads it to give each site an "NVDA Accessibility" card that stays current. It's sent as JSON, with the policy a share's JSON has, and a site folder named `sites.json` is left out, as one named `llms.txt` is. Technical details and the README say what it holds.
+
 ## [0.19.0] - 2026-10-15
 
 The voice page now slows a recording with voicecap's own stretcher, made in the reader's browser, at 0.75×, 0.5×, and 0.3×, for a clearer slow-down than the browser's own.
