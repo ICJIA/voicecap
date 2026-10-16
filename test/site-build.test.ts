@@ -51,7 +51,12 @@ import {
 import { netlifyToml, NVMRC } from "../src/site/netlify.js";
 import { DEMO_SITE, readSiteRecords } from "../src/site/records.js";
 import type * as RecordsModule from "../src/site/records.js";
-import { renderLlmsTxt, renderSiteIndex } from "../src/site/render.js";
+import {
+  renderLlmsTxt,
+  renderSiteIndex,
+  renderSitesJson,
+  type SitesJson,
+} from "../src/site/render.js";
 import type * as RenderModule from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { renderTechnical } from "../src/site/technical.js";
@@ -231,7 +236,7 @@ const FIRST_WORD = `${FIXTURE_NAME}_2027-01-15.docx`;
 const FIRST_WORD_PATH = `${FIXTURE_FOLDER}/share/${FIRST_WORD}`;
 /**
  * The files a build writes at the site's top besides each report's: its four pages, llms.txt for AI
- * tools, robots.txt, _redirects, and _headers.
+ * tools, sites.json for another website, robots.txt, _redirects, and _headers.
  */
 const SITE_OWN_FILES = [
   "_headers",
@@ -239,6 +244,7 @@ const SITE_OWN_FILES = [
   "index.html",
   "llms.txt",
   "robots.txt",
+  "sites.json",
   "technical-details.html",
   "trust.html",
   "whats-new.html",
@@ -727,6 +733,13 @@ describe("buildSite", () => {
       ["/whats-new", [[CSP, whatsNewPolicy]]],
       ["/technical-details.html", [[CSP, technicalPolicy]]],
       ["/technical-details", [[CSP, technicalPolicy]]],
+      [
+        "/sites.json",
+        [
+          ["Content-Type", "application/json; charset=utf-8"],
+          [CSP, AI_FILE_POLICY],
+        ],
+      ],
       ...DEMO_RULES,
     ];
     for (const file of filesOf(content)) {
@@ -758,10 +771,10 @@ describe("buildSite", () => {
       }
     }
     expect(rules).toEqual(expected);
-    // The index, the trust page, What's New, and Technical details at two addresses each, the
-    // demo's twenty-three addresses, four pages at two addresses each, ten downloads, and the
-    // six files for AI tools (the Markdown and the JSON of each of three shares).
-    expect(rules).toHaveLength(2 + 2 + 2 + 2 + 23 + 4 * 2 + 4 + 6 + 3 * 2);
+    // The index, the trust page, What's New, and Technical details at two addresses each,
+    // sites.json, the demo's twenty-three addresses, four pages at two addresses each, ten
+    // downloads, and the six files for AI tools (the Markdown and the JSON of each of three shares).
+    expect(rules).toHaveLength(2 + 2 + 2 + 2 + 1 + 23 + 4 * 2 + 4 + 6 + 3 * 2);
 
     // A page's policy is its own: the page written by hand has a script and a style no other has.
     const written = rules.find(
@@ -936,8 +949,8 @@ describe("buildSite", () => {
       ["/technical-details.html", [[CSP, policy]]],
       ["/technical-details", [[CSP, policy]]],
     ]);
-    // They come after What's New's two rules, and before the demo's.
-    expect(rules.slice(0, 9).map(([rulePath]) => rulePath)).toEqual([
+    // They come after What's New's two rules, and before sites.json's and the demo's.
+    expect(rules.slice(0, 10).map(([rulePath]) => rulePath)).toEqual([
       "/",
       "/index.html",
       "/trust.html",
@@ -946,6 +959,7 @@ describe("buildSite", () => {
       "/whats-new",
       "/technical-details.html",
       "/technical-details",
+      "/sites.json",
       DEMO_ADDRESSES[0],
     ]);
   });
@@ -1097,7 +1111,7 @@ describe("buildSite", () => {
     ]);
   });
 
-  it("writes the same four pages and llms.txt for the same records and facts, whatever the day", async () => {
+  it("writes the same four pages, llms.txt, and sites.json for the same records and facts, whatever the day", async () => {
     const home = await newHome();
     const pages = [
       "index.html",
@@ -1105,6 +1119,7 @@ describe("buildSite", () => {
       "whats-new.html",
       "technical-details.html",
       "llms.txt",
+      "sites.json",
     ];
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
@@ -1492,6 +1507,56 @@ describe("buildSite", () => {
       expect((await filesUnder(out)).filter((file) => file.startsWith("llms.txt/"))).toEqual([]);
       // The rest of the site is built as ever.
       expect(await readFile(path.join(out, "robots.txt"), "utf8")).toBe(ROBOTS_TXT);
+    });
+
+    it("writes sites.json: each site, the link to its section of the page, and its current report", async () => {
+      const home = await newHome();
+
+      const { out, content } = await build(home);
+
+      const text = await readFile(path.join(out, "sites.json"), "utf8");
+      expect(text).toBe(renderSitesJson(content));
+      const { format, sites } = JSON.parse(text) as SitesJson;
+      expect(format).toBe(1);
+      expect(sites.map(({ name }) => name)).toEqual(content.sites.map(({ name }) => name));
+      // The fixture site's current report is its second share, with its verdict as its card says it.
+      const fixture = sites.find(({ name }) => name === FIXTURE_NAME);
+      expect(fixture?.current).toMatchObject({
+        verdict: "5 problems need attention, on 2 pages",
+        page: `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.html`,
+      });
+      // Each link goes to a section of the page this build wrote, and each page is one it published.
+      const index = await readFile(path.join(out, "index.html"), "utf8");
+      for (const { href, current } of sites) {
+        expect(href.startsWith("./#"), href).toBe(true);
+        expect(index, href).toContain(`id="${href.slice("./#".length)}"`);
+        if (current?.page != null) expect(existsSync(path.join(out, current.page))).toBe(true);
+      }
+    });
+
+    // A folder named sites.json would take the place of the file, as one named llms.txt would: it
+    // isn't published, and the file is the site's own.
+    it("leaves out a site folder named sites.json", async () => {
+      const home = await newHome();
+      const siteDir = path.join(home, "sites.json");
+      const page = Buffer.from("<!doctype html><title>sites.json</title>");
+      await mkdir(path.join(siteDir, "2027-01-12"), { recursive: true });
+      await mkdir(path.join(siteDir, "share"), { recursive: true });
+      await writeFile(path.join(siteDir, "share", "sites.json_1.html"), page);
+      await writeRecord(siteDir, [
+        sealedEntry(1, EXAMPLE_AT, [recordOf("sites.json_1.html", page)]),
+      ]);
+
+      const { out, content, leftOut, logger } = await build(home);
+
+      expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
+      const line =
+        "sites.json: not published: a site folder named sites.json would take the place of the site's own sites.json";
+      expect(leftOut).toEqual([line]);
+      expect(warned(logger)).toEqual([line]);
+      expect((await lstat(path.join(out, "sites.json"))).isFile()).toBe(true);
+      expect(await readFile(path.join(out, "sites.json"), "utf8")).toBe(renderSitesJson(content));
+      expect((await filesUnder(out)).filter((file) => file.startsWith("sites.json/"))).toEqual([]);
     });
   });
 
@@ -3335,7 +3400,8 @@ describe("buildSite", () => {
       );
       // Only the site's own files, and the demo's own pages, which are the site's whether or not
       // any report is shared; and each page's policy at its two addresses (the site's, the trust
-      // page's, What's New's, then Technical details'), then each of the demo's.
+      // page's, What's New's, then Technical details'), then sites.json's rule, then each of the
+      // demo's.
       expect(await filesUnder(out)).toEqual(
         [...SITE_OWN_FILES, ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`)].sort(),
       );
@@ -3352,6 +3418,7 @@ describe("buildSite", () => {
         "/whats-new",
         "/technical-details.html",
         "/technical-details",
+        "/sites.json",
         ...DEMO_ADDRESSES,
       ]);
       // It still has its pages: a website with no report yet draws What's New and Technical
@@ -3854,6 +3921,13 @@ describe("buildSite", () => {
         ["/whats-new", await own("whats-new.html")],
         ["/technical-details.html", await own("technical-details.html")],
         ["/technical-details", await own("technical-details.html")],
+        [
+          "/sites.json",
+          [
+            ["Content-Type", "application/json; charset=utf-8"],
+            [CSP, AI_FILE_POLICY],
+          ],
+        ],
         ...DEMO_RULES,
       ];
       // Each kind with its own rules: the pages their policies, the voice page's with media; the Word
@@ -4337,7 +4411,7 @@ describe("buildSite", () => {
         expect((await readFile(path.join(out, folder, ...rest))).equals(shared), href).toBe(true);
       }
       // And each page has its own rules in _headers, at both its addresses, after the index's, the
-      // trust page's, What's New's, Technical details', and the demo's own pages'.
+      // trust page's, What's New's, Technical details', sites.json's, and the demo's own pages'.
       const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
         ([rulePath]) => rulePath,
       );
@@ -4350,6 +4424,7 @@ describe("buildSite", () => {
         "/whats-new",
         "/technical-details.html",
         "/technical-details",
+        "/sites.json",
         ...DEMO_ADDRESSES,
         `/${NAME}/${page}`,
         `/${NAME}/${page.replace(/\.html$/, "")}`,

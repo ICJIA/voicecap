@@ -19,7 +19,7 @@ import { parseSitemapXml } from "../src/pages/sitemap.js";
 import { readShares } from "../src/share/shares.js";
 import { buildSite, type BuildSiteResult } from "../src/site/build.js";
 import { contentSecurityPolicy, inlineHashes } from "../src/site/headers.js";
-import type { SiteContent } from "../src/site/render.js";
+import type { SiteContent, SitesJson } from "../src/site/render.js";
 import { sha256 } from "../src/util/hash.js";
 import { silentLogger } from "../src/util/log.js";
 import { launchBrowser } from "./helpers/axe.js";
@@ -472,6 +472,35 @@ describe("the site, served as Netlify serves it", () => {
     expect(links).toHaveLength(4);
     for (const href of links) {
       expect((await page.request.get(new URL(href, server.url).href)).status(), href).toBe(200);
+    }
+  });
+
+  it("serves sites.json as JSON, at the site's top, with each link answering", async () => {
+    const page = await newPage();
+    const address = new URL("sites.json", server.url).href;
+
+    const response = await page.request.get(address);
+
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toBe("application/json; charset=utf-8");
+    expect(response.headers()["content-security-policy"]).toBe("default-src 'none'; sandbox");
+    const text = await response.text();
+    expect(text).toBe(await readFile(path.join(built.out, "sites.json"), "utf8"));
+    const { sites } = JSON.parse(text) as SitesJson;
+    expect(sites.length).toBeGreaterThan(0);
+    // Each site's link, read from sites.json's own address, is the front page's, at the id of an
+    // element on it; each current report's page answers.
+    await page.goto(new URL("index.html", server.url).href);
+    for (const { href, current } of sites) {
+      const link = new URL(href, address);
+      expect(link.pathname, href).toBe("/");
+      expect(await page.locator(`[id="${decodeURIComponent(link.hash.slice(1))}"]`).count()).toBe(
+        1,
+      );
+      if (current?.page != null) {
+        const pageResponse = await page.request.get(new URL(current.page, address).href);
+        expect(pageResponse.status(), current.page).toBe(200);
+      }
     }
   });
 

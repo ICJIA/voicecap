@@ -49,7 +49,8 @@
  * pages at their canonical address: see DEMO_CANONICAL), the site's page (index.html), the trust
  * page (trust.html: see ./trust.ts), What's New (whats-new.html: see ./whats-new.ts), Technical
  * details (technical-details.html: see ./technical.ts), llms.txt (see renderLlmsTxt in
- * ./render.ts), robots.txt, _redirects, and _headers, which gives each page its Content Security
+ * ./render.ts), sites.json (see renderSitesJson there), robots.txt, _redirects, and _headers, which
+ * gives each page its Content Security
  * Policy, made from the hashes of that page's own bytes (the site's page at "/" and "/index.html",
  * the trust page at "/trust.html" and "/trust", What's New at "/whats-new.html" and "/whats-new",
  * and Technical details at "/technical-details.html" and "/technical-details", whose policies
@@ -59,7 +60,7 @@
  * `media-src data: blob:` and no other page has), the demo's pages theirs at each address they
  * answer at (see demoSiteRules), each download its Content-Disposition, and each report for AI
  * tools its type and a policy of its own: a share's Markdown and JSON are read in the browser, not
- * saved. In the home it writes .gitattributes and .gitignore when they aren't there, as a run does,
+ * saved, and sites.json has the JSON's. In the home it writes .gitattributes and .gitignore when they aren't there, as a run does,
  * so a home's first build keeps _site/ out of Git with the rest of what voicecap keeps out, then
  * netlify.toml and .nvmrc the first time. None of them is ever written again.
  */
@@ -114,6 +115,7 @@ import {
   fileKind,
   renderLlmsTxt,
   renderSiteIndex,
+  renderSitesJson,
   type PublishedFile,
   type PublishedReport,
   type SiteContent,
@@ -189,12 +191,17 @@ const TECHNICAL_SHORT = TECHNICAL_FILE.slice(0, -".html".length);
 /** The file for AI tools, at the site's top (see renderLlmsTxt in ./render.ts). */
 const LLMS_FILE = "llms.txt";
 /**
+ * The file of the sites, for another website that links to their results, at the site's top (see
+ * renderSitesJson in ./render.ts).
+ */
+const SITES_FILE = "sites.json";
+/**
  * The site's own files and folders at its top, which a site folder of the same name would take the
  * place of. The demo's pages are one: a site folder named so would be published among them, and a
  * file of one name would take another's place. The trust page is two names: a folder named for its
  * file would take its place, and one named for its short address would be served where the page
- * itself is. So are What's New and Technical details. llms.txt is one, as robots.txt is: a folder
- * named for it would be served where the file is.
+ * itself is. So are What's New and Technical details. llms.txt and sites.json are one each, as
+ * robots.txt is: a folder named for one would be served where the file is.
  */
 const OWN_FILES: ReadonlySet<string> = new Set([
   "index.html",
@@ -205,6 +212,7 @@ const OWN_FILES: ReadonlySet<string> = new Set([
   TECHNICAL_FILE,
   TECHNICAL_SHORT,
   LLMS_FILE,
+  SITES_FILE,
   "robots.txt",
   HEADERS_FILE,
   REDIRECTS_FILE,
@@ -246,7 +254,8 @@ function unreadable(error: unknown): Unpublished {
 /**
  * Build the site of the transcripts home: refuse a folder it mustn't empty, empty it, publish each
  * file of each site's newest shares that still matches its record, and write the site's page, the
- * trust page, What's New, Technical details, llms.txt, robots.txt, _redirects, and _headers beside
+ * trust page, What's New, Technical details, llms.txt, sites.json, robots.txt, _redirects, and
+ * _headers beside
  * them, then .gitattributes, .gitignore, netlify.toml, and .nvmrc in the home when they aren't
  * there. Each thing left out is warned of, each site's older shares are counted, and the last line
  * says what was built. Refuses with a UsageError when the home isn't a folder, and when the folder
@@ -388,6 +397,8 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   await writeFile(path.join(out, TECHNICAL_FILE), technical);
   // For AI tools: each site's current report's Markdown and JSON, from what was just published.
   await writeFile(path.join(out, LLMS_FILE), renderLlmsTxt(content));
+  // For another website that links to the results: each site, and its current report.
+  await writeFile(path.join(out, SITES_FILE), renderSitesJson(content));
   await writeFile(path.join(out, "robots.txt"), ROBOTS_TXT);
   await writeFile(path.join(out, REDIRECTS_FILE), redirectsFile(redirectRules(kept, sites)));
   // The demo's own pages' rules are made from the files just published, so that none is left out.
@@ -1047,7 +1058,8 @@ function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
 /**
  * The rules of _headers: the index at both its addresses, the trust page, What's New, and Technical
  * details at both their own, each with the policy of that page's own bytes (`pages`, the text of
- * each), which allows no font, since the website's own pages embed none; the demo's own pages' rules
+ * each), which allows no font, since the website's own pages embed none; sites.json, with a share's
+ * JSON's type and policy; the demo's own pages' rules
  * (`demoRules`, made by demoSiteRules: a rule for each address a page answers at); then each
  * published file's, in the order the site lists them (the demo's report first, then each site's
  * reports as they're shown), a report's page allowing the fonts it embeds, and a voice page the
@@ -1072,6 +1084,13 @@ function headerRules(
     { path: `/${WHATS_NEW_SHORT}`, headers: [[POLICY_HEADER, whatsNewPolicy]] },
     { path: `/${TECHNICAL_FILE}`, headers: [[POLICY_HEADER, technicalPolicy]] },
     { path: `/${TECHNICAL_SHORT}`, headers: [[POLICY_HEADER, technicalPolicy]] },
+    {
+      path: `/${SITES_FILE}`,
+      headers: [
+        [TYPE_HEADER, JSON_TYPE],
+        [POLICY_HEADER, AI_FILE_POLICY],
+      ],
+    },
     ...demoRules,
   ];
   const seen = new Set(rules.map((rule) => rule.path));
