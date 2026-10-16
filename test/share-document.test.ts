@@ -914,18 +914,21 @@ describe("renderSharePage", () => {
     // Prepare 0.19.0 re-pinned all three for the timeline's 0.19.0 row. Each page grew by
     // 237 characters, and each Word copy's blocks by 212, the same for all three, as a timeline
     // row gives.
+    // Prepare 0.20.0 re-pinned all three for the timeline's 0.20.0 row. Each page grew by
+    // 255 characters, and each Word copy's blocks by 230, the same for all three, as a timeline
+    // row gives.
     const before = {
       i2i: {
-        page: [218_729, "62608944bd59fdafce306bbcab63cbfe497e595eb53aa0870544bec9f7e86c15"],
-        word: [60_216, "def695902bb031ea52ff5dd3c061c5459161f469f2dbca9d5abdf7e69b5b6920"],
+        page: [218_984, "f6d729dfc10968c15f3e90eead49efa768fb1fb8b43d15fd2f01a427ed11c916"],
+        word: [60_446, "4887bb2a3a055d81bc5558bc998d50e9a001dc42137af119b6f35f5c732fffa3"],
       },
       demo: {
-        page: [253_271, "a89aa7983eec9cdb48e339145288cfc72e8cb1198ce60cda18449669a07f0b62"],
-        word: [83_054, "3a493a6d688fc450a46fe974aea4f66d28e89476ec7487499df463f04f8f70bc"],
+        page: [253_526, "a27c15740a5403af9576fd531e88ab1d4287759c8cc73df8ffd42949f15278f8"],
+        word: [83_284, "93afa869bac76acf84122f1e5d2a9211bfbcbda96479d2ccd383d4dd5f225d29"],
       },
       logged: {
-        page: [135_659, "2e177bad43a6bb9fbe626813543583ee0b8364b8c08725ecfff9718dc5e2f74c"],
-        word: [41_718, "4459560e084862d1d2dabdedd651796005bd1b7e3e9b664d40d3f85cd63b0d12"],
+        page: [135_914, "9f9c6b5c569f78bf3cc49b86462da8ee33bb92ba02bf1200230a7f82c5365426"],
+        word: [41_948, "b7aeea1864133267b7d6cac67744aa74cecf71091c8f1b46a04439307877e352"],
       },
     };
     const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };

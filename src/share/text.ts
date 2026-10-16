@@ -1572,6 +1572,13 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.19.0</b>: a clearer slow-down of NVDA's voice: voicecap's own stretcher, in the reader's browser, at 0.75×, 0.5×, and 0.3×.",
   },
   {
+    date: "2026-10-16",
+    release: "0.20.0",
+    pc: null,
+    mac: null,
+    both: "<b>0.20.0</b>: sites.json, each site's current report as JSON, for another website that links to the results, such as ICJIA's documentation index.",
+  },
+  {
     date: null,
     release: null,
     pc: null,
