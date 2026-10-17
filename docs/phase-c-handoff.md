@@ -238,7 +238,7 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.19.0 on npm, released 2026-10-15 (tag `v0.19.0`), from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.20.0 on npm, released 2026-10-16 (tag `v0.20.0`), from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
@@ -350,6 +350,12 @@ The owner's standing rules, from Phases A and B:
     - In Safari, a slowed copy's `play()` comes seconds after the click, outside a user gesture, and may be refused after the first player has been paused, so the speech would stop instead of playing on (`put()` in `src/share/voice-page.ts` catches the refusal, but by then the first player is paused).
     - In Safari, a hidden second player keeps the address of a copy that was let go (revoked) until its section shows another copy: harmless in Chrome. If Safari shows load errors for it, clear that player's `src` when its copy goes.
     - Whether Safari decodes voicecap's WebM/Opus in a page script at all is untried; the page's fallback to the browser's own slow-down covers it.
+  - 0.20.0 (2026-10-16) is plan 15, `sites.json` (`docs/superpowers/plans/2026-10-16-sites-json-plan-15.md`): every build of the website writes, at its top, each site the front page shows, with its address, the link to its part of the front page (`./#site-…`), and its current report's time, verdict, and page, as JSON (format 1), for another website that links to the results. The owner asked on 2026-10-16 for docs.icjia.app, ICJIA's documentation index (`ICJIA/icjia-docs`, private, behind a site-wide password), to carry an "NVDA Accessibility" card for each site, kept current on every deploy of voicecap's website:
+    - icjia-docs 1.23.0's `build.js` reads `sites.json` on every build and makes the cards; voicecap's Netlify "Deploy succeeded" notification calls an icjia-docs build hook ("voicecap deploys"), so each voicecap deploy rebuilds the index. The hook's address stays in Netlify.
+    - The owner's rules: a card goes only in a section that already exists ("i need to add it to docs first, then you can add the voicecap card"), so r3.illinois.gov waits for its section; i2i's section takes the branch deploy, `v3--i2i.netlify.app` (`voicecapSites` in its `docs.json`), which will become i2i.illinois.gov; and a section that matches several sites shows the one shared last.
+    - The website builds with 0.20.0 from the transcripts repository's commit 0708195, made on GitHub from the Mac: pull on the PC before the next share.
+    - Released from the Mac, with the owner's code typed at `publish.sh`'s prompt.
+    - The same day, the README's "Why voicecap, and who it's for" opened with four parts for managers: two different checks (axe and Siteimprove check the code; voicecap has NVDA read it aloud), why the sound matters (and why NVDA, with WebAIM's 2026 survey), why not just use NVDA, and how it's different.
 - **Being built:** each plan written when the owner says:
   - plan 6d, queued for later ("eventually"): an optional double check that re-reads some pages, compares the reads, and reads again on a mismatch, so the page can say a page read the same twice.
   - **The owner's decisions of 2026-10-05 and 2026-10-10:** the VoiceOver work on the Mac (Phase C) waited until the PC work was finished, which 0.18.0 did on 2026-10-14. Phase C is built next, and a separate security audit of the Mac part follows. The Guidepup 0.35.0 upgrade (VoiceOver fixes, macOS 27) goes with that work; it will need a short check at the PC too.
