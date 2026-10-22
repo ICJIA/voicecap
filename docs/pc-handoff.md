@@ -1,6 +1,6 @@
-# PC handoff: r3.illinois.gov again, with 0.20.0
+# PC handoff: the Guidepup 0.36.4 branch's checks, and r3.illinois.gov again
 
-This file was written on the Mac on 2026-10-17, for the next working session on the owner's Windows PC. Notes kept on the Mac don't travel, so everything the PC session needs is here. `docs/phase-c-handoff.md` has the full history, under "Where things stand".
+This file was written on the Mac on 2026-10-17, and brought up to date there on 2026-10-22 on the branch `guidepup-0.36`, for the next working session on the owner's Windows PC. Notes kept on the Mac don't travel, so everything the PC session needs is here. `docs/phase-c-handoff.md` has the full history, under "Where things stand".
 
 ## What changed on the Mac
 
@@ -11,17 +11,27 @@ The PC's last session was 0.19.0's, on 2026-10-15. Since then, on the Mac:
 - **The transcripts repository** builds the website with 0.20.0: commit 0708195, made on GitHub from the Mac. The PC's copy doesn't have it yet.
 - **The README's** "Why voicecap, and who it's for" opens with four parts for managers.
 
+Then, on 2026-10-22:
+
+- **The Mac moved to macOS 27** (27.0.1). 0.20.0's Mac checks call it "macOS 28" and fail it, and macOS 27 has no VoiceOverStarter, which started VoiceOver until then.
+- **The branch `guidepup-0.36`** moves to Guidepup 0.36.4 and `@guidepup/setup` 0.29.3 for macOS 27, and drops the plain-folder rule for Guidepup's NVDA (the owner's choice). It's pushed, and CI passes, but it isn't merged or released: it needs the PC's checks first (below).
+- **The Mac's live test now passes or fails by chance.** Guidepup's start restarts macOS's preferences daemon twice, and launchd holds the daemon back for 10 seconds, which VoiceOver's start doesn't survive within Guidepup's 5-second limits. The fix belongs in Guidepup: `docs/guidepup-cfprefsd-issue-draft.md` is a draft issue for the owner to file. NVDA isn't affected.
+
 ## How to start
 
 On the PC, in PowerShell or Windows Terminal (not Git Bash's own window):
 
-1. In the voicecap folder:
+1. In the voicecap folder, switch to the branch, then install and build it:
 
    ```
+   git fetch
+   git checkout guidepup-0.36
    git pull
    pnpm install
    pnpm build
    ```
+
+   `pnpm install` brings Guidepup 0.36.4. It uses the same NVDA build as 0.34.0 (0.2.1-2026.2), so no new NVDA downloads.
 
 2. In the transcripts home, before anything is run or shared, pull 0708195. Without it, the next push is refused:
 
@@ -34,7 +44,7 @@ On the PC, in PowerShell or Windows Terminal (not Git Bash's own window):
 
 Then start from this brief:
 
-> I'm back on the Windows PC to continue voicecap. Read `docs/pc-handoff.md` first, and follow the "Working rules" in `docs/phase-c-handoff.md` exactly. Don't start NVDA, or run anything that starts a screen reader, until I say so.
+> I'm back on the Windows PC to continue voicecap, on the branch `guidepup-0.36`. Read `docs/pc-handoff.md` first, and follow the "Working rules" in `docs/phase-c-handoff.md` exactly. Don't start NVDA, or run anything that starts a screen reader, until I say so.
 
 ## Working rules
 
@@ -44,7 +54,26 @@ All of the owner's standing rules are in `docs/phase-c-handoff.md` ("Working rul
 - **Commit, push, or publish only when the owner asks.** Commit messages are one subject line, with no trailers of any kind.
 - **Never use or repeat a password or PIN** pasted into the chat.
 
+## First: the branch's checks, with NVDA
+
+Each of these starts NVDA, so each needs the owner's OK, with the usual warning. They run the branch's build (`node dist/cli.js`), in the voicecap folder. `docs/phase-c-handoff.md` ("Still to check at the PC, before a release") lists what to watch for.
+
+1. **`node dist/cli.js doctor`.** Its live test starts Guidepup 0.36.4's NVDA. Every check should pass, with no warning printed as NVDA starts or stops.
+2. **A real run with NVDA:** `node dist/cli.js demo`, the guided tour, about 7 minutes hands off. Its files go in `voicecap-demo` (git ignores it), never in the transcripts home. Afterwards, check in Task Manager that no voicecap `nvda.exe` or Chromium is left, and that the owner's own NVDA is back as it was.
+3. **NVDA from a folder whose path has a space and `&`.** In a new PowerShell window, in the voicecap folder:
+
+   ```
+   $env:GUIDEPUP_SCREEN_READERS_PATH = "C:\guidepup test & more"
+   node dist/cli.js setup
+   node dist/cli.js doctor
+   ```
+
+   setup installs NVDA there (about 100 MB), and doctor's live test starts NVDA from there. Then close that window, so nothing else uses the variable, and delete `C:\guidepup test & more`.
+4. **Record the results** in `docs/phase-c-handoff.md` ("Guidepup 0.36.4, for macOS 27"). If all pass, a release is the owner's call: it fixes the Mac's checks on macOS 27, though the Mac's live test stays unreliable until Guidepup fixes its restarts.
+
 ## Next: r3.illinois.gov, read again with 0.20.0
+
+This runs the published 0.20.0 through npx, from the transcripts home, so the branch checked out in the voicecap folder doesn't affect it.
 
 The owner asked on 2026-10-16, on the Mac: "please also do a voicecap on r3.iillinois.gov", meaning r3.illinois.gov. It needs NVDA, so it waited for the PC.
 
@@ -74,7 +103,6 @@ r3.illinois.gov has no section on docs.icjia.app yet, so it has no card. The own
 
 ## Also at the PC, when the owner wants
 
-- **The branch `guidepup-0.36`** (Guidepup 0.36.4, for macOS 27, pushed 2026-10-22) needs checks at the PC before any release: a real run with NVDA, and NVDA started from a folder whose path has a space. They're in `docs/phase-c-handoff.md` ("Where things stand", "Still to check at the PC").
 - **Still to confirm on a real PC** (`docs/phase-c-handoff.md`, "Being built"):
   - a Chrome window closed mid-page is recorded as `browser`;
   - a real repeat with NVDA, which should end with each page's comparison.
