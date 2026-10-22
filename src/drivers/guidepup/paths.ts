@@ -53,7 +53,7 @@ export function readGuidepupPackage(): GuidepupPackage {
 }
 
 /**
- * Where Guidepup keeps its portable NVDA build. Mirrors @guidepup/guidepup 0.34.0
+ * Where Guidepup keeps its portable NVDA build. Mirrors @guidepup/guidepup 0.36.4
  * (lib/resolveCachePath.js and lib/windows/NVDA/getNVDAInstallationPath.js), so voicecap can check
  * the install and explain problems before Guidepup reports a bare "NVDA is not installed".
  */
@@ -91,59 +91,6 @@ export function guidepupInstall(
 export function nvdaLockFile(env: NodeJS.ProcessEnv, homedir: string): string {
   const localAppData = envValue(env, "LOCALAPPDATA") ?? path.join(homedir, "AppData", "Local");
   return path.join(localAppData, "voicecap", "nvda.lock");
-}
-
-/**
- * The first part of a folder's path that Guidepup 0.34.0 can't start NVDA from, or null. Guidepup
- * starts nvda.exe with spawn(path, ["--config-path", ...], { shell: true }), which doesn't quote
- * them, and both live in Guidepup's folder. Measured with Node 24 on Windows 11: cmd.exe splits
- * the path at whitespace, & ( , ; and =, drops ^ from the argument, and expands %NAME% when NAME
- * is a variable.
- */
-export function shellUnsafePart(dir: string): string | null {
-  return /\s|[&(,;=^]|%[^%]*%/.exec(dir)?.[0] ?? null;
-}
-
-/** The plain folder the fix steps choose, one Guidepup can start NVDA from. */
-const SAFE_FOLDER = "C:\\guidepup";
-
-/**
- * The fix for a folder NVDA can't start from, one command to a step, each at the end of its step
- * with nothing after it, so a step can be pasted as it stands. The double quotes make the commands
- * the same in PowerShell and Git Bash (measured in Windows PowerShell 5.1 and Git Bash).
- */
-const FIX_STEPS: readonly string[] = [
-  `Choose a folder whose path has only letters, digits, and - _ . in its names. These steps use ${SAFE_FOLDER}.`,
-  `Make the folder, if it isn't there yet: mkdir "${SAFE_FOLDER}"`,
-  `Tell Guidepup to use it: setx GUIDEPUP_SCREEN_READERS_PATH "${SAFE_FOLDER}"`,
-  "Open a new terminal and install NVDA there: npx @icjia/voicecap setup",
-];
-
-/** Why NVDA can't start from Guidepup's folder and how to fix it, or null if it can. */
-export function unsafePathProblem(
-  install: GuidepupInstall,
-): { whatsWrong: string; fix: string[] } | null {
-  const part = shellUnsafePart(install.cacheDir);
-  if (part === null) return null;
-  const what = /^\s$/.test(part) ? "a space" : `"${part}"`;
-  return {
-    whatsWrong: `Guidepup's NVDA is in ${install.cacheDir}, and that path has ${what} in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).`,
-    fix: [...FIX_STEPS],
-  };
-}
-
-/**
- * unsafePathProblem as one message, for an error: "How to fix:", then its steps, numbered, each on
- * a line of its own.
- */
-export function unsafePathMessage(install: GuidepupInstall): string | null {
-  const problem = unsafePathProblem(install);
-  if (problem === null) return null;
-  return [
-    problem.whatsWrong,
-    "How to fix:",
-    ...problem.fix.map((step, index) => `  ${index + 1}. ${step}`),
-  ].join("\n");
 }
 
 /** The NVDA version inside a Guidepup build id: "0.2.1-2026.2" → "2026.2". */

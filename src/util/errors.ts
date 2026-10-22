@@ -69,6 +69,27 @@ export function errorMessage(error: unknown): string {
 }
 
 /**
+ * An error's message, then what its causes add, in brackets: the first line of its cause, of that
+ * error's own cause, and so on, each one that says something the message and the lines before it
+ * don't, joined with ": ". Guidepup gives a failure's reason as a cause, from 0.36.0 often two
+ * causes down, under errors that say the same: "NVDA cannot be started" twice, then "Timed out
+ * waiting for NVDA to be running". A chain that comes back to an error already seen ends there.
+ */
+export function withCauses(error: unknown): string {
+  const message = errorMessage(error);
+  const added: string[] = [];
+  const seen = new Set<unknown>([error]);
+  let cause: unknown = error instanceof Error ? error.cause : undefined;
+  while (cause !== undefined && cause !== null && !seen.has(cause)) {
+    seen.add(cause);
+    const line = (errorMessage(cause).split("\n")[0] ?? "").trim();
+    if (line !== "" && ![message, ...added].some((said) => said.includes(line))) added.push(line);
+    cause = cause instanceof Error ? cause.cause : undefined;
+  }
+  return added.length === 0 ? message : `${message} (${added.join(": ")})`;
+}
+
+/**
  * The program that took the foreground, from the ForegroundError that says so: its name, or null
  * when voicecap couldn't tell which it was (Windows didn't say, or the window in front by the time
  * voicecap looked was its own browser's). Undefined for a ForegroundError whose driver didn't look,

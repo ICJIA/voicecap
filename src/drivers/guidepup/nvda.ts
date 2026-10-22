@@ -1,5 +1,5 @@
 /**
- * NVDA through @guidepup/guidepup 0.34.0, behind the driver's NvdaControl interface.
+ * NVDA through @guidepup/guidepup 0.36.4, behind the driver's NvdaControl interface.
  *
  * Checked against Guidepup's source for the pinned version:
  * - Commands (next(), perform(), ...) return nothing; what NVDA said is the latest entry of the
@@ -9,15 +9,14 @@
  *   (lib/teardown.js) as soon as it's called, and they stop NVDA but never exit the process.
  *   voicecap handles those signals itself (saving state first), so the adapter removes Guidepup's
  *   handlers straight away, before NVDA has finished starting.
- * - Guidepup runs nvda.exe with spawn(..., { shell: true }) and separate arguments, which Node 24
- *   flags as deprecated (DEP0190) on every start and stop; that warning is hidden.
  * - Commands must never be issued inside capture(): both would wait for each other.
  * - Before every captured command, NVDAClient presses NVDA's stop-speech key without waiting for
  *   the result (#stopReading in lib/windows/NVDA/NVDAClient.js). When NVDA has died, that press
  *   fails, and nothing handles the rejection, which by default ends the process; loading Guidepup
  *   marks those presses as handled (handleUnawaitedKeyPresses). Commands then come back with no
- *   speech, so the driver checks isRunning() whenever a step is silent. Once Guidepup has given
- *   up reconnecting, commands come back at once (see checkCaptured).
+ *   speech, so the driver checks isRunning() whenever a step is silent. Once its connection to
+ *   NVDA has failed with an error, Guidepup drops it for good, and commands come back at once (see
+ *   checkCaptured); a connection that ended without an error is made again by the next command.
  */
 import { spawnSync } from "node:child_process";
 import net from "node:net";
@@ -78,18 +77,15 @@ export class GuidepupNvda implements NvdaControl {
       Object.keys(options.settings).length > 0
         ? { capture, settings: options.settings }
         : { capture };
-    await withoutAddedListeners(GUIDEPUP_EVENTS, () =>
-      withoutDeprecationWarnings(() => this.lib.nvda.start(startOptions)),
-    );
+    await withoutAddedListeners(GUIDEPUP_EVENTS, () => this.lib.nvda.start(startOptions));
   }
 
   stop(): Promise<void> {
-    return withoutDeprecationWarnings(() => this.lib.nvda.stop());
+    return this.lib.nvda.stop();
   }
 
   forceQuit(): void {
-    // What Guidepup's own quit does (nvda.exe --quit shuts down whichever NVDA is running),
-    // without the shell, so a path with spaces works.
+    // What Guidepup's own quit does: nvda.exe --quit, which shuts down whichever NVDA is running.
     spawnSync(this.install.nvdaExe, ["--quit"], { stdio: "ignore", timeout: 15_000 });
   }
 
@@ -209,18 +205,5 @@ export async function withoutAddedListeners(
     await running;
   } finally {
     removeAdded();
-  }
-}
-
-/** Run an action with Node's deprecation warnings hidden. */
-export async function withoutDeprecationWarnings<T>(action: () => Promise<T>): Promise<T> {
-  // Already off: node --no-deprecation also makes the setting read-only.
-  if (process.noDeprecation === true) return action();
-  const previous = process.noDeprecation;
-  process.noDeprecation = true;
-  try {
-    return await action();
-  } finally {
-    process.noDeprecation = previous;
   }
 }

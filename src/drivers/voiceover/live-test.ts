@@ -10,13 +10,14 @@
  * The order is the point. Before Guidepup starts VoiceOver, step 1 asks VoiceOver a harmless
  * question with a 60-second wait, so a first-time "<app> wants access to control VoiceOver" prompt
  * comes from a request that stays alive until it's answered. Guidepup's own AppleScript calls give
- * up after 10 seconds, which in the spike left a prompt that no click could answer.
+ * up after a few seconds (10 in the spike's Guidepup 0.34.0, 5 in 0.36.4), which in the spike left
+ * a prompt that no click could answer.
  */
 import type * as GuidepupModule from "@guidepup/guidepup";
 
 import { InterruptedError } from "../../passes/steps.js";
 import type { Check } from "../../readiness/model.js";
-import { EnvironmentError, errorMessage } from "../../util/errors.js";
+import { EnvironmentError, errorMessage, withCauses } from "../../util/errors.js";
 import { GUIDEPUP_EVENTS, withoutAddedListeners } from "../guidepup/nvda.js";
 import {
   askVoiceOver,
@@ -29,8 +30,8 @@ import {
   startVoiceOver,
   stopVoiceOver,
   stopVoiceOverSync,
-  VOICEOVER_STARTER,
   voiceOverRunning,
+  voiceOverStarter,
   waitForVoiceOver,
   waitUntilVoiceOverRunsSync,
   type RunCommand,
@@ -69,6 +70,8 @@ export interface LiveBrowser {
 /** Everything the live test does to the computer, so tests can fake it. */
 export interface MacLiveDeps {
   run: RunCommand;
+  /** This Mac's Darwin major (`uname -r`'s first number), which says how VoiceOver is started. */
+  darwinMajor: number;
   /** The terminal app's name: macOS asks whether it may control VoiceOver. */
   app: string;
   /** The command to rerun after fixing a problem, e.g. "npx @icjia/voicecap doctor". */
@@ -154,7 +157,10 @@ function exitHook(deps: MacLiveDeps, wasOn: boolean, opened: Opened): ExitHook {
     }
     if (!wasOn || opened.guidepupBegan) stopVoiceOverSync(deps.runSync, deps.sleepSync);
     if (opened.guidepupBegan) deps.runSync("hdiutil", ["detach", GUIDEPUP_PREFERENCES_VOLUME]);
-    if (wasOn && opened.guidepupBegan) deps.runSync(VOICEOVER_STARTER, [], { detached: true });
+    if (wasOn && opened.guidepupBegan) {
+      const { file, args } = voiceOverStarter(deps.darwinMajor);
+      deps.runSync(file, args, { detached: true });
+    }
   };
   let remove: (() => void) | null = null;
   return {
@@ -273,7 +279,7 @@ async function controlStep(
     // and the clean-up looks once to see whether there's a VoiceOver to quit. Cut short, the start
     // could bring VoiceOver up after that look, and leave it on. Once it's up, the question below
     // sees Ctrl+C at once, and the steps stop there.
-    await startVoiceOver(run);
+    await startVoiceOver(run, deps.darwinMajor);
     started.seen = await waitForVoiceOver(run, "running", VOICEOVER_START_WAIT_MS, deps.sleep);
     if (!started.seen) {
       return {
@@ -344,7 +350,7 @@ async function startStep(deps: MacLiveDeps, opened: Opened, hook: ExitHook): Pro
       summary: "VoiceOver didn't start",
       problem: {
         title: "Starting VoiceOver",
-        whatsWrong: `Guidepup couldn't start VoiceOver: ${describeError(error)}`,
+        whatsWrong: `Guidepup couldn't start VoiceOver: ${withCauses(error)}`,
         fix: ["Run npx @icjia/voicecap setup.", `Run ${deps.again} again.`],
         setupHelps: true,
       },
@@ -440,15 +446,15 @@ async function cleanUp(deps: MacLiveDeps, wasOn: boolean, opened: Opened): Promi
 
 /**
  * VoiceOver as the person had it before the test, or a WARN that says how to get there.
- * - It was on: once it has stopped (Guidepup's start and stop both quit it), VoiceOverStarter
- *   starts it again with their own settings. While it's still running, it's left alone.
+ * - It was on: once it has stopped (Guidepup's start and stop both quit it), it's started again
+ *   (voiceOverStarter), with their own settings. While it's still running, it's left alone.
  * - It was off: a VoiceOver still running (step 1 started it, or Guidepup couldn't stop it) is
  *   quit.
  */
 async function restoreVoiceOver(deps: MacLiveDeps, wasOn: boolean): Promise<Check[]> {
   const running = await voiceOverRunning(deps.run);
   if (wasOn && !running) {
-    await startVoiceOver(deps.run);
+    await startVoiceOver(deps.run, deps.darwinMajor);
     if (!(await waitForVoiceOver(deps.run, "running", VOICEOVER_START_WAIT_MS, deps.sleep))) {
       return [
         {
@@ -495,7 +501,7 @@ function liveFailure(error: unknown, again: string): Check {
     problem: {
       title: "The live test",
       whatsWrong: messageOr(
-        describeError(error),
+        withCauses(error),
         "The live test stopped on an error that didn't say what went wrong.",
       ),
       fix: [`Run ${again} again.`],
@@ -507,17 +513,6 @@ function liveFailure(error: unknown, again: string): Check {
 /** The first line of an error's message. */
 function firstLine(error: unknown): string {
   return errorMessage(error).split("\n")[0] ?? "";
-}
-
-/**
- * An error's message, plus the first line of its cause when that says more. Guidepup's errors
- * give their reason there: its start fails with "VoiceOver cannot be started" and the reason why.
- */
-function describeError(error: unknown): string {
-  const message = errorMessage(error);
-  if (!(error instanceof Error) || error.cause === undefined) return message;
-  const cause = firstLine(error.cause);
-  return cause !== "" && !message.includes(cause) ? `${message} (${cause})` : message;
 }
 
 // ---- Guidepup ----

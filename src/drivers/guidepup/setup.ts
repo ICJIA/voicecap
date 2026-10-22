@@ -31,7 +31,6 @@ import {
   envValue,
   guidepupInstall,
   readGuidepupPackage,
-  unsafePathMessage,
   type GuidepupInstall,
   type GuidepupPackage,
 } from "./paths.js";
@@ -83,8 +82,6 @@ export async function runSetup(
       "voicecap's Windows setup installs NVDA, which only runs on Windows.",
     );
   }
-  const unsafePath = unsafePathMessage(install);
-  if (unsafePath) throw new EnvironmentError(unsafePath);
   const sharedFolder = sharedFolderMessage(install, deps);
   if (sharedFolder) throw new EnvironmentError(sharedFolder);
 

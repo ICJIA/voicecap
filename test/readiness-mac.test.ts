@@ -85,6 +85,25 @@ const MANIFEST = {
   ],
 };
 
+/** MANIFEST with the asset Guidepup 0.35.0 added for macOS 27, which reports itself as Darwin 27. */
+const MANIFEST_WITH_27 = {
+  screenReaders: MANIFEST.screenReaders.map((reader) =>
+    reader.id === "voiceover"
+      ? {
+          ...reader,
+          assets: [
+            ...reader.assets,
+            {
+              version: "0.1.0-VoiceOver4",
+              platformVersion: "27",
+              asset: "guidepup-voiceover-preferences-xcode-27.dmg",
+            },
+          ],
+        }
+      : reader,
+  ),
+};
+
 const OPTIONS: Omit<ReadinessOptions, "platform"> = {
   config: DEFAULT_CONFIG,
   logger: silentLogger,
@@ -549,6 +568,13 @@ describe("voiceOverAsset", () => {
       file: null,
     });
   });
+
+  it("finds Darwin 27's asset, and names it macOS 27", () => {
+    expect(voiceOverAsset(MANIFEST_WITH_27, 27, CACHE_DIR)).toEqual({
+      supported: ["12", "13", "14", "15", "26", "27"],
+      file: `${CACHE_DIR}/voiceover/27/0.1.0-VoiceOver4/guidepup-voiceover-preferences-xcode-27.dmg`,
+    });
+  });
 });
 
 describe("Mac quick checks: version", () => {
@@ -567,6 +593,30 @@ describe("Mac quick checks: version", () => {
       summary: "macOS 11 isn't supported by voicecap's Guidepup",
       problem: {
         title: "macOS 11",
+        whatsWrong:
+          "voicecap drives VoiceOver through Guidepup 0.34.0, which supports macOS 12 through 26.",
+        fix: ["Use a Mac with a supported version of macOS."],
+        setupHelps: false,
+      },
+    });
+  });
+
+  it("passes macOS 27, which reports itself as Darwin 27", async () => {
+    const guidepup = { version: "0.36.4", manifest: MANIFEST_WITH_27 };
+    expect(await quickCheck("version", { darwinMajor: 27, guidepup })).toEqual({
+      id: "version",
+      status: "OK",
+      summary: "macOS 27 is supported",
+    });
+  });
+
+  it("fails macOS 27 by its own number where Guidepup's assets stop at macOS 26", async () => {
+    expect(await quickCheck("version", { darwinMajor: 27 })).toEqual({
+      id: "version",
+      status: "FAIL",
+      summary: "macOS 27 isn't supported by voicecap's Guidepup",
+      problem: {
+        title: "macOS 27",
         whatsWrong:
           "voicecap drives VoiceOver through Guidepup 0.34.0, which supports macOS 12 through 26.",
         fix: ["Use a Mac with a supported version of macOS."],
@@ -745,7 +795,7 @@ describe("Mac quick checks: accessibility", () => {
   });
 });
 
-// Guidepup 0.34.0's start links voicecap's VoiceOver settings into VoiceOver's group container
+// Guidepup 0.36.4's start links voicecap's VoiceOver settings into VoiceOver's group container
 // when there is one, else into ~/Library/Preferences (getPreferencesDirectory), and first needs
 // VoiceOver's own settings file there (ensureLocalPreferencesExist). The check predicts exactly
 // that, then tries creating a file there, which macOS 26 allows only with Full Disk Access.

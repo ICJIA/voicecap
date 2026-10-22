@@ -25,6 +25,8 @@ const AGAIN = "npx @icjia/voicecap doctor";
 const BROWSER_PID = 4242;
 const PAGE_URL = "http://127.0.0.1:61234/";
 const PHRASE = "voicecap doctor, web content";
+/** VoiceOver's app, which macOS 27 opens to start VoiceOver, having no VoiceOverStarter. */
+const VOICEOVER_APP = "/System/Library/CoreServices/VoiceOver.app";
 
 const DENIED: Partial<CommandResult> = {
   code: 1,
@@ -47,6 +49,11 @@ interface FakeMacOptions {
   /** false: VoiceOverStarter does nothing. */
   starterWorks?: boolean;
   /**
+   * The Mac's Darwin major: 25 (macOS 26) unless given. From 27, macOS 27, there's no
+   * VoiceOverStarter, and opening VoiceOver.app is what starts VoiceOver.
+   */
+  darwinMajor?: number;
+  /**
    * VoiceOver's process appears this long after VoiceOverStarter runs, as the real one takes a
    * moment, on the fake Mac's clock: the test's waits move it on.
    */
@@ -59,7 +66,7 @@ interface FakeMacOptions {
   /** Guidepup's start fails with this (after quitting any VoiceOver that was running). */
   guidepupStartError?: Error;
   /**
-   * Guidepup's stop fails with this, VoiceOver still running, as Guidepup 0.34.0's does when
+   * Guidepup's stop fails with this, VoiceOver still running, as Guidepup 0.36.4's does when
    * VoiceOver survives both of its attempts to quit it.
    */
   guidepupStopError?: Error;
@@ -102,6 +109,7 @@ function describeCommand(file: string, args: string[]): string {
   const text = args.join(" ");
   if (file === "pgrep") return "pgrep VoiceOver";
   if (file === VOICEOVER_STARTER) return "VoiceOverStarter";
+  if (file === "open" && text === `-a ${VOICEOVER_APP}`) return "open VoiceOver.app";
   if (file === "pkill") return "pkill VoiceOver";
   if (file === "hdiutil" && text === "detach /Volumes/GuidepupVoiceOverPreferences") {
     return "detach Guidepup's settings";
@@ -115,11 +123,15 @@ function describeCommand(file: string, args: string[]): string {
 
 /**
  * A Mac where VoiceOver's state follows the commands and Guidepup calls the live test makes, as the
- * real ones do: VoiceOverStarter starts the person's VoiceOver, a quit that VoiceOver accepts or
- * pkill stops it, and Guidepup's start quits any running VoiceOver before starting its own (and
- * stops it again when starting fails), as Guidepup 0.34.0 does.
+ * real ones do: VoiceOverStarter starts the person's VoiceOver (on macOS 27, which has none,
+ * opening VoiceOver.app does), a quit that VoiceOver accepts or pkill stops it, and Guidepup's
+ * start quits any running VoiceOver before starting its own (and stops it again when starting
+ * fails), as Guidepup 0.36.4 does.
  */
 function fakeMac(options: FakeMacOptions = {}) {
+  const darwinMajor = options.darwinMajor ?? 25;
+  /** Whether this Mac has VoiceOverStarter: up to macOS 26. */
+  const hasStarter = darwinMajor < 27;
   const state: { voiceOver: VoiceOverState } = { voiceOver: options.on ? "the person's" : "off" };
   const events: string[] = [];
   const waits: number[] = [];
@@ -162,7 +174,9 @@ function fakeMac(options: FakeMacOptions = {}) {
   const commands = fakeCommands([
     [(file) => file === "pgrep" && state.voiceOver !== "off", { code: 0, stdout: "501\n" }],
     [(file) => file === "pgrep", { code: 1 }],
-    [(file) => file === VOICEOVER_STARTER, { code: 0 }],
+    // A command that isn't there can't start: its exit code is null.
+    [(file) => file === VOICEOVER_STARTER, hasStarter ? { code: 0 } : { code: null }],
+    [(file) => file === "open", { code: 0 }],
     [(file) => file === "pkill", { code: 0 }],
     [(file) => file === "hdiutil", { code: 0 }],
     [
@@ -193,7 +207,7 @@ function fakeMac(options: FakeMacOptions = {}) {
       if (options.questionHangs)
         result = { ...result, ...(await killedOnAbort(runOptions?.signal)) };
     }
-    if (event === "VoiceOverStarter") starterRuns();
+    if (event === (hasStarter ? "VoiceOverStarter" : "open VoiceOver.app")) starterRuns();
     if (!options.unstoppable) {
       if (event === "pkill VoiceOver") state.voiceOver = "off";
       if (event === "ask VoiceOver to quit" && result.code === 0) state.voiceOver = "off";
@@ -224,6 +238,7 @@ function fakeMac(options: FakeMacOptions = {}) {
 
   const deps: MacLiveDeps = {
     run,
+    darwinMajor,
     app: APP,
     again: AGAIN,
     loadVoiceOver: () => {
@@ -284,7 +299,8 @@ function fakeMac(options: FakeMacOptions = {}) {
       };
     },
     // The same Mac, commanded synchronously: pkill ends VoiceOver (after `lingersFor` more checks
-    // find it), pgrep finds it while it runs, and VoiceOverStarter starts the person's.
+    // find it), pgrep finds it while it runs, and VoiceOverStarter (from macOS 27, opening
+    // VoiceOver.app) starts the person's.
     runSync: (file, args, runOptions) => {
       syncCalls.push({ file, args, detached: runOptions?.detached });
       settle();
@@ -299,7 +315,8 @@ function fakeMac(options: FakeMacOptions = {}) {
         }
         return state.voiceOver === "off" ? 1 : 0;
       }
-      if (file === VOICEOVER_STARTER) starterRuns();
+      if (describeCommand(file, args) === (hasStarter ? "VoiceOverStarter" : "open VoiceOver.app"))
+        starterRuns();
       // A detached command's exit isn't waited for.
       return runOptions?.detached ? null : 0;
     },
@@ -345,7 +362,7 @@ function from(events: string[], event: string): string[] {
   return events.slice(index);
 }
 
-/** How Guidepup 0.34.0's stop fails when VoiceOver survives both of its attempts to quit it. */
+/** How Guidepup 0.36.4's stop fails when VoiceOver survives both of its attempts to quit it. */
 const STOP_ERROR = new Error(
   "Timed out waiting for VoiceOver to not be running\n    at waitForCondition",
 );
@@ -396,9 +413,10 @@ describe("the Mac live test", () => {
     expect(mac.state.voiceOver).toBe("off");
   });
 
-  // Guidepup's own AppleScript calls give up after 10 seconds, which in the spike left a "control
-  // VoiceOver" prompt that no click could answer. A first-time prompt must come from a request that
-  // stays alive until it's answered, before Guidepup sends any.
+  // Guidepup's own AppleScript calls give up after a few seconds (10 in the spike's Guidepup 0.34.0,
+  // 5 in 0.36.4), which in the spike left a "control VoiceOver" prompt that no click could answer. A
+  // first-time prompt must come from a request that stays alive until it's answered, before
+  // Guidepup sends any.
   it("asks VoiceOver its 60-second question before Guidepup starts VoiceOver", async () => {
     const mac = fakeMac();
     await macLiveTest(mac.deps);
@@ -562,6 +580,46 @@ describe("the Mac live test, step 2: Guidepup starts VoiceOver", () => {
     expect(mac.events).not.toContain("launch the browser");
     // Guidepup stops what it started when its start fails, so there's no Guidepup to stop.
     expect(mac.events).not.toContain("Guidepup stops VoiceOver");
+  });
+
+  // Guidepup 0.36 gives some reasons two causes down, and the folder it names is the fix.
+  it("gives each new line of Guidepup's chain of causes, however far down", async () => {
+    const portable =
+      "/Users/jane/Library/Group Containers/group.com.apple.VoiceOver/Library/Preferences/com.apple.VoiceOver4.portable.scrd";
+    const mac = fakeMac({
+      guidepupStartError: new Error("VoiceOver cannot be started", {
+        cause: new Error(
+          "Failed to mount Guidepup preferences\n\nPlease ensure you have run:\n\n\t- `npx @guidepup/setup setup` at least once",
+          {
+            cause: new Error(
+              `Guidepup did not create this file or folder, so it won't replace it. Move it elsewhere and try again: ${portable}`,
+            ),
+          },
+        ),
+      }),
+    });
+    const checks = await macLiveTest(mac.deps);
+    expect(checks[1]?.problem?.whatsWrong).toBe(
+      `Guidepup couldn't start VoiceOver: VoiceOver cannot be started (Failed to mount Guidepup preferences: Guidepup did not create this file or folder, so it won't replace it. Move it elsewhere and try again: ${portable})`,
+    );
+  });
+
+  // On macOS 27, Guidepup 0.36 wraps a failed opening of VoiceOver.app in two errors that say the same.
+  it("passes over a cause that only says what the error says", async () => {
+    const mac = fakeMac({
+      darwinMajor: 27,
+      guidepupStartError: new Error("VoiceOver cannot be started", {
+        cause: new Error("VoiceOver cannot be started", {
+          cause: new Error(
+            "Command failed: /usr/bin/open -a /System/Library/CoreServices/VoiceOver.app\nLSOpenURLsWithRole() failed",
+          ),
+        }),
+      }),
+    });
+    const checks = await macLiveTest(mac.deps);
+    expect(checks[1]?.problem?.whatsWrong).toBe(
+      "Guidepup couldn't start VoiceOver: VoiceOver cannot be started (Command failed: /usr/bin/open -a /System/Library/CoreServices/VoiceOver.app)",
+    );
   });
 
   it("fails the same way when Guidepup can't be loaded", async () => {
@@ -993,7 +1051,7 @@ describe("the Mac live test: when the process exits in the middle", () => {
     file: "pkill",
     args: ["-15", "-f", "VoiceOver.app/Contents/MacOS/VoiceOver launchd -s"],
   };
-  const PGREP = { file: "pgrep", args: ["-f", "VoiceOver launchd -s"] };
+  const PGREP = { file: "pgrep", args: ["-x", "VoiceOver"] };
   const DETACH = { file: "hdiutil", args: ["detach", "/Volumes/GuidepupVoiceOverPreferences"] };
   const RESTART = { file: VOICEOVER_STARTER, args: [], detached: true };
 
@@ -1139,6 +1197,54 @@ describe("the Mac live test: when the process exits in the middle", () => {
     await macLiveTest(mac.deps);
     expect(exited).toBe(false);
     expect(mac.syncCalls).toEqual([]);
+  });
+});
+
+// macOS 27 has no VoiceOverStarter: VoiceOver starts when VoiceOver.app is opened, as Guidepup
+// 0.35.0 and later start it there.
+describe("the Mac live test on macOS 27", () => {
+  it("starts VoiceOver for step 1's question by opening VoiceOver.app", async () => {
+    const mac = fakeMac({ darwinMajor: 27 });
+    expect(await macLiveTest(mac.deps)).toEqual(OK_CHECKS);
+    expect(mac.events.slice(0, 6)).toEqual([
+      "pgrep VoiceOver",
+      "take the lock",
+      "add the exit hook",
+      "open VoiceOver.app",
+      "pgrep VoiceOver",
+      "ask VoiceOver",
+    ]);
+    expect(mac.state.voiceOver).toBe("off");
+  });
+
+  it("turns the person's VoiceOver back on by opening VoiceOver.app", async () => {
+    const mac = fakeMac({ on: true, darwinMajor: 27 });
+    expect(await macLiveTest(mac.deps)).toEqual(OK_CHECKS);
+    expect(from(mac.events, "Guidepup stops VoiceOver")).toEqual([
+      "Guidepup stops VoiceOver",
+      "close the browser",
+      "close the check page",
+      "pgrep VoiceOver",
+      "open VoiceOver.app",
+      "pgrep VoiceOver",
+      "remove the exit hook",
+      "release the lock",
+    ]);
+    expect(mac.state.voiceOver).toBe("the person's");
+  });
+
+  it("starts the person's again from the exit hook by opening VoiceOver.app, detached", async () => {
+    let exited = false;
+    const mac = fakeMac({ on: true, darwinMajor: 27, whileLoading: () => (exited = mac.exits()) });
+    await macLiveTest(mac.deps);
+    expect(exited).toBe(true);
+    expect(mac.syncCalls.at(-1)).toEqual({
+      file: "open",
+      args: ["-a", VOICEOVER_APP],
+      detached: true,
+    });
+    mac.later();
+    expect(mac.state.voiceOver).toBe("the person's");
   });
 });
 

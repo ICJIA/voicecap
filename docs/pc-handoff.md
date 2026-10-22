@@ -74,6 +74,7 @@ r3.illinois.gov has no section on docs.icjia.app yet, so it has no card. The own
 
 ## Also at the PC, when the owner wants
 
+- **The branch `guidepup-0.36`** (Guidepup 0.36.4, for macOS 27, pushed 2026-10-22) needs checks at the PC before any release: a real run with NVDA, and NVDA started from a folder whose path has a space. They're in `docs/phase-c-handoff.md` ("Where things stand", "Still to check at the PC").
 - **Still to confirm on a real PC** (`docs/phase-c-handoff.md`, "Being built"):
   - a Chrome window closed mid-page is recorded as `browser`;
   - a real repeat with NVDA, which should end with each page's comparison.

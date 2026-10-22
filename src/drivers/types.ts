@@ -9,7 +9,7 @@ import type { NewRunEvent, VoiceStretch } from "../model.js";
 /**
  * Everything the screen reader said in response to one action.
  *
- * Every driver must use Guidepup's format (verified in @guidepup/guidepup 0.34.0): the text
+ * Every driver must use Guidepup's format (verified in @guidepup/guidepup 0.36.4): the text
  * items of one utterance are trimmed, runs of whitespace collapsed, and joined with ", ";
  * utterances are joined with ". ". An empty string means silence. Keeping one format lets the
  * core's matching and the flag rules work the same for every driver.

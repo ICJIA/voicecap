@@ -280,7 +280,7 @@ export function voiceOverPrefsDir(home: string): string {
 }
 
 /**
- * The folder Guidepup 0.34.0's start links voicecap's VoiceOver settings into, chosen as its
+ * The folder Guidepup 0.36.4's start links voicecap's VoiceOver settings into, chosen as its
  * getPreferencesDirectory chooses: VoiceOver's group container's Preferences folder when that
  * exists, else <home>/Library/Preferences.
  */
@@ -354,8 +354,12 @@ export async function writeDefault(
 
 // ---- VoiceOver ----
 
-/** pgrep's arguments for VoiceOver's process, as Guidepup 0.34.0's isRunning checks for it. */
-const PGREP_VOICEOVER: readonly string[] = ["-f", "VoiceOver launchd -s"];
+/**
+ * pgrep's arguments for VoiceOver's process, as Guidepup 0.36.4's isRunning checks for it: by its
+ * exact name, since Guidepup 0.36.2, so another process whose command line mentions VoiceOver's
+ * own arguments ("VoiceOver launchd -s") isn't taken for it.
+ */
+const PGREP_VOICEOVER: readonly string[] = ["-x", "VoiceOver"];
 
 /** How many more times voiceOverRunning asks when a signal killed pgrep. */
 const PGREP_RETRIES = 3;
@@ -374,17 +378,35 @@ export async function voiceOverRunning(run: RunCommand): Promise<boolean> {
 
 const VOICEOVER_APP = "/System/Library/CoreServices/VoiceOver.app";
 
-/** Starts VoiceOver the way pressing Command-F5 does, without going through Guidepup. */
+/**
+ * Starts VoiceOver the way pressing Command-F5 does, without going through Guidepup, up to macOS
+ * 26: macOS 27 has no VoiceOverStarter.
+ */
 export const VOICEOVER_STARTER = `${VOICEOVER_APP}/Contents/MacOS/VoiceOverStarter`;
 
-/** Runs VOICEOVER_STARTER, to bring back the person's own VoiceOver once voicecap is done. */
-export async function startVoiceOver(run: RunCommand): Promise<void> {
-  await run(VOICEOVER_STARTER, [], { timeoutMs: SHORT_TIMEOUT_MS });
+/**
+ * The command that starts VoiceOver without going through Guidepup, chosen as Guidepup 0.36.4's
+ * own start chooses it: VOICEOVER_STARTER up to macOS 26, and opening VoiceOver.app from macOS 27
+ * (Darwin 27), which has no VoiceOverStarter.
+ */
+export function voiceOverStarter(darwinMajor: number): { file: string; args: string[] } {
+  return darwinMajor >= 27
+    ? { file: "open", args: ["-a", VOICEOVER_APP] }
+    : { file: VOICEOVER_STARTER, args: [] };
 }
 
 /**
- * pkill's arguments for VoiceOver's process: SIGTERM, matched exactly as Guidepup 0.34.0's own
- * last resort matches it (terminateVoiceOverProcess). It needs no permission to control VoiceOver.
+ * Starts VoiceOver (voiceOverStarter): for the live test's first question when VoiceOver is off,
+ * and to bring back the person's own once voicecap is done.
+ */
+export async function startVoiceOver(run: RunCommand, darwinMajor: number): Promise<void> {
+  const { file, args } = voiceOverStarter(darwinMajor);
+  await run(file, args, { timeoutMs: SHORT_TIMEOUT_MS });
+}
+
+/**
+ * pkill's arguments for VoiceOver's process: SIGTERM, matched exactly as Guidepup 0.36.4's own
+ * pkill matches it (terminateVoiceOverProcess). It needs no permission to control VoiceOver.
  */
 const PKILL_VOICEOVER: readonly string[] = [
   "-15",
@@ -506,7 +528,7 @@ export function waitUntilVoiceOverRunsSync(
 
 /**
  * Where Guidepup mounts the disk image with voicecap's VoiceOver settings while its VoiceOver runs.
- * Mirrors Guidepup 0.34.0's MOUNT_POINT in lib/macOS/VoiceOver/preferences/constants.js.
+ * Mirrors Guidepup 0.36.4's MOUNT_POINT in lib/macOS/VoiceOver/preferences/constants.js.
  */
 export const GUIDEPUP_PREFERENCES_VOLUME = "/Volumes/GuidepupVoiceOverPreferences";
 

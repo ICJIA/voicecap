@@ -108,7 +108,7 @@ import type { VoicecapConfig } from "../config/schema.js";
 import type { VoiceStretch } from "../model.js";
 import { isHtmlContentType } from "../pages/url.js";
 import { redactHome, redactTemp } from "../run/failure.js";
-import { EnvironmentError, errorCode, errorMessage } from "../util/errors.js";
+import { EnvironmentError, errorCode, errorMessage, withCauses } from "../util/errors.js";
 import { closedProgram } from "../util/foreground.js";
 import { acquireLockFile, isStale, readLockHolder } from "../util/lock-file.js";
 import type { Logger } from "../util/log.js";
@@ -126,7 +126,6 @@ import {
   nvdaLockFile,
   nvdaVersionFromBuild,
   readGuidepupPackage,
-  unsafePathMessage,
   voiceFolder,
   type GuidepupInstall,
 } from "./guidepup/paths.js";
@@ -531,8 +530,6 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
         `NVDA for voicecap (Guidepup's NVDA build ${install.build}) isn't installed; it belongs at ${install.nvdaExe}. Install it with: npx @icjia/voicecap setup`,
       );
     }
-    const unsafePath = unsafePathMessage(install);
-    if (unsafePath) throw new EnvironmentError(unsafePath);
     await this.track(this.startUp(this.generation));
   }
 
@@ -634,7 +631,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       });
     } catch (error) {
       this.setNvdaState("stopped");
-      throw new EnvironmentError(`NVDA didn't start: ${describeError(error)}`, {
+      throw new EnvironmentError(`NVDA didn't start: ${withCauses(error)}`, {
         cause: error,
         failure: "screen-reader-stopped",
       });
@@ -1471,7 +1468,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
 
   private async stopNvda(nvda: NvdaControl): Promise<void> {
     const stopped = nvda.stop().catch((error: unknown) => {
-      this.options.logger.warn(`Stopping NVDA failed: ${describeError(error)}`);
+      this.options.logger.warn(`Stopping NVDA failed: ${withCauses(error)}`);
     });
     if (await this.settlesWithin(stopped, STOP_TIMEOUT_MS)) return;
     this.options.logger.warn("NVDA didn't stop in time; shutting it down directly.");
@@ -1858,15 +1855,6 @@ function lostForeground(program: string | null): ForegroundError {
 /** A reason as a sentence of its own: its words, with one full stop at the end. */
 function sentence(reason: string): string {
   return `${reason.trim().replace(/[\s.]+$/, "")}.`;
-}
-
-function describeError(error: unknown): string {
-  const message = errorMessage(error);
-  const cause =
-    error instanceof Error && error.cause !== undefined ? errorMessage(error.cause) : "";
-  return cause && !message.includes(cause)
-    ? `${message} (${cause.split("\n")[0] ?? cause})`
-    : message;
 }
 
 function section(settings: Record<string, unknown>, name: string): Record<string, unknown> {

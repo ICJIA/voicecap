@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@guidepup/guidepup':
-        specifier: 0.34.0
-        version: 0.34.0
+        specifier: 0.36.4
+        version: 0.36.4
       '@guidepup/setup':
-        specifier: 0.28.0
-        version: 0.28.0
+        specifier: 0.29.3
+        version: 0.29.3
       axe-core:
         specifier: 4.13.0
         version: 4.13.0
@@ -297,14 +297,14 @@ packages:
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@guidepup/guidepup@0.34.0':
-    resolution: {integrity: sha512-nMLsvHXXNZg+/9okHvSOuMEKMGxs0U8o/sT1pKERh37ETB16X4geomIHjXJ/HRTfpue9gs9yRTLK5azHZV92iw==}
+  '@guidepup/guidepup@0.36.4':
+    resolution: {integrity: sha512-LgF945tl7dYQmUwD8wRgBcUM0sM5SWJd2M4Mmefq6ly7nXwopHre1Xd82DL8luWninvuTHQLrW97viOzgM5ovg==}
 
-  '@guidepup/record@0.1.0':
-    resolution: {integrity: sha512-jtSqZ0CZVdWzWIbLWHYoUi1IbNJVKns20oEYzwcTftw8rY5RXsK1OTXaXFx9Gup5mnmYaFLnON8WwTS+4DYwrQ==}
+  '@guidepup/record@0.3.0':
+    resolution: {integrity: sha512-0PyoVl9yt/k34oYCWoo3WUKy452zsJDrz1xOq0SKeQM0RDD8M1emTRNEjuFU7+/BpZHisWaNXRRGIrnGvEkizg==}
 
-  '@guidepup/setup@0.28.0':
-    resolution: {integrity: sha512-nz27WPL5XEh40geUuwAo/csJ+p8DAlIZbpDf0kGhrbgpnEXz4q4RCjT6o6dwCFs10Yk4laLwq6OfUJzYH59sOw==}
+  '@guidepup/setup@0.29.3':
+    resolution: {integrity: sha512-p5rPR0e2aaFNsfod+YpHLm/7BAQ7bZm7c44Dq4Hxe72+890kiWUEYr998eCYPeTxWbVb9Pr9cl7lRAIjnuDkKQ==}
     hasBin: true
 
   '@humanfs/core@0.19.2':
@@ -639,6 +639,11 @@ packages:
 
   csv-parse@7.0.3:
     resolution: {integrity: sha512-YFd3QM/yo17vH91L1IOZuvl09zM0zEEtdfTcOCKWcMdM++MNaQSyp09slXyFCLaPXvHstQFx/xC8myiFHSMUvw==}
+
+  dbus-native@0.15.2:
+    resolution: {integrity: sha512-J1IBi4LmbqrFhroN66Dj1tCCTP6TVbZgUKhWQZf3uS6t93yRWEcRRDjOZV9N6boGRhOp/BOjLliFm9vWu1QZOA==}
+    engines: {node: '>=22.12.0'}
+    hasBin: true
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -1301,8 +1306,16 @@ packages:
     resolution: {integrity: sha512-ghig2TBE/H11aOVgmahA3MhimvkBr6JIYknH/Dhdk10nXwdbIqBJsbfMxpvFPG8bAw77gN29aQWvKpmVoPlvPQ==}
     engines: {node: '>=16.0.0'}
 
+  xml2js@0.6.2:
+    resolution: {integrity: sha512-T4rieHaC1EXcES0Kxxj4JWgaUQHDk+qwHcYOCFHfiwKz7tOVPLq7Hjq9dM1WCMhylqMEfP7hMcOIChvotiZegA==}
+    engines: {node: '>=4.0.0'}
+
   xml@1.0.1:
     resolution: {integrity: sha512-huCv9IH9Tcf95zuYCsQraZtWnJvBtLVE0QHMOs8bWyZAFZNDcYjsPq1nEx8jKA9y+Beo9v+7OBPRisQTjinQMw==}
+
+  xmlbuilder@11.0.1:
+    resolution: {integrity: sha512-fDlsI/kFEx7gLvbecc0/ohLG50fugQp8ryHzMTuW9vSa1GJ0XYWKnhsUx7oie3G98+r56aTQIUB4kht42R3JvA==}
+    engines: {node: '>=4.0'}
 
   xmlbuilder@15.1.1:
     resolution: {integrity: sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==}
@@ -1454,21 +1467,22 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@guidepup/guidepup@0.34.0':
+  '@guidepup/guidepup@0.36.4':
     dependencies:
+      dbus-native: 0.15.2
       debug: 4.4.3
       plist: 4.0.0
     transitivePeerDependencies:
       - supports-color
 
-  '@guidepup/record@0.1.0':
+  '@guidepup/record@0.3.0':
     dependencies:
       ffmpeg-static: 5.3.0
     transitivePeerDependencies:
       - supports-color
     optional: true
 
-  '@guidepup/setup@0.28.0':
+  '@guidepup/setup@0.29.3':
     dependencies:
       chalk: 4.1.2
       commander: 15.0.0
@@ -1476,7 +1490,7 @@ snapshots:
       undici: 8.11.2
       unzipper: 0.12.5
     optionalDependencies:
-      '@guidepup/record': 0.1.0
+      '@guidepup/record': 0.3.0
     transitivePeerDependencies:
       - supports-color
 
@@ -1778,6 +1792,10 @@ snapshots:
       which: 2.0.2
 
   csv-parse@7.0.3: {}
+
+  dbus-native@0.15.2:
+    dependencies:
+      xml2js: 0.6.2
 
   debug@4.4.3:
     dependencies:
@@ -2387,7 +2405,14 @@ snapshots:
 
   xml-naming@0.3.0: {}
 
+  xml2js@0.6.2:
+    dependencies:
+      sax: 1.6.1
+      xmlbuilder: 11.0.1
+
   xml@1.0.1: {}
+
+  xmlbuilder@11.0.1: {}
 
   xmlbuilder@15.1.1: {}
 

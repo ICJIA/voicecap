@@ -335,6 +335,8 @@ export class FakeNvda implements NvdaControl {
   outlivesForceQuit = false;
   /** NVDA doesn't start: start() fails, after Guidepup has shut any other NVDA down. */
   startFails = false;
+  /** What start() fails with then: Guidepup's own message, unless a test gives another error. */
+  startError: Error | null = null;
   /** NVDA died: keys sent through it go nowhere, and it says nothing. */
   crashed = false;
   private releaseStop: (() => void) | null = null;
@@ -362,7 +364,9 @@ export class FakeNvda implements NvdaControl {
     // Guidepup's NVDA shuts down any other NVDA as it starts, the person's own included.
     this.desktop.ownNvda = [];
     this.startOptions = options;
-    if (this.startFails) return Promise.reject(new Error("NVDA cannot be started"));
+    if (this.startFails) {
+      return Promise.reject(this.startError ?? new Error("NVDA cannot be started"));
+    }
     const gate = this.startGate;
     if (!gate) {
       this.started = true;

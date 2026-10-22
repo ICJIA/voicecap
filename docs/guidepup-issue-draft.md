@@ -1,5 +1,7 @@
 # Draft: upstream Guidepup issue
 
+**No longer needed** (2026-10-22): Guidepup 0.36.0 starts nvda.exe without the shell (Guidepup PR #165), and voicecap, on Guidepup 0.36.4, no longer checks the path. Kept as a record of the problem.
+
 A draft issue for the owner to file with Guidepup. voicecap works around it by explaining the fix (`voicecap setup`, `voicecap doctor`, and the driver check the path first).
 
 **Title:** NVDA doesn't start when Guidepup's NVDA folder path contains a space (or `&`, `(`, `,`, `;`, `=`, `^`)

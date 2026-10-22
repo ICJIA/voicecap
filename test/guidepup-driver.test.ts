@@ -451,20 +451,33 @@ describe("starting the Guidepup NVDA driver", () => {
     expect(nvda.started).toBe(false);
   });
 
-  it("explains that Guidepup can't start NVDA from a folder whose path has a space", async () => {
-    const { driver, nvda } = setup({ cacheDir: "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup" });
-    const start = driver.start();
-    await expect(start).rejects.toThrow(EnvironmentError);
-    await expect(start).rejects.toThrow(/GUIDEPUP_SCREEN_READERS_PATH/);
-    expect(nvda.started).toBe(false);
+  // Guidepup 0.36.0 starts nvda.exe without the Windows command shell, which split 0.34.0's
+  // unquoted path at a space or one of & ( , ; =, dropped ^, and expanded %NAME%.
+  it("starts NVDA from a folder whose path has a space, or a character the command shell treats specially", async () => {
+    const folders = [
+      "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup",
+      "C:\\Users\\R&D\\AppData\\Local\\guidepup",
+      "C:\\screen readers (a,b;c=d^e) %PATH%",
+    ];
+    for (const cacheDir of folders) {
+      const { driver, nvda } = setup({ cacheDir });
+      await driver.start();
+      expect(nvda.started, cacheDir).toBe(true);
+    }
   });
 
-  it("explains the same for a path with a character the command shell treats specially", async () => {
-    const { driver, nvda } = setup({ cacheDir: "C:\\Users\\R&D\\AppData\\Local\\guidepup" });
-    const start = driver.start();
-    await expect(start).rejects.toThrow(EnvironmentError);
-    await expect(start).rejects.toThrow(/"&".+GUIDEPUP_SCREEN_READERS_PATH/s);
-    expect(nvda.started).toBe(false);
+  // Guidepup 0.36 gives why under two errors that say the same, where 0.34.0 gave it under one.
+  it("says why NVDA didn't start, however many causes down Guidepup gives the reason", async () => {
+    const { driver, nvda } = setup();
+    nvda.startFails = true;
+    nvda.startError = new Error("NVDA cannot be started", {
+      cause: new Error("NVDA cannot be started", {
+        cause: new Error("Timed out waiting for NVDA to be running"),
+      }),
+    });
+    await expect(driver.start()).rejects.toThrow(
+      "NVDA didn't start: NVDA cannot be started (Timed out waiting for NVDA to be running)",
+    );
   });
 
   it("warns before shutting down an NVDA that's already running", async () => {

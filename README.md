@@ -323,7 +323,6 @@ This computer
 
 Checks
   OK    Node.js 22.19.0
-  OK    Guidepup's folder: C:\Users\jane\AppData\Local\guidepup
   OK    NVDA 2026.2 (Guidepup's build 0.2.1-2026.2) is installed
   OK    Windows Firewall keeps NVDA's control port closed to other computers
   OK    No other voicecap is using NVDA
@@ -505,7 +504,7 @@ These steps assume Windows 11, a normal (non-administrator) account, and PowerSh
 
 4. **Install NVDA for voicecap:** `npx @icjia/voicecap setup`. This downloads (about 100 MB, from GitHub) the portable NVDA build that voicecap's pinned Guidepup expects into `%LOCALAPPDATA%\guidepup`. It's separate from any NVDA you already have installed, and needs no administrator rights. If Google Chrome isn't installed, setup also installs Playwright's Chromium for voicecap to use instead. Behind a proxy, set `HTTPS_PROXY` first (in PowerShell, `$env:HTTPS_PROXY = "http://your-proxy:port"` sets it for the current window).
 
-   - **If your Windows user folder's path has a space or one of `& ( , ; = ^`** (`C:\Users\Jane Doe`, `C:\Users\R&D`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a plain folder such as `C:\guidepup` (`mkdir "C:\guidepup"`, then `setx GUIDEPUP_SCREEN_READERS_PATH "C:\guidepup"`, the same in PowerShell and Git Bash), open a new terminal, and run setup again. The folder has to be new or empty (or one an earlier setup filled): setup refuses one that already holds other files, since Guidepup's installer deletes what isn't its own inside it.
+   - **To keep NVDA for voicecap in another folder,** set `GUIDEPUP_SCREEN_READERS_PATH` to it (`setx GUIDEPUP_SCREEN_READERS_PATH "D:\guidepup"`, the same in PowerShell and Git Bash), open a new terminal, and run setup again. The folder has to be new or empty (or one an earlier setup filled): setup refuses one that already holds other files, since Guidepup's installer deletes what isn't its own inside it.
    - **The first time NVDA starts**, Windows may ask whether NVDA can communicate on networks. Click **Cancel**, and leave every box unticked. voicecap reaches NVDA through this computer's own address (127.0.0.1), which Windows Firewall never blocks. NVDA's control port, though, is open on every network the computer is on, behind a password Guidepup publishes, and Allow would let another computer on the network press keys on this one. If you clicked Allow, see [NVDA's control port](#nvdas-control-port).
    - **Then setup checks this computer.** If it's ready, setup offers the live test (see [The checks, and the live test](#the-checks-and-the-live-test)); if it isn't, setup says what's wrong and exits with code 2.
 
@@ -593,7 +592,7 @@ voicecap never runs these commands itself, and never changes a firewall rule. On
 
 `npx @icjia/voicecap setup` prepares a Mac for VoiceOver. It:
 
-- checks that voicecap's Guidepup can drive VoiceOver on this version of macOS (12 to 26), and if it can't, stops there, before downloading anything;
+- checks that voicecap's Guidepup can drive VoiceOver on this version of macOS (12 to 27), and if it can't, stops there, before downloading anything;
 - installs Guidepup's VoiceOver files (the settings Guidepup starts VoiceOver with) and, if Google Chrome isn't installed, Playwright's Chromium;
 - changes two VoiceOver settings itself, and says how to undo each:
 
@@ -830,7 +829,6 @@ This computer
 
 Checks
   OK    Node.js 22.19.0
-  OK    Guidepup's folder: C:\Users\jane\AppData\Local\guidepup
   OK    NVDA 2026.2 (Guidepup's build 0.2.1-2026.2) is installed
   OK    Windows Firewall keeps NVDA's control port closed to other computers
   OK    No other voicecap is using NVDA
@@ -2654,7 +2652,7 @@ There's no VoiceOver driver yet: it comes in a later release. Until then, the Ma
 Guidepup changes its API across versions and releases often, so voicecap pins `@guidepup/guidepup` and `@guidepup/setup` exactly and upgrades them together:
 
 1. `pnpm add -E @guidepup/guidepup@<version> @guidepup/setup@<version>`.
-2. Re-check the driver against the new versions' source (`src/drivers/guidepup/nvda.ts` lists what it relies on): method names, capture behavior, signal handling, where the NVDA build is installed. On the Mac, `src/drivers/voiceover/` mirrors some of Guidepup 0.34.0's own choices too: where it caches VoiceOver's files, the folder it links voicecap's VoiceOver settings into, and the disk image it mounts.
+2. Re-check the driver against the new versions' source (`src/drivers/guidepup/nvda.ts` lists what it relies on): method names, capture behavior, signal handling, where the NVDA build is installed. On the Mac, `src/drivers/voiceover/` mirrors some of Guidepup 0.36.4's own choices too: where it caches VoiceOver's files, the folder it links voicecap's VoiceOver settings into, the disk image it mounts, how it starts VoiceOver on each version of macOS, and how it finds and stops VoiceOver's process.
 3. Re-run `voicecap setup`: a new Guidepup can pin a new NVDA build, or new VoiceOver files (setup reads them from the installed `@guidepup/guidepup`'s `manifest.json`).
 4. On Windows, run `pnpm test:nvda`: it runs voicecap with real NVDA on the fixture site and checks end-of-page detection, "no next heading", the tab pass starting at the skip link, and complete capture against Speech Viewer. Then `pnpm fixture:capture` replaces the fixture's recorded run; review the transcript changes with `git diff`, and update the flag phrasing in `src/config/defaults.ts` if NVDA's wording changed.
 5. For a temporary fix in Guidepup itself, use `pnpm patch @guidepup/guidepup` and `pnpm patch-commit` rather than forking it.
@@ -2676,7 +2674,6 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 - **One user at a time.** The lock that lets only one voicecap drive NVDA is per Windows user, but NVDA's control port (6837) is shared by the whole computer, and open on its networks: voicecap connects to it on 127.0.0.1, and Windows Firewall must keep it closed to other computers (see [NVDA's control port](#nvdas-control-port)). So don't run voicecap as two Windows users at once.
 - **Shared computers.** While a page is open, its browser listens for remote debugging on 127.0.0.1 (with a throwaway profile), where other users of the same computer could connect. On a single-user desktop that doesn't matter.
 - **Pages that talk nonstop.** Guidepup waits for NVDA to fall silent before each keystroke. On a page with content that announces itself continuously (a fast-updating live region, an auto-advancing carousel), a step can time out; voicecap then restarts NVDA and the browser and tries the page again, up to 5 times in all, and records it as failed if every try times out.
-- **Folders with spaces or special characters.** Guidepup 0.34.0 starts NVDA through the Windows command shell without quoting its path, so it can't start NVDA from a path with a space or one of `& ( , ; = ^`; see [Windows setup](#windows-setup-for-someone-new-to-windows).
 - **Symbols.** Transcripts contain NVDA's spoken names for symbols (`copyright`, `bullet`), not the characters.
 
 </details>

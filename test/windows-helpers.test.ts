@@ -15,11 +15,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "playwright";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  unsafePathMessage,
-  unsafePathProblem,
-  voiceFolder,
-} from "../src/drivers/guidepup/paths.js";
+import { voiceFolder } from "../src/drivers/guidepup/paths.js";
 import {
   cleanupOrphans,
   foregroundWindow,
@@ -1139,72 +1135,6 @@ describe("Windows helpers (what PowerShell says)", () => {
     expect(powershellString("C:\\Users\\O\u2019Brien\\\u2018x\u2019 \u201Ay\u201B")).toBe(
       "'C:\\Users\\O\u2019\u2019Brien\\\u2018\u2018x\u2019\u2019 \u201A\u201Ay\u201B\u201B'",
     );
-  });
-});
-
-describe("Guidepup's folder, when NVDA can't start from it", () => {
-  const install = {
-    build: "0.2.1-2026.2",
-    cacheDir: "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup",
-    nvdaExe:
-      "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup\\nvda\\all\\0.2.1-2026.2\\extracted\\nvda.exe",
-  };
-  const whatsWrong =
-    "Guidepup's NVDA is in C:\\Users\\Jane Doe\\AppData\\Local\\guidepup, and that path has a space in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).";
-
-  it("says what's wrong, and how to fix it one command to a step", () => {
-    expect(unsafePathProblem(install)).toEqual({
-      whatsWrong,
-      fix: [
-        "Choose a folder whose path has only letters, digits, and - _ . in its names. These steps use C:\\guidepup.",
-        `Make the folder, if it isn't there yet: mkdir "C:\\guidepup"`,
-        `Tell Guidepup to use it: setx GUIDEPUP_SCREEN_READERS_PATH "C:\\guidepup"`,
-        "Open a new terminal and install NVDA there: npx @icjia/voicecap setup",
-      ],
-    });
-  });
-
-  it("names a character the command shell treats specially", () => {
-    const problem = unsafePathProblem({
-      ...install,
-      cacheDir: "C:\\Users\\R&D\\AppData\\Local\\guidepup",
-    });
-    expect(problem?.whatsWrong).toContain(
-      'Guidepup\'s NVDA is in C:\\Users\\R&D\\AppData\\Local\\guidepup, and that path has "&" in it.',
-    );
-  });
-
-  it("finds nothing wrong with a folder NVDA can start from", () => {
-    const safe = { ...install, cacheDir: "C:\\Users\\pat\\AppData\\Local\\guidepup" };
-    expect(unsafePathProblem(safe)).toBeNull();
-    expect(unsafePathMessage(safe)).toBeNull();
-  });
-
-  it("says the same in one message, the steps numbered, each on a line of its own", () => {
-    expect(unsafePathMessage(install)).toBe(
-      [
-        whatsWrong,
-        "How to fix:",
-        "  1. Choose a folder whose path has only letters, digits, and - _ . in its names. These steps use C:\\guidepup.",
-        `  2. Make the folder, if it isn't there yet: mkdir "C:\\guidepup"`,
-        `  3. Tell Guidepup to use it: setx GUIDEPUP_SCREEN_READERS_PATH "C:\\guidepup"`,
-        "  4. Open a new terminal and install NVDA there: npx @icjia/voicecap setup",
-      ].join("\n"),
-    );
-  });
-
-  // The steps are shown wrapped, so a command inside a sentence breaks in the middle, and the
-  // sentence's comma or period gets copied after it. So each command ends a step of its own, and
-  // double quotes make the commands the same in PowerShell and Git Bash: no step names a terminal
-  // (Windows PowerShell 5.1 has no &&, so none chains commands with it either).
-  it("ends each command's step with the command, and names no terminal", () => {
-    const steps = unsafePathProblem(install)?.fix ?? [];
-    const message = unsafePathMessage(install) ?? "";
-    expect(steps).toHaveLength(4);
-    for (const step of steps.slice(1)) expect(step).not.toMatch(/[.,;:!?]$/);
-    for (const text of [...steps, ...message.split("\n").slice(1)]) {
-      expect(text).not.toMatch(/PowerShell|Git Bash|&&|\bthen\b/);
-    }
   });
 });
 

@@ -230,20 +230,22 @@ describe("voicecap setup", () => {
     expect(runs).toEqual([]);
   });
 
-  it("explains the space-in-path problem before downloading anything", async () => {
-    const { run, runs } = setupWith({
-      install: { ...install, cacheDir: "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup" },
-    });
-    await expect(run()).rejects.toThrow(/GUIDEPUP_SCREEN_READERS_PATH/);
-    expect(runs).toEqual([]);
-  });
-
-  it("explains the same for a path with a character the command shell treats specially", async () => {
-    const { run, runs } = setupWith({
-      install: { ...install, cacheDir: "C:\\Users\\R&D\\AppData\\Local\\guidepup" },
-    });
-    await expect(run()).rejects.toThrow(/"&".+GUIDEPUP_SCREEN_READERS_PATH/s);
-    expect(runs).toEqual([]);
+  // Guidepup 0.36.0 starts nvda.exe without the Windows command shell, which split 0.34.0's
+  // unquoted path at a space or one of & ( , ; =, dropped ^, and expanded %NAME%.
+  it("installs NVDA in a folder whose path has a space, or a character the command shell treats specially", async () => {
+    const folders = [
+      "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup",
+      "C:\\Users\\R&D\\AppData\\Local\\guidepup",
+      "C:\\screen readers (a,b;c=d^e) %PATH%",
+    ];
+    for (const cacheDir of folders) {
+      const { run, runs } = setupWith({ install: { ...install, cacheDir } });
+      expect(await run(), cacheDir).toBe(0);
+      expect(
+        runs.map((r) => r.args.join(" ")),
+        cacheDir,
+      ).toEqual(["install nvda"]);
+    }
   });
 
   describe("a folder GUIDEPUP_SCREEN_READERS_PATH names", () => {

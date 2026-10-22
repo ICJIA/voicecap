@@ -12,7 +12,7 @@ import { InterruptedError } from "../src/passes/steps.js";
 import type { LiveCheck } from "../src/readiness/live-check.js";
 import type { Check } from "../src/readiness/model.js";
 import { runPreflight } from "../src/readiness/preflight.js";
-import { renderFixes, renderProblems, renderRunSummary } from "../src/readiness/render.js";
+import { renderRunSummary } from "../src/readiness/render.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { silentLogger } from "../src/util/log.js";
 
@@ -122,16 +122,7 @@ describe("Windows readiness", () => {
       windows()
         .quickChecks()
         .map((runner) => runner.id),
-    ).toEqual([
-      "node",
-      "guidepupFolder",
-      "nvda",
-      "nvdaFirewall",
-      "otherVoicecap",
-      "ownNvda",
-      "session",
-      "browser",
-    ]);
+    ).toEqual(["node", "nvda", "nvdaFirewall", "otherVoicecap", "ownNvda", "session", "browser"]);
   });
 
   it("is what voicecap loads on Windows", async () => {
@@ -139,7 +130,6 @@ describe("Windows readiness", () => {
     expect(platform.screenReader).toBe("NVDA");
     expect(platform.quickChecks().map((runner) => runner.id)).toEqual([
       "node",
-      "guidepupFolder",
       "nvda",
       "nvdaFirewall",
       "otherVoicecap",
@@ -229,58 +219,22 @@ describe("Windows quick checks", () => {
     });
   });
 
-  it("pass Guidepup's folder when NVDA can start from it", async () => {
-    expect(await quickCheck("guidepupFolder")).toEqual({
-      id: "guidepupFolder",
-      status: "OK",
-      summary: "Guidepup's folder: C:\\Users\\pat\\AppData\\Local\\guidepup",
-    });
-  });
-
-  it("fail Guidepup's folder when its path has a space, with the fix", async () => {
-    const check = await quickCheck("guidepupFolder", {
-      install: { ...install, cacheDir: "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup" },
-    });
-    expect(check).toEqual({
-      id: "guidepupFolder",
-      status: "FAIL",
-      summary: "Guidepup's folder has a path NVDA can't start from",
-      problem: {
-        title: "Guidepup's folder",
-        whatsWrong:
-          "Guidepup's NVDA is in C:\\Users\\Jane Doe\\AppData\\Local\\guidepup, and that path has a space in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).",
-        fix: [
-          "Choose a folder whose path has only letters, digits, and - _ . in its names. These steps use C:\\guidepup.",
-          `Make the folder, if it isn't there yet: mkdir "C:\\guidepup"`,
-          `Tell Guidepup to use it: setx GUIDEPUP_SCREEN_READERS_PATH "C:\\guidepup"`,
-          "Open a new terminal and install NVDA there: npx @icjia/voicecap setup",
-        ],
-        setupHelps: false,
-      },
-    });
-  });
-
-  // preflight, init, and doctor wrap each fix step at 92 columns. Each command ends a step of its
-  // own, so it stays whole on its line, with nothing after it to copy.
-  it("show each command of the Guidepup folder fix whole, on a line of its own", async () => {
-    const check = await quickCheck("guidepupFolder", {
-      install: { ...install, cacheDir: "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup" },
-    });
-    const shown = [
-      renderProblems([check], { offerSetup: true }),
-      renderFixes([check], { offerSetup: true }),
+  // Guidepup 0.36.0 starts nvda.exe without the Windows command shell, which split 0.34.0's
+  // unquoted path at a space or one of & ( , ; =, dropped ^, and expanded %NAME%. So Guidepup's
+  // folder has no check of its own: the computer's facts give it, as "Guidepup files".
+  it("are ready when Guidepup's folder has a space, or a character the command shell treats specially, in its path", async () => {
+    const folders = [
+      "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup",
+      "C:\\Users\\R&D\\AppData\\Local\\guidepup",
+      "C:\\screen readers (a,b;c=d^e) %PATH%",
     ];
-    for (const text of shown) {
-      const lines = text.split("\n");
-      expect(lines).toContain(
-        `     2. Make the folder, if it isn't there yet: mkdir "C:\\guidepup"`,
-      );
-      expect(lines).toContain(
-        `     3. Tell Guidepup to use it: setx GUIDEPUP_SCREEN_READERS_PATH "C:\\guidepup"`,
-      );
-      expect(lines).toContain(
-        "     4. Open a new terminal and install NVDA there: npx @icjia/voicecap setup",
-      );
+    for (const cacheDir of folders) {
+      const result = await runPreflight(windows({ install: { ...install, cacheDir } }));
+      expect(result.ready, cacheDir).toBe(true);
+      expect(result.info.lines, cacheDir).toContainEqual({
+        label: "Guidepup files",
+        value: cacheDir,
+      });
     }
   });
 

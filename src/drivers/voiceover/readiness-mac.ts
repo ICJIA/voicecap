@@ -73,7 +73,7 @@ export function lockVoiceOver(file: string): Promise<() => Promise<void>> {
 
 /**
  * Where Guidepup caches VoiceOver's asset: GUIDEPUP_SCREEN_READERS_PATH when set (resolved), else
- * <home>/Library/Caches/guidepup. Mirrors @guidepup/guidepup 0.34.0's lib/resolveCachePath.js.
+ * <home>/Library/Caches/guidepup. Mirrors @guidepup/guidepup 0.36.4's lib/resolveCachePath.js.
  */
 export function guidepupCacheDir(env: NodeJS.ProcessEnv, home: string): string {
   const override = envValue(env, "GUIDEPUP_SCREEN_READERS_PATH");
@@ -97,9 +97,11 @@ interface GuidepupManifest {
 /**
  * The macOS major version a Darwin major version reports as, e.g. from `uname -r`'s leading
  * number. Darwin 21-24 are macOS 12-15; Darwin 25 is macOS 26, when Apple's numbering jumped to
- * match the year.
+ * match the year; macOS 27 is Darwin 27 (macOS 27.0.1 is Darwin 27.0.0, and Guidepup 0.35.0 added
+ * its asset as Darwin 27), and later versions are taken to keep the two numbers the same.
  */
 function macOSForDarwin(darwinMajor: number): number {
+  if (darwinMajor >= 27) return darwinMajor;
   return darwinMajor >= 25 ? darwinMajor + 1 : darwinMajor - 9;
 }
 
@@ -466,10 +468,13 @@ async function accessibilityCheck(
 }
 
 /**
- * Predicts what Guidepup 0.34.0's start needs before it links voicecap's VoiceOver settings in
+ * Predicts what Guidepup 0.36.4's start needs before it links voicecap's VoiceOver settings in
  * (mountGuidepupPreferences): VoiceOver's own settings file in the folder Guidepup chooses, and
  * the right to create files there, which macOS 26 gives only with Full Disk Access in VoiceOver's
  * group container. Without the settings file, it writes nothing: Full Disk Access can't help.
+ * Since Guidepup 0.36.0, its start also refuses to replace anything but its own links at the four
+ * names it links there (com.apple.VoiceOver4.portable.*), which this doesn't predict: the live
+ * test's failure then names the file to move (withCauses).
  */
 async function fullDiskAccessCheck(
   deps: MacReadinessDeps,
@@ -648,6 +653,7 @@ export function realMacLiveDeps(
 ): MacLiveDeps {
   return {
     run: runCommand,
+    darwinMajor: Number(os.release().split(".")[0]),
     app,
     again: options.again,
     loadVoiceOver: loadGuidepupVoiceOver,

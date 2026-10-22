@@ -11,7 +11,6 @@ import {
   handleUnawaitedKeyPresses,
   loadGuidepupNvda,
   withoutAddedListeners,
-  withoutDeprecationWarnings,
 } from "../src/drivers/guidepup/nvda.js";
 import { readGuidepupPackage } from "../src/drivers/guidepup/paths.js";
 import { EnvironmentError } from "../src/util/errors.js";
@@ -65,44 +64,6 @@ describe("Guidepup's signal handlers", () => {
       }),
     ).rejects.toThrow("NVDA cannot be started");
     expect(process.listeners("SIGINT")).not.toContain(guidepups);
-  });
-});
-
-describe("Node's shell-arguments deprecation warning (DEP0190), with warnings already off", () => {
-  // node --no-deprecation (or NODE_OPTIONS=--no-deprecation) makes process.noDeprecation read-only.
-  it("leaves the read-only setting alone and runs the action", async () => {
-    const original = Object.getOwnPropertyDescriptor(process, "noDeprecation");
-    Object.defineProperty(process, "noDeprecation", {
-      value: true,
-      writable: false,
-      configurable: true,
-    });
-    try {
-      expect(await withoutDeprecationWarnings(() => Promise.resolve("started"))).toBe("started");
-    } finally {
-      if (original) Object.defineProperty(process, "noDeprecation", original);
-      else delete (process as { noDeprecation?: boolean }).noDeprecation;
-    }
-  });
-});
-
-describe("Node's shell-arguments deprecation warning (DEP0190)", () => {
-  it("is hidden while Guidepup launches nvda.exe, and only then", async () => {
-    const warnings: string[] = [];
-    const onWarning = (warning: Error & { code?: string }) => warnings.push(warning.code ?? "");
-    process.on("warning", onWarning);
-    const before = process.noDeprecation;
-    try {
-      await withoutDeprecationWarnings(() => {
-        process.emitWarning("args are concatenated", "DeprecationWarning", "DEP0190");
-        return Promise.resolve();
-      });
-      await new Promise((resolve) => setImmediate(resolve));
-      expect(warnings).toEqual([]);
-      expect(process.noDeprecation).toBe(before);
-    } finally {
-      process.off("warning", onWarning);
-    }
   });
 });
 
@@ -183,23 +144,20 @@ describe("Guidepup's key presses that nobody waits for", () => {
     expect(unhandled).toEqual([]);
   });
 
-  // Guidepup can only be loaded where it has a screen reader: on Linux, importing it throws.
-  it.skipIf(process.platform !== "win32" && process.platform !== "darwin")(
-    "fail quietly in Guidepup's own client once voicecap has loaded Guidepup",
-    async () => {
-      await loadGuidepupNvda(INSTALL);
-      const { NVDAClient } = await import("@guidepup/guidepup/lib/windows/NVDA/NVDAClient.js");
-      const { WindowsKeyCodes } = await import("@guidepup/guidepup");
-      const unhandled = await unhandledRejectionsDuring(() => {
-        // Not a connected client, so the press fails, as it does once NVDA has died.
-        void NVDAClient.prototype.sendKeyCode.call({} as never, {
-          keyCode: [WindowsKeyCodes.Down],
-        });
-        return Promise.resolve();
+  // Guidepup loads on every system voicecap's CI runs on: from 0.36.0, on Linux too (with Orca).
+  it("fail quietly in Guidepup's own client once voicecap has loaded Guidepup", async () => {
+    await loadGuidepupNvda(INSTALL);
+    const { NVDAClient } = await import("@guidepup/guidepup/lib/windows/NVDA/NVDAClient.js");
+    const { WindowsKeyCodes } = await import("@guidepup/guidepup");
+    const unhandled = await unhandledRejectionsDuring(() => {
+      // Not a connected client, so the press fails, as it does once NVDA has died.
+      void NVDAClient.prototype.sendKeyCode.call({} as never, {
+        keyCode: [WindowsKeyCodes.Down],
       });
-      expect(unhandled).toEqual([]);
-    },
-  );
+      return Promise.resolve();
+    });
+    expect(unhandled).toEqual([]);
+  });
 
   it("don't change how the rest of the process handles unhandled rejections", async () => {
     const before = process.listeners("unhandledRejection");

@@ -24,7 +24,6 @@ import {
   nvdaLockFile,
   nvdaVersionFromBuild,
   readGuidepupPackage,
-  unsafePathProblem,
   type GuidepupInstall,
   type GuidepupPackage,
 } from "./paths.js";
@@ -171,7 +170,6 @@ function foundBrowser(deps: WindowsReadinessDeps): BrowserExecutable | null {
 function quickChecks(deps: WindowsReadinessDeps, again: string): CheckRunner[] {
   return [
     { id: "node", run: () => Promise.resolve(nodeCheck(deps.nodeVersion, again)) },
-    { id: "guidepupFolder", run: () => Promise.resolve(guidepupFolderCheck(deps.install)) },
     { id: "nvda", run: () => Promise.resolve(nvdaCheck(deps)) },
     { id: "nvdaFirewall", run: () => nvdaFirewallCheck(deps) },
     {
@@ -183,23 +181,6 @@ function quickChecks(deps: WindowsReadinessDeps, again: string): CheckRunner[] {
     { id: "session", run: async () => sessionCheck(await deps.sessionLocked(), again) },
     { id: "browser", run: () => Promise.resolve(browserCheck(deps.resolveBrowser)) },
   ];
-}
-
-function guidepupFolderCheck(install: GuidepupInstall): Check {
-  const problem = unsafePathProblem(install);
-  if (!problem) {
-    return {
-      id: "guidepupFolder",
-      status: "OK",
-      summary: `Guidepup's folder: ${install.cacheDir}`,
-    };
-  }
-  return {
-    id: "guidepupFolder",
-    status: "FAIL",
-    summary: "Guidepup's folder has a path NVDA can't start from",
-    problem: { title: "Guidepup's folder", ...problem, setupHelps: false },
-  };
 }
 
 function nvdaCheck(deps: WindowsReadinessDeps): Check {

@@ -4,6 +4,17 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **Guidepup 0.36.4 and `@guidepup/setup` 0.29.3,** from 0.34.0 and 0.28.0. Guidepup 0.35.0 added macOS 27, which starts VoiceOver in a new way. On Windows, Guidepup now starts and quits NVDA without the Windows command shell, waits at most 30 seconds for NVDA to quit (it could wait for ever), and no longer connects again once its connection to NVDA has failed with an error: the run then restarts NVDA and tries the page again, as it did once Guidepup gave up reconnecting. Guidepup's NVDA now stops when voicecap's process ends, where it ran on until the next run closed it, and a start that fails twice can leave Windows' screen reader setting on until NVDA next starts and stops. Node no longer warns that the shell's arguments aren't escaped (DEP0190), so voicecap no longer hides its deprecation warnings while NVDA starts and stops.
+- **VoiceOver's process is found by its name,** `VoiceOver`, as Guidepup 0.36.2 and later find it, where voicecap looked for its command line (`VoiceOver launchd -s`), which another process's command line could mention.
+- **Guidepup's folder can have a space in its path,** or one of `& ( , ; = ^` (`C:\Users\Jane Doe`, `C:\Users\R&D`). Guidepup 0.34.0 started NVDA through the Windows command shell without quoting its path, so `voicecap setup`, the checks, and the guidepup driver refused such a folder and said how to choose another. Guidepup 0.36.0 starts NVDA without the shell. The checks no longer have a line for Guidepup's folder: the computer's facts give it, as "Guidepup files".
+
+### Fixed
+
+- **macOS 27's number.** The Mac's checks called macOS 27 "macOS 28", and failed it as unsupported: macOS 27 reports itself as Darwin 27, where macOS 26 was Darwin 25, and Guidepup 0.34.0 had no VoiceOver files for it. The checks now call it macOS 27, and pass it with Guidepup 0.36.4.
+- **Starting VoiceOver on macOS 27.** macOS 27 has no VoiceOverStarter, which the Mac's live test ran to start VoiceOver for its first question, and to turn the person's own VoiceOver back on afterwards (its exit hook too). On macOS 27, voicecap opens VoiceOver.app instead, as Guidepup does there.
+
 ## [0.20.0] - 2026-10-16
 
 The website now writes `sites.json`: each site and its current report, as JSON, for another website that links to the results.

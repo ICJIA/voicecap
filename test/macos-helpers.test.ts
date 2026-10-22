@@ -159,7 +159,7 @@ describe("stopVoiceOverSync", () => {
     file: "pkill",
     args: ["-15", "-f", "VoiceOver.app/Contents/MacOS/VoiceOver launchd -s"],
   };
-  const PGREP = { file: "pgrep", args: ["-f", "VoiceOver launchd -s"] };
+  const PGREP = { file: "pgrep", args: ["-x", "VoiceOver"] };
 
   /** A Mac whose pgrep finds VoiceOver for its first `found` checks, answering pgrep with `code`. */
   function syncMac(found: number, code: number | null = 1) {
@@ -207,7 +207,7 @@ describe("stopVoiceOverSync", () => {
 
 // For the exit hook: waiting for a VoiceOver that's still starting, until a time on a clock.
 describe("waitUntilVoiceOverRunsSync", () => {
-  const PGREP = { file: "pgrep", args: ["-f", "VoiceOver launchd -s"] };
+  const PGREP = { file: "pgrep", args: ["-x", "VoiceOver"] };
 
   /** A Mac whose VoiceOver appears at `appearsAt` on a clock that each wait moves on. */
   function startingMac(appearsAt: number, startClock = 0) {
@@ -677,11 +677,11 @@ describe("readDefault and writeDefault", () => {
 });
 
 describe("voiceOverRunning", () => {
-  it("is true when pgrep finds VoiceOver's launchd process", async () => {
+  it("is true when pgrep finds a process named VoiceOver, exactly", async () => {
     const commands = fakeCommands([[() => true, { code: 0, stdout: "1234\n" }]]);
     expect(await voiceOverRunning(commands.run)).toBe(true);
     expect(commands.calls).toEqual([
-      { file: "pgrep", args: ["-f", "VoiceOver launchd -s"], timeoutMs: SHORT_TIMEOUT_MS },
+      { file: "pgrep", args: ["-x", "VoiceOver"], timeoutMs: SHORT_TIMEOUT_MS },
     ]);
   });
 
@@ -724,13 +724,25 @@ describe("startVoiceOver", () => {
     );
   });
 
-  it("runs VoiceOverStarter with no arguments", async () => {
+  it("runs VoiceOverStarter with no arguments, up to macOS 26 (Darwin 25)", async () => {
     const commands = fakeCommands([[() => true, { code: 0 }]]);
-    await startVoiceOver(commands.run);
+    await startVoiceOver(commands.run, 25);
     expect(commands.calls).toEqual([
       {
         file: "/System/Library/CoreServices/VoiceOver.app/Contents/MacOS/VoiceOverStarter",
         args: [],
+        timeoutMs: SHORT_TIMEOUT_MS,
+      },
+    ]);
+  });
+
+  it("opens VoiceOver.app on macOS 27 (Darwin 27), which has no VoiceOverStarter", async () => {
+    const commands = fakeCommands([[() => true, { code: 0 }]]);
+    await startVoiceOver(commands.run, 27);
+    expect(commands.calls).toEqual([
+      {
+        file: "open",
+        args: ["-a", "/System/Library/CoreServices/VoiceOver.app"],
         timeoutMs: SHORT_TIMEOUT_MS,
       },
     ]);
@@ -799,7 +811,7 @@ describe("waitForVoiceOver", () => {
 describe("stopVoiceOver", () => {
   const pgrep = {
     file: "pgrep",
-    args: ["-f", "VoiceOver launchd -s"],
+    args: ["-x", "VoiceOver"],
     timeoutMs: SHORT_TIMEOUT_MS,
   };
 
@@ -824,8 +836,8 @@ describe("stopVoiceOver", () => {
         ],
         timeoutMs: 15_000,
       },
-      // Guidepup 0.34.0's own pattern for stopping VoiceOver (terminateVoiceOverProcess), which
-      // is more specific than the one pgrep checks with (its isRunning).
+      // Guidepup 0.36.4's own pattern for stopping VoiceOver (terminateVoiceOverProcess): its
+      // command line, where pgrep checks its name (as Guidepup's isRunning does).
       {
         file: "pkill",
         args: ["-15", "-f", "VoiceOver.app/Contents/MacOS/VoiceOver launchd -s"],
