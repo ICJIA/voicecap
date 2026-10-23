@@ -1,24 +1,24 @@
-# PC handoff: after the Guidepup 0.36.4 checks and r3.illinois.gov's entry 4
+# PC handoff: after 0.20.1's release and r3.illinois.gov's entry 4
 
-This file was brought up to date on the PC on 2026-10-22, at the end of that day's session, on the branch `guidepup-0.36`, for the next working session on the owner's Windows PC. Notes kept on one computer don't travel to the other, so everything the next session needs is here. `docs/phase-c-handoff.md` has the full history, under "Where things stand".
+This file was brought up to date on the PC on 2026-10-23, after 0.20.1's release, for the next working session on the owner's Windows PC. Notes kept on one computer don't travel to the other, so everything the next session needs is here. `docs/phase-c-handoff.md` has the full history, under "Where things stand".
 
-## What the PC did on 2026-10-22
+## What the PC did on 2026-10-22 and 2026-10-23
 
 - **The branch `guidepup-0.36` passed its checks with NVDA,** each with the owner's OK and hands off: `doctor`, NVDA from `C:\guidepup test & more` (`setup`, then `doctor`), and the demo. `docs/phase-c-handoff.md` ("Checked at the PC") has what each showed.
 - **A stop that fails no longer fails every later start in a run.** Guidepup 0.36 counts its NVDA as still running after a stop whose quit timed out, and refuses to start another ("NVDA is already running"), so after one such stop every later page of the run would fail to start NVDA. The adapter's start now stops that NVDA again, once, and starts. It was settled under the owner's standing rule to take the recommended option, for the owner to confirm or reverse.
 - **r3.illinois.gov was read again with 0.20.0** (run 2026-10-22_1318), shared as entry 4, and pushed (transcripts 15e4729). It's live, byte for byte, and `sites.json` names it.
-- **0.20.1 is prepared on the branch:** its CHANGELOG entry, dated 2026-10-22. It's a patch, as 0.18.1 was: a dependency upgrade and fixes, with no new feature. It isn't merged or released.
+- **0.20.1 was released on 2026-10-23** (tag `v0.20.1`), at the owner's word. `main` moved to the branch's last commit without a merge commit, CI passed for it, and `publish.sh` published it with the owner's code at its prompt. It's a patch, as 0.18.1 was: a dependency upgrade and fixes, with no new feature. The website builds with it (transcripts 3448ca2).
 - **A fix from r3's run is in it:** a run ends when its last session ended, as NVDA stopped reading, not when it was sealed. r3's question was answered hours after the reading, so entry 4's evidence gives the run as "13:18 to 19:11"; from 0.20.1 such a run reads "13:18 to 14:36". Entry 4 keeps its words, since a share is never rewritten.
 
 ## How to start
 
 On the PC, in PowerShell or Windows Terminal (not Git Bash's own window):
 
-1. In the voicecap folder, bring the code up to date, then install and build it. Until 0.20.1 is released, the code is on the branch `guidepup-0.36`; afterwards, it's on `main`.
+1. In the voicecap folder, bring the code up to date, then install and build it. The code is on `main`.
 
    ```
    git fetch
-   git checkout guidepup-0.36
+   git checkout main
    git pull
    pnpm install
    pnpm build
@@ -43,23 +43,9 @@ All of the owner's standing rules are in `docs/phase-c-handoff.md` ("Working rul
 - **Commit, push, or publish only when the owner asks.** Commit messages are one subject line, with no trailers of any kind.
 - **Never use or repeat a password or PIN** pasted into the chat.
 
-## Next: release 0.20.1, when the owner says
+## Next, when the owner says
 
-The release is the owner's call. It can be made from the PC or the Mac, with the owner's npm code at the release script's prompt, as for earlier releases.
-
-1. Check that CI passed for the branch's last commit, and that `npm whoami` answers. If it doesn't, the owner logs in to npm first.
-2. Bring `main` up to the branch, and push it. `main` is behind the branch with nothing of its own, so it moves without a merge commit, and CI's run for that commit counts for the release:
-
-   ```
-   git checkout main
-   git pull
-   git merge --ff-only guidepup-0.36
-   git push origin main
-   ```
-
-3. `./publish.sh --dry-run patch`, then `./publish.sh patch`. The script checks everything again, then asks for the version and for npm's code.
-4. Once npm serves 0.20.1, set the build command in the transcripts repository's `netlify.toml` to `@0.20.1`, then commit and push it (the owner's standing OK).
-5. Record the release in `docs/phase-c-handoff.md` ("Where things stand").
+- **Share r3.illinois.gov again, as entry 5.** Entry 4 gives run 2026-10-22_1318 as "13:18 to 19:11", since 0.20.0 ended a run when its question was answered; shared again with 0.20.1, the page says "13:18 to 14:36". It needs no NVDA run: in the transcripts home, `npx --yes @icjia/voicecap@0.20.1 share --site https://r3.illinois.gov`, then `verify`, then commit and push when the owner says.
 
 ## Also at the PC, when the owner wants
 
@@ -75,4 +61,4 @@ The release is the owner's call. It can be made from the PC or the Mac, with the
   - #7 (fast-xml-parser 5.11.2, which ships), #8 (vitest 5.0.3), and #9 (jszip 3.10.2, which only the tests use) are patch updates that passed CI on every system. After the release, Dependabot rebases them.
   - #5 (axe-core 4.14.0) can change what axe finds on a page, and #2 to #4 move three GitHub Actions to new major versions. Both are the owner's call.
   - None of them brings vite 8.3.3, and `pnpm update vite` leaves it at 8.3.1, so clearing the alerts takes an override (`overrides:` in `pnpm-workspace.yaml`), also the owner's call.
-- **Merged branches** still on GitHub: `plan-15-sites-json` and `readme-why-voicecap`, and `guidepup-0.36` once it's released. Deleting them is the owner's call.
+- **Merged branches** still on GitHub: `plan-15-sites-json` and `readme-why-voicecap`, and `guidepup-0.36`, released as 0.20.1. Deleting them is the owner's call.
