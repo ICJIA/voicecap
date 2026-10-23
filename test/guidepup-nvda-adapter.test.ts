@@ -112,6 +112,38 @@ function fakeGuidepup(nvdaOverrides: Record<string, unknown> = {}) {
   return { lib, nvda };
 }
 
+/**
+ * A stand-in for Guidepup 0.36.4's NVDA object with its start and stop flags: it counts an NVDA as
+ * started from a start that succeeded until a stop that finished, its start says "NVDA is already
+ * running" while it does, and a stop whose quit times out leaves that NVDA counted.
+ */
+function guidepupWithFlags(options: { stopFailures?: number; startFailure?: string } = {}) {
+  let started = false;
+  let stopFailures = options.stopFailures ?? 0;
+  let stops = 0;
+  const { lib } = fakeGuidepup({
+    start: () => {
+      if (started) return Promise.reject(new Error("NVDA is already running"));
+      if (options.startFailure) return Promise.reject(new Error(options.startFailure));
+      started = true;
+      return Promise.resolve();
+    },
+    stop: () => {
+      stops++;
+      if (!started) return Promise.reject(new Error("NVDA is not running"));
+      if (stopFailures > 0) {
+        stopFailures--;
+        return Promise.reject(
+          new Error("Timed out waiting for NVDA to quit (an NVDA dialog may be open)"),
+        );
+      }
+      started = false;
+      return Promise.resolve();
+    },
+  });
+  return { lib, started: () => started, stops: () => stops };
+}
+
 /** The rejections nobody handled while the action ran. */
 async function unhandledRejectionsDuring(action: () => Promise<void>): Promise<unknown[]> {
   const unhandled: unknown[] = [];
@@ -178,6 +210,12 @@ describe("the pinned Guidepup package", () => {
     expect(guidepup.version).toBe(pinned);
     expect(guidepup.nvdaBuild).toMatch(/^\d+\.\d+\.\d+-\d{4}\.\d+/);
   });
+
+  // The adapter knows a start refused after a failed stop by these words (see its start()).
+  it("refuses a start with the words the adapter looks for", async () => {
+    const errors = await import("@guidepup/guidepup/lib/windows/errors.js");
+    expect(errors.ERR_NVDA_ALREADY_RUNNING).toBe("NVDA is already running");
+  });
 });
 
 // Guidepup silences NVDA (at least 250 ms) before every command it captures. Once its connection
@@ -221,5 +259,41 @@ describe("commands Guidepup didn't send", () => {
   it("aren't expected to take any time when nothing is captured", async () => {
     const nvda = withClock(0);
     expect(await nvda.press("exitFocusMode", { capture: false })).toBe("");
+  });
+});
+
+const START = { capture: "complete" as const, settings: {} };
+
+// Guidepup has one NVDA object for the whole process, and voicecap wraps it in a new adapter at
+// each start, so what a failed stop leaves behind meets the next start, whichever adapter makes it.
+describe("a start after a stop that failed", () => {
+  it("stops the NVDA Guidepup still counts as running, then starts", async () => {
+    const guidepup = guidepupWithFlags({ stopFailures: 1 });
+    const first = new GuidepupNvda(guidepup.lib, INSTALL);
+    await first.start(START);
+    await expect(first.stop()).rejects.toThrow("Timed out waiting for NVDA to quit");
+    await new GuidepupNvda(guidepup.lib, INSTALL).start(START);
+    expect(guidepup.started()).toBe(true);
+    expect(guidepup.stops()).toBe(2);
+  });
+
+  it("fails with the reason when that NVDA still can't be stopped", async () => {
+    const guidepup = guidepupWithFlags({ stopFailures: 2 });
+    const first = new GuidepupNvda(guidepup.lib, INSTALL);
+    await first.start(START);
+    await expect(first.stop()).rejects.toThrow("Timed out waiting for NVDA to quit");
+    await expect(new GuidepupNvda(guidepup.lib, INSTALL).start(START)).rejects.toThrow(
+      "Timed out waiting for NVDA to quit (an NVDA dialog may be open)",
+    );
+  });
+});
+
+describe("a start that fails for another reason", () => {
+  it("keeps its reason, and stops nothing", async () => {
+    const guidepup = guidepupWithFlags({ startFailure: "NVDA cannot be started" });
+    await expect(new GuidepupNvda(guidepup.lib, INSTALL).start(START)).rejects.toThrow(
+      "NVDA cannot be started",
+    );
+    expect(guidepup.stops()).toBe(0);
   });
 });

@@ -17,6 +17,10 @@
  *   speech, so the driver checks isRunning() whenever a step is silent. Once its connection to
  *   NVDA has failed with an error, Guidepup drops it for good, and commands come back at once (see
  *   checkCaptured); a connection that ended without an error is made again by the next command.
+ * - Guidepup has one NVDA object for the whole process. It counts an NVDA as started from a start
+ *   that succeeded until a stop that finished, and its start() says "NVDA is already running" while
+ *   it does, so a stop that failed partway (nvda.exe --quit taking over 30 seconds, say) would fail
+ *   every later start in the process. Stopping it again clears that (Guidepup PR #170): see start().
  */
 import { spawnSync } from "node:child_process";
 import net from "node:net";
@@ -37,6 +41,8 @@ export const GUIDEPUP_EVENTS = ["SIGINT", "SIGTERM", "SIGQUIT", "SIGHUP", "befor
 const NVDA_PORT = 6837;
 /** Less time than any command Guidepup captures takes (see checkCaptured). */
 const MIN_CAPTURED_MS = 200;
+/** What Guidepup's start() says while it counts an NVDA as started (lib/windows/errors.js). */
+const ALREADY_RUNNING = "NVDA is already running";
 
 /** Load Guidepup (only when the Guidepup driver starts) and wrap its NVDA object. */
 export async function loadGuidepupNvda(install: GuidepupInstall): Promise<NvdaControl> {
@@ -77,7 +83,17 @@ export class GuidepupNvda implements NvdaControl {
       Object.keys(options.settings).length > 0
         ? { capture, settings: options.settings }
         : { capture };
-    await withoutAddedListeners(GUIDEPUP_EVENTS, () => this.lib.nvda.start(startOptions));
+    const start = () =>
+      withoutAddedListeners(GUIDEPUP_EVENTS, () => this.lib.nvda.start(startOptions));
+    try {
+      await start();
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== ALREADY_RUNNING) throw error;
+      // A stop that failed left Guidepup counting its NVDA as started (see the top of this file).
+      // Stopping it again clears that, once; a stop that fails again gives its reason.
+      await this.lib.nvda.stop();
+      await start();
+    }
   }
 
   stop(): Promise<void> {
