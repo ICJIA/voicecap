@@ -13,6 +13,10 @@ Each page's card on the shareable page now links to the page's recording, so any
 - **Each page's recording is one click from its card.** A recorded page's card on the shareable page has a link right under the page's name, "▶ Hear what NVDA said on this page (2 min 14 s)", set apart as a button, which opens the page's section of the voice page: a manager, an auditor, or a lawyer with doubts about a transcript can hear the run itself. It was a small line after "Heard first". Each page listed on a card of "What needs attention" has one too, after its name, and the Word copy, which can't play sound, says under each recorded page's screenshot where its recording is: the voice page's file, and the page's section there.
 - **Reports no longer carry voicecap's own timeline.** "How voicecap came to be", on the shareable page and in its Word copy, no longer has the table of voicecap's releases on a Windows PC and on a Mac: it says how voicecap began and why it exists, then folds the rest of the story and a few things worth knowing. Reports already shared keep theirs, as they were made.
 
+### Security
+
+- **zod 4.6.7,** from 4.6.5. Zod before 4.6.6 could use up memory while it checked an oversized list against a rule ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)); voicecap checks its config file, axe's results, and a run's saved files with it.
+
 ## [0.20.1] - 2026-10-22
 
 The Mac's checks now know macOS 27, and on Windows NVDA now starts and quits without the command shell, even from a folder whose path has a space or an ampersand.
