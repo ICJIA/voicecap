@@ -70,5 +70,9 @@ The release is the owner's call. It can be made from the PC or the Mac, with the
   - a Chrome window closed mid-page is recorded as `browser`;
   - a real repeat with NVDA, which should end with each page's comparison.
 - **i2i.illinois.gov** will soon serve i2i's v3 (the owner, 2026-10-16). Until then, i2i's section on docs.icjia.app shows `v3--i2i.netlify.app`'s results. Once a run of i2i.illinois.gov itself is shared, the section shows that report instead, since a section shows the report shared last.
-- **Dependabot:** nine open pull requests (from 2026-10-06 and 2026-10-13), and three alerts on vite (development only, through vitest; fixed in vite 8.3.3, which none of the pull requests brings). The release script audits only what ships, so none of them blocks a release. They're worth one pass together, with the owner deciding axe-core 4.14.0, which can change what axe finds on a page, and the three GitHub Actions moves to new major versions. `@guidepup/setup` 0.29.2's pull request is replaced by the branch's 0.29.3.
+- **Dependabot:** nine open pull requests (from 2026-10-06 and 2026-10-13), and three alerts on vite (development only, through vitest; fixed in vite 8.3.3). The release script audits only what ships, so none of them blocks a release. As checked on 2026-10-22:
+  - #1 (source-map-js 1.2.2) is already in `main`'s lockfile, and #6 (`@guidepup/setup` 0.29.2) is replaced by the branch's 0.29.3, so both can be closed.
+  - #7 (fast-xml-parser 5.11.2, which ships), #8 (vitest 5.0.3), and #9 (jszip 3.10.2, which only the tests use) are patch updates that passed CI on every system. After the release, Dependabot rebases them.
+  - #5 (axe-core 4.14.0) can change what axe finds on a page, and #2 to #4 move three GitHub Actions to new major versions. Both are the owner's call.
+  - None of them brings vite 8.3.3, and `pnpm update vite` leaves it at 8.3.1, so clearing the alerts takes an override (`overrides:` in `pnpm-workspace.yaml`), also the owner's call.
 - **Merged branches** still on GitHub: `plan-15-sites-json` and `readme-why-voicecap`, and `guidepup-0.36` once it's released. Deleting them is the owner's call.
