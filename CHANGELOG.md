@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-10-22
+
+The Mac's checks now know macOS 27, and on Windows NVDA now starts and quits without the command shell, even from a folder whose path has a space or an ampersand.
+
 ### Changed
 
 - **Guidepup 0.36.4 and `@guidepup/setup` 0.29.3,** from 0.34.0 and 0.28.0. Guidepup 0.35.0 added macOS 27, which starts VoiceOver in a new way. On Windows, Guidepup now starts and quits NVDA without the Windows command shell, waits at most 30 seconds for NVDA to quit (it could wait for ever), and no longer connects again once its connection to NVDA has failed with an error: the run then restarts NVDA and tries the page again, as it did once Guidepup gave up reconnecting. When a stop gives up on NVDA's quit, Guidepup still counts that NVDA as running and refuses to start another, so voicecap's next start stops it again first, once; if NVDA still won't quit, that start fails and says why. Guidepup's NVDA now stops when voicecap's process ends, where it ran on until the next run closed it, and a start that fails twice can leave Windows' screen reader setting on until NVDA next starts and stops. Node no longer warns that the shell's arguments aren't escaped (DEP0190), so voicecap no longer hides its deprecation warnings while NVDA starts and stops.
@@ -13,7 +17,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 ### Fixed
 
 - **macOS 27's number.** The Mac's checks called macOS 27 "macOS 28", and failed it as unsupported: macOS 27 reports itself as Darwin 27, where macOS 26 was Darwin 25, and Guidepup 0.34.0 had no VoiceOver files for it. The checks now call it macOS 27, and pass it with Guidepup 0.36.4.
-- **Starting VoiceOver on macOS 27.** macOS 27 has no VoiceOverStarter, which the Mac's live test ran to start VoiceOver for its first question, and to turn the person's own VoiceOver back on afterwards (its exit hook too). On macOS 27, voicecap opens VoiceOver.app instead, as Guidepup does there.
+- **Starting VoiceOver on macOS 27.** macOS 27 has no VoiceOverStarter, which the Mac's live test ran to start VoiceOver for its first question, and to turn the person's own VoiceOver back on afterwards (its exit hook too). On macOS 27, voicecap opens VoiceOver.app instead, as Guidepup does there. The live test can still fail to start VoiceOver there: as Guidepup starts VoiceOver, it restarts macOS's preferences service twice, a few milliseconds apart, and macOS holds the second start back for 10 seconds, which is about as long as Guidepup waits for VoiceOver to open. Run the test again if it fails.
 
 ## [0.20.0] - 2026-10-16
 
@@ -787,7 +791,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.20.1...HEAD
+[0.20.1]: https://github.com/ICJIA/voicecap/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/ICJIA/voicecap/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/ICJIA/voicecap/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/ICJIA/voicecap/compare/v0.18.0...v0.18.1
