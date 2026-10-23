@@ -201,8 +201,9 @@ function heardFirstOf({ heardFirst }: PageCard): string {
 
 /**
  * A page's line on NVDA's voice, for a page that has a recording to play: its length, and a link to
- * the page's section of the voice page, which a share writes beside this page ("NVDA's voice: 2 min
- * 14 s, on the voice page"). The link names the page it's for, for a screen reader alone, so that
+ * the page's section of the voice page, which a share writes beside this page ("▶ Hear what NVDA
+ * said on this page (2 min 14 s)"), set apart under the page's name so that a reader with doubts
+ * about the transcripts finds it at once. The arrow is for the eye alone. The link names the page it's for, for a screen reader alone, so that
  * the links of a page's cards, which the length can't tell apart, don't read alike and go to
  * different places. No line for a page with no recording, and none in a copy with no voice page
  * beside it: the card has no `voice` then.
@@ -212,14 +213,14 @@ function voiceLine(card: PageCard): string {
   if (voice === null) return "";
   const words = esc(VOICE_TEXT.card.line(voice.seconds));
   const ofPage = `<span class="sr"> ${esc(VOICE_TEXT.card.of(card.path))}</span>`;
-  return `<p class="sub"><a href="${esc(voice.href)}">${words}${ofPage}</a></p>`;
+  return `<p class="voice-link"><a href="${esc(voice.href)}"><span aria-hidden="true">▶ </span>${words}${ofPage}</a></p>`;
 }
 
 /**
- * A page's card, in the spec's order: the picture, then the heading, the title, the chips, the
- * failure, the run its transcripts come from, and the manual sessions; what NVDA said first, and
- * the line on its recording; what each pass captured, and the strip; then what axe found, folded;
- * and last the page's full transcript, folded. `transcripts` is the page's entry in the model's
+ * A page's card, in the spec's order: the picture, then the heading and the line on its recording,
+ * the title, the chips, the failure, the run its transcripts come from, and the manual sessions;
+ * what NVDA said first; what each pass captured, and the strip; then what axe found, folded; and
+ * last the page's full transcript, folded. `transcripts` is the page's entry in the model's
  * list of transcripts, and none for a page with none; a part a page has nothing for is left out.
  */
 function cardOf(
@@ -233,13 +234,13 @@ function cardOf(
   const body = [
     missing,
     heading(card, number),
+    voiceLine(card),
     titleLine(card),
     chipsOf(card),
     card.failure === null ? "" : `<p>${esc(card.failure)}</p>`,
     fromLine(card),
     ...manual,
     heardFirstOf(card),
-    voiceLine(card),
     passesOf(card),
     stripOf(card),
     axeFold(card),

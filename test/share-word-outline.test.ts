@@ -12,7 +12,6 @@ import { describe, expect, it } from "vitest";
 import { attentionWords } from "../src/share/attention-words.js";
 import { renderWordCopy } from "../src/share/docx.js";
 import { renderSharePage } from "../src/share/html/document.js";
-import { lineOfMarkup, lineText } from "../src/share/line.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import {
   ABOUT,
@@ -20,7 +19,6 @@ import {
   HOW_LEAD,
   HOW_STEPS,
   STORY,
-  TIMELINE,
   TOP_TEXT,
   WHEN_TO_RUN,
   WORD_TEXT,
@@ -201,9 +199,6 @@ describe("wordOutline", () => {
       STORY.answer,
       ...WORTH_KNOWING.flatMap((card) => [card.title, card.text]),
       ABOUT,
-      ...TIMELINE.flatMap((row) => [row.pc, row.mac, row.both]).flatMap((cell) =>
-        cell === null ? [] : [lineText(lineOfMarkup(cell))],
-      ),
     ];
 
     expect(fixed.length).toBeGreaterThan(40);

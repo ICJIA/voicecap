@@ -1909,14 +1909,17 @@ describe("shareReport, with a recording of NVDA's voice on each page", () => {
     const page = await readFile(files[0]!.path, "utf8");
     const parts = await unzipDocx(await readFile(files[1]!.path));
 
-    // Each card links to its page's section, and the details link to the voice page itself.
+    // Each card links to its page's section, the cards of what needs attention link to the
+    // sections of the pages they list, and the details link to the voice page itself.
+    const sections = run.run.pages.map(({ slug }) => `${voiceName(FIRST)}#voice-${slug}`);
+    const cardLinks = [...page.matchAll(/<p class="voice-link"><a href="([^"]*)">/g)].map(
+      ([, href]) => href,
+    );
+    expect(cardLinks).toEqual(sections);
     const links = [...page.matchAll(/<a href="([^"]*\.voice\.html[^"]*)">/g)].map(
       ([, href]) => href,
     );
-    expect(links).toEqual([
-      ...run.run.pages.map(({ slug }) => `${voiceName(FIRST)}#voice-${slug}`),
-      voiceName(FIRST),
-    ]);
+    expect(new Set(links)).toEqual(new Set([...sections, voiceName(FIRST)]));
     expect(page).toContain(
       `<a href="${voiceName(FIRST)}">Open the voice page</a> (<code>${voiceName(FIRST)}</code>).`,
     );
@@ -2035,7 +2038,9 @@ describe("shareReport, with a recording of NVDA's voice on each page", () => {
     expect(html.match(/<audio\b/g)).toHaveLength(2);
     expect(html).toContain("Not recorded: the recording is silent.");
     // Only the pages with a recording have a line on their cards.
-    expect((await readFile(files[0]!.path, "utf8")).match(/on the voice page/g)).toHaveLength(2);
+    expect((await readFile(files[0]!.path, "utf8")).match(/<p class="voice-link">/g)).toHaveLength(
+      2,
+    );
   });
 
   it("takes the next number when the voice page's name is taken, recorded or not, and never writes over it", async () => {

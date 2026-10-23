@@ -225,6 +225,28 @@ describe("renderAttention", () => {
     expect(html).toContain("1,204 pages, 65 times");
   });
 
+  it("links a page on a card to its recording, as its card under Every page does, and no page that has none", () => {
+    const [first] = i2i.attention;
+    const [page] = first?.pages ?? [];
+    expect(page).toBeDefined();
+    const href = `site.voice.html#voice-${page!.slug}`;
+    const model: ShareModel = {
+      ...i2i,
+      pages: i2i.pages.map((card) => ({
+        ...card,
+        voice: card.slug === page!.slug ? { seconds: 30, href } : null,
+      })),
+    };
+    const html = renderAttention(model);
+
+    expect(html).toContain(
+      `<a href="${esc(href)}"><span aria-hidden="true">▶ </span>Hear what NVDA said (30 s)<span class="sr"> for ${esc(page!.name)}</span></a>`,
+    );
+    expect(html.match(/\.voice\.html/g)).toHaveLength(1);
+    // With no recordings, nothing links to the voice page.
+    expect(renderAttention(i2i)).not.toContain(".voice.html");
+  });
+
   it("shows a card's pages in the open when it is on 3, and folds them when it is on 4", () => {
     // "click here" is said on pages A to D, and "read more" on pages A to C.
     const html = renderAttention(linkModel(["click here", "read more"]));

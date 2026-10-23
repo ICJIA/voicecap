@@ -21,7 +21,6 @@ import type { Changes, OnlyInOnePage, PageChange } from "./changes.js";
 import {
   clock,
   count,
-  dayMonth,
   longDate,
   names,
   pagePath,
@@ -766,16 +765,6 @@ export function whyLine(): Line {
     throw new Error("STORY.why must quote STORY.deque.title once, for the page to link it there.");
   }
   return [before, { text: title, href: url }, after];
-}
-
-/**
- * A timeline entry's day (a date is read as the day it begins): with its year ("25 September 2026")
- * for the first date and the first of a later year, and without it ("26 September") for a later
- * date of the same year. `lastYear` is the year of the date before it, or null for the first.
- */
-export function timelineDay(date: string, lastYear: string | null): string {
-  const day = `${date}T00:00`;
-  return date.slice(0, 4) === lastYear ? dayMonth(day) : longDate(day);
 }
 
 // The footer.

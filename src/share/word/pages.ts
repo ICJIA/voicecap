@@ -42,7 +42,7 @@ import { jpegOfAddress } from "../cards.js";
 import { count } from "../format.js";
 import type { Inline, Line } from "../line.js";
 import type { AppendixFile, NoLongerListed, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, PASS_TITLE, WORD_TEXT } from "../text.js";
+import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, PASS_TITLE, VOICE_TEXT, WORD_TEXT } from "../text.js";
 import {
   axeFingerprint,
   capturedOf,
@@ -374,7 +374,18 @@ function transcriptsBlocks(
 // The pages.
 
 /**
- * A page: its heading, its screenshot (its label, then its picture when it has one), the paragraph
+ * Where to hear what NVDA said on a page, which the Word copy can't play: a line under its
+ * screenshot naming the voice page and the page's section there, as the shareable page's card links
+ * to it. Nothing for a page with no recording, or a copy with no voice page beside it.
+ */
+function voiceBlocks(card: PageCard, voiceName: string | null): Block[] {
+  if (card.voice === null || voiceName === null) return [];
+  return [para(VOICE_TEXT.card.word(card.voice.seconds, voiceName, card.path))];
+}
+
+/**
+ * A page: its heading, its screenshot (its label, then its picture when it has one), where to hear
+ * its recording, the paragraph
  * that says its title, status, flags, and review, what NVDA said first, what axe found, and its
  * transcripts. A page with no transcripts (`transcripts` is undefined) has no lines NVDA said and
  * no transcripts: it has its heading, its screenshot, its paragraph, and what axe found.
@@ -384,12 +395,14 @@ function pageBlocks(
   number: number,
   transcripts: Transcripts | undefined,
   latest: string | null,
+  voiceName: string | null,
 ): Block[] {
   const picture = pictureOf(card);
   return [
     pageHeading(card, number),
     para(...screenshotLine(card)),
     ...(picture === null ? [] : [image(picture)]),
+    ...voiceBlocks(card, voiceName),
     para(...statusLine(card)),
     ...heardFirstBlocks(card),
     ...axeBlocks(card),
@@ -425,11 +438,13 @@ export function wordPages(model: ShareModel): Block[] {
   // The model keeps a page's transcripts apart from its card, by the page's slug.
   const transcripts = new Map(model.appendix.map((entry) => [entry.slug, entry]));
   const latest = model.evidence[0]?.run.id ?? null;
+  const voiceName =
+    model.voicePage !== null && "name" in model.voicePage ? model.voicePage.name : null;
   return [
     heading(1, PAGES_TEXT.title),
     para(...pagesGist(model)),
     ...model.pages.flatMap((card, index) =>
-      pageBlocks(card, index + 1, transcripts.get(card.slug), latest),
+      pageBlocks(card, index + 1, transcripts.get(card.slug), latest, voiceName),
     ),
     ...noLongerListedBlocks(model.noLongerListed),
   ];

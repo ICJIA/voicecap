@@ -999,9 +999,11 @@ describe("a share's voice page, served as Netlify serves it", () => {
       for (const link of links) {
         expect(link.startsWith(addressOf(VOICE_HREF)), `${where}: ${link}`).toBe(true);
       }
-      const sections = links.flatMap((link) =>
-        link.includes("#") ? [link.split("#")[1] ?? ""] : [],
-      );
+      // A page listed on a card of what needs attention links to its section too, so a section
+      // may be linked from more than one place.
+      const sections = [
+        ...new Set(links.flatMap((link) => (link.includes("#") ? [link.split("#")[1] ?? ""] : []))),
+      ];
       expect(sections).toHaveLength(3);
       // The page they lead to is there, under its policy, and each lands on a section of it that
       // has its player.

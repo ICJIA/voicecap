@@ -4,7 +4,7 @@
  * page's renderer (../html/evidence.ts) in the same order: the fixed ones come from ../text.ts, the
  * ones worked out from the model from ../words.ts, and what only the Word copy says (what stands in
  * for the page's fingerprint check, how to get a run's walkthrough file, the first sentence of the
- * runs left out, the heads of the timeline's table, the footer's heading, the document's own words)
+ * runs left out, the footer's heading, the document's own words)
  * from `WORD_TEXT`. So the two copies can't say different things.
  *
  * The Word copy folds nothing: each run is a heading 2 with what its fold holds under it, and the
@@ -20,7 +20,7 @@
  * how to get the file instead. Each section is built from a heading 1 of its own; the details set
  * each one level down (./details.ts). Pure.
  */
-import { firstSentenceBold, lineOfMarkup, type Line } from "../line.js";
+import { firstSentenceBold, type Line } from "../line.js";
 import { nvdaLogWords } from "../log-words.js";
 import type { EvidenceRow, RunEvidence, ShareModel } from "../model.js";
 import {
@@ -30,12 +30,10 @@ import {
   FOOTER_TEXT,
   STORY,
   STORY_TEXT,
-  TIMELINE,
   TIMELINE_TEXT,
   TOP_TEXT,
   WORD_TEXT,
   WORTH_KNOWING,
-  type TimelineRow,
 } from "../text.js";
 import {
   byteCount,
@@ -47,21 +45,10 @@ import {
   recordTime,
   runTitle,
   sessionLine,
-  timelineDay,
   whenOf,
   whyLine,
 } from "../words.js";
-import {
-  cell,
-  heading,
-  list,
-  mono,
-  monoCell,
-  para,
-  table,
-  type Block,
-  type Cell,
-} from "./blocks.js";
+import { heading, list, mono, monoCell, para, table, type Block } from "./blocks.js";
 
 // What these results cover.
 
@@ -287,50 +274,6 @@ export function wordEvidence(model: ShareModel): Block[] {
 
 // How voicecap came to be.
 
-/**
- * A track's words, with the page's own head for its column before them, in bold: "Windows PC, with
- * NVDA:".
- */
-function trackLine(track: { name: string; reader: string }, markup: string): Line {
-  return [{ text: `${track.name}, ${track.reader}:`, bold: true }, " ", ...lineOfMarkup(markup)];
-}
-
-/**
- * What an entry says: its words alone when it runs across both tracks, else a line for each track
- * that has words, the Windows PC's first, each after its track's name and screen reader, which the
- * page says in the head of the track's column.
- */
-function entryCell({ pc, mac, both }: TimelineRow): Cell {
-  const { timeline } = STORY_TEXT;
-  if (both !== null) return cell(lineOfMarkup(both));
-  return cell(
-    ...(pc === null ? [] : [trackLine(timeline.pc, pc)]),
-    ...(mac === null ? [] : [trackLine(timeline.mac, mac)]),
-  );
-}
-
-/**
- * The timeline: its caption in bold, then a table of When and What happened, a row for each entry. A
- * day is as the page says it (`timelineDay`): a date is read as the day it begins, with its year for
- * the first date and for the first of a later year. What isn't done yet has no date, and is headed
- * "Next". Two entries of one day each say it, since a row of a printed table is read apart from the
- * rows around it, where the page's header spans them.
- */
-function timelineBlocks(): Block[] {
-  const { timeline } = STORY_TEXT;
-  const rows: Cell[][] = [];
-  let lastYear: string | null = null;
-  for (const entry of TIMELINE) {
-    const day = entry.date === null ? timeline.next : timelineDay(entry.date, lastYear);
-    if (entry.date !== null) lastYear = entry.date.slice(0, 4);
-    rows.push([cell([{ text: day, bold: true }]), entryCell(entry)]);
-  }
-  return [
-    para({ text: timeline.caption, bold: true }),
-    table(WORD_TEXT.story.head, rows, [22, 78]),
-  ];
-}
-
 /** "A few things worth knowing": a heading, and the cards as a list, each title in bold. */
 function worthBlocks(): Block[] {
   const cards = WORTH_KNOWING.map(({ title, text }): Line => [
@@ -342,9 +285,8 @@ function worthBlocks(): Block[] {
 
 /**
  * "How voicecap came to be": how it began, then why it exists, with the Deque study's headline
- * linked, then the rest of the story, the timeline on a Windows PC and on a Mac, and a few things
- * worth knowing. All of it is fixed text, so it takes nothing from the model, and the Word copy
- * says all of it in the open.
+ * linked, then the rest of the story, and a few things worth knowing. All of it is fixed text, so
+ * it takes nothing from the model, and the Word copy says all of it in the open.
  */
 export function wordStory(_model: ShareModel): Block[] {
   return [
@@ -353,7 +295,6 @@ export function wordStory(_model: ShareModel): Block[] {
     para(...whyLine()),
     para(STORY.usual),
     para(STORY.answer),
-    ...timelineBlocks(),
     ...worthBlocks(),
   ];
 }

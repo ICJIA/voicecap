@@ -1963,17 +1963,17 @@ describe("NVDA's voice, on a recorded page's card", () => {
 
     // The plan's words: the length, and where it is, the page's address for a screen reader alone.
     expect(home).toContain(
-      `<p class="sub"><a href="${VOICE_PAGE}#voice-${idFragment(homeSlug)}">NVDA&#39;s voice: 2 min 14 s, on the voice page<span class="sr"> for /</span></a></p>`,
+      `<p class="voice-link"><a href="${VOICE_PAGE}#voice-${idFragment(homeSlug)}"><span aria-hidden="true">▶ </span>Hear what NVDA said on this page (2 min 14 s)<span class="sr"> for /</span></a></p>`,
     );
     expect(about).toContain(
-      `<p class="sub"><a href="${VOICE_PAGE}#voice-${idFragment(aboutSlug)}">NVDA&#39;s voice: 1 min 1 s, on the voice page<span class="sr"> for /about/</span></a></p>`,
+      `<p class="voice-link"><a href="${VOICE_PAGE}#voice-${idFragment(aboutSlug)}"><span aria-hidden="true">▶ </span>Hear what NVDA said on this page (1 min 1 s)<span class="sr"> for /about/</span></a></p>`,
     );
     // A page with no recording says nothing of one.
-    expect(apply).not.toContain("NVDA&#39;s voice");
+    expect(apply).not.toContain("Hear what NVDA said");
     expect(apply).not.toContain(".voice.html");
     // What a sighted reader sees is the line alone.
     expect(textOf(home.replace(/<span class="sr">.*?<\/span>/g, ""))).toContain(
-      "NVDA's voice: 2 min 14 s, on the voice page",
+      "▶ Hear what NVDA said on this page (2 min 14 s)",
     );
   });
 
@@ -1986,19 +1986,21 @@ describe("NVDA's voice, on a recorded page's card", () => {
     const links = cardsOf(run).flatMap(voiceLinksIn);
 
     expect(links.map(([, words]) => words)).toEqual([
-      "NVDA's voice: 30 s, on the voice page for /a/",
-      "NVDA's voice: 30 s, on the voice page for /b/",
+      "▶ Hear what NVDA said on this page (30 s) for /a/",
+      "▶ Hear what NVDA said on this page (30 s) for /b/",
     ]);
     expect(new Set(links.map(([href]) => href)).size).toBe(2);
     expect(new Set(links.map(([, words]) => words)).size).toBe(2);
   });
 
-  it("puts the line after what NVDA said first, and before the numbers, the strip, and the folds", () => {
+  it("puts the line right under the page's name, and before the chips, what NVDA said first, the numbers, the strip, and the folds", () => {
     const run = runOf([done("/about/", { voice: voiceRecord(61) })]);
     const [card = ""] = cardsOf(run);
     const order = [
-      'class="heard-first"',
+      "<h3>",
       ".voice.html#",
+      'class="chips"',
+      'class="heard-first"',
       'class="passes"',
       'class="strip-fig"',
       'class="fold tx-page"',
@@ -2012,8 +2014,8 @@ describe("NVDA's voice, on a recorded page's card", () => {
     const run = runOf([{ path: "/never/", status: "failed", voice: voiceRecord(7) }]);
     const [card = ""] = cardsOf(run);
 
-    expect(card).toContain("NVDA&#39;s voice: 7 s, on the voice page");
-    expect(card.indexOf(".voice.html#")).toBeGreaterThan(card.indexOf('class="chips"'));
+    expect(card).toContain("Hear what NVDA said on this page (7 s)");
+    expect(card.indexOf(".voice.html#")).toBeLessThan(card.indexOf('class="chips"'));
   });
 
   it("says nothing of NVDA's voice for a card with no recording, a copy with no voice page beside it, or a run from before 0.18.0", () => {
@@ -2029,7 +2031,7 @@ describe("NVDA's voice, on a recorded page's card", () => {
 
     for (const cards of none) {
       expect(cards).toHaveLength(2);
-      for (const card of cards) expect(card).not.toMatch(/NVDA&#39;s voice|\.voice\.html/);
+      for (const card of cards) expect(card).not.toMatch(/Hear what NVDA said|\.voice\.html/);
     }
   });
 
@@ -2038,7 +2040,7 @@ describe("NVDA's voice, on a recorded page's card", () => {
     const [card = ""] = cardsOf(run);
 
     expect(card).toContain(
-      `<a href="${VOICE_PAGE}#voice-home">NVDA&#39;s voice, on the voice page<span class="sr"> for /</span></a>`,
+      `<a href="${VOICE_PAGE}#voice-home"><span aria-hidden="true">▶ </span>Hear what NVDA said on this page<span class="sr"> for /</span></a>`,
     );
   });
 
@@ -2061,7 +2063,10 @@ describe("NVDA's voice, on a recorded page's card", () => {
 
     expect(
       withLine.map((card) =>
-        card.replace(/<p class="sub"><a href="[^"]*\.voice\.html[^"]*">.*?<\/a><\/p>\s*/s, ""),
+        card.replace(
+          /<p class="voice-link"><a href="[^"]*\.voice\.html[^"]*">.*?<\/a><\/p>\s*/s,
+          "",
+        ),
       ),
     ).toEqual(without);
   });

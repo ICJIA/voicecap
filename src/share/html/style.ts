@@ -8,7 +8,7 @@
 export const THEME_CSS = `:root {
   --bg: #0b1015; --panel: #10171f; --panel-2: #151e28; --line: #243242;
   --fg: #e6edf3; --muted: #9aabbd; --accent: #72b7ff;
-  --ok: #4cc38a; --warn: #f0b23e; --bad: #f27575; --mac: #b99cff;
+  --ok: #4cc38a; --warn: #f0b23e; --bad: #f27575;
   --display: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
   --body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -17,10 +17,10 @@ export const THEME_CSS = `:root {
 :root[data-theme="light"] {
   --bg: #ffffff; --panel: #f5f7fa; --panel-2: #edf1f5; --line: #d5dde6;
   --fg: #0e1621; --muted: #4b5b6c; --accent: #1d63c9;
-  --ok: #187a51; --warn: #8f5c00; --bad: #c0392b; --mac: #6a3fc9;
+  --ok: #187a51; --warn: #8f5c00; --bad: #c0392b;
   color-scheme: light;
 }
-@media print { :root { --bg: #fff; --panel: #fff; --panel-2: #f3f5f8; --line: #cfd7e0; --fg: #0e1621; --muted: #445566; --accent: #1d63c9; --ok: #1a7f55; --warn: #8f5c00; --bad: #c0392b; --mac: #6a3fc9; color-scheme: light; } .theme { display: none; } }`;
+@media print { :root { --bg: #fff; --panel: #fff; --panel-2: #f3f5f8; --line: #cfd7e0; --fg: #0e1621; --muted: #445566; --accent: #1d63c9; --ok: #1a7f55; --warn: #8f5c00; --bad: #c0392b; color-scheme: light; } .theme { display: none; } }`;
 
 /**
  * The shareable page's one style block: the approved mockup's, ported, with the fonts embedded
@@ -215,6 +215,10 @@ code { overflow-wrap: anywhere; }
 .card img { width: 100%; height: auto; border-bottom: 1px solid var(--line); background: #fff; }
 .card-body { padding: 14px 16px 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
 .card-body p { margin: 0; }
+/* a page's recording: a link set apart under its name, as a soft button, so that a reader with doubts finds it at once */
+.voice-link a { display: inline-block; border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--line)); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); color: var(--fg); border-radius: 8px; padding: 6px 12px; font: 600 0.88rem var(--body); text-decoration: none; }
+.voice-link a:hover { background: color-mix(in srgb, var(--accent) 22%, var(--panel)); }
+@media print { .voice-link a { border: 0; background: none; padding: 0; } }
 .num { display: inline-grid; place-items: center; min-width: 1.6em; height: 1.6em; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); font: 600 0.8rem var(--mono); margin-right: 6px; }
 .passes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 0; }
 .passes div { background: var(--panel-2); border-radius: 8px; padding: 6px 8px; }
@@ -395,27 +399,12 @@ table.difftable tr.del mark { background: color-mix(in srgb, var(--bad) 35%, tra
 .fp-limit { margin: 0; max-width: 84ch; }
 /* the story */
 #story-h + .gist, #story-h + .gist + .gist { color: var(--fg); }
-table.tracks { width: 100%; min-width: 540px; border-collapse: separate; border-spacing: 8px 8px; margin: 4px -8px 10px; font-size: 0.92rem; }
-table.tracks caption { text-align: left; font: 600 1.02rem var(--display); padding: 0 8px 2px; }
-table.tracks thead th { text-align: left; color: var(--muted); font: 500 0.74rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 10px 0; }
-table.tracks tbody th { text-align: left; vertical-align: top; white-space: nowrap; font: 600 0.8rem var(--mono); color: var(--accent); padding: 11px 10px 10px 22px; position: relative; width: 7.5em; }
-table.tracks tbody th::before { content: ""; position: absolute; left: 4px; top: 14px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
-table.tracks td { vertical-align: top; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
-table.tracks td.pc { border-left: 3px solid var(--accent); } table.tracks td.mac { border-left: 3px solid var(--mac); } table.tracks td.both { border-left: 3px solid var(--ok); }
-table.tracks td.none { background: transparent; border: 1px dashed var(--line); } table.tracks td.next { border-style: dashed; border-left-style: solid; }
-.plat.pc { color: var(--accent); } .plat.mac { color: var(--mac); } .plat { font-weight: 600; }
-.days { list-style: none; margin: 0; padding: 2px 0 0 20px; border-left: 2px solid var(--line); display: grid; gap: 14px; align-content: start; align-self: start; }
-.days li { position: relative; font-size: 0.92rem; }
-.days li::before { content: ""; position: absolute; left: -27px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); }
-.days time { display: block; font: 600 0.8rem var(--mono); color: var(--accent); }
 .worth { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px; }
 .worth div { background: var(--panel-2); border-radius: 12px; padding: 14px 16px; }
 .worth h4 { font-size: 0.98rem; margin-bottom: 4px; }
 .worth p { margin: 0; font-size: 0.9rem; }
 .cite { font-size: 0.84rem; color: var(--muted); }
-@media (max-width: 640px) { dl.spec, dl.qa { grid-template-columns: 1fr; } dl.spec dt, dl.qa dt { border-bottom: 0; padding-bottom: 0; } dl.qa dd { border-top: 0; padding-top: 2px; } .rule { grid-template-columns: 120px 1fr 30px; } .passes { grid-template-columns: repeat(2, 1fr); } table.tracks { min-width: 0; } table.tracks tbody th { white-space: normal; width: auto; } table.tracks td { padding: 8px; } }
-/* At a phone's width, down to 320 pixels, the timeline's three columns fit their box: closer together, inside it, without the dots, and in smaller type. */
-@media (max-width: 400px) { table.tracks { border-spacing: 4px 6px; margin: 4px 0 10px; font-size: 0.86rem; } table.tracks caption { padding: 0 0 2px; } table.tracks thead th { padding: 4px 4px 0; letter-spacing: 0.02em; } table.tracks tbody th { padding: 8px 4px; font-size: 0.74rem; } table.tracks tbody th::before { display: none; } table.tracks td { padding: 8px 6px; } }
+@media (max-width: 640px) { dl.spec, dl.qa { grid-template-columns: 1fr; } dl.spec dt, dl.qa dt { border-bottom: 0; padding-bottom: 0; } dl.qa dd { border-top: 0; padding-top: 2px; } .rule { grid-template-columns: 120px 1fr 30px; } .passes { grid-template-columns: repeat(2, 1fr); } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 /* Paper doesn't scroll: in print, every box shows all it holds, and a chart narrows to the paper. After the rules that limit the boxes, so it wins. */
 @media print { .scroll, .tx .scroll, .events { max-height: none; overflow: visible; } .timeline { min-width: 0; } }

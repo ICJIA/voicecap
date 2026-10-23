@@ -881,7 +881,7 @@ describe("renderSharePage", () => {
     // copy shows: each page grew by 564 characters, and each copy's blocks by 567. With those two
     // rows taken out, the merged code gives the values pinned before it, exactly. A change to either,
     // for such a run, fails here: plan 11 adds to a report only where a run recorded. A change meant
-    // for every report, such as a release's row of the timeline, re-pins them, and says so here.
+    // for every report, such as a change to its style or its fixed text, re-pins them, and says so here.
     // To re-pin one, log what the loop below computes ([page.length, sha(page)] and [word.length,
     // sha(word)] of each model, the page without its fonts) and paste the new values in: a pin
     // that changes for a reason that isn't such a change is the failure this test is for.
@@ -924,18 +924,25 @@ describe("renderSharePage", () => {
     // "14:02 to 28 September 2026, 09:02" (it said "14:02 to 14:02"), and finished at 09:02 on
     // the 28th. The page and the Word copy's blocks each grew by 27 characters. The other two
     // were sealed as their sessions ended.
+    // Taking voicecap's own timeline out of the reports (the owner's ask, 2026-10-23) re-pinned all
+    // three: the story lost the timeline's table and its box, and the style lost the table's rules.
+    // Each page is 9,624 characters shorter, and each Word copy's blocks 6,842 (its caption and
+    // its table), the same for all three, and nothing else changed. The same change re-pinned the
+    // three pages once more, and not the Word copies, for the style of a card's link to its page's
+    // recording (`.voice-link`, which sets the link apart under the page's name): each page grew by
+    // 575 characters, all of them in that rule. These runs have no recording, so no card has one.
     const before = {
       i2i: {
-        page: [218_984, "f6d729dfc10968c15f3e90eead49efa768fb1fb8b43d15fd2f01a427ed11c916"],
-        word: [60_446, "4887bb2a3a055d81bc5558bc998d50e9a001dc42137af119b6f35f5c732fffa3"],
+        page: [209_935, "d98f1c6b9c93757bf50a01efae2281ee67e9d091e72ceff3bde132ca20fc0554"],
+        word: [53_604, "c45ccfd08d41941fb41b99aae8de31a39a8c1f4052e895fd235bcf9a089ba7f0"],
       },
       demo: {
-        page: [253_526, "a27c15740a5403af9576fd531e88ab1d4287759c8cc73df8ffd42949f15278f8"],
-        word: [83_284, "93afa869bac76acf84122f1e5d2a9211bfbcbda96479d2ccd383d4dd5f225d29"],
+        page: [244_477, "a6f6b90ef58dc7730a575dd4823d03dce6f95818df4aee8abe38c9b878114a50"],
+        word: [76_442, "97f1d6d72ff667120a5e4b1f2681305cdad5db11870e6860d9a2289f5e395aa9"],
       },
       logged: {
-        page: [135_941, "1260491406eab756413f0e49d2c404899c7bd9011860c31028526ea7716adcee"],
-        word: [41_975, "93b827380d0462f755072a07c730d047994c953e3200ea2b9f9d2ba3acdd2d79"],
+        page: [126_892, "4b980355cb341297cc15907ce713abbac48fb33496ad62500e0ed595d04c5144"],
+        word: [35_133, "b81d7a1db95e8d96a117d212f256cb98a7c0b82b47754d99eb53b98633b7ce34"],
       },
     };
     const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };
@@ -975,7 +982,7 @@ describe("renderSharePage", () => {
     // fingerprints, and the details' paragraph, which says where the voice page is: take those out,
     // and the data, and the page is the page it was.
     const line =
-      /<p class="sub"><a href="[^"]*\.voice\.html#[^"]*">[^<]*<span class="sr">[^<]*<\/span><\/a><\/p>\s*/g;
+      /<p class="voice-link"><a href="[^"]*\.voice\.html#[^"]*"><span aria-hidden="true">▶ <\/span>[^<]*<span class="sr">[^<]*<\/span><\/a><\/p>\s*/g;
     const row =
       /<tr><td>[^<]*<\/td><td>voice\.webm<\/td><td>[^<]*<\/td><td><code>[0-9a-f]{64}<\/code><\/td><\/tr>/g;
     const paragraph = /<p class="gist">NVDA&#39;s voice:.*?<\/p>\s*/s;

@@ -14,7 +14,7 @@ import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
 import type { PassName, RunEvent, RunJson } from "../src/model.js";
 import { esc, plural } from "../src/report/html.js";
 import { CHECK_SCRIPT, checkDataJson, type CheckData } from "../src/share/check.js";
-import { longDate, sizeWords } from "../src/share/format.js";
+import { sizeWords } from "../src/share/format.js";
 import {
   renderCoverage,
   renderEvidence,
@@ -29,7 +29,7 @@ import {
   type RunEvidence,
   type ShareModel,
 } from "../src/share/model.js";
-import { ABOUT, STORY, TIMELINE, WORTH_KNOWING } from "../src/share/text.js";
+import { ABOUT, STORY, WORTH_KNOWING } from "../src/share/text.js";
 import type { SessionTimeline } from "../src/share/timeline.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { inRun } from "../src/share/words.js";
@@ -1845,109 +1845,29 @@ describe("renderStory", () => {
     expect(worth).toContain('<div class="worth">');
   });
 
-  it("tells the story in order: why, the rest, the timeline, and what's worth knowing", async () => {
+  it("tells the story in order: how it began, why, then the rest and what's worth knowing, folded together", async () => {
     const html = renderStory(await demoModel());
     const order = [
+      esc(STORY.began),
       STORY.deque.url,
+      '<div class="folds">',
       "The rest of the story",
-      '<table class="tracks">',
       "A few things worth knowing",
     ].map((part) => html.indexOf(part));
 
     expect(order.every((at) => at > -1)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
+    // The two folds share one box, and the section has no table and nothing to scroll.
+    expect(html.match(/<div class="folds">/g)).toHaveLength(1);
+    expect(html).not.toContain("<table");
+    expect(scrollBoxes(html)).toEqual([]);
   });
 
-  describe("the timeline", () => {
-    it("is a table with two tracks, a Windows PC with NVDA and a Mac with VoiceOver", async () => {
-      const table = tableOf(renderStory(await demoModel()), "tracks");
+  it("has no timeline of voicecap's own", async () => {
+    const html = renderStory(await demoModel());
 
-      expect(table).toContain(
-        "<caption>From the first line of code to today, on a Windows PC and on a Mac</caption>",
-      );
-      expect(table).toContain(
-        '<thead><tr><th scope="col">When</th><th scope="col"><span class="plat pc">Windows PC</span>, with NVDA</th><th scope="col"><span class="plat mac">Mac</span>, with VoiceOver</th></tr></thead>',
-      );
-    });
-
-    it("has a row for each entry, with its cells inserted as written", async () => {
-      const table = tableOf(renderStory(await demoModel()), "tracks");
-      const [, body = ""] = table.split("<tbody>");
-
-      expect(body.match(/<tr>/g)).toHaveLength(TIMELINE.length);
-      for (const { both, pc, mac } of TIMELINE) {
-        for (const cell of [both, pc, mac]) if (cell !== null) expect(body).toContain(cell);
-      }
-      // The bold and code of a cell are markup, not text.
-      expect(body).toContain("<b>0.1.0</b>");
-      expect(body).toContain("<code>voicecap verify</code>");
-    });
-
-    it("spans both tracks for what was for both, and leaves a track with nothing empty", async () => {
-      const body = tableOf(renderStory(await demoModel()), "tracks");
-      const both = TIMELINE.filter((row) => row.both !== null);
-
-      expect(body.match(/<td colspan="2" class="both/g)).toHaveLength(both.length);
-      for (const { both: cell } of both) expect(body).toContain(`>${cell}</td>`);
-      // One track to a cell: the Windows PC's, and the Mac's.
-      expect(body.match(/<td class="pc/g)).toHaveLength(
-        TIMELINE.filter((row) => row.pc !== null).length,
-      );
-      expect(body.match(/<td class="mac/g)).toHaveLength(
-        TIMELINE.filter((row) => row.mac !== null).length,
-      );
-      expect(body).toContain('<td class="none"></td>');
-    });
-
-    it("gives each day a row header, and one date to two entries of one day", async () => {
-      const table = tableOf(renderStory(await demoModel()), "tracks");
-      const days = TIMELINE.flatMap((row, index) =>
-        row.date !== null && TIMELINE[index - 1]?.date === row.date ? [] : [row],
-      );
-
-      expect(table.match(/<th scope="row"/g)).toHaveLength(days.length);
-      const shared = [];
-      for (const { date } of days) {
-        if (date === null) continue;
-        const entries = TIMELINE.filter((row) => row.date === date).length;
-        expect(table).toContain(
-          `<th scope="row"${entries > 1 ? ` rowspan="${entries}"` : ""}><time datetime="${date}">`,
-        );
-        // Its date is on the page once, however many entries it heads.
-        expect(table.match(new RegExp(`datetime="${date}"`, "g"))).toHaveLength(1);
-        if (entries > 1) shared.push(date);
-      }
-      // The real timeline has such a day (28 September), so this joins some rows.
-      expect(shared, "the timeline has no day with two entries to join").not.toEqual([]);
-    });
-
-    it("writes the year on the first date, and again only when it changes", async () => {
-      const table = tableOf(renderStory(await demoModel()), "tracks");
-
-      expect(table).toContain(`<time datetime="2026-09-25">${longDate("2026-09-25T00:00")}</time>`);
-      expect(table).toContain('<time datetime="2026-09-26">26 September</time>');
-      expect(table).toContain('<time datetime="2026-09-30">30 September</time>');
-    });
-
-    it("marks what isn't done yet as Next, never with a date", async () => {
-      const table = tableOf(renderStory(await demoModel()), "tracks");
-      const last = TIMELINE.at(-1);
-      const [row = ""] = table.split("<tr>").slice(-1);
-
-      expect(last?.date).toBeNull();
-      expect(row).toContain('<th scope="row">Next</th>');
-      expect(row).not.toContain("<time");
-      // Each of its cells is marked, whichever tracks it has, unless there's nothing in it.
-      const classes = [...row.matchAll(/<td [^>]*class="([^"]*)"/g)].map((cell) => cell[1] ?? "");
-      expect(classes.length).toBeGreaterThan(0);
-      for (const name of classes) expect(name.includes("none") || name.includes("next")).toBe(true);
-    });
-
-    it("sits in a box that a keyboard can reach and scroll, and a screen reader names", async () => {
-      expect(scrollBoxes(renderStory(await demoModel()))).toEqual([
-        '<div class="scroll" tabindex="0" role="region" aria-label="voicecap&#39;s timeline, table">',
-      ]);
-    });
+    expect(html).not.toContain("From the first line of code to today");
+    expect(html).not.toContain('class="tracks"');
   });
 
   it("sets no style attribute, and holds no heading in a summary line or section heading in a fold", async () => {

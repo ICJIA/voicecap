@@ -22,7 +22,7 @@ import {
   renderFooter,
   renderStory,
 } from "../src/share/html/evidence.js";
-import { firstSentenceBold, lineOfMarkup, lineText } from "../src/share/line.js";
+import { firstSentenceBold, lineText } from "../src/share/line.js";
 import { renderWordCopy } from "../src/share/docx.js";
 import { loadShareInput, type ShareInput, type TranscriptStore } from "../src/share/load.js";
 import {
@@ -37,11 +37,9 @@ import {
   FOOTER_TEXT,
   STORY,
   STORY_TEXT,
-  TIMELINE,
   TOP_TEXT,
   WORD_TEXT,
   WORTH_KNOWING,
-  type TimelineRow,
 } from "../src/share/text.js";
 import type { SessionTimeline } from "../src/share/timeline.js";
 import {
@@ -49,7 +47,6 @@ import {
   evidenceGist,
   generatedLine,
   inRun,
-  timelineDay,
   whenOf,
   whyLine,
 } from "../src/share/words.js";
@@ -1717,213 +1714,15 @@ describe("wordStory", () => {
     }
   });
 
-  describe("the timeline", () => {
-    it("is a caption in bold above a table of When and What happened", async () => {
-      const blocks = wordStory(await demoModel());
+  it("has no timeline of voicecap's own: the cards follow the rest of the story, and no table is in it", async () => {
+    const model = await demoModel();
+    const blocks = wordStory(model);
 
-      expect(blocks[5]).toEqual(para({ text: STORY_TEXT.timeline.caption, bold: true }));
-      expect(wordsOf(blocks.slice(5, 6))).toEqual([
-        "From the first line of code to today, on a Windows PC and on a Mac",
-      ]);
-      expect(blocks[6]?.kind).toBe("table");
-      expect(tableAt(blocks, 0).head).toEqual(["When", "What happened"]);
-      expect(tableAt(blocks, 0).head[0]).toBe(STORY_TEXT.timeline.when);
-    });
-
-    it("has a row for each entry, and what isn't done yet last, headed Next", async () => {
-      const { rows } = tableAt(wordStory(await demoModel()), 0);
-
-      expect(rows).toHaveLength(TIMELINE.length);
-      expect(cellLines(rows.at(-1)?.[0])).toEqual(["Next"]);
-      expect(STORY_TEXT.timeline.next).toBe("Next");
-      expect(TIMELINE.at(-1)?.date).toBeNull();
-      // No other row is headed Next.
-      expect(rows.slice(0, -1).flatMap((row) => cellLines(row[0]))).not.toContain("Next");
-    });
-
-    it("gives each entry its day, with the year on the first date only, and the day again for a second entry of one day", async () => {
-      const { rows } = tableAt(wordStory(await demoModel()), 0);
-      const days = rows.map((row) => cellLines(row[0]));
-
-      expect(days).toEqual([
-        ["25 September 2026"],
-        ["26 September"],
-        ["27 September"],
-        ["28 September"],
-        ["28 September"],
-        ["29 September"],
-        ["30 September"],
-        ["1 October"],
-        ["2 October"],
-        ["2 October"],
-        ["3 October"],
-        ["3 October"],
-        ["4 October"],
-        ["5 October"],
-        ["6 October"],
-        ["7 October"],
-        ["8 October"],
-        ["8 October"],
-        ["9 October"],
-        ["9 October"],
-        ["10 October"],
-        ["13 October"],
-        ["15 October"],
-        ["16 October"],
-        ["Next"],
-      ]);
-      // Each day is what the page says: a date is read as the day it begins.
-      let lastYear: string | null = null;
-      for (const [index, { date }] of TIMELINE.entries()) {
-        if (date === null) continue;
-        expect(days[index], date).toEqual([timelineDay(date, lastYear)]);
-        lastYear = date.slice(0, 4);
-      }
-      // The day is in bold, as the page's row header is.
-      expect(rows.map((row) => row[0]?.lines.flatMap(boldIn))).toEqual(days);
-    });
-
-    it("writes the year again when it changes", async () => {
-      const model = await demoModel();
-      const later: TimelineRow = {
-        date: "2027-01-02",
-        release: null,
-        pc: null,
-        mac: null,
-        both: "A line in the next year.",
-      };
-      const at = TIMELINE.length - 1;
-
-      // The timeline is fixed text, so a later year is put in for this one test and taken out.
-      TIMELINE.splice(at, 0, later);
-      try {
-        const { rows } = tableAt(wordStory(model), 0);
-
-        expect(cellLines(rows[at]?.[0])).toEqual(["2 January 2027"]);
-        expect(cellLines(rows[at]?.[1])).toEqual(["A line in the next year."]);
-        expect(cellLines(rows[at - 1]?.[0])).toEqual(["16 October"]);
-        expect(cellLines(rows.at(-1)?.[0])).toEqual(["Next"]);
-      } finally {
-        TIMELINE.splice(at, 1);
-      }
-      expect(TIMELINE).toHaveLength(at + 1);
-    });
-
-    it("says an entry across both tracks as its words alone, the release in bold and the command in the fixed-width font", async () => {
-      const { rows } = tableAt(wordStory(await demoModel()), 0);
-
-      expect(cellLines(rows[0]?.[1])).toEqual(["The first line of code."]);
-      expect(cellLines(rows[1]?.[1])).toEqual([
-        "0.1.0: runs, transcripts, flags, and the report, tried out on recorded runs on Windows, macOS, and Linux.",
-      ]);
-      expect(rows[1]?.[1]?.lines.flatMap(boldIn)).toEqual(["0.1.0"]);
-      expect(cellLines(rows[3]?.[1])).toEqual([
-        "0.3.0: the sealed audit record, and voicecap verify to check it.",
-      ]);
-      expect(rows[3]?.[1]?.lines[0]).toContainEqual({ text: "voicecap verify", mono: true });
-    });
-
-    it("says an entry with one track after the track's name and its screen reader, in bold", async () => {
-      const { rows } = tableAt(wordStory(await demoModel()), 0);
-      const windows = rows[2]?.[1];
-      const mac = rows[4]?.[1];
-
-      expect(cellLines(windows)).toEqual([
-        "Windows PC, with NVDA: 0.2.0: the real NVDA, checked end to end on Windows 11.",
-      ]);
-      expect(windows?.lines[0]?.slice(0, 2)).toEqual([
-        { text: "Windows PC, with NVDA:", bold: true },
-        " ",
-      ]);
-      expect(cellLines(mac)).toEqual([
-        "Mac, with VoiceOver: A first trial on a real Mac: VoiceOver taken through a test site three ways, outside voicecap.",
-      ]);
-      expect(mac?.lines[0]?.slice(0, 2)).toEqual([
-        { text: "Mac, with VoiceOver:", bold: true },
-        " ",
-      ]);
-      // The track's own words keep their own bold: the release.
-      expect(windows?.lines.flatMap(boldIn)).toEqual(["Windows PC, with NVDA:", "0.2.0"]);
-    });
-
-    it("says an entry with both tracks as a line for each, the Windows PC first", async () => {
-      const { rows } = tableAt(wordStory(await demoModel()), 0);
-
-      expect(cellLines(rows[5]?.[1])).toEqual([
-        "Windows PC, with NVDA: 0.4.0: checks before every run, and a 20-second live test. On a real Windows PC, the checks found four problems, all fixed that day.",
-        "Mac, with VoiceOver: 0.4.0: setup, the same checks, and the live test with VoiceOver, checked on a real Mac.",
-      ]);
-    });
-
-    it("says what isn't done yet as the others, a line for the track that has words", async () => {
-      const { rows } = tableAt(wordStory(await demoModel()), 0);
-
-      expect(cellLines(rows.at(-1)?.[1])).toEqual([
-        "Mac, with VoiceOver: Full runs with VoiceOver, with voicecap's VoiceOver driver.",
-      ]);
-    });
-
-    it("names the tracks as the page's column heads do", async () => {
-      const model = await demoModel();
-      const { timeline } = STORY_TEXT;
-      const page = textOf(renderStory(model), "");
-
-      expect(page).toContain(`${timeline.pc.name}, ${timeline.pc.reader}`);
-      expect(page).toContain(`${timeline.mac.name}, ${timeline.mac.reader}`);
-      expect(saysOf(wordStory(model))).toContain(`${timeline.pc.name}, ${timeline.pc.reader}:`);
-      expect(saysOf(wordStory(model))).toContain(`${timeline.mac.name}, ${timeline.mac.reader}:`);
-    });
-
-    it("says every entry's words, each in its own row, and no word of another row's", async () => {
-      const { rows } = tableAt(wordStory(await demoModel()), 0);
-
-      for (const [index, entry] of TIMELINE.entries()) {
-        const said = (rows[index]?.[1]?.lines ?? []).map(lineText).join("\n");
-        const own = [entry.both, entry.pc, entry.mac].flatMap((cell) =>
-          cell === null ? [] : [lineText(lineOfMarkup(cell))],
-        );
-        const others = TIMELINE.filter((_, at) => at !== index).flatMap((other) =>
-          [other.both, other.pc, other.mac].flatMap((cell) =>
-            cell === null ? [] : [lineText(lineOfMarkup(cell))],
-          ),
-        );
-
-        expect(own.length, `row ${index}`).toBeGreaterThan(0);
-        for (const words of own) expect(said, `row ${index}`).toContain(words);
-        for (const words of others) expect(said, `row ${index}`).not.toContain(words);
-      }
-    });
-
-    it("says what the page's table says of each row: the day, and each track's words", async () => {
-      const model = await demoModel();
-      const html = renderStory(model);
-      const body = /<tbody>(.*?)<\/tbody>/s.exec(html)?.[1] ?? "";
-      const pageRows = [...body.matchAll(/<tr>(.*?)<\/tr>/gs)].map(([, row = ""]) => row);
-      const { rows } = tableAt(wordStory(model), 0);
-      let day = "";
-
-      expect(pageRows).toHaveLength(rows.length);
-      for (const [index, row] of pageRows.entries()) {
-        // A day's header spans its entries, so a row without one is of the day above it.
-        const header = /<th scope="row"[^>]*>(.*?)<\/th>/s.exec(row)?.[1];
-        if (header !== undefined) day = textOf(header, "");
-        const tracks = [
-          ...row.matchAll(/<td [^>]*class="(pc|mac|both)[^"]*"[^>]*>(.*?)<\/td>/gs),
-        ].map(
-          ([, track, said = ""]) => [track as "pc" | "mac" | "both", textOf(said, "")] as const,
-        );
-        const wordsOfRow = (rows[index]?.[1]?.lines ?? []).map(lineText);
-
-        expect(cellLines(rows[index]?.[0]), `row ${index}`).toEqual([day]);
-        expect(wordsOfRow.length, `row ${index}`).toBe(tracks.length);
-        for (const [at, [track, said]] of tracks.entries()) {
-          // The page says a track's name and screen reader in the head of its column.
-          const head = track === "both" ? null : STORY_TEXT.timeline[track];
-          const label = head === null ? "" : `${head.name}, ${head.reader}: `;
-          expect(wordsOfRow[at], `row ${index}`).toBe(`${label}${said}`);
-        }
-      }
-    });
+    expect(blocks[5]).toEqual(heading(2, STORY_TEXT.worth));
+    expect(blocks.slice(5).map((block) => block.kind)).toEqual(["heading", "list"]);
+    expect(tablesIn(blocks)).toEqual([]);
+    expect(saysOf(blocks)).not.toContain("From the first line of code to today");
+    expect(textOf(renderStory(model), "")).not.toContain("From the first line of code to today");
   });
 
   describe("a few things worth knowing", () => {
@@ -1959,7 +1758,7 @@ describe("wordStory", () => {
     });
   });
 
-  it("says what the page says around its timeline: its two paragraphs, and what is folded", async () => {
+  it("says what the page says: its two paragraphs, and what is folded", async () => {
     const model = await demoModel();
     const html = renderStory(model);
     const words = wordsOf(wordStory(model));
@@ -1967,11 +1766,10 @@ describe("wordStory", () => {
       ...html.matchAll(/<p class="gist">(.*?)<\/p>/gs),
       ...html.matchAll(/<div class="inside"><p>(.*?)<\/p><p>(.*?)<\/p><\/div>/gs),
       ...html.matchAll(/<h2[^>]*>(.*?)<\/h2>/gs),
-      ...html.matchAll(/<caption>(.*?)<\/caption>/gs),
     ].flatMap((found) => found.slice(1).map((piece) => textOf(piece ?? "", "")));
 
     for (const line of said) expect(words, line).toContain(line);
-    expect(said.length).toBeGreaterThanOrEqual(6);
+    expect(said.length).toBeGreaterThanOrEqual(5);
   });
 
   it("links only to the study, since the page's other links go to its own parts", async () => {

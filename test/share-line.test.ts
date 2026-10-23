@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 
 import { lineHtml, verdictLine } from "../src/share/html/parts.js";
 import { firstSentenceBold, lineOfMarkup, lineText, type Line } from "../src/share/line.js";
-import { TIMELINE } from "../src/share/text.js";
 
 describe("a line", () => {
   it("gives a line's words, and its HTML with every word escaped", () => {
@@ -55,7 +54,7 @@ describe("a line", () => {
 });
 
 describe("lineOfMarkup", () => {
-  it("reads the timeline's markup as a line", () => {
+  it("reads markup of bold and code as a line", () => {
     expect(lineOfMarkup("<b>0.6.0</b>: the page, and <code>voicecap preflight</code>.")).toEqual([
       { text: "0.6.0", bold: true },
       ": the page, and ",
@@ -65,7 +64,7 @@ describe("lineOfMarkup", () => {
   });
 
   it("gives words with no markup as they are, and nothing as no line", () => {
-    expect(lineOfMarkup("The first line of code.")).toEqual(["The first line of code."]);
+    expect(lineOfMarkup("Words alone.")).toEqual(["Words alone."]);
     expect(lineOfMarkup("")).toEqual([]);
     expect(lineOfMarkup("<b>One</b><code>two</code>")).toEqual([
       { text: "One", bold: true },
@@ -73,14 +72,15 @@ describe("lineOfMarkup", () => {
     ]);
   });
 
-  it("reads every cell of the timeline, with the same words as the page inserts", () => {
-    const cells = TIMELINE.flatMap((row) => [row.pc, row.mac, row.both]).filter(
-      (cell) => cell !== null,
-    );
+  it("keeps the words of the markup, and gives its markup back as the page would draw it", () => {
+    const cells = [
+      "<b>0.7.0</b>: the Word copy, <code>voicecap share</code>, and <code>voicecap verify</code>'s checks.",
+      "Full runs with VoiceOver.",
+      "<code>--walkthrough</code> repeats a run, then says how it sounds against the original.",
+    ];
 
-    expect(cells.length).toBeGreaterThan(10);
     for (const cell of cells) {
-      // The cell's words, with its tags dropped; and its markup again, with its apostrophes escaped.
+      // The markup's words, with its tags dropped; and its markup again, with its apostrophes escaped.
       expect(lineText(lineOfMarkup(cell))).toBe(cell.replace(/<\/?(?:b|code)>/g, ""));
       expect(lineHtml(lineOfMarkup(cell))).toBe(cell.replaceAll("'", "&#39;"));
     }

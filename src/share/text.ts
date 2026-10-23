@@ -7,13 +7,13 @@
  * around their numbers and names; the cards of "What needs attention" are worded in
  * attention-words.ts, which has the advice for each kind of problem. Both renderers draw from these
  * modules, the page now and its Word copy later, so this one holds words and nothing more: the
- * steps' icons are named here and drawn by the renderer, and the only markup is the bold and code
- * in the timeline's cells. A few are functions: for a line (./line.ts) with something in bold, in
- * code, or linked out, which holds those as data, never as markup, or for a sentence with a name, a
- * number, or a command in it (the verdict's headline, in `ATTENTION_TEXT`), or for a record's words
- * where they name the library that drives the screen reader (`ownWords`). What only the Word copy
- * says, the heads of its tables and the labels of their rows, is in `WORD_TEXT`, and what only the
- * files for AI tools say is last, in `AI_TEXT`.
+ * steps' icons are named here and drawn by the renderer, and none of it is markup. A few are
+ * functions: for a line (./line.ts) with something in bold, in code, or linked out, which holds
+ * those as data, never as markup, or for a sentence with a name, a number, or a command in it (the
+ * verdict's headline, in `ATTENTION_TEXT`), or for a record's words where they name the library
+ * that drives the screen reader (`ownWords`). What only the Word copy says, the heads of its tables
+ * and the labels of their rows, is in `WORD_TEXT`, and what only the files for AI tools say is
+ * last, in `AI_TEXT`.
  *
  * The wording is the design's ("Fixed text: how voicecap works, and how it came to be"), and the
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
@@ -1006,17 +1006,34 @@ export const VOICE_TEXT = {
   from: (run: string, date: string): string => `From run ${run}, on ${date}`,
   /**
    * What the shareable page's card says of a page that has a recording, as a link to the page's
-   * section of this page: "NVDA's voice: 2 min 14 s, on the voice page", the length as `length`
-   * says it, and left out when the record has none ("NVDA's voice, on the voice page"). For a
+   * section of this page: "Hear what NVDA said on this page (2 min 14 s)", the length as `length`
+   * says it, and left out when the record has none ("Hear what NVDA said on this page"). For a
    * screen reader alone the link goes on to say which page it's for (`of`), so that no two links
    * read alike and go to different places.
    */
   card: {
     line: (lengthSeconds: number | null): string =>
       typeof lengthSeconds === "number"
-        ? `NVDA's voice: ${VOICE_TEXT.length(lengthSeconds)}, on the voice page`
-        : "NVDA's voice, on the voice page",
+        ? `Hear what NVDA said on this page (${VOICE_TEXT.length(lengthSeconds)})`
+        : "Hear what NVDA said on this page",
     of: (path: string): string => `for ${path}`,
+    /**
+     * The link after a page's name in the list of a card of what needs attention, where "this page"
+     * would say nothing: "Hear what NVDA said (2 min 14 s)".
+     */
+    listed: (lengthSeconds: number | null): string =>
+      typeof lengthSeconds === "number"
+        ? `Hear what NVDA said (${VOICE_TEXT.length(lengthSeconds)})`
+        : "Hear what NVDA said",
+    /**
+     * The Word copy's line on a page's recording, which it can't play: its length, and where it is,
+     * the voice page's file and the page's section there ("NVDA's voice on this page (2 min 14 s)
+     * is on the voice page, example.gov_2027-01-15.voice.html, in the section for /about/.").
+     */
+    word: (lengthSeconds: number | null, voiceName: string, path: string): string =>
+      typeof lengthSeconds === "number"
+        ? `What NVDA said on this page can be heard (${VOICE_TEXT.length(lengthSeconds)}) on the voice page, ${voiceName}, in the section for ${path}.`
+        : `What NVDA said on this page can be heard on the voice page, ${voiceName}, in the section for ${path}.`,
   },
   /**
    * What the details of the shareable page and of its Word copy say of this page: what the
@@ -1358,9 +1375,8 @@ export const STORY: {
 };
 
 /**
- * "How voicecap came to be", apart from the story itself (`STORY`), the timeline's rows, and the
- * points worth knowing: its heading, the titles and lines of its two folds, and the timeline's
- * caption and headings.
+ * "How voicecap came to be", apart from the story itself (`STORY`) and the points worth knowing:
+ * its heading, and the titles and lines of its two folds.
  */
 export const STORY_TEXT = {
   title: "How voicecap came to be",
@@ -1368,224 +1384,7 @@ export const STORY_TEXT = {
   rest: { title: "The rest of the story", inside: "the usual answer, and voicecap's" },
   /** The title of the fold on the points worth knowing (`WORTH_KNOWING`). */
   worth: "A few things worth knowing",
-  /**
-   * The timeline: its caption, the head of its days, the head of each track (the platform, and the
-   * screen reader that goes with it), and what heads the row of what isn't done yet.
-   */
-  timeline: {
-    caption: "From the first line of code to today, on a Windows PC and on a Mac",
-    when: "When",
-    pc: { name: "Windows PC", reader: "with NVDA" },
-    mac: { name: "Mac", reader: "with VoiceOver" },
-    next: "Next",
-  },
 };
-
-/**
- * One line of the timeline, which has two tracks: a Windows PC with NVDA (`pc`), and a Mac with
- * VoiceOver (`mac`).
- */
-export interface TimelineRow {
-  /**
-   * The day as an ISO date, or null for "Next". Two rows may share a day, and the renderer may
-   * join them.
-   */
-  date: string | null;
-  /** The release this row announces, checked against the CHANGELOG; null for none. */
-  release: string | null;
-  /**
-   * Each cell as HTML, which the renderer inserts as it is: `<b>` and `<code>` only, and null for an
-   * empty cell. `both` runs across the two tracks, so a row has it or the other two, never both.
-   */
-  pc: string | null;
-  mac: string | null;
-  both: string | null;
-}
-
-/**
- * How voicecap came to be, from its first line of code through each release, with what isn't done
- * yet last, as "Next", never shown as done. Its facts come from the Git tags and the CHANGELOG, and
- * a test checks every release here against the CHANGELOG's dates, and that every minor release has
- * its line. When a major feature lands, merged or released, its line goes here, and the README says
- * what it does, in the same change.
- */
-export const TIMELINE: TimelineRow[] = [
-  {
-    date: "2026-09-25",
-    release: null,
-    pc: null,
-    mac: null,
-    both: "The first line of code.",
-  },
-  {
-    date: "2026-09-26",
-    release: "0.1.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.1.0</b>: runs, transcripts, flags, and the report, tried out on recorded runs on Windows, macOS, and Linux.",
-  },
-  {
-    date: "2026-09-27",
-    release: "0.2.0",
-    pc: "<b>0.2.0</b>: the real NVDA, checked end to end on Windows 11.",
-    mac: null,
-    both: null,
-  },
-  {
-    date: "2026-09-28",
-    release: "0.3.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.3.0</b>: the sealed audit record, and <code>voicecap verify</code> to check it.",
-  },
-  {
-    date: "2026-09-28",
-    release: null,
-    pc: null,
-    mac: "A first trial on a real Mac: VoiceOver taken through a test site three ways, outside voicecap.",
-    both: null,
-  },
-  {
-    date: "2026-09-29",
-    release: "0.4.0",
-    pc: "<b>0.4.0</b>: checks before every run, and a 20-second live test. On a real Windows PC, the checks found four problems, all fixed that day.",
-    mac: "<b>0.4.0</b>: setup, the same checks, and the live test with VoiceOver, checked on a real Mac.",
-    both: null,
-  },
-  {
-    date: "2026-09-30",
-    release: "0.5.0",
-    pc: "<b>0.5.0</b>: a guided demo, each failed page tried up to 5 times, and the reviewer's name on every run. The final checks on a real Windows PC passed. Then, for 0.6.0, runs began recording every failed attempt and whose problem it was, the computer they ran on, and whether the person heard NVDA speaking.",
-    mac: null,
-    both: null,
-  },
-  {
-    date: "2026-10-01",
-    release: null,
-    pc: null,
-    mac: null,
-    both: "For 0.6.0, the shareable page: the site's standing, the person's review, and every problem, with a fingerprint check that works offline. Then <code>voicecap preflight</code>, which checks a computer without starting the screen reader.",
-  },
-  {
-    date: "2026-10-02",
-    release: "0.6.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.6.0</b>: the shareable page, what each run records for it, and <code>voicecap preflight</code>. A last check on a real Windows PC found that a run didn't end after its closing question, and that NVDA speaks too fast in a run to follow; the first was fixed that day, and the page now says the person heard NVDA speaking, and read the transcripts.",
-  },
-  {
-    date: "2026-10-02",
-    release: null,
-    pc: null,
-    mac: null,
-    both: "For 0.7.0, the Word copy of the shareable report, and <code>voicecap share</code>: dated copies to send, each recorded with its fingerprint.",
-  },
-  {
-    date: "2026-10-03",
-    release: "0.7.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.7.0</b>: the Word copy of the shareable report, <code>voicecap share</code>, and <code>voicecap verify</code>'s checks of what was sent.",
-  },
-  {
-    date: "2026-10-03",
-    release: "0.8.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.8.0</b>: the walkthrough file. <code>voicecap walkthrough</code> writes a run's recipe, and <code>--walkthrough</code> repeats the run exactly, then says page by page how it sounds against the original.",
-  },
-  {
-    date: "2026-10-04",
-    release: "0.9.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.9.0</b>: the website. <code>voicecap site</code> builds a site of every shared report, by site and by date, with each one's page, Word copy, and walkthrough files, and their fingerprints.",
-  },
-  {
-    date: "2026-10-05",
-    release: "0.10.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.10.0</b>: canonical site names. The page, its Word copy, the shared copies, and the website name a site by the address people visit, never an IP address, even when the run read a copy; and the website publishes the demo's own pages.",
-  },
-  {
-    date: "2026-10-06",
-    release: "0.11.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.11.0</b>: each run's event log, with the program that took the screen, and a screenshot of each page, on the page and in its Word copy; and footers that stay at the window's bottom.",
-  },
-  {
-    date: "2026-10-07",
-    release: "0.12.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.12.0</b>: what needs attention, as a card for each problem: what NVDA says and where, the likely cause, the fix in the code, and the path forward; a review settles a flag; and five numbers.",
-  },
-  {
-    date: "2026-10-08",
-    release: "0.13.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.13.0</b>: the page for managers: At a glance, with a verdict and a ring of the pages; each page's first lines and full transcript in its card; and the details last.",
-  },
-  {
-    date: "2026-10-08",
-    release: "0.14.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.14.0</b>: the review replay: <code>voicecap review --replay</code> reads each page's saved transcript aloud at a normal speed, line by line, with keys to jump to a flagged line and to the other transcripts, and records each decision.",
-  },
-  {
-    date: "2026-10-09",
-    release: "0.15.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.15.0</b>: the website in the look of the audit tool (audit.icjia.app): a top bar and a bottom bar on each of its own pages, a banner of the newest release on the front page, and two new pages, Technical details and What's New.",
-  },
-  {
-    date: "2026-10-09",
-    release: "0.16.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.16.0</b>: axe on each page: what axe, an open-source accessibility checker, found on the page, in a fold on its card, beside what NVDA said, and sealed with the run.",
-  },
-  {
-    date: "2026-10-10",
-    release: "0.17.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.17.0</b>: NVDA's own log, kept cleaned with each run and checked against the transcripts, line by line.",
-  },
-  {
-    date: "2026-10-13",
-    release: "0.18.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.18.0</b>: NVDA's voice on each page, the report as Markdown and JSON for AI tools, and the fixes of a security review of the PC work.",
-  },
-  {
-    date: "2026-10-15",
-    release: "0.19.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.19.0</b>: a clearer slow-down of NVDA's voice: voicecap's own stretcher, in the reader's browser, at 0.75×, 0.5×, and 0.3×.",
-  },
-  {
-    date: "2026-10-16",
-    release: "0.20.0",
-    pc: null,
-    mac: null,
-    both: "<b>0.20.0</b>: sites.json, each site's current report as JSON, for another website that links to the results, such as ICJIA's documentation index.",
-  },
-  {
-    date: null,
-    release: null,
-    pc: null,
-    mac: "Full runs with VoiceOver, with voicecap's VoiceOver driver.",
-    both: null,
-  },
-];
 
 /** The six "worth knowing" cards. */
 export const WORTH_KNOWING: { title: string; text: string }[] = [
@@ -1766,14 +1565,6 @@ export const WORD_TEXT = {
       lead: `${REPEAT_EXACTLY}get its walkthrough file from the web page, or with:`,
       then: "then run:",
     },
-  },
-  /**
-   * "How voicecap came to be": the heads of the timeline's table, which has two columns where the
-   * page's has three: the page's own word for when, and what happened. A track's label is the page's
-   * own head for it (`STORY_TEXT.timeline`).
-   */
-  story: {
-    head: [STORY_TEXT.timeline.when, "What happened"],
   },
   /** The heading the Word copy gives the page's footer, a landmark with no heading on the page. */
   footer: {

@@ -44,7 +44,6 @@ import {
   STORY,
   STORY_TEXT,
   SUMMARY_TEXT,
-  TIMELINE,
   TOP_TEXT,
   WORD_TEXT,
 } from "../src/share/text.js";
@@ -89,7 +88,6 @@ import {
   sizesOf,
   spokenDuration,
   testedLine,
-  timelineDay,
   timeOfDay,
   titleOf,
   took,
@@ -1582,25 +1580,6 @@ describe("the lines of the evidence, the story, and the footer", () => {
     );
   });
 
-  it("writes the year on a timeline's first date, and again only when it changes", () => {
-    expect(timelineDay("2026-09-25", null)).toBe("25 September 2026");
-    expect(timelineDay("2026-09-26", "2026")).toBe("26 September");
-    expect(timelineDay("2027-01-02", "2026")).toBe("2 January 2027");
-  });
-
-  it("is what the page's timeline says of each day", async () => {
-    const html = renderStory(await demoModel());
-    let lastYear: string | null = null;
-
-    for (const { date } of TIMELINE) {
-      if (date === null) continue;
-      const found = new RegExp(`<time datetime="${date}">(.*?)</time>`).exec(html);
-      expect(found?.[1], date).toBe(timelineDay(date, lastYear));
-      lastYear = date.slice(0, 4);
-    }
-    expect(lastYear).not.toBeNull();
-  });
-
   it("titles a run by its id", () => {
     expect(runTitle("2026-09-29_1402")).toBe("Run 2026-09-29_1402");
   });
@@ -1929,11 +1908,6 @@ describe("the section words in text.ts", () => {
     );
   });
 
-  it("head the Word copy's timeline with the page's own word for when, and what happened", () => {
-    expect(WORD_TEXT.story.head).toEqual(["When", "What happened"]);
-    expect(WORD_TEXT.story.head[0]).toBe(STORY_TEXT.timeline.when);
-  });
-
   it("give the Word copy's footer the heading the page's footer, a landmark, has none of, naming the report as the Word copy does", async () => {
     expect(WORD_TEXT.footer.heading).toBe("About this report");
     expect(renderFooter(await demoModel())).not.toMatch(/<h[1-6]/);
@@ -1954,7 +1928,6 @@ describe("the section words in text.ts", () => {
     const heading = (html: string, id: string) =>
       textOf(new RegExp(`<h2 id="${id}">(.*?)</h2>`, "s").exec(html)?.[1] ?? "");
     const html = renderStory(model);
-    const { timeline } = STORY_TEXT;
 
     expect(heading(renderChanges(model), "chg-h")).toBe(CHANGES_TEXT.title);
     expect(heading(renderProblems(model), "prob-h")).toBe(PROBLEMS_TEXT.title);
@@ -1963,10 +1936,6 @@ describe("the section words in text.ts", () => {
     expect(heading(html, "story-h")).toBe(STORY_TEXT.title);
     expect(textOf(html)).toContain(`${STORY_TEXT.rest.title} ${STORY_TEXT.rest.inside}`);
     expect(textOf(html)).toContain(STORY_TEXT.worth);
-    expect(html).toContain(`<caption>${timeline.caption}</caption>`);
-    expect(html).toContain(
-      `<thead><tr><th scope="col">${timeline.when}</th><th scope="col"><span class="plat pc">${timeline.pc.name}</span>, ${timeline.pc.reader}</th><th scope="col"><span class="plat mac">${timeline.mac.name}</span>, ${timeline.mac.reader}</th></tr></thead>`,
-    );
     expect(textOf(renderFooter(model), "")).toContain(
       lineText(FOOTER_TEXT.page(model.footer.fileName, model.footer.wordName)),
     );

@@ -4,6 +4,15 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-23
+
+Each page's card on the shareable page now links to the page's recording, so anyone with doubts can hear what NVDA said, and reports no longer carry voicecap's own timeline.
+
+### Changed
+
+- **Each page's recording is one click from its card.** A recorded page's card on the shareable page has a link right under the page's name, "▶ Hear what NVDA said on this page (2 min 14 s)", set apart as a button, which opens the page's section of the voice page: a manager, an auditor, or a lawyer with doubts about a transcript can hear the run itself. It was a small line after "Heard first". Each page listed on a card of "What needs attention" has one too, after its name, and the Word copy, which can't play sound, says under each recorded page's screenshot where its recording is: the voice page's file, and the page's section there.
+- **Reports no longer carry voicecap's own timeline.** "How voicecap came to be", on the shareable page and in its Word copy, no longer has the table of voicecap's releases on a Windows PC and on a Mac: it says how voicecap began and why it exists, then folds the rest of the story and a few things worth knowing. Reports already shared keep theirs, as they were made.
+
 ## [0.20.1] - 2026-10-22
 
 The Mac's checks now know macOS 27, and on Windows NVDA now starts and quits without the command shell, even from a folder whose path has a space or an ampersand.
@@ -792,7 +801,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.20.1...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/ICJIA/voicecap/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/ICJIA/voicecap/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/ICJIA/voicecap/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/ICJIA/voicecap/compare/v0.18.1...v0.19.0

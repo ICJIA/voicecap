@@ -12,7 +12,8 @@
  * it for both the page and the Word copy, and its labels from `ATTENTION_TEXT`. Everything goes
  * through `esc`: what NVDA said, a link's words, a page's name, and a reviewer's note are text,
  * whatever they hold, and so is a fix's code, which a block of code shows with its own line breaks.
- * No `style` attribute is set, and the only links go to the page's own cards under "Every page".
+ * No `style` attribute is set, and the only links go to the page's own cards under "Every page",
+ * and to each page's recording on the voice page beside this one, when it has one.
  *
  * A card's title is on its fold's line, never in a heading: the section's heading is the only one
  * here, and a card's parts are paragraphs and lists, which a heading of their own would only repeat
@@ -22,8 +23,8 @@ import { esc } from "../../report/html.js";
 import { cardAnchor } from "../anchors.js";
 import type { AttentionCard } from "../attention.js";
 import { attentionWords, type AttentionWords } from "../attention-words.js";
-import type { ShareModel } from "../model.js";
-import { ATTENTION_TEXT } from "../text.js";
+import type { PageCard, ShareModel } from "../model.js";
+import { ATTENTION_TEXT, VOICE_TEXT } from "../text.js";
 import { attentionGist } from "../words.js";
 import { fold, lineHtml } from "./parts.js";
 
@@ -61,15 +62,31 @@ function fixOf(fix: AttentionWords["fixes"][number]): string {
   return `<div class="fix"><p>${esc(fix.lead)}</p><pre><code>${esc(fix.code)}</code></pre>${after}</div>`;
 }
 
+/** Each page's recording, as its card under "Every page" has it, by the page's slug. */
+type Voices = Map<string, PageCard["voice"]>;
+
 /**
- * A card's pages, each a link to its card under "Every page", with its reason or its note after a
+ * A page's link to its recording on the voice page, after its name on a card here, as its card
+ * under "Every page" has it, its page named for a screen reader alone. Nothing for a page with
+ * none.
+ */
+function hearOf(voice: PageCard["voice"] | undefined, name: string): string {
+  if (voice === undefined || voice === null) return "";
+  const words = esc(VOICE_TEXT.card.listed(voice.seconds));
+  return ` <span class="sub">· <a href="${esc(voice.href)}"><span aria-hidden="true">▶ </span>${words}<span class="sr"> ${esc(VOICE_TEXT.card.of(name))}</span></a></span>`;
+}
+
+/**
+ * A card's pages, each a link to its card under "Every page", and to its recording when it has
+ * one (`hearOf`), with its reason or its note after a
  * colon when it has one. Up to 3 are in the open under their label, "The page" for one; more fold
  * behind a line that counts them, which is their label.
  */
-function pagesOf(card: AttentionCard): string {
+function pagesOf(card: AttentionCard, voices: Voices): string {
   const items = card.pages.map(({ slug, name, detail }) => {
     const link = `<a href="#${cardAnchor(slug)}">${esc(name)}</a>`;
-    return `<li>${detail === null || detail.trim() === "" ? link : `${link}: ${esc(detail)}`}</li>`;
+    const said = detail === null || detail.trim() === "" ? link : `${link}: ${esc(detail)}`;
+    return `<li>${said}${hearOf(voices.get(slug), name)}</li>`;
   });
   const list = `<ul>${items.join("")}</ul>`;
   if (card.pages.length <= MOST_PAGES_OPEN) {
@@ -85,7 +102,7 @@ function pagesOf(card: AttentionCard): string {
  * it says each of its parts. The fold has the card's id, so an address that points to the card
  * opens it.
  */
-function cardOf(card: AttentionCard, number: number, open: boolean): string {
+function cardOf(card: AttentionCard, number: number, open: boolean, voices: Voices): string {
   const words = attentionWords(card);
   const summary = `<span class="what">${number}. ${esc(words.title)}</span> <span class="sub">${esc(words.count)}</span>`;
   const fixes =
@@ -101,7 +118,7 @@ function cardOf(card: AttentionCard, number: number, open: boolean): string {
     `<p>${labelled(labels.why)} ${esc(words.why)}</p>`,
     ...fixes,
     `<div class="part"><p>${labelled(labels.path)}</p><ol>${steps.join("")}</ol></div>`,
-    pagesOf(card),
+    pagesOf(card, voices),
   ];
   return fold(summary, body.join(""), { id: card.id, open });
 }
@@ -117,7 +134,8 @@ function cardOf(card: AttentionCard, number: number, open: boolean): string {
 export function renderAttention(model: ShareModel): string {
   if (model.attention.length === 0) return "";
   const open = model.attention.length <= MOST_CARDS_OPEN;
-  const folds = model.attention.map((card, index) => cardOf(card, index + 1, open));
+  const voices: Voices = new Map(model.pages.map(({ slug, voice }) => [slug, voice]));
+  const folds = model.attention.map((card, index) => cardOf(card, index + 1, open, voices));
   const parts = [
     `<h2 id="need-h">${esc(ATTENTION_TEXT.title)}</h2>`,
     `<p class="gist">${lineHtml(attentionGist(model))}</p>`,

@@ -389,6 +389,22 @@ function axePartOf(part: Block[]): Block[] {
 }
 
 describe("wordPages", () => {
+  it("says under a recorded page's screenshot where to hear what NVDA said, and nothing on a page with none or a copy with no voice page", () => {
+    const base = modelOf([done("/"), done("/about/")]);
+    const recorded = withCard({ ...base, voicePage: { name: "site_2027-01-15.voice.html" } }, 1, {
+      voice: { seconds: 134.2, href: "site_2027-01-15.voice.html#voice-about" },
+    });
+    const [home, about] = pagePartsOf(wordPages(recorded), recorded);
+    const line =
+      "What NVDA said on this page can be heard (2 min 14 s) on the voice page, site_2027-01-15.voice.html, in the section for /about/.";
+
+    expect(about?.[2]).toEqual(para(line));
+    expect(wordsOf(home ?? []).join("\n")).not.toContain("voice page");
+    // The live copy has no voice page beside it, so it names none.
+    const live = { ...recorded, voicePage: { why: "none beside it" } };
+    expect(wordsOf(wordPages(live)).join("\n")).not.toContain(line);
+  });
+
   it("opens with its heading and the line on how many pages were read in full, then a heading 2 for each page", async () => {
     const model = await demoModel();
     const pages = wordPages(model);

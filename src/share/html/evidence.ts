@@ -4,8 +4,7 @@
  * run), "How voicecap came to be", and the footer. Each takes the model and returns HTML.
  *
  * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts), which
- * is plain words, except a timeline cell, which is inserted as written (it has `<b>` and `<code>` in
- * it, and is fixed). Each line worked out from the model (../words.ts) goes through `esc` or
+ * is plain words. Each line worked out from the model (../words.ts) goes through `esc` or
  * `lineHtml`. The page's own words about its check (its buttons, and what it does without scripts)
  * are written as they are. No `style` attribute is set. The only links are to the page's own
  * sections, voicecap's GitHub page, and the Deque study the story cites, and, for each run, to its
@@ -45,10 +44,8 @@ import {
   NVDA_LOG_TEXT,
   STORY,
   STORY_TEXT,
-  TIMELINE,
   TOP_TEXT,
   WORTH_KNOWING,
-  type TimelineRow,
 } from "../text.js";
 import {
   byteCount,
@@ -57,7 +54,6 @@ import {
   inRun,
   readCopyNote,
   runTitle,
-  timelineDay,
   unreadableNote,
   whenOf,
   whyLine,
@@ -348,62 +344,9 @@ export function renderEvidence(model: ShareModel): string {
 // How voicecap came to be.
 
 /**
- * A timeline entry's cells: one across both tracks, or one for each, an empty cell for a track
- * with nothing. What isn't done yet is "next". The cells are fixed HTML (`<b>` and `<code>`).
- */
-function timelineCells({ date, pc, mac, both }: TimelineRow): string {
-  const next = date === null ? " next" : "";
-  if (both !== null) return `<td colspan="2" class="both${next}">${both}</td>`;
-  const cell = (track: string, html: string | null): string =>
-    html === null ? `<td class="none"></td>` : `<td class="${track}${next}">${html}</td>`;
-  return `${cell("pc", pc)}${cell("mac", mac)}`;
-}
-
-/**
- * A timeline entry's row header: its day (a date is read as the day it begins), with the year when
- * it's the first date or the year changes (`timelineDay`). The entries of one day share a header,
- * which spans them (`entries`). What isn't done yet has no date, and is headed "Next".
- */
-function timelineHeader(date: string | null, entries: number, lastYear: string | null): string {
-  if (date === null) return `<th scope="row">${esc(STORY_TEXT.timeline.next)}</th>`;
-  const span = entries > 1 ? ` rowspan="${entries}"` : "";
-  return `<th scope="row"${span}><time datetime="${esc(date)}">${esc(timelineDay(date, lastYear))}</time></th>`;
-}
-
-/**
- * The timeline as a table with two tracks, a row for each entry. An entry of the same day as the one
- * before has no header of its own: the day's header spans them both.
- */
-function timelineTable(): string {
-  const { timeline } = STORY_TEXT;
-  const rows: string[] = [];
-  let lastYear: string | null = null;
-  for (const [index, row] of TIMELINE.entries()) {
-    const { date } = row;
-    if (date !== null && TIMELINE[index - 1]?.date === date) {
-      rows.push(`<tr>${timelineCells(row)}</tr>`);
-      continue;
-    }
-    // The entries of this day, which follow one another, up to the first of another.
-    const other = TIMELINE.slice(index).findIndex((entry) => entry.date !== date);
-    const entries = other === -1 ? TIMELINE.length - index : other;
-    rows.push(`<tr>${timelineHeader(date, entries, lastYear)}${timelineCells(row)}</tr>`);
-    if (date !== null) lastYear = date.slice(0, 4);
-  }
-  const tracks = [
-    `<th scope="col">${esc(timeline.when)}</th>`,
-    `<th scope="col"><span class="plat pc">${esc(timeline.pc.name)}</span>, ${esc(timeline.pc.reader)}</th>`,
-    `<th scope="col"><span class="plat mac">${esc(timeline.mac.name)}</span>, ${esc(timeline.mac.reader)}</th>`,
-  ];
-  const caption = `<caption>${esc(timeline.caption)}</caption>`;
-  const table = `<table class="tracks">${caption}<thead><tr>${tracks.join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
-  return scroll("voicecap's timeline, table", table);
-}
-
-/**
  * "How voicecap came to be": how it began, then why it exists, with the Deque study linked, both in
- * the open; the rest of the story in a fold; the timeline on a Windows PC and on a Mac; and a few
- * things worth knowing, folded. All of it is fixed text, so it takes nothing from the model.
+ * the open; then the rest of the story and a few things worth knowing, each in a fold. All of it is
+ * fixed text, so it takes nothing from the model.
  */
 export function renderStory(_model: ShareModel): string {
   const rest = fold(
@@ -421,9 +364,7 @@ export function renderStory(_model: ShareModel): string {
     `<h2 id="story-h">${esc(STORY_TEXT.title)}</h2>`,
     `<p class="gist">${esc(STORY.began)}</p>`,
     `<p class="gist">${lineHtml(whyLine())}</p>`,
-    `<div class="folds">${rest}</div>`,
-    timelineTable(),
-    `<div class="folds">${worth}</div>`,
+    `<div class="folds">${rest}${worth}</div>`,
   ];
   return `<section aria-labelledby="story-h">\n  ${parts.join("\n  ")}\n</section>`;
 }

@@ -20,8 +20,8 @@ export function lineText(line: Line): string {
 const TAGGED = /<(b|code)>([^<>&]*)<\/\1>/g;
 
 /**
- * Fixed markup of `<b>` and `<code>` only, as the timeline's cells have it, as a line. The words
- * are the line's as they are: a cell holds no entity, since the page inserts it as it is.
+ * Fixed markup of `<b>` and `<code>` only, as a line. The words are the line's as they are: the
+ * markup holds no entity.
  */
 export function lineOfMarkup(markup: string): Line {
   const line: Line = [];
