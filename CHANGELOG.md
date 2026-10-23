@@ -18,6 +18,7 @@ The Mac's checks now know macOS 27, and on Windows NVDA now starts and quits wit
 
 - **macOS 27's number.** The Mac's checks called macOS 27 "macOS 28", and failed it as unsupported: macOS 27 reports itself as Darwin 27, where macOS 26 was Darwin 25, and Guidepup 0.34.0 had no VoiceOver files for it. The checks now call it macOS 27, and pass it with Guidepup 0.36.4.
 - **Starting VoiceOver on macOS 27.** macOS 27 has no VoiceOverStarter, which the Mac's live test ran to start VoiceOver for its first question, and to turn the person's own VoiceOver back on afterwards (its exit hook too). On macOS 27, voicecap opens VoiceOver.app instead, as Guidepup does there. The live test can still fail to start VoiceOver there: as Guidepup starts VoiceOver, it restarts macOS's preferences service twice, a few milliseconds apart, and macOS holds the second start back for 10 seconds, which is about as long as Guidepup waits for VoiceOver to open. Run the test again if it fails.
+- **A run ends when NVDA stopped reading, not when it was sealed.** A run at a terminal is sealed once its closing question is answered, and the shareable page, its Word copy, and the report for AI tools (its `finishedAt` too) gave that as the run's end, and counted the days it was tested to it. The run of r3.illinois.gov on 22 October 2026 read from 13:18 to 14:36, and its question was answered at 19:11, so its evidence said "13:18 to 19:11". They now give the end of the run's last session, as "When and how" did, and still say when the question was answered.
 
 ## [0.20.0] - 2026-10-16
 

@@ -959,6 +959,10 @@ describe("renderEvidence", () => {
           name: "MARKER-NAME",
           seal: "MARKER-SEAL",
           site: "http://MARKER-SITE/",
+          sessions: first.run.sessions.map((session) => ({
+            ...session,
+            endedAt: "2026-10-02T08:30:00-05:00",
+          })),
           completedAt: "2026-10-02T08:30:00-05:00",
           settings: {
             ...first.run.settings,

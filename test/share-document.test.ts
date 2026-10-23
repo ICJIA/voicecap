@@ -917,6 +917,13 @@ describe("renderSharePage", () => {
     // Prepare 0.20.0 re-pinned all three for the timeline's 0.20.0 row. Each page grew by
     // 255 characters, and each Word copy's blocks by 230, the same for all three, as a timeline
     // row gives.
+    // 0.20.1 re-pinned the logged run's page and Word copy, and nothing else: a run now finishes
+    // when its last session ends, as NVDA stopped reading, not when it was sealed. The logged
+    // run's record, made by the tests' helper, was sealed as it began, and its second session
+    // ended on 28 September, so it now says it was tested from 26 to 28 September 2026, ran
+    // "14:02 to 28 September 2026, 09:02" (it said "14:02 to 14:02"), and finished at 09:02 on
+    // the 28th. The page and the Word copy's blocks each grew by 27 characters. The other two
+    // were sealed as their sessions ended.
     const before = {
       i2i: {
         page: [218_984, "f6d729dfc10968c15f3e90eead49efa768fb1fb8b43d15fd2f01a427ed11c916"],
@@ -927,8 +934,8 @@ describe("renderSharePage", () => {
         word: [83_284, "93afa869bac76acf84122f1e5d2a9211bfbcbda96479d2ccd383d4dd5f225d29"],
       },
       logged: {
-        page: [135_914, "9f9c6b5c569f78bf3cc49b86462da8ee33bb92ba02bf1200230a7f82c5365426"],
-        word: [41_948, "b7aeea1864133267b7d6cac67744aa74cecf71091c8f1b46a04439307877e352"],
+        page: [135_941, "1260491406eab756413f0e49d2c404899c7bd9011860c31028526ea7716adcee"],
+        word: [41_975, "93b827380d0462f755072a07c730d047994c953e3200ea2b9f9d2ba3acdd2d79"],
       },
     };
     const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };

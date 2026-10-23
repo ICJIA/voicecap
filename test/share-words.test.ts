@@ -1499,11 +1499,27 @@ describe("the lines of the evidence, the story, and the footer", () => {
 
   it("says when a run ran, with the day again for a run that crossed one", async () => {
     const run = await demoRun("1402");
+    const endedAt = "2026-10-02T08:30:00-05:00";
 
     expect(whenOf(run)).toBe("29 September 2026, 14:02 to 14:09");
     expect(whenOf(await demoRun("1315"))).toBe("29 September 2026, 13:15 to 13:21");
-    expect(whenOf({ ...run, completedAt: "2026-10-02T08:30:00-05:00" })).toBe(
-      "29 September 2026, 14:02 to 2 October 2026, 08:30",
+    expect(
+      whenOf({
+        ...run,
+        sessions: run.sessions.map((session) => ({ ...session, endedAt })),
+        completedAt: endedAt,
+      }),
+    ).toBe("29 September 2026, 14:02 to 2 October 2026, 08:30");
+  });
+
+  // A run at a terminal is sealed once its question is answered, which can be hours after NVDA
+  // stopped reading: r3.illinois.gov's run of 2026-10-22 read from 13:18 to 14:36, and its
+  // question was answered at 19:11.
+  it("says when the reading ended, not when the run was sealed", async () => {
+    const run = await demoRun("1402");
+
+    expect(whenOf({ ...run, completedAt: "2026-09-29T19:11:38-05:00" })).toBe(
+      "29 September 2026, 14:02 to 14:09",
     );
   });
 

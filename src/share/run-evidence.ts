@@ -238,9 +238,13 @@ export function runStart(run: RunJson): string {
   return run.sessions[0]?.startedAt ?? run.createdAt;
 }
 
-/** When a run finished: when it was completed, else when its last session ended. */
+/**
+ * When a run finished: when its last session ended, as NVDA stopped reading, else when it was
+ * completed. A run at a terminal is completed once its question is answered, which can be hours
+ * after the reading ended.
+ */
 export function runEnd(run: RunJson): string {
-  return run.completedAt ?? run.sessions.at(-1)?.endedAt ?? runStart(run);
+  return run.sessions.at(-1)?.endedAt ?? run.completedAt ?? runStart(run);
 }
 
 /** A run's event log, as the loader read it: its events, and how many lines couldn't be read. */

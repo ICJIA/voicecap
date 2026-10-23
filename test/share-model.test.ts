@@ -2250,7 +2250,8 @@ describe("buildShareModel", () => {
 
   it("says what each run recorded: when, its pages, who ran it, what they said, and the computer", () => {
     // Completed a minute after its session ended, once the answer was kept (shareRun completes a
-    // run as it starts). Nothing here checks the seal.
+    // run as it starts). It finished when its session ended, as NVDA stopped reading: the seal
+    // waits for the answer. Nothing here checks the seal.
     const run: RunJson = {
       ...shareRun({
         id: "r1",
@@ -2275,7 +2276,7 @@ describe("buildShareModel", () => {
 
     expect(evidence?.facts).toEqual([
       { label: "Started", value: "26 September 2026, 14:05" },
-      { label: "Finished", value: "26 September 2026, 14:32" },
+      { label: "Finished", value: "26 September 2026, 14:31" },
       { label: "Pages", value: "2 transcribed and 1 failed" },
       { label: "Transcripts shown", value: "2 pages" },
       { label: "NVDA restarts", value: "Not recorded: this run used voicecap 0.1.0." },

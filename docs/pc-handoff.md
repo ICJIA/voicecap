@@ -8,6 +8,7 @@ This file was brought up to date on the PC on 2026-10-22, at the end of that day
 - **A stop that fails no longer fails every later start in a run.** Guidepup 0.36 counts its NVDA as still running after a stop whose quit timed out, and refuses to start another ("NVDA is already running"), so after one such stop every later page of the run would fail to start NVDA. The adapter's start now stops that NVDA again, once, and starts. It was settled under the owner's standing rule to take the recommended option, for the owner to confirm or reverse.
 - **r3.illinois.gov was read again with 0.20.0** (run 2026-10-22_1318), shared as entry 4, and pushed (transcripts 15e4729). It's live, byte for byte, and `sites.json` names it.
 - **0.20.1 is prepared on the branch:** its CHANGELOG entry, dated 2026-10-22. It's a patch, as 0.18.1 was: a dependency upgrade and fixes, with no new feature. It isn't merged or released.
+- **A fix from r3's run is in it:** a run ends when its last session ended, as NVDA stopped reading, not when it was sealed. r3's question was answered hours after the reading, so entry 4's evidence gives the run as "13:18 to 19:11"; from 0.20.1 such a run reads "13:18 to 14:36". Entry 4 keeps its words, since a share is never rewritten.
 
 ## How to start
 
