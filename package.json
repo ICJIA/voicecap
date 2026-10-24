@@ -64,7 +64,7 @@
   "dependencies": {
     "@guidepup/guidepup": "0.36.4",
     "@guidepup/setup": "0.29.3",
-    "axe-core": "4.13.0",
+    "axe-core": "4.14.0",
     "commander": "15.0.0",
     "csv-parse": "7.0.3",
     "diff": "9.0.0",
