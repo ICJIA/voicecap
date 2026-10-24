@@ -4,6 +4,15 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-23
+
+The website shows when NVDA read each site, and a button to hear it, on each site's current report, and puts the site NVDA read last first.
+
+### Changed
+
+- **The website shows when NVDA read each site, and its recording, at a glance.** Each site's current report opens with two tiles: one with the day NVDA read the site, big, and under it the time and how many runs the report is of; and one that opens the report's voice page, "▶ Listen to the recording", or says, quieter, that the report has no recording. When the report was shared is now a quieter line in the card's heading, "The current report, shared 23 October 2026, 19:09", so that a re-share of an older run doesn't look like a new reading.
+- **The website puts the site NVDA read last first,** by the newest run its current report is of (by when it was shared, for a share that records no run), where the sites were in order of their names. `llms.txt` follows the page; `sites.json` keeps the sites in order of their names, and each site's section keeps its id.
+
 ## [0.21.0] - 2026-10-23
 
 Each page's card on the shareable page now links to the page's recording, so anyone with doubts can hear what NVDA said, and reports no longer carry voicecap's own timeline.
@@ -805,7 +814,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/ICJIA/voicecap/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/ICJIA/voicecap/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/ICJIA/voicecap/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/ICJIA/voicecap/compare/v0.19.0...v0.20.0

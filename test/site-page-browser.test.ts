@@ -134,7 +134,9 @@ function verdictContent(): SiteContent {
       const report: PublishedReport = {
         folder,
         id: `report-${folder}-1`,
-        at: `2026-10-0${index + 1}T10:00:00-05:00`,
+        // The first shared last, so that the page, which puts the site read last first (from
+        // 0.22.0), keeps them in this order: they record no run.
+        at: `2026-10-0${3 - index}T10:00:00-05:00`,
         by: "Pat Lee",
         files: [
           published("page", folder, `${folder}_2026-10-0${index + 1}.html`, 100),
@@ -145,6 +147,9 @@ function verdictContent(): SiteContent {
         ],
         notPublished: [],
         result,
+        // The first two cards open with their tiles (from 0.22.0): the first's recording is a
+        // link, and the second says it has none. The third records no run, and has no tiles.
+        ...(index < 2 ? { runs: [`2026-10-0${3 - index}_0900`] } : {}),
       };
       return { name: folder, folders: [folder], reports: [report], address: `https://${folder}/` };
     }),
@@ -642,6 +647,10 @@ describe("the site's page", () => {
       await openFolds(page);
       expect(await page.locator("p.verdict").count()).toBe(3);
       expect(await page.locator("li", { hasText: "NVDA's voice" }).isVisible()).toBe(true);
+      // The tiles at a glance: two cards' worth, one a link to hear NVDA, and one with none.
+      expect(await page.locator(".glance").count()).toBe(2);
+      expect(await page.locator("a.glance-tile").count()).toBe(1);
+      expect(await page.locator(".glance-tile.none").count()).toBe(1);
 
       expect(await axeFindings(page, 1280), "dark").toEqual([]);
       await page.locator("#theme-toggle").click();
@@ -748,6 +757,32 @@ describe("the site's page", () => {
     },
     AXE_TIMEOUT,
   );
+
+  // 0.22.0: a current report's two tiles sit side by side where both fit, and one over the other
+  // on a phone; the tile to hear NVDA is a link, the whole tile its target.
+  it("lays a card's tiles side by side on a wide window and one over the other on a phone", async () => {
+    for (const [width, side] of [
+      [1280, true],
+      [390, false],
+    ] as const) {
+      const page = await open(files.verdicts, { width });
+      const boxes = await page
+        .locator(".glance")
+        .first()
+        .locator(".glance-tile")
+        .evaluateAll((tiles) =>
+          tiles.map((tile) => tile.getBoundingClientRect().toJSON() as DOMRect),
+        );
+      expect(boxes, String(width)).toHaveLength(2);
+      const [first, second] = boxes as [DOMRect, DOMRect];
+      expect(second.top === first.top, String(width)).toBe(side);
+      expect(second.left > first.left, String(width)).toBe(side);
+      // The link is the tile: its box is the tile's, so the whole tile can be clicked.
+      const link = await page.locator("a.glance-tile").first().boundingBox();
+      expect(link?.width, String(width)).toBeCloseTo(second.width, 0);
+      expect(link?.height, String(width)).toBeCloseTo(second.height, 0);
+    }
+  });
 
   it("fits a window 320 pixels wide, with its folds open", async () => {
     for (const which of ["page", "long", "verdicts", "bannerLong"] as const) {

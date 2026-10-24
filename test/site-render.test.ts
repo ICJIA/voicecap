@@ -450,13 +450,13 @@ describe("renderSiteIndex", () => {
     expect(headings).toEqual([
       [1, "Screen reader test results"],
       [2, "The demo"],
-      [3, "The current report 29 September 2026, 15:40"],
+      [3, "The current report, shared 29 September 2026, 15:40"],
       [2, "The sites"],
       [3, DVFR],
-      [4, "The current report 3 October 2026, 14:05"],
+      [4, "The current report, shared 3 October 2026, 14:05"],
       [4, "Earlier reports"],
       [3, EXAMPLE],
-      [4, "The current report 2 October 2026, 09:30"],
+      [4, "The current report, shared 2 October 2026, 09:30"],
       [2, "Every report, by date"],
     ]);
     // None skips a level on the way down.
@@ -697,9 +697,9 @@ describe("renderSiteIndex", () => {
     const article = articleOf(html, DVFR_NEWEST.id);
     const of = ` of ${DVFR}, 3 October 2026, 14:05`;
 
-    expect(textsOf(article, "h4")).toEqual(["The current report 3 October 2026, 14:05"]);
+    expect(textsOf(article, "h4")).toEqual(["The current report, shared 3 October 2026, 14:05"]);
     expect(article).toContain(
-      '<h4><span class="label">The current report</span> <time datetime="2026-10-03T14:05:00-05:00">3 October 2026, 14:05</time></h4>',
+      '<h4><span class="label">The current report, shared</span> <time datetime="2026-10-03T14:05:00-05:00">3 October 2026, 14:05</time></h4>',
     );
     expect(textsOf(article, "p")).toEqual([
       "Prepared by Pat Lee",
@@ -727,7 +727,7 @@ describe("renderSiteIndex", () => {
 
     // The demo's is the same, a level up, under the demo's heading, and named for the demo.
     const demo = articleOf(html, DEMO_REPORT.id);
-    expect(textsOf(demo, "h3")).toEqual(["The current report 29 September 2026, 15:40"]);
+    expect(textsOf(demo, "h3")).toEqual(["The current report, shared 29 September 2026, 15:40"]);
     expect(textsOf(demo, "a")).toEqual([
       "Open the report of the demo, 29 September 2026, 15:40",
       "Download the Word copy of the demo, 29 September 2026, 15:40",
@@ -1234,7 +1234,7 @@ describe("renderSiteIndex", () => {
     const of = ` of ${DVFR}, 29 September 2026, 16:20`;
 
     expect(textsOf(site, "h4")).toEqual([
-      "The current report 3 October 2026, 14:05",
+      "The current report, shared 3 October 2026, 14:05",
       "Earlier reports",
     ]);
     // The Word copy of the oldest changed since it was shared: only its page has a link.
@@ -1277,7 +1277,7 @@ describe("renderSiteIndex", () => {
   it("has no earlier reports for a site with one report", () => {
     const site = sectionOf(html, `site-${EXAMPLE}`);
 
-    expect(textsOf(site, "h4")).toEqual(["The current report 2 October 2026, 09:30"]);
+    expect(textsOf(site, "h4")).toEqual(["The current report, shared 2 October 2026, 09:30"]);
     expect(site).not.toContain('class="earlier"');
     expect(site).not.toContain("Earlier reports");
   });
@@ -1540,19 +1540,20 @@ describe("renderSiteIndex", () => {
     it("opens in the browser, as the report's page does, and is never a download", () => {
       const links = linksOf(sectionOf(pageOf(withVoice), `site-${DVFR}`));
 
-      // Linked once, in the fold: the report's own links are to its page and its Word copy.
+      // Linked twice, from 0.22.0: from the current report's tile, and in the fold.
       expect(links.filter(({ href }) => href === `${DVFR}/${VOICE}`)).toEqual([
+        { href: `${DVFR}/${VOICE}`, download: false },
         { href: `${DVFR}/${VOICE}`, download: false },
       ]);
       expect(
         links.filter(({ href }) => href.endsWith(".html")).map(({ download }) => download),
-      ).toEqual([false, false, false]);
+      ).toEqual([false, false, false, false]);
       expect(
         links.filter(({ href }) => href.endsWith(".docx")).map(({ download }) => download),
       ).toEqual([true, true]);
     });
 
-    it("leads no report with it: the current report's links, an earlier report's line, and the list by date are of its page", () => {
+    it("is the current report's tile to hear NVDA, and leads no report: its links, an earlier report's line, and the list by date are of its page", () => {
       const older: PublishedReport = {
         ...DVFR_OLDEST,
         files: [
@@ -1570,17 +1571,18 @@ describe("renderSiteIndex", () => {
         ],
       });
 
-      // The current report: its page and its Word copy, then its line for AI tools, with the
-      // Markdown and the JSON, and not the voice page.
+      // The current report: its tile, which opens the voice page, then its page and its Word copy,
+      // then its line for AI tools, with the Markdown and the JSON.
       const article = articleOf(page, withVoice.id);
       expect(linksOf(article)).toEqual([
+        { href: `${DVFR}/${VOICE}`, download: false },
         { href: PAGE, download: false },
         { href: WORD, download: true },
         { href: `${DVFR}/${DVFR}_2026-10-03.md`, download: true },
         { href: `${DVFR}/${DVFR}_2026-10-03.json`, download: true },
       ]);
-      expect(article).not.toContain(".voice.html");
       expect(textsOf(withoutHidden(article), "a")).toEqual([
+        "Hear NVDA ▶ Listen to the recording NVDA's own voice, page by page, as it read the site.",
         "Open the report",
         "Download the Word copy",
         "Markdown",
@@ -1618,7 +1620,10 @@ describe("renderSiteIndex", () => {
         `Download the Word copy${of}`,
         `${DVFR}_2026-10-03.html isn't here: the file is missing.`,
       ]);
-      expect(linksOf(article)).toEqual([{ href: WORD, download: true }]);
+      expect(linksOf(article)).toEqual([
+        { href: `${DVFR}/${VOICE}`, download: false },
+        { href: WORD, download: true },
+      ]);
       // In its place by date too.
       const [item] = [...sectionOf(page, "by-date").matchAll(/<li>([\s\S]*?)<\/li>/g)];
       expect(item?.[1]).toBe(
@@ -1637,15 +1642,16 @@ describe("renderSiteIndex", () => {
       expect(line).not.toContain(".voice.html");
     });
 
-    it("says a voice page that isn't here in the fold alone: it's no part of what the report's card says", () => {
+    it("says a voice page that isn't here in its card's tile, and in the fold why", () => {
       const missing: PublishedReport = {
         ...DVFR_NEWEST,
         notPublished: [{ name: VOICE, reason: "changed" }],
       };
       const page = pageOf(missing);
 
-      // The card has its two links, and its line for AI tools, and nothing of the missing file.
+      // The card's tile says there's no recording here, then its two links, and its line for AI tools.
       expect(textsOf(articleOf(page, missing.id), "p")).toEqual([
+        "Hear NVDA No recording Its recording isn't on this website: the files below say why.",
         "Prepared by Pat Lee",
         `Open the report${of} Download the Word copy${of}`,
         `For AI tools such as Claude or ChatGPT: the report as Markdown${of}, or as JSON${of}`,
@@ -1657,7 +1663,7 @@ describe("renderSiteIndex", () => {
       ]);
     });
 
-    it("gives a share whose only published file is its voice page no link in its card, and lists the voice page in its fold", () => {
+    it("gives a share whose only published file is its voice page its tile's link alone in its card, and lists the voice page in its fold", () => {
       const alone: PublishedReport = {
         ...DVFR_NEWEST,
         files: [published("voice", DVFR, VOICE, 900)],
@@ -1670,7 +1676,9 @@ describe("renderSiteIndex", () => {
       ]);
       // No link of the report's own, and no paragraph of them with nothing in it.
       expect(articleOf(page, alone.id)).not.toContain('class="actions"');
-      expect(articleOf(page, alone.id)).not.toContain("<a ");
+      expect(linksOf(articleOf(page, alone.id))).toEqual([
+        { href: `${DVFR}/${VOICE}`, download: false },
+      ]);
     });
   });
 
@@ -1949,7 +1957,7 @@ describe("renderSiteIndex", () => {
       "No reports have been shared yet.",
     ]);
     expect(textsOf(sectionOf(withDemo, "demo"), "h3")).toEqual([
-      "The current report 29 September 2026, 15:40",
+      "The current report, shared 29 September 2026, 15:40",
     ]);
   });
 
@@ -2042,7 +2050,7 @@ describe("renderSiteIndex", () => {
       expect.arrayContaining([
         "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
         "voicecap's report on its own small demo site, as an example of what it makes. The site's pages are at voicecap.icjia.app/demo-site/.",
-        "Each site's current report, with up to two earlier ones below it.",
+        "Each site's current report, with up to two earlier ones below it. The site NVDA read last comes first.",
         "Every site's reports, the newest first, each with its page.",
         "A file's SHA-256 fingerprint is the one recorded when it was shared, so a copy can be checked against it: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.",
         "A walkthrough file repeats its run, with the same pages, passes, and limits: npx @icjia/voicecap --walkthrough <file>.",
@@ -3384,5 +3392,130 @@ describe("SITE_SCRIPT", () => {
     expect(looked).toEqual(["theme-toggle"]);
     expect(Object.keys(context).sort()).toEqual(before);
     expect(errors).toEqual([]);
+  });
+});
+
+// 0.22.0: each site's current report opens with two tiles, when NVDA read the site and its
+// recording, and the sites come in the order NVDA read them, the latest first.
+describe("the current report's glance, and the sites' order", () => {
+  const AT = "2026-10-23T19:04:00-05:00";
+  const VOICE = `${DVFR}/${DVFR}_2026-10-23.voice.html`;
+  /** A report of `folder` shared at `at`, of these runs, with its voice page when `voice`. */
+  const reportOf = (folder: string, runs: string[], voice: boolean, at = AT): PublishedReport => ({
+    folder,
+    id: `report-${folder}-1`,
+    at,
+    by: "Pat Lee",
+    files: [
+      published("page", folder, `${folder}_2026-10-23.html`, 10),
+      ...(voice ? [published("voice", folder, `${folder}_2026-10-23.voice.html`, 10)] : []),
+    ],
+    notPublished: [],
+    runs,
+  });
+  /** One site's front page, its current report this one. */
+  const cardOf = (report: PublishedReport): string =>
+    articleOf(
+      renderSiteIndex(
+        {
+          demo: null,
+          sites: [{ name: report.folder, folders: [report.folder], reports: [report] }],
+        },
+        FACTS,
+      ),
+      report.id,
+    );
+  const glanceOf = (card: string): string =>
+    /<div class="glance">([\s\S]*?)<\/div>/.exec(card)?.[1] ?? "";
+
+  it("says when NVDA read the site, the day big, from the newest of the runs the report is of", () => {
+    const card = cardOf(reportOf(DVFR, ["2026-10-09_0909", "2026-10-14_0626"], true));
+    const glance = glanceOf(card);
+
+    expect(glance).toContain(
+      '<span class="glance-big"><time datetime="2026-10-14T06:26">14 October 2026</time></span>',
+    );
+    expect(textsOf(glance, "p")).toEqual([
+      "Captured 14 October 2026 NVDA read the site at 06:26. The report is of 2 runs, 9 to 14 October 2026.",
+    ]);
+    // One run: its time alone. A run named, or begun in the same minute as another, is by its start.
+    expect(
+      textsOf(glanceOf(cardOf(reportOf(DVFR, ["2026-10-23_1204_full-2"], true))), "p"),
+    ).toEqual(["Captured 23 October 2026 NVDA read the site at 12:04."]);
+  });
+
+  it("links the report's voice page from its second tile, a link named for the site and the report", () => {
+    const glance = glanceOf(cardOf(reportOf(DVFR, ["2026-10-14_0626"], true)));
+
+    expect(linksOf(glance)).toEqual([{ href: VOICE, download: false }]);
+    // A screen reader hears the link's words and whose it is, not the label or the arrow, which
+    // only repeat them.
+    expect(
+      textsOf(glance.replace(/<span[^>]*aria-hidden="true"[^>]*>[\s\S]*?<\/span>/g, ""), "a")[0],
+    ).toBe(
+      `Listen to the recording of ${DVFR}, 23 October 2026, 19:04 NVDA's own voice, page by page, as it read the site.`,
+    );
+    // Its tiles come first in the card, over the verdict and the links.
+    const card = cardOf(reportOf(DVFR, ["2026-10-14_0626"], true));
+    expect(card.indexOf('class="glance"')).toBeLessThan(card.indexOf('class="by"'));
+  });
+
+  it("says there's no recording, quieter, when the report has none, and has no tiles with neither runs nor a recording", () => {
+    const glance = glanceOf(cardOf(reportOf(DVFR, ["2026-10-06_1134"], false)));
+
+    expect(linksOf(glance)).toEqual([]);
+    expect(glance).toContain('<p class="glance-tile none">');
+    expect(textsOf(glance, "p")[1]).toBe(
+      "Hear NVDA No recording This report has no recording of NVDA's voice.",
+    );
+    expect(cardOf(reportOf(DVFR, [], false))).not.toContain('class="glance"');
+    // A run's id of a shape voicecap doesn't give says nothing of when (records.ts never passes
+    // one on); a recording alone is a tile alone.
+    expect(textsOf(glanceOf(cardOf(reportOf(DVFR, [], true))), "p")).toEqual([]);
+    expect(linksOf(glanceOf(cardOf(reportOf(DVFR, [], true))))).toEqual([
+      { href: VOICE, download: false },
+    ]);
+  });
+
+  it("puts the site NVDA read last first, by its current report's newest run, whatever its name or when it was shared", () => {
+    const content: SiteContent = {
+      demo: null,
+      // In the build's order, by name.
+      sites: [
+        ["a.example.gov", reportOf("a.example.gov", ["2026-10-06_1134"], false, AT)],
+        ["b.example.gov", reportOf("b.example.gov", ["2026-10-14_0626"], true, AT)],
+        // No run recorded: by when it was shared, as a local time to the minute.
+        ["c.example.gov", reportOf("c.example.gov", [], false, "2026-10-14T06:30:00-05:00")],
+        ["d.example.gov", reportOf("d.example.gov", ["2026-10-23_1204"], true, AT)],
+        // The same moment as b's: in the order given.
+        ["e.example.gov", reportOf("e.example.gov", ["2026-10-14_0626"], true, AT)],
+      ].map(([name, report]) => ({
+        name: name as string,
+        folders: [name as string],
+        reports: [report as PublishedReport],
+      })),
+    };
+    const order = [
+      "d.example.gov",
+      "c.example.gov",
+      "b.example.gov",
+      "e.example.gov",
+      "a.example.gov",
+    ];
+    const page = renderSiteIndex(content, FACTS);
+
+    expect(textsOf(sectionOf(page, "sites"), "h3")).toEqual(order);
+    // Each section keeps the id its name gives it.
+    for (const name of order)
+      expect(textsOf(sectionOf(page, `site-${name}`), "h3")).toEqual([name]);
+    // llms.txt has the page's order; sites.json keeps the order given, for the sites that read it.
+    const llms = renderLlmsTxt(content);
+    const headed = order.filter((name) => llms.includes(`## ${name}`));
+    expect(headed.map((name) => llms.indexOf(`## ${name}`))).toEqual(
+      headed.map((name) => llms.indexOf(`## ${name}`)).toSorted((a, b) => a - b),
+    );
+    expect(
+      (JSON.parse(renderSitesJson(content)) as SitesJson).sites.map(({ name }) => name),
+    ).toEqual(content.sites.map(({ name }) => name));
   });
 });

@@ -45,7 +45,7 @@ import { canonicalName, recordedCanonical } from "../pages/canonical.js";
 import { esc } from "../report/html.js";
 import { folderSafe } from "../run/paths.js";
 import { markdownInline } from "../share/ai/escape.js";
-import { count as countWords, sizeWords } from "../share/format.js";
+import { count as countWords, longDate, sizeWords } from "../share/format.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf, type VerdictKind } from "../share/verdict.js";
 import type { VoicecapFacts, VoicecapRelease } from "./facts.js";
@@ -91,6 +91,13 @@ export interface PublishedReport {
    * current report says it. None for a share from before.
    */
   result?: ShareResult;
+  /**
+   * The runs its copies are of, as its share recorded them (see SiteEntry in ./records.ts), each
+   * named by when it began: when NVDA read the site, which the card of a site's current report
+   * shows, and which puts the sites in their order on the page. None given, or none recorded, says
+   * nothing of when.
+   */
+  runs?: readonly string[];
 }
 
 /** Everything the page shows. */
@@ -277,6 +284,102 @@ function forAi(shared: PublishedReport, of: string): string[] {
 }
 
 /**
+ * When NVDA read the site for a report, from the runs its share records (see PublishedReport): the
+ * newest run's start, as a local time ("2026-10-14T06:26"), the first run's, and how many runs there
+ * are. A run's id begins with its local date and time (see isRunIdShape in ../run/run-id.ts). Null
+ * for a report that records no run.
+ */
+function capturedOf(shared: PublishedReport): { at: string; first: string; runs: number } | null {
+  const times = (shared.runs ?? [])
+    .map((run) => `${run.slice(0, 10)}T${run.slice(11, 13)}:${run.slice(13, 15)}`)
+    .sort();
+  const [first] = times;
+  const at = times.at(-1);
+  if (first === undefined || at === undefined) return null;
+  return { at, first, runs: times.length };
+}
+
+/**
+ * The moment a site's sections are ordered by, newest first (see bySiteOrder): when NVDA last read
+ * the site for its current report (see capturedOf), or, for a report that records no run, when it
+ * was shared, as a local time to the minute, as a run's is; for a site with no report, nothing,
+ * which comes last.
+ */
+function capturedMoment(site: SiteContent["sites"][number]): string {
+  const [current] = site.reports;
+  if (current === undefined) return "";
+  return capturedOf(current)?.at ?? current.at.slice(0, 16);
+}
+
+/**
+ * The sites in the page's order: the one NVDA read last first, by capturedMoment, and sites of the
+ * same moment in the order given (by name: see ./build.ts). Each comes with the id of its section
+ * (see withSectionIds), which is made in the order given, so a site's id doesn't change when another
+ * site is read. The page's sections and llms.txt go by it; sites.json keeps the order given.
+ */
+function bySiteOrder(
+  sites: SiteContent["sites"],
+): [site: SiteContent["sites"][number], id: string][] {
+  return withSectionIds(sites)
+    .map((pair, index) => ({ pair, index, moment: capturedMoment(pair[0]) }))
+    .sort((a, b) => (a.moment < b.moment ? 1 : a.moment > b.moment ? -1 : a.index - b.index))
+    .map(({ pair }) => pair);
+}
+
+/**
+ * The two tiles at the top of a site's current report's card, side by side where they fit (see
+ * ./style.ts). The first says when NVDA read the site: its label, the day, big, in a `time`, and
+ * under it the time, and how many runs the report is of, when more than one (see capturedOf); a
+ * report that records no run has no first tile. The second is the report's recording: with its
+ * voice page here, the tile is a link to it, whose label a screen reader doesn't hear, since the
+ * link's words say it, and after whose words it hears `of`, the site's name and the report's line,
+ * as after the card's other links; with none, the tile says there's no recording, and why. A
+ * tile's parts are apart by a space, which its column doesn't draw, so that a screen reader, and a
+ * copy of its words, has them as words apart. A
+ * report that records no run and has no recording, one shared before voicecap recorded either, has
+ * no tiles: there would be nothing at a glance but what it lacks.
+ */
+function glance(shared: PublishedReport, of: string): string[] {
+  const words = SITE_TEXT.glance;
+  const captured = capturedOf(shared);
+  const voice = fileOf(shared, "voice");
+  const voiceGone = shared.notPublished.some(({ name }) => fileKind(name) === "voice");
+  if (captured === null && voice === undefined && !voiceGone) return [];
+  const label = (icon: string, text: string, heard = true): string =>
+    `<span class="glance-label"${heard ? "" : ' aria-hidden="true"'}>${icon}${esc(text)}</span>`;
+  const tiles = [
+    ...(captured === null
+      ? []
+      : [
+          [
+            '<p class="glance-tile">',
+            label(SITE_ICONS.captured, words.captured),
+            `<span class="glance-big"><time datetime="${esc(captured.at)}">${esc(longDate(captured.at))}</time></span>`,
+            `<span class="glance-small">${esc(words.when(captured.at, captured.runs, captured.first))}</span>`,
+            "</p>",
+          ].join(" "),
+        ]),
+    voice === undefined
+      ? [
+          '<p class="glance-tile none">',
+          label(SITE_ICONS.listen, words.listen),
+          `<span class="glance-big">${esc(words.none)}</span>`,
+          `<span class="glance-small">${esc(voiceGone ? words.voiceGone : words.noVoice)}</span>`,
+          "</p>",
+        ].join(" ")
+      : [
+          `<a class="glance-tile listen" href="${esc(voice.href)}">`,
+          label(SITE_ICONS.listen, words.listen, false),
+          // The link's words, then whose it is, for a screen reader, then what the recording is.
+          `<span class="glance-big"><span aria-hidden="true">▶ </span>${esc(words.play)}</span>${of}`,
+          `<span class="glance-small">${esc(words.voice)}</span>`,
+          "</a>",
+        ].join(" "),
+  ];
+  return [`<div class="glance">${tiles.join("")}</div>`];
+}
+
+/**
  * A site's current report: a heading that says it's the current one, with its line; who prepared
  * it; the two links a reader wants, to open its page and to download its Word copy; and, last, the
  * line for AI tools, when its share has the report as Markdown and as JSON (see forAi). A screen
@@ -306,6 +409,8 @@ function currentReport(shared: PublishedReport, level: 3 | 4, name: string): str
   return [
     `<article class="report" id="${esc(shared.id)}">`,
     `<h${level}><span class="label">${esc(SITE_TEXT.current)}</span> ${timeOf(shared.at)}</h${level}>`,
+    // When NVDA read the site, and its recording, at a glance.
+    ...glance(shared, of),
     // What a manager asks first: did it pass?
     ...verdict(shared.result),
     `<p class="by">${esc(SITE_TEXT.preparedBy(shared.by))}</p>`,
@@ -488,7 +593,7 @@ function sitesView(sites: SiteContent["sites"]): string {
     "sites",
     title,
     SITE_ICONS.sites,
-    [`<p>${esc(lead)}</p>`, ...withSectionIds(sites).map(([each, id]) => site(each, id))],
+    [`<p>${esc(lead)}</p>`, ...bySiteOrder(sites).map(([each, id]) => site(each, id))],
     { n: sites.length, unit: SITE_TEXT.siteUnit(sites.length) },
   );
 }
@@ -651,7 +756,7 @@ export function renderLlmsTxt(content: SiteContent): string {
     ["markdown", SITE_TEXT.forAi.markdown],
     ["data", SITE_TEXT.forAi.json],
   ] as const;
-  const sections = content.sites.flatMap(({ name, reports }): string[][] => {
+  const sections = bySiteOrder(content.sites).flatMap(([{ name, reports }]): string[][] => {
     const [current] = reports;
     if (current === undefined) return [];
     const lines = formats.flatMap(([kind, format]) => {

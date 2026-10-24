@@ -134,6 +134,7 @@ describe("readSiteRecords", () => {
               by: "Pat Lee",
               site: null,
               result: null,
+              runs: ["2027-01-14_1315"],
               files: copies("alpha.illinois.gov_2027-01-15"),
             },
           ],
@@ -149,6 +150,7 @@ describe("readSiteRecords", () => {
               by: "Sam Ortiz",
               site: null,
               result: null,
+              runs: ["2027-01-14_1315"],
               files: copies("zeta.illinois.gov_2027-01-16"),
             },
             {
@@ -159,6 +161,7 @@ describe("readSiteRecords", () => {
               by: "Sam Ortiz",
               site: null,
               result: null,
+              runs: ["2027-01-14_1315"],
               files: copies("zeta.illinois.gov_2027-01-15"),
             },
           ],
@@ -172,6 +175,7 @@ describe("readSiteRecords", () => {
         by: "Pat Lee",
         site: null,
         result: null,
+        runs: ["2027-01-14_1315"],
         files: copies("127.0.0.1_4848_2027-01-17"),
       },
       leftOut: [],
@@ -217,6 +221,28 @@ describe("readSiteRecords", () => {
     ]);
     // The run comes last, as voicecap records it.
     expect(Object.keys(files![1]!)).toEqual(["name", "bytes", "sha256", "run"]);
+  });
+
+  // 0.22.0: the card of a site's current report says when NVDA read the site, from the runs its
+  // entry records.
+  it("reads the runs an entry records that are named as voicecap names a run, and none of another shape", async () => {
+    const dir = await siteFolder("example.illinois.gov");
+    const stem = "example.illinois.gov_2027-01-15";
+    await record(dir, [
+      sealed(1, JAN_15, copies(stem), {
+        runs: ["2027-01-14_1315", "2027-01-14_1315_full-2", 1402, "../x", "2027-1-14_1315", null],
+      }),
+      sealed(2, JAN_15, copies(`${stem}-2`), { runs: "2027-01-14_1315" }),
+      sealed(3, JAN_15, copies(`${stem}-3`), { runs: undefined }),
+    ]);
+
+    const { sites } = await readSiteRecords(home);
+
+    expect(kept(sites).map(({ runs }) => runs)).toEqual([
+      ["2027-01-14_1315", "2027-01-14_1315_full-2"],
+      [],
+      [],
+    ]);
   });
 
   // 0.10.0: an entry records the root of the site its copies are named for. An entry from before

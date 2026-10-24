@@ -41,6 +41,14 @@ export const SITE_ICONS = {
   byDate: picture(
     '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
   ),
+  // A calendar again, small: when NVDA read a site, on its current report's card.
+  captured: picture(
+    '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  ),
+  // A speaker giving out sound: a report's recording of NVDA.
+  listen: picture(
+    '<path d="M4 9.5v5h3.5L12 18V6L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>',
+  ),
   // A browser's window: one site.
   site: picture(
     '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M6.5 6.5h.01M9.5 6.5h.01"/>',

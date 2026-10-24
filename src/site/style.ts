@@ -92,6 +92,9 @@
  *   red as `--bad`, in ordinary case, after a sign which a screen reader doesn't read
  *   (`content: "✓" / ""`), since the words say it; how many pages NVDA read is a bar in the same
  *   color (the shareable page's `track`), with its words beside it, or under it on a narrow window;
+ *   over its verdict, two tiles at a glance: the day NVDA read the site, big, with its time under it,
+ *   and its recording, a link in `--act` to its voice page, or, quieter, that there's none. They sit
+ *   side by side where both fit, and one over the other on a phone;
  * - the fold of files is a card whose line has a marker, which a screen reader doesn't read either,
  *   turned when it's open. The files of a report are a grid of cards in the card, whose columns are
  *   no wider than their own box (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window
@@ -281,6 +284,8 @@ tbody tr:last-child > * { border-bottom: 0; }
 .report { display: grid; gap: 12px; align-content: start; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; }
 .report > * { min-width: 0; }
 .report > h3, .report > h4 { font-size: 1.25rem; font-weight: 800; }
+/* when a current report was shared: quieter than the day NVDA read the site, which its first tile has big */
+.report > h3 > time, .report > h4 > time { font-size: 1rem; font-weight: 700; color: var(--text-2); }
 /* what a report's heading says it is: small, bold, and quieter, in ordinary case, as the rest of its heading is */
 .label { display: block; margin-bottom: 2px; color: var(--muted); font-size: 0.875rem; font-weight: 700; }
 .report > .by, .report > .ai { color: var(--muted); }
@@ -297,6 +302,19 @@ tbody tr:last-child > * { border-bottom: 0; }
 .reading .c-bad { color: var(--bad); }
 .reading > p { min-width: 0; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+/* a current report's glance: two tiles, when NVDA read the site and its recording, side by side where both fit, and one over the other on a phone; each a column of a small label in small capitals, a big line, and a small one under it. The recording's is a link, in --act, as a button is, the whole tile its target */
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); gap: 12px; }
+.glance-tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); color: var(--text-2); }
+.glance-label { display: flex; align-items: center; gap: 6px; font-size: calc(0.75rem * var(--caps-scale)); font-variant-caps: all-small-caps; font-weight: 700; letter-spacing: 0.08em; color: var(--muted); }
+.glance-label > .icon { flex: none; width: 1.125rem; height: 1.125rem; color: var(--act); }
+.glance-big { font-size: 1.375rem; font-weight: 800; line-height: 1.25; color: var(--heading); }
+.glance-small { font-size: 0.875rem; }
+a.glance-tile { text-decoration: none; border-color: var(--act); background: var(--act-tint); }
+a.glance-tile > .glance-big { color: var(--act); }
+a.glance-tile:hover { background: color-mix(in srgb, var(--act) 20%, transparent); }
+a.glance-tile:hover > .glance-big { text-decoration: underline; }
+a.glance-tile:focus-visible { border-radius: 12px; }
+.glance-tile.none > .glance-big { color: var(--muted); }
 /* a site's earlier reports, a line each, under their heading, small and quieter, as a report's label is, and how many they are */
 .sub-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; }
 .sub-head > h4 { min-width: 0; color: var(--muted); font-size: 0.875rem; font-weight: 700; }

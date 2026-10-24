@@ -16,6 +16,7 @@ import { DEMO_OUT } from "../demo/words.js";
 import type { SharedFile, ShareResult } from "../model.js";
 import { isWebRoot } from "../pages/canonical.js";
 import { linkPath, shareDir, sharesPath } from "../run/paths.js";
+import { isRunIdShape } from "../run/run-id.js";
 import { siteFolders } from "../run/site-dir.js";
 import { longDate } from "../share/format.js";
 import {
@@ -53,6 +54,13 @@ export interface SiteEntry {
    * shareResultOf): it's published all the same.
    */
   result: ShareResult | null;
+  /**
+   * The runs the entry's copies are of, as it records them, each an id of the shape voicecap gives
+   * a run (see isRunIdShape), which begins with when the run began (`2026-10-14_0626`): when NVDA
+   * read the site, which the card of a site's current report shows. Any other is left out, and an
+   * entry that records none has none: it's published all the same.
+   */
+  runs: string[];
   /**
    * The files whose names voicecap would give, in the record's order: at least one, and a run on
    * one is a run id.
@@ -243,6 +251,10 @@ async function readEntries(
       // Nor is its result: one from before 0.12.3 has none, and one voicecap wouldn't write says
       // nothing, so the card says nothing of it.
       result: shareResultOf(entry.result),
+      // Nor are its runs: one of a shape voicecap doesn't give a run says nothing of when NVDA read.
+      runs: Array.isArray(entry.runs)
+        ? entry.runs.filter((run): run is string => typeof run === "string" && isRunIdShape(run))
+        : [],
       files,
     });
   }

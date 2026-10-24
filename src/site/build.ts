@@ -967,6 +967,8 @@ async function publishReport(
     notPublished,
     // What its copies say of the site, for its card: an entry from before 0.12.3 says nothing.
     ...(entry.result === null ? {} : { result: entry.result }),
+    // When NVDA read the site, for its card and the sites' order: of the runs the entry records.
+    runs: entry.runs,
   };
 }
 

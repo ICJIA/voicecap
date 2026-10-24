@@ -615,6 +615,8 @@ describe("buildSite", () => {
             },
           ],
           notPublished: [],
+          // The runs its share recorded, for its card and the sites' order.
+          runs: ["2027-01-12_0900"],
         },
       ],
     });
@@ -1790,6 +1792,7 @@ describe("buildSite", () => {
             { name: `${EXAMPLE_STEM}.html`, reason: "changed" },
             { name: `${EXAMPLE_STEM}.docx`, reason: "missing" },
           ],
+          runs: ["2027-01-12_0900"],
         },
       ]);
       expect(leftOut).toHaveLength(2);
@@ -2260,6 +2263,7 @@ describe("buildSite", () => {
                 by: "Sam Rivera",
                 site: null,
                 result: null,
+                runs: [],
                 files: [recordOf(name, bytes)],
               },
             ],
@@ -3886,13 +3890,15 @@ describe("buildSite", () => {
       );
       expect(index).toContain(`<code>${voice?.sha256}</code>`);
       // The report's own links are its page, which opens, and its Word copy, which downloads: the
-      // voice page is never the page, though its name ends in .html as the page's does.
+      // voice page is never the page, though its name ends in .html as the page's does. It's linked
+      // from the report's tile to hear NVDA (from 0.22.0), and in the fold, and opens each time.
       expect(page?.kind).toBe("page");
       expect(index).toContain(
         `<a class="action" href="${page?.href}">Open the report<span class="sr"> of ${VOICE_FOLDER}, `,
       );
       expect(index).toContain(`<a class="action" href="${word?.href}" download>`);
-      expect(index.match(new RegExp(`href="${voice?.href}"`, "g"))).toHaveLength(1);
+      expect(index.match(new RegExp(`href="${voice?.href}"`, "g"))).toHaveLength(2);
+      expect(index).toContain(`<a class="glance-tile listen" href="${voice?.href}">`);
       expect(index).not.toContain(`href="${voice?.href}" download`);
     });
 
@@ -4542,7 +4548,9 @@ describe("buildSite", () => {
         expect(report.notPublished, report.id).toEqual([]);
       }
       expect(leftOut).toEqual([]);
-      expect(sitesOn(index).map(([, heading]) => heading)).toEqual([NAME, EXAMPLE_FOLDER]);
+      // On the page, the site NVDA read last comes first (from 0.22.0): the example's run is of 12
+      // January 2027, and the fixture's runs are the demo's of 29 September 2026.
+      expect(sitesOn(index).map(([, heading]) => heading)).toEqual([EXAMPLE_FOLDER, NAME]);
     });
   });
 });

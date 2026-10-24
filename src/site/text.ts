@@ -11,7 +11,7 @@
  */
 import type { ShareResult } from "../model.js";
 import { plural } from "../report/html.js";
-import { dateAndTime, longDate } from "../share/format.js";
+import { clock, dateAndTime, dateRange, longDate } from "../share/format.js";
 import { MAC_HASH, POWERSHELL_HASH, TOP_TEXT, VOICE_TEXT } from "../share/text.js";
 
 /** The website's title, which its own page is headed by, and which every page's title ends with. */
@@ -110,7 +110,7 @@ export const SITE_TEXT = {
     // one, and two before it.
     sites: {
       title: "The sites",
-      lead: "Each site's current report, with up to two earlier ones below it.",
+      lead: "Each site's current report, with up to two earlier ones below it. The site NVDA read last comes first.",
     },
     byDate: {
       title: "Every report, by date",
@@ -121,14 +121,46 @@ export const SITE_TEXT = {
   noReports: "No reports have been shared yet.",
   /** A report's line: "3 October 2026, 14:05". */
   reportLine: (at: string): string => dateAndTime(at),
-  /** What heads a site's newest report, ahead of its line. */
-  current: CURRENT_REPORT,
+  /**
+   * What heads a site's newest report, ahead of its line, which is when it was shared (from 0.22.0,
+   * quieter than the day NVDA read the site, in the card's first tile).
+   */
+  current: `${CURRENT_REPORT}, shared`,
   /**
    * How many pages NVDA read, on a site's current report's card, beside its bar: the line after the
    * verdict's headline (verdictOf in ../share/verdict.ts), which says the problems that need
    * attention and the pages they're on, or that nothing does.
    */
   reading: (result: ShareResult): string => `NVDA read ${pagesRead(result)}.`,
+  /**
+   * The two tiles at the top of a site's current report's card: when NVDA read the site, and its
+   * recording. Each has a small label, a big line, and a small line under it.
+   */
+  glance: {
+    /** The first tile's label, over the day NVDA read the site (see longDate in ../share/format.ts). */
+    captured: "Captured",
+    /**
+     * Under the day: at what time NVDA read the site, and, when the report is of more than one run,
+     * how many, and the days they span ("9 to 14 October 2026"). `at` and `first` are the newest
+     * run's and the first run's local times; the time said is the newest run's, whose day is over it.
+     */
+    when: (at: string, runs: number, first: string): string =>
+      runs > 1
+        ? `NVDA read the site at ${clock(at)}. The report is of ${runs} runs, ${dateRange(first, at)}.`
+        : `NVDA read the site at ${clock(at)}.`,
+    /** The second tile's label, over its link to the report's voice page or over what it lacks. */
+    listen: "Hear NVDA",
+    /** The second tile's big line, as a link to the report's voice page. */
+    play: "Listen to the recording",
+    /** Under it: what the voice page plays. */
+    voice: "NVDA's own voice, page by page, as it read the site.",
+    /** The second tile's big line, for a report with no voice page here. */
+    none: "No recording",
+    /** Under it: a report whose share has no voice page (one made before voicecap recorded NVDA). */
+    noVoice: "This report has no recording of NVDA's voice.",
+    /** Under it: a report whose voice page its share records, but which isn't here. */
+    voiceGone: "Its recording isn't on this website: the files below say why.",
+  },
   /**
    * The word after how many sites have reports, beside the sites' heading, where the number is the
    * big part: "2 sites", "1 site".
