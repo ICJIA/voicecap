@@ -1,8 +1,8 @@
-# PC handoff: after 0.21.0's release
+# PC handoff: after 0.22.0's release
 
-This file was brought up to date on the PC on 2026-10-23, after 0.21.0's release, for the next working session on the owner's Windows PC. Notes kept on one computer don't travel to the other, so everything the next session needs is here. `docs/phase-c-handoff.md` has the full history, under "Where things stand".
+This file was brought up to date on the PC on 2026-10-24, after 0.22.0's release, for the next working session on the owner's Windows PC. Notes kept on one computer don't travel to the other, so everything the next session needs is here. `docs/phase-c-handoff.md` has the full history, under "Where things stand".
 
-## What the PC did on 2026-10-22 and 2026-10-23
+## What the PC did from 2026-10-22 to 2026-10-24
 
 - **The branch `guidepup-0.36` passed its checks with NVDA,** each with the owner's OK and hands off: `doctor`, NVDA from `C:\guidepup test & more` (`setup`, then `doctor`), and the demo. `docs/phase-c-handoff.md` ("Checked at the PC") has what each showed.
 - **A stop that fails no longer fails every later start in a run.** Guidepup 0.36 counts its NVDA as still running after a stop whose quit timed out, and refuses to start another ("NVDA is already running"), so after one such stop every later page of the run would fail to start NVDA. The adapter's start now stops that NVDA again, once, and starts. It was settled under the owner's standing rule to take the recommended option, for the owner to confirm or reverse.
@@ -11,6 +11,9 @@ This file was brought up to date on the PC on 2026-10-23, after 0.21.0's release
 - **A fix from r3's run is in it:** a run ends when its last session ended, as NVDA stopped reading, not when it was sealed. r3's question was answered hours after the reading, so entry 4's evidence gives the run as "13:18 to 19:11"; from 0.20.1 such a run reads "13:18 to 14:36". Entry 4 keeps its words, since a share is never rewritten.
 - **r3.illinois.gov was read again on 2026-10-23** (run 2026-10-23_1204, `--max-steps 800`), at the owner's word, hands off: 25 of 25 pages, no problem found. Entry 4's one problem, the read pass's step cap on /documentation/accessibility/ (a table of 78 rows), is gone: the read reached the page's end in 655 steps. The run's closing question ("heard NVDA?") was still to be answered at the PC that evening, so it isn't sealed or shared yet.
 - **0.21.0 was released on 2026-10-23** (tag `v0.21.0`), at the owner's word, with the owner's code relayed from the chat. Each page's card on the shareable page links to the page's recording, right under its name ("▶ Hear what NVDA said on this page"), as does each page listed in "What needs attention", and the Word copy says where each page's recording is; reports no longer carry voicecap's own timeline. It also upgrades zod to 4.6.7 for GHSA-mrhx-c7xc-m3w5, which `npm audit` found in the dry run. 7,896 tests passed; CI passed on all six jobs (one macOS job re-run after the AI Markdown test of hostile strings ran out of time).
+- **sfs, dvfr, and i2i v3 were re-shared with 0.21.0** (transcripts 7a6ef15), so their pages link each card to its recording. They're live, all 19 files byte for byte.
+- **r3.illinois.gov was shared as entry 5, from run 2026-10-23_1204** (transcripts a865080). Its question was answered "all" for the owner, who had said to take it as heard. 24 of its 25 cards link to a recording: /contact/'s was lost when the /login flow took the foreground on its fourth try, so it says "Not recorded", as designed.
+- **0.22.0 was released on 2026-10-24** (tag `v0.22.0`), at the owner's word, with the owner's code relayed from the chat. The website lists the sites newest first, by when NVDA read each one, and each site's current report opens with two tiles: the day NVDA read the site, and a button to hear the recording (or "No recording" and why). The lock file also takes undici 8.12.3 for GHSA-xjj6-f33q-929c (the shipped shrinkwrap already had it). 7,902 tests passed; CI passed on all six jobs.
 
 ## How to start
 
@@ -47,7 +50,7 @@ All of the owner's standing rules are in `docs/phase-c-handoff.md` ("Working rul
 
 ## Next, when the owner says
 
-- **Share r3.illinois.gov as entry 5, from run 2026-10-23_1204.** First the owner answers the run's closing question in voicecap's own PowerShell window, which seals it. Then, in the transcripts home, `npx --yes @icjia/voicecap@0.21.0 share --site https://r3.illinois.gov`, then `verify`, then commit and push. It should say "Nothing needs attention", with a link to each page's recording on its card.
+- **The test tools' advisories.** On 2026-10-24 `pnpm audit` (without `--prod`) found advisories in vitest's own vite (8.3.0 to 8.3.2, fixed in 8.3.3) and `@vitest/mocker` (before 5.0.3). They're development dependencies only, so neither the package nor CI's `--prod` audit is affected. Dependabot's vitest 5.0.3 PR passed CI; merge it, and take vite 8.3.3, as a small change of its own.
 
 ## Also at the PC, when the owner wants
 
