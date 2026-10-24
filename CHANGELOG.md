@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.22.2] - 2026-10-24
+
+Recordings decode whole in Chrome 156, long pages read to their end without a flag on the command, and voicecap says plainly that its audits run on Windows, with NVDA.
+
 ### Changed
 
 - **voicecap's focus is the Windows PC, and it says so.** A ready Mac was told that audits with VoiceOver would come with voicecap's VoiceOver driver, in a later release. That driver isn't being built: voicecap runs its audits on Windows, with NVDA, and a Mac version may come later, if it's needed. The Mac's `setup`, `doctor`, and `init` still prepare and check a Mac, as groundwork, and their verdicts, `init`'s closing note, the demo's step 4, the Linux message, and the README now say where audits run and that a Mac version isn't planned for now.
@@ -832,7 +836,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.22.1...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.22.2...HEAD
+[0.22.2]: https://github.com/ICJIA/voicecap/compare/v0.22.1...v0.22.2
 [0.22.1]: https://github.com/ICJIA/voicecap/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/ICJIA/voicecap/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/ICJIA/voicecap/compare/v0.20.1...v0.21.0
