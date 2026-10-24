@@ -50,7 +50,7 @@ All of the owner's standing rules are in `docs/phase-c-handoff.md` ("Working rul
 
 ## Next, when the owner says
 
-- **The test tools' advisories.** On 2026-10-24 `pnpm audit` (without `--prod`) found advisories in vitest's own vite (8.3.0 to 8.3.2, fixed in 8.3.3) and `@vitest/mocker` (before 5.0.3). They're development dependencies only, so neither the package nor CI's `--prod` audit is affected. Dependabot's vitest 5.0.3 PR passed CI; merge it, and take vite 8.3.3, as a small change of its own.
+- **axe-core 4.14.0 (Dependabot #5), as a patch release (0.22.1).** It fails only the two tests that check axe's version on purpose (`test/axe-results.test.ts`, `test/chrome-session.test.ts`); the demo site's findings look the same otherwise. Since axe makes each report's code checks, compare the demo results in full and read axe's rule changes before it ships. Done on 2026-10-24: vitest 5.0.5 with vite 8.3.5 for the test tools' eight advisories (6b3bb76), and Dependabot's other updates as one change (9fb3b52: fast-xml-parser 5.11.2, jszip 3.10.2, and CI's checkout 7.0.1, pnpm setup 6.1.0, setup-node 7.1.0); `pnpm audit` finds nothing, development tools included.
 
 ## Also at the PC, when the owner wants
 
