@@ -390,12 +390,12 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
       expect(violated(capture)).toEqual(["button-name", "label", "page-has-heading-one"]);
       expect(keptOf(capture)).toMatchObject({
         schemaVersion: 1,
-        axeVersion: "4.13.0",
+        axeVersion: "4.14.0",
         tags: [...AXE_TAGS],
         url,
       });
       expect(capture).toMatchObject({
-        summary: { axeVersion: "4.13.0", counts: { violations: 3 } },
+        summary: { axeVersion: "4.14.0", counts: { violations: 3 } },
       });
       expect(tookMs).toBeLessThan(AXE_LIMIT_MS);
     });

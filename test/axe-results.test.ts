@@ -379,7 +379,7 @@ describe("axe-core's script", () => {
     };
     // A dependency, pinned exactly: the script voicecap runs is the one it was released with.
     const version = pins.dependencies["axe-core"];
-    expect(version).toBe("4.13.0");
+    expect(version).toBe("4.14.0");
     const script = await axeScript();
     expect(script.startsWith(`/*! axe v${version}\n`)).toBe(true);
     // Its license notice comes first, as the license asks of every copy.

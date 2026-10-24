@@ -39,6 +39,32 @@ Here is the top of that report for the new version of i2i.illinois.gov, as NVDA 
 > - **Mac:** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it. Audits with VoiceOver come with voicecap's VoiceOver driver, in a later release; until then, run audits on a Windows computer.
 > - **Any computer, Linux included:** reviews, reports, `share`, `site`, `walkthrough`, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`). Hearing pages again, with `review --replay`, needs Windows or a Mac.
 
+## How voicecap is built, and what it means for testing with NVDA
+
+This section is for managers and auditors who want to know how voicecap is put together, why, and what that means for the results, without reading the code.
+
+**voicecap is a program that runs on the computer where the testing happens.** It's run from a terminal with one command (`npx @icjia/voicecap`), on a Windows PC with NVDA and Chrome. There's no server, no account, and no outside service: what NVDA says is saved on that PC, and goes only where the person running voicecap sends it.
+
+It's built in five parts, each with one job:
+
+| Part | What it does | Why it's separate |
+| --- | --- | --- |
+| **1. The screen reader and the browser** | Starts NVDA and Chrome, presses NVDA's keys, and catches every word NVDA says. It's the only part that touches NVDA or the browser. It works through [Guidepup](https://github.com/guidepup/guidepup), an open-source tool for driving screen readers, and Playwright, which opens each page in a new, empty Chrome profile. | Screen readers and the tools that drive them change often. Keeping that work in one place means an update to NVDA, Guidepup, or Chrome touches one part, and a Mac's VoiceOver can be added the same way, beside it. |
+| **2. The listen-through** | Decides what to do on each page, and when each pass is done: line by line, heading by heading, and control by control. It checks that the page still has the screen before and after every key press, and starts a page again when something got in the way. | These rules are the same whatever screen reader is speaking, so they're written once and tested on their own. |
+| **3. The record** | Saves everything as plain files in a folder: each pass's transcript, the run's own log, NVDA's log, a screenshot and axe's results for each page, and recordings of NVDA's voice. Each file gets a fingerprint, and each finished run is sealed. | Plain files can be opened by anyone, kept in Git, and checked with `voicecap verify` without taking voicecap's word for it. voicecap never rewrites a run once it's sealed. |
+| **4. The reports** | Turns a run into a shareable web page, a Word copy, a voice page that plays NVDA's recordings, and Markdown and JSON copies. | A report, once shared, is frozen: what was sent to a manager, an auditor, or a lawyer stays exactly what they got. A newer run makes a new report, beside the old one. |
+| **5. The website** | Builds voicecap.icjia.app from the shared reports, with each site's current report first. | It publishes each report byte for byte as it was shared, so the copy online matches its fingerprint. |
+
+**What this means for testing with NVDA:**
+
+- **Every word in a transcript is NVDA's own.** Nothing is simulated or rewritten: part 1 hands on what NVDA said, as it said it. NVDA's own log is kept with each run and checked against the transcripts, line by line, and on Windows 11 each page's recording lets anyone hear NVDA say it.
+- **It's the same NVDA every time.** voicecap uses Guidepup's own copy of NVDA, with fixed settings and at its top speed, never the person's own NVDA. That's what makes two runs comparable and lets anyone repeat one. It also means a run isn't every user's setup: real users' NVDA versions, settings, and browsers differ, and voicecap reads with Chrome.
+- **The PC is voicecap's during a run.** NVDA and Chrome need the screen, so a real run needs the PC awake and unlocked, with nobody at the keyboard or mouse. When another window gets in the way anyway, voicecap throws out the step and tries the page again, and the record says so.
+- **voicecap's own tests don't need NVDA.** Because the screen reader sits behind one part, none of voicecap's roughly 7,900 tests needs NVDA: where a test needs what NVDA says, it plays back a recording of a real NVDA run, with no screen reader at all (the `replay` driver). They run on every change, on Windows, macOS, and Linux. Changes to the part that drives NVDA are also checked with real NVDA on a Windows PC before they're released, on a test site whose answers are known. A replayed run is labeled as one, in every transcript and report.
+- **A person still makes the call.** voicecap does the key presses, the page turning, and the record keeping. The person running it hears NVDA at work, reads the transcripts, decides what needs fixing, and records it. axe's results, and voicecap's flags, are evidence for that review, never its verdict.
+
+The technical details of each part are further down: [What voicecap does on each page](#what-voicecap-does-on-each-page), [The audit record](#the-audit-record), [The shareable page](#the-shareable-page), [NVDA's voice](#nvdas-voice), and [Drivers](#drivers).
+
 ## Why voicecap, and who it's for
 
 ### Two different checks: the code, and how it sounds
@@ -212,6 +238,7 @@ The "Unlabeled graphic" in two of those lines is the one problem the report find
 
 ## Contents
 
+- [How voicecap is built, and what it means for testing with NVDA](#how-voicecap-is-built-and-what-it-means-for-testing-with-nvda)
 - [Why voicecap, and who it's for](#why-voicecap-and-who-its-for)
   - [Two different checks: the code, and how it sounds](#two-different-checks-the-code-and-how-it-sounds)
   - [Why the sound matters](#why-the-sound-matters)

@@ -107,7 +107,7 @@ export interface KeptAxeResults {
 }
 
 /**
- * The parts of axe's results voicecap reads, as axe-core 4.13 gives them; the rest is left out.
+ * The parts of axe's results voicecap reads, as axe-core 4.14 gives them; the rest is left out.
  * axe names every rule, and the shareable page reads back no rule without a name (axeViewOf), so
  * none is kept.
  */

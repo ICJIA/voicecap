@@ -4,6 +4,15 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-10-24
+
+axe-core 4.14.0, which runs a rule more on each page, and a plain-language overview of how voicecap is built at the top of the README.
+
+### Changed
+
+- **axe-core 4.14.0,** from 4.13.0. Its rule that a control's visible words be part of its name (label-content-name-mismatch, WCAG 2.5.3) is on by default now, and voicecap runs it with the rest of WCAG 2.1 A; axe also fixes some false positives, and is faster. On the demo site, and on every page of r3.illinois.gov, sfs.icjia.illinois.gov, and dvfr.illinois.gov, it finds what 4.13.0 found, except one sfs page, where it lists 7 footnote back-links ("↩", named "Back to reference 1" and so on) for a person to check. Reports already shared keep 4.13.0's results.
+- **The README explains how voicecap is built,** near its top, for managers and auditors: its five parts, why each is separate, and what that means for testing with NVDA.
+
 ## [0.22.0] - 2026-10-23
 
 The website shows when NVDA read each site, and a button to hear it, on each site's current report, and puts the site NVDA read last first.
@@ -814,7 +823,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.22.1...HEAD
+[0.22.1]: https://github.com/ICJIA/voicecap/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/ICJIA/voicecap/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/ICJIA/voicecap/compare/v0.20.1...v0.21.0
 [0.20.1]: https://github.com/ICJIA/voicecap/compare/v0.20.0...v0.20.1
