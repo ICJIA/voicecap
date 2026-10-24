@@ -1,6 +1,6 @@
 # voicecap readiness: know a computer is ready before voicecap drives a screen reader
 
-Design approved in conversation on 2026-09-28. Phase C has three sub-projects, and this is the first:
+Design approved in conversation on 2026-09-28. **Amended 2026-10-24:** the owner set sub-projects 2 and 3 aside; NVDA on the Windows PC is the record they need, and a Mac version may come later, if it's needed (`docs/phase-c-handoff.md`, the note at its top). Phase C has three sub-projects, and this is the first:
 
 1. **Readiness** (this spec).
 2. **The VoiceOver driver** and automatic driver choice.

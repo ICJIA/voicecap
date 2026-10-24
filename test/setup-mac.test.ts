@@ -37,12 +37,12 @@ const RESTART_LINE =
 const CHECKING =
   'Checking this Mac. If macOS asks for access to control "System Events", click Allow.';
 
-/** The Mac's reason, until the VoiceOver driver exists, that nothing can run there yet. */
+/** The Mac's reason that no audit runs there: voicecap's audits run on Windows. */
 const CANNOT_RUN_YET =
-  "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer.";
-/** A ready Mac's verdict while CANNOT_RUN_YET holds. */
+  "voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.";
+/** A ready Mac's verdict, with CANNOT_RUN_YET. */
 const READY_NOT_YET =
-  "Ready: this computer is set up for VoiceOver, but voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.";
+  "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.";
 
 /**
  * A scripted Mac: its quick checks answer from `script`, and it has the Mac's checking notice and

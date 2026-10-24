@@ -125,7 +125,7 @@ describe("loadPlatformReadiness", () => {
   it("gives Linux one FAIL check naming the platform, and no live test", async () => {
     const platform = await loadPlatformReadiness({ platform: "linux", ...READINESS_OPTIONS });
     expect(platform.screenReader).toBeNull();
-    expect(platform.cannotRunYet).toBe("voicecap drives NVDA on Windows and VoiceOver on macOS.");
+    expect(platform.cannotRunYet).toBe("voicecap runs its audits on Windows, with NVDA.");
     expect(platform.readyTip).toBeNull();
     expect(platform.liveTestNotice).toEqual([]);
     expect(platform.checkingNotice).toEqual([]);
@@ -136,11 +136,10 @@ describe("loadPlatformReadiness", () => {
     expect(await runners[0]?.run()).toEqual({
       id: "platform",
       status: "FAIL",
-      summary: `This is ${os.type()}: voicecap drives NVDA on Windows and VoiceOver on macOS`,
+      summary: `This is ${os.type()}: voicecap runs its audits on Windows, with NVDA`,
       problem: {
         title: "No screen reader to drive here",
-        whatsWrong:
-          "voicecap drives NVDA on Windows and VoiceOver on macOS, and neither runs here.",
+        whatsWrong: "voicecap runs its audits on Windows, with NVDA, which doesn't run here.",
         fix: [
           "Use replay runs here: add --replay-from <run folder> to the command.",
           "Run real audits on a Windows computer or a Mac.",

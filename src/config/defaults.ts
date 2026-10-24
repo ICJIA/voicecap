@@ -16,7 +16,7 @@ export const DEFAULT_CONFIG: VoicecapConfig = {
   readiness: { readySelector: null, settleMs: 500, networkIdleTimeoutMs: 15_000 },
   timeouts: { stepMs: 30_000, pageMs: 30 * 60_000, driverStartMs: 120_000 },
   passes: ["read", "headings", "tab"],
-  stepCaps: { read: 400, headings: 200, tab: 300 },
+  stepCaps: { read: 1500, headings: 500, tab: 1000 },
   read: { endConfirmations: 1 },
   repeatLimit: 10,
   restartEvery: 50,

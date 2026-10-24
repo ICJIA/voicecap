@@ -32,12 +32,11 @@ interface Ending {
 
 /**
  * How the report ends. Not ready: how many things to fix, and how to check again, except where
- * there's no screen reader to drive (Linux), which no fix changes. Ready: where voicecap can't run
- * the screen reader yet (the platform's cannotRunYet: a Mac, until its VoiceOver driver exists),
- * that the checks passed, that audits wait for the driver, and how to hear the screen reader work
- * now, with doctor's live test. That replaces the platform's own note, whose "run this command on a
- * Windows computer" would read, right after a preflight, as "run preflight there". Anywhere else,
- * what to do next.
+ * there's no screen reader to drive (Linux), which no fix changes. Ready: where voicecap doesn't
+ * run audits (the platform's cannotRunYet: a Mac, since audits run on Windows), that the checks
+ * passed, that audits run on Windows, and how to hear the screen reader work now, with doctor's
+ * live test. That replaces the platform's own note, whose "run this command on a Windows computer"
+ * would read, right after a preflight, as "run preflight there". Anywhere else, what to do next.
  */
 function ending(result: PreflightResult, platform: PlatformReadiness, again: string): Ending {
   if (!result.ready) {
@@ -62,7 +61,7 @@ function ending(result: PreflightResult, platform: PlatformReadiness, again: str
     return {
       outcome: "pass",
       verdict: "✓ Ready: this Mac passed every check.",
-      after: `voicecap can't run ${screenReader} audits yet: that comes with its ${screenReader} driver. To hear ${screenReader} work now: ${DOCTOR} (a 20-second live test; hands off the keyboard and mouse).`,
+      after: `voicecap runs its audits on Windows, with NVDA: a ${screenReader} version isn't planned for now. To hear ${screenReader} work now: ${DOCTOR} (a 20-second live test; hands off the keyboard and mouse).`,
       exitCode: ExitCode.ok,
     };
   }

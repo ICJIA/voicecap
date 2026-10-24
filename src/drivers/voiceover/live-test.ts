@@ -1,5 +1,5 @@
 /**
- * The Mac live test, until the VoiceOver driver exists. VoiceOver starts through Guidepup with
+ * The Mac live test. VoiceOver starts through Guidepup with
  * voicecap's settings, the browser comes to the front with the check page, and VoiceOver is heard
  * describing it. Then everything is put back as it was, however the test ends (a FAIL, an error,
  * or Ctrl+C): Guidepup's VoiceOver stopped, the browser and the check page closed, and the

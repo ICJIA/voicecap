@@ -181,7 +181,7 @@ export function macReadiness(
   return {
     screenReader: "VoiceOver",
     cannotRunYet:
-      "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer.",
+      "voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.",
     readyTip: "Tip: turn on Do Not Disturb, so notifications don't interrupt VoiceOver.",
     // A getter, not a fixed array: before the quick checks run (or when none finds a terminal
     // app), it names the fallback; once the "terminal" runner has cached a name, it uses that.

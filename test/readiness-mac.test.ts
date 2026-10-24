@@ -256,11 +256,11 @@ const CHECK_ORDER = [
 ];
 
 describe("Mac readiness", () => {
-  it("is for VoiceOver, which can't run real audits yet, and warns before the live test", () => {
+  it("is for VoiceOver, says audits run on Windows, and warns before the live test", () => {
     const platform = mac();
     expect(platform.screenReader).toBe("VoiceOver");
     expect(platform.cannotRunYet).toBe(
-      "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer.",
+      "voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.",
     );
     expect(platform.readyTip).toBe(
       "Tip: turn on Do Not Disturb, so notifications don't interrupt VoiceOver.",

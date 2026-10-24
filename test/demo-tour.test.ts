@@ -53,12 +53,12 @@ function windows(overrides: Partial<PlatformReadiness> = {}): PlatformReadiness 
   };
 }
 
-/** A ready Mac before the VoiceOver driver: set up for VoiceOver, but voicecap can't run it yet. */
+/** A ready Mac: set up for VoiceOver, but audits run on Windows, so voicecap can't run here. */
 function mac(overrides: Partial<PlatformReadiness> = {}): PlatformReadiness {
   return windows({
     screenReader: "VoiceOver",
     cannotRunYet:
-      "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer.",
+      "voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.",
     readyTip: "Tip: turn on Do Not Disturb, so notifications don't interrupt VoiceOver.",
     liveTestNotice: [
       "The live test takes about 20 seconds. VoiceOver speaks and takes over the keyboard, so keep your hands off.",
@@ -91,7 +91,7 @@ function mac(overrides: Partial<PlatformReadiness> = {}): PlatformReadiness {
 function linux(): PlatformReadiness {
   return {
     screenReader: null,
-    cannotRunYet: "voicecap drives NVDA on Windows and VoiceOver on macOS.",
+    cannotRunYet: "voicecap runs its audits on Windows, with NVDA.",
     readyTip: null,
     liveTestNotice: [],
     checkingNotice: [],
@@ -102,11 +102,10 @@ function linux(): PlatformReadiness {
       runner({
         id: "platform",
         status: "FAIL",
-        summary: "This is Linux: voicecap drives NVDA on Windows and VoiceOver on macOS",
+        summary: "This is Linux: voicecap runs its audits on Windows, with NVDA",
         problem: {
           title: "No screen reader to drive here",
-          whatsWrong:
-            "voicecap drives NVDA on Windows and VoiceOver on macOS, and neither runs here.",
+          whatsWrong: "voicecap runs its audits on Windows, with NVDA, which doesn't run here.",
           fix: [
             "Use replay runs here: add --replay-from <run folder> to the command.",
             "Run real audits on a Windows computer or a Mac.",
@@ -575,7 +574,7 @@ describe("the tour on a ready Windows PC", () => {
   });
 });
 
-describe("the tour on a Mac, until the VoiceOver driver", () => {
+describe("the tour on a Mac, where audits don't run", () => {
   it("flags a Windows PC, runs the live test, explains step 4, skips 5 and 6, and exits 0", async () => {
     const result = await tour({ platform: mac(), os: "darwin", answers: MAC_ANSWERS });
     expect(result.code).toBe(0);
@@ -588,10 +587,10 @@ describe("the tour on a Mac, until the VoiceOver driver", () => {
       "  OK    VoiceOver can be controlled by AppleScript\n  WARN  The full demo runs on a Windows PC for now: on this Mac, the tour stops after the live test\n",
     );
     expect(result.screen).toContain(
-      "Ready: this computer is set up for VoiceOver, but voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.\n",
+      "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.\n",
     );
     expect(result.screen).toContain(
-      "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.\nOn a Windows PC,",
+      "voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.\nOn a Windows PC,",
     );
     expect(result.screen).toContain(
       "Press Enter for step 7 (your own site), or Ctrl+C to stop here: ",

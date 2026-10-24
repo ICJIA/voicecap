@@ -2837,7 +2837,7 @@ describe("voicecap init", () => {
   it("shows cannotRunYet's reason instead of offering to run", async () => {
     // The real reason the Mac's readiness module gives (readiness-mac.ts) until its driver exists.
     const reasonText =
-      "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer.";
+      "voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.";
     const platform = readyPlatform({ screenReader: "VoiceOver", cannotRunYet: reasonText });
     const run = await cli(
       ["init"],
@@ -2857,7 +2857,7 @@ describe("voicecap init", () => {
     expect(run.out).not.toContain("Run it now?");
     // The preflight's own verdict doesn't promise a run either.
     expect(run.out).toContain(
-      "Ready: this computer is set up for VoiceOver, but voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.",
+      "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.",
     );
     expect(run.out).not.toContain("can run VoiceOver for voicecap");
   });
@@ -3068,11 +3068,12 @@ describe.skipIf(process.platform !== "win32")("paths written Git Bash's way", ()
 });
 
 describe("voicecap demo", () => {
-  /** A Mac before the VoiceOver driver: ready, with a passing live test, and no run to start. */
+  /** A Mac: ready, with a passing live test, and no run to start, since audits run on Windows. */
   function macLike(): PlatformReadiness {
     return readyPlatform({
       screenReader: "VoiceOver",
-      cannotRunYet: "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.",
+      cannotRunYet:
+        "voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.",
       liveTestNotice: ["The live test takes about 20 seconds."],
       liveTest: () =>
         Promise.resolve([{ id: "liveHear", status: "OK", summary: "VoiceOver hears the page" }]),

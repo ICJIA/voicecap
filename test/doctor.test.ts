@@ -60,17 +60,17 @@ describe("runDoctor", () => {
     expect(text).toContain("Hands off the keyboard.");
   });
 
-  it("says the computer is set up, but voicecap can't run its screen reader yet, when it can't", async () => {
+  it("says the computer is set up, but audits run on Windows, where voicecap can't run them", async () => {
     const platform = fakePlatform({
       screenReader: "VoiceOver",
-      cannotRunYet: "voicecap can't run VoiceOver yet.",
+      cannotRunYet: "voicecap runs its audits on Windows, with NVDA.",
     });
     const logger = createMemoryLogger();
 
     expect(await runDoctor({ platform, logger, now: NOW })).toBe(0);
     const text = logger.text();
     expect(text).toContain(
-      "Ready: this computer is set up for VoiceOver, but voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.",
+      "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.",
     );
     expect(text).not.toContain("can run VoiceOver for voicecap");
   });

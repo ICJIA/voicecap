@@ -2,8 +2,8 @@
  * voicecap demo: a guided first run, in seven steps, each explained and each waiting for Enter.
  * The welcome; this computer's checks (the preflight init starts with); the live test; an audit
  * of the demo site (runAudit, run as the command step 4 shows); the transcripts; the report; and
- * what to do next. Where voicecap can't run the screen reader yet (a Mac, until its VoiceOver
- * driver clears cannotRunYet), step 4 explains instead, and steps 5 and 6 are skipped.
+ * what to do next. Where voicecap doesn't run audits (a Mac, whose cannotRunYet says they run on
+ * Windows), step 4 explains instead, and steps 5 and 6 are skipped.
  *
  * Everything the tour touches is injected (TourDeps), so tests fake the screen reader, the demo
  * site, the run, and the file opener. The demo site runs only during step 4's run, and stops

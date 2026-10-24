@@ -130,9 +130,10 @@ export function renderFixes(checks: Check[], options: { offerSetup: boolean }): 
 }
 
 /**
- * Ready: "Ready: this computer can run <screenReader> for voicecap." Or, where voicecap can't run
- * that screen reader yet (the platform's cannotRunYet: a Mac until the VoiceOver driver exists),
- * that it's set up but can't run yet. Then the tip line if there is one. Otherwise: renderProblems.
+ * Ready: "Ready: this computer can run <screenReader> for voicecap." Or, where voicecap doesn't
+ * run audits (the platform's cannotRunYet: a Mac, since audits run on Windows and a Mac version
+ * isn't planned), that it's set up but audits run elsewhere. Then the tip line if there is one.
+ * Otherwise: renderProblems.
  */
 export function renderVerdict(
   result: PreflightResult,
@@ -148,7 +149,7 @@ export function renderVerdict(
   const lines = [
     options.canRunYet
       ? `Ready: this computer can run ${screenReader} for voicecap.`
-      : `Ready: this computer is set up for ${screenReader}, but voicecap can't run ${screenReader} yet: that comes with its ${screenReader} driver.`,
+      : `Ready: this computer is set up for ${screenReader}, but voicecap runs its audits on Windows, with NVDA: a ${screenReader} version isn't planned for now.`,
   ];
   if (options.tip) lines.push(options.tip);
   return lines.join("\n");

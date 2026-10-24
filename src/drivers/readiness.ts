@@ -37,7 +37,7 @@ export async function loadPlatformReadiness(options: ReadinessOptions): Promise<
 function otherReadiness(options: ReadinessOptions): PlatformReadiness {
   return {
     screenReader: null,
-    cannotRunYet: "voicecap drives NVDA on Windows and VoiceOver on macOS.",
+    cannotRunYet: "voicecap runs its audits on Windows, with NVDA.",
     readyTip: null,
     liveTestNotice: [],
     checkingNotice: [],
@@ -78,10 +78,10 @@ function otherPlatformCheck(): Check {
   return {
     id: "platform",
     status: "FAIL",
-    summary: `This is ${os.type()}: voicecap drives NVDA on Windows and VoiceOver on macOS`,
+    summary: `This is ${os.type()}: voicecap runs its audits on Windows, with NVDA`,
     problem: {
       title: "No screen reader to drive here",
-      whatsWrong: "voicecap drives NVDA on Windows and VoiceOver on macOS, and neither runs here.",
+      whatsWrong: "voicecap runs its audits on Windows, with NVDA, which doesn't run here.",
       fix: [
         "Use replay runs here: add --replay-from <run folder> to the command.",
         "Run real audits on a Windows computer or a Mac.",

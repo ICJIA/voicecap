@@ -35,8 +35,8 @@ Here is the top of that report for the new version of i2i.illinois.gov, as NVDA 
 
 > **Status: what works where.**
 >
-> - **Windows:** everything, including full audits with NVDA and Chrome, checked end to end with real NVDA 2026.2 and Chrome 153.
-> - **Mac:** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it. Audits with VoiceOver come with voicecap's VoiceOver driver, in a later release; until then, run audits on a Windows computer.
+> - **Windows, voicecap's focus:** everything, including full audits with NVDA and Chrome, checked end to end with real NVDA 2026.2 and Chrome 153.
+> - **Mac:** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, as groundwork. Audits run on a Windows computer: a Mac version, with VoiceOver, may come later if it's needed, and isn't part of voicecap now.
 > - **Any computer, Linux included:** reviews, reports, `share`, `site`, `walkthrough`, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`). Hearing pages again, with `review --replay`, needs Windows or a Mac.
 
 ## How voicecap is built, and what it means for testing with NVDA
@@ -407,12 +407,12 @@ In Terminal, iTerm, or Visual Studio Code's terminal:
 1. **Set up, once:** `npx @icjia/voicecap setup` installs Guidepup's VoiceOver files, and Playwright's Chromium if Google Chrome isn't installed. It changes two VoiceOver settings, walks you through the macOS permissions voicecap needs, and ends by checking this Mac (see [Mac setup](#mac-setup)).
 2. **Check:** `npx @icjia/voicecap doctor` checks this Mac and runs a 20-second live test that starts VoiceOver, then prints a report to paste into a bug report. The report names this Mac and your user, so read it before you post it anywhere public.
 3. **Compose the run:** `npx @icjia/voicecap init` checks this Mac, asks the same questions as on Windows, and prints the run's command.
-4. **Run:** on a Windows computer, for now. voicecap can't run VoiceOver yet: that comes with its VoiceOver driver, in a later release. (A run started on a Mac stops at once, with exit code 2.)
+4. **Run:** on a Windows computer. voicecap runs its audits on Windows, with NVDA, and a Mac version isn't planned for now. (A run started on a Mac stops at once, with exit code 2.)
 
 On a ready Mac, the checks end with this verdict:
 
 ```
-Ready: this computer is set up for VoiceOver, but voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.
+Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.
 Tip: turn on Do Not Disturb, so notifications don't interrupt VoiceOver.
 ```
 
@@ -423,7 +423,7 @@ Your command:
   npx @icjia/voicecap --site https://i2i.illinois.gov --page https://i2i.illinois.gov/program-overview/
 Run the same command again later to resume where it stopped.
 
-voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer.
+voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.
 ```
 
 </details>
@@ -465,7 +465,7 @@ A computer that isn't ready exits with code 2, as `init` does, after the numbere
 Fix these, then run npx @icjia/voicecap preflight again.
 ```
 
-On a Mac that passes every check, the verdict is `✓ Ready: this Mac passed every check.`, followed by a note that voicecap can't run VoiceOver audits yet, and that `npx @icjia/voicecap doctor`, a 20-second live test, shows VoiceOver working now. The exit code is still 0, so a script can tell that the checks passed. On Linux, which has no screen reader for voicecap to drive, it says so, with exit code 2.
+On a Mac that passes every check, the verdict is `✓ Ready: this Mac passed every check.`, followed by a note that voicecap's audits run on Windows, with NVDA, and that `npx @icjia/voicecap doctor`, a 20-second live test, shows VoiceOver working now. The exit code is still 0, so a script can tell that the checks passed. On Linux, which has no screen reader for voicecap to drive, it says so, with exit code 2.
 
 **A computer that isn't ready** gets a numbered diagnosis of what's wrong and how to fix it (see the example under [Mac setup](#mac-setup)), and `preflight` and `init` stop there, with exit code 2.
 
@@ -505,7 +505,7 @@ npm may say it skipped `ffmpeg-static`'s install script, or it may download ffmp
 
 The demo's files go in a `voicecap-demo` folder in the current folder, never in your `VOICECAP_TRANSCRIPTS` audit record, and they're safe to delete. The one exception is a demo you put on the website: it's made in the home's folder and committed with the records, so deleting it and committing that, then pushing, takes the demo off the website at the next build (see [Publishing it, and the demo](#publishing-it-and-the-demo)). The demo site uses port 4848, or any free port when that one is taken. The tour needs a terminal: it doesn't run from a script. On Windows, run it in PowerShell or Windows Terminal, not Git Bash's own window (mintty), which doesn't always let Node see a terminal.
 
-**On a Mac, for now,** the tour checks the Mac and runs the VoiceOver live test (steps 1 to 3). Step 4 says what the audit will do, and the tour ends with the Mac's next steps. The audit, the transcripts, and the report come with voicecap's VoiceOver driver, in a later release; a Windows PC runs the full tour.
+**On a Mac,** the tour checks the Mac and runs the VoiceOver live test (steps 1 to 3). Step 4 says what the audit does on a Windows PC, and the tour ends with the Mac's next steps. The audit, the transcripts, and the report need a Windows PC, which runs the full tour.
 
 </details>
 
@@ -2569,7 +2569,7 @@ A config written as code (`voicecap.config.ts`, `.mts`, `.js`, or `.mjs`, with `
 | `timeouts.pageMs` | `1800000` | Per-page timeout (30 minutes). |
 | `timeouts.driverStartMs` | `120000` | Timeout for starting NVDA and the browser. |
 | `passes` | `["read","headings","tab"]` | Passes run when `--passes` isn't given. |
-| `stepCaps` | `{ read: 400, headings: 200, tab: 300 }` | Hard step caps per pass (`--max-steps` overrides all three). |
+| `stepCaps` | `{ read: 1500, headings: 500, tab: 1000 }` | Hard step caps per pass (`--max-steps` overrides all three). A pass that reaches its cap stops there, and the report says so; the caps are a safety net for a page that never ends, beside `timeouts.pageMs` and `repeatLimit`. |
 | `read.endConfirmations` | `1` | Extra Down Arrows that must repeat the last line before the end counts as reached. `0` is the plain "spoken, then repeated" rule. |
 | `repeatLimit` | `10` | Stop a pass when the same speech occurs this many times in a row. |
 | `restartEvery` | `50` | Restart NVDA and the browser every N pages. |
@@ -2667,7 +2667,7 @@ A driver owns both the screen reader and the browser, so the rest of voicecap ne
 - **`replay`**: no screen reader or browser. It plays back a run folder (`--replay-from`), matched by URL: each pass's recorded steps in order, then NVDA's end behavior (the last line repeats, "no next heading", focus leaves the page). Replayed output is labeled as such in every transcript and report.
 - **`at-driver`**: a stub for the W3C [AT Driver](https://w3c.github.io/at-driver/) protocol. Every method throws "not implemented"; the comments show how each maps to AT Driver messages. Completing it would mean installing the NVDA AT Automation add-on and server ([Prime-Access-Consulting/nvda-at-automation](https://github.com/Prime-Access-Consulting/nvda-at-automation), a WebSocket server on `ws://localhost:3031` by default), implementing `src/drivers/at-driver-nvda.ts` along its comments (browser work stays with Playwright), and running the same fixture checks.
 
-There's no VoiceOver driver yet: it comes in a later release. Until then, the Mac's checks and live test drive VoiceOver through Guidepup directly, in `src/drivers/voiceover/`.
+There's no VoiceOver driver: voicecap's audits run on Windows, with NVDA, and a Mac version isn't planned for now (see the status at the top). The Mac's checks and live test drive VoiceOver through Guidepup directly, in `src/drivers/voiceover/`, as groundwork for one.
 
 </details>
 

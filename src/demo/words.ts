@@ -173,11 +173,13 @@ export function stoppingAudit(screenReader: string): string {
   );
 }
 
-/** Step 4 where voicecap can't run the screen reader yet: what the step does on a Windows PC. */
+/** Step 4 where voicecap doesn't run audits (a Mac): what the step does on a Windows PC. */
 export function cannotAuditYet(screenReader: string | null): string {
   const name = screenReader ?? "this screen reader";
   return [
-    paragraph(`voicecap can't run ${name} yet: that comes with its ${name} driver.`),
+    paragraph(
+      `voicecap runs its audits on Windows, with NVDA: a ${name} version isn't planned for now.`,
+    ),
     paragraph(
       "On a Windows PC, npx @icjia/voicecap demo runs this step and the next two: NVDA reads the seven demo pages, voicecap saves the transcripts, and builds the report.",
     ),

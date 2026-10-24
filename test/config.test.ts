@@ -296,6 +296,13 @@ describe("loadConfig", () => {
     });
   });
 
+  // A long page, such as one with a 78-row table, needs more than 400 lines to read to its end,
+  // and a read that stops at its cap shows as a problem with the page. The caps are a safety net
+  // for a page that never ends, beside the limit of 30 minutes a page and the repeat limit.
+  it("caps each pass generously, so a long page reads to its end", () => {
+    expect(DEFAULT_CONFIG.stepCaps).toEqual({ read: 1500, headings: 500, tab: 1000 });
+  });
+
   it("merges nested settings over the defaults, replacing arrays", () => {
     const config = resolveConfig({
       stepCaps: { read: 100 },
@@ -621,10 +628,15 @@ describe("a config's nvdaSettings names and words", () => {
 
 // Ruling P19. Every run records the config's SHA-256, and a comparison says "The voicecap config
 // differs" when two runs' differ. 0.10.0 adds report.canonical, null by default: a config that leaves
-// it null hashes as it did in 0.9.x, so comparing runs across the upgrade adds no such line.
+// it null hashes as it did in 0.9.x, so comparing runs across the upgrade adds no such line. The
+// step caps raised after 0.22.1 did change the hash, as a default that changes what a run does
+// should: a comparison of a run from before with one from after says the config differs.
 describe("the config's SHA-256", () => {
-  /** The default config's SHA-256 in voicecap 0.9.x, computed with the code at 983f6b8. */
-  const DEFAULT_SHA256_0_9 = "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb";
+  /**
+   * The default config's SHA-256 with the caps of 1,500, 500, and 1,000 steps. From 0.9.x (the code
+   * at 983f6b8) to 0.22.1 it was 1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb.
+   */
+  const DEFAULT_SHA256 = "16d5b4b99df21c569975627663c4c5c505d620212371331f64cd89e2442ad00c";
 
   /** A config file of `settings` in a folder of its own, loaded. */
   async function loadedFrom(settings: object) {
@@ -639,23 +651,23 @@ describe("the config's SHA-256", () => {
     return { ...config, report };
   }
 
-  it("is 0.9.x's for the default config", async () => {
-    expect(defaultConfig().sha256).toBe(DEFAULT_SHA256_0_9);
-    expect((await loadConfig({ cwd: await tmp() })).sha256).toBe(DEFAULT_SHA256_0_9);
-    expect(hashJson(without(DEFAULT_CONFIG))).toBe(DEFAULT_SHA256_0_9);
+  it("is the default config's, however the default config is loaded", async () => {
+    expect(defaultConfig().sha256).toBe(DEFAULT_SHA256);
+    expect((await loadConfig({ cwd: await tmp() })).sha256).toBe(DEFAULT_SHA256);
+    expect(hashJson(without(DEFAULT_CONFIG))).toBe(DEFAULT_SHA256);
   });
 
   it("leaves out a report.canonical that is null, so any config without it hashes as it did", async () => {
     const own = await loadedFrom({ reviewer: "Pat Lee", report: { siteName: "DVFR" } });
     expect(own.sha256).toBe(hashJson(without(own.config)));
-    expect((await loadedFrom({ report: { canonical: null } })).sha256).toBe(DEFAULT_SHA256_0_9);
+    expect((await loadedFrom({ report: { canonical: null } })).sha256).toBe(DEFAULT_SHA256);
   });
 
   it("hashes a report.canonical that is set, so naming the site changes it", async () => {
     const named = await loadedFrom({ report: { canonical: "dvfr.illinois.gov" } });
     expect(named.config.report.canonical).toBe("https://dvfr.illinois.gov/");
     expect(named.sha256).toBe(hashJson(named.config));
-    expect(named.sha256).not.toBe(DEFAULT_SHA256_0_9);
+    expect(named.sha256).not.toBe(DEFAULT_SHA256);
     const other = await loadedFrom({ report: { canonical: "i2i.illinois.gov" } });
     expect(other.sha256).not.toBe(named.sha256);
   });

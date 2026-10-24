@@ -129,15 +129,15 @@ function windows(script: Record<string, Check[]> = WINDOWS_READY) {
 const MAC_NOTICE =
   'Checking this Mac. If macOS asks for access to control "System Events", click Allow.';
 
-// What the real Mac readiness says until its VoiceOver driver exists (readiness-mac.ts). preflight
+// What the real Mac readiness says of a Mac, where audits don't run (readiness-mac.ts). preflight
 // doesn't print it: "run this command on a Windows computer", right after a preflight, would read
 // as "run preflight there".
 const CANNOT_RUN_YET =
-  "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer.";
+  "voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.";
 
 // What preflight says instead, after a passing Mac's green line.
 const MAC_ENDING =
-  "voicecap can't run VoiceOver audits yet: that comes with its VoiceOver driver. To hear VoiceOver work now: npx @icjia/voicecap doctor (a 20-second live test; hands off the keyboard and mouse).";
+  "voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now. To hear VoiceOver work now: npx @icjia/voicecap doctor (a 20-second live test; hands off the keyboard and mouse).";
 
 const MAC_READY = {
   macos: [ok("macos", "macOS 26 is supported")],
@@ -295,7 +295,7 @@ describe("voicecap preflight", () => {
     expect(result.out).toContain("\n✓ Ready: this computer can run voicecap.\nNext: ");
   });
 
-  it("says a Mac that passes every check can't run VoiceOver audits yet, and how to hear it work", async () => {
+  it("says a Mac that passes every check isn't where audits run, and how to hear VoiceOver work", async () => {
     const { platform, liveTests } = mac();
 
     const result = await run(["preflight"], platform, { os: "darwin" });
@@ -370,7 +370,7 @@ describe("voicecap preflight", () => {
     expect(result.out).toContain("1. No screen reader to drive here\n");
     // The renderer wraps it at 92 columns, so read it as words.
     expect(result.out.replace(/\s+/g, " ")).toContain(
-      "voicecap drives NVDA on Windows and VoiceOver on macOS, and neither runs here.",
+      "voicecap runs its audits on Windows, with NVDA, which doesn't run here.",
     );
     expect(
       result.out.endsWith(

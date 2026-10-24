@@ -1,21 +1,14 @@
-# PC handoff: after 0.22.1's release
+# Handoff: running voicecap from here
 
-This file was brought up to date on the PC on 2026-10-24, after 0.22.1's release, for the next working session on the owner's Windows PC. Notes kept on one computer don't travel to the other, so everything the next session needs is here. `docs/phase-c-handoff.md` has the full history, under "Where things stand".
+This file was written on 2026-10-24, on the owner's Mac, as the closing handoff, after the owner set Phase C aside and chose to wrap voicecap up (`docs/phase-c-handoff.md`, the note at its top, has the decision and its reasons). It's for whoever runs voicecap from here, on the owner's Windows PC: how to read a site and share it, what to do when something updates, where everything is, and the loose ends left open on purpose. `docs/phase-c-handoff.md` ("Where things stand") has the full history.
 
-## What the PC did from 2026-10-22 to 2026-10-24
+## What voicecap is, and where it stands
 
-- **The branch `guidepup-0.36` passed its checks with NVDA,** each with the owner's OK and hands off: `doctor`, NVDA from `C:\guidepup test & more` (`setup`, then `doctor`), and the demo. `docs/phase-c-handoff.md` ("Checked at the PC") has what each showed.
-- **A stop that fails no longer fails every later start in a run.** Guidepup 0.36 counts its NVDA as still running after a stop whose quit timed out, and refuses to start another ("NVDA is already running"), so after one such stop every later page of the run would fail to start NVDA. The adapter's start now stops that NVDA again, once, and starts. It was settled under the owner's standing rule to take the recommended option, for the owner to confirm or reverse.
-- **r3.illinois.gov was read again with 0.20.0** (run 2026-10-22_1318), shared as entry 4, and pushed (transcripts 15e4729). It's live, byte for byte, and `sites.json` names it.
-- **0.20.1 was released on 2026-10-23** (tag `v0.20.1`), at the owner's word. `main` moved to the branch's last commit without a merge commit, CI passed for it, and `publish.sh` published it with the owner's code at its prompt. It's a patch, as 0.18.1 was: a dependency upgrade and fixes, with no new feature. The website builds with it (transcripts 3448ca2).
-- **A fix from r3's run is in it:** a run ends when its last session ended, as NVDA stopped reading, not when it was sealed. r3's question was answered hours after the reading, so entry 4's evidence gives the run as "13:18 to 19:11"; from 0.20.1 such a run reads "13:18 to 14:36". Entry 4 keeps its words, since a share is never rewritten.
-- **r3.illinois.gov was read again on 2026-10-23** (run 2026-10-23_1204, `--max-steps 800`), at the owner's word, hands off: 25 of 25 pages, no problem found. Entry 4's one problem, the read pass's step cap on /documentation/accessibility/ (a table of 78 rows), is gone: the read reached the page's end in 655 steps. The run's closing question ("heard NVDA?") was still to be answered at the PC that evening, so it isn't sealed or shared yet.
-- **0.21.0 was released on 2026-10-23** (tag `v0.21.0`), at the owner's word, with the owner's code relayed from the chat. Each page's card on the shareable page links to the page's recording, right under its name ("▶ Hear what NVDA said on this page"), as does each page listed in "What needs attention", and the Word copy says where each page's recording is; reports no longer carry voicecap's own timeline. It also upgrades zod to 4.6.7 for GHSA-mrhx-c7xc-m3w5, which `npm audit` found in the dry run. 7,896 tests passed; CI passed on all six jobs (one macOS job re-run after the AI Markdown test of hostile strings ran out of time).
-- **sfs, dvfr, and i2i v3 were re-shared with 0.21.0** (transcripts 7a6ef15), so their pages link each card to its recording. They're live, all 19 files byte for byte.
-- **r3.illinois.gov was shared as entry 5, from run 2026-10-23_1204** (transcripts a865080). Its question was answered "all" for the owner, who had said to take it as heard. 24 of its 25 cards link to a recording: /contact/'s was lost when the /login flow took the foreground on its fourth try, so it says "Not recorded", as designed.
-- **0.22.0 was released on 2026-10-24** (tag `v0.22.0`), at the owner's word, with the owner's code relayed from the chat. The website lists the sites newest first, by when NVDA read each one, and each site's current report opens with two tiles: the day NVDA read the site, and a button to hear the recording (or "No recording" and why). The lock file also takes undici 8.12.3 for GHSA-xjj6-f33q-929c (the shipped shrinkwrap already had it). 7,902 tests passed; CI passed on all six jobs.
-- **The dependency updates were done on 2026-10-24,** at the owner's word: vitest 5.0.5 with vite 8.3.5 for the test tools' eight advisories (6b3bb76), then Dependabot's other updates as one change (9fb3b52: fast-xml-parser 5.11.2, jszip 3.10.2, and CI's checkout 7.0.1, pnpm setup 6.1.0, setup-node 7.1.0). No Dependabot PR is open, and `pnpm audit` finds nothing, development tools included.
-- **0.22.1 was released on 2026-10-24** (tag `v0.22.1`, release commit 73475d9), at the owner's word, with the owner's code relayed from the chat. It moves to axe-core 4.14.0, which runs label-content-name-mismatch (WCAG 2.5.3) with WCAG 2.1 A. Before it shipped, 4.13.0 and 4.14.0 were compared on the demo site and on every page of r3, sfs, and dvfr's newest runs (79 pages): the same on 78, and on sfs's /childhood-exposure 4.14.0 lists 7 footnote back-links ("↩", named "Back to reference 1" and so on) for a person to check. The README also gained "How voicecap is built, and what it means for testing with NVDA", near its top, for managers and auditors (the owner's ask).
+voicecap takes NVDA through every page of a website, saves every word it says as transcripts with a recording of its voice, runs axe on each page, and keeps a sealed record of it all. A share of a run is published at **https://voicecap.icjia.app**, and docs.icjia.app shows a card for each site from it. The point is due diligence: managers, auditors, and lawyers get the address and the records, a trail that a real screen reader read every single page, with the problems it found and what was done about them.
+
+- **The Windows PC is voicecap's focus.** Audits run there, with NVDA and Chrome. The Mac prepares and checks itself for VoiceOver (`setup`, `doctor`, `init`) as groundwork, but no audit runs there: a Mac version may come later, if it's needed, and isn't part of voicecap now.
+- **Released:** 0.22.2 is the wrap-up release (see the CHANGELOG): recordings declare a whole-millisecond pre-skip, so Chrome 156 decodes them whole; every place that promised a VoiceOver driver says where audits run instead; and the step caps are 1,500 / 500 / 1,000 (read / headings / Tab), so a long page reads to its end without `--max-steps`.
+- **Sites on the website:** sfs.icjia.illinois.gov, dvfr.illinois.gov, v3--i2i.netlify.app (i2i, until i2i.illinois.gov serves v3), and r3.illinois.gov (entry 5, 25 of 25 pages, nothing needing attention).
 
 ## How to start
 
@@ -40,7 +33,7 @@ On the PC, in PowerShell or Windows Terminal (not Git Bash's own window):
 
 Then start from this brief:
 
-> I'm back on the Windows PC to continue voicecap. Read `docs/pc-handoff.md` first, and follow the "Working rules" in `docs/phase-c-handoff.md` exactly. Don't start NVDA, or run anything that starts a screen reader, until I say so.
+> I'm on the Windows PC to run voicecap. Read `docs/pc-handoff.md` first, and follow the "Working rules" in `docs/phase-c-handoff.md` exactly. Don't start NVDA, or run anything that starts a screen reader, until I say so.
 
 ## Working rules
 
@@ -50,23 +43,48 @@ All of the owner's standing rules are in `docs/phase-c-handoff.md` ("Working rul
 - **Commit, push, or publish only when the owner asks.** Commit messages are one subject line, with no trailers of any kind.
 - **Never use or repeat a password or PIN** pasted into the chat.
 
-## Next, when the owner says
+## Reading a site and sharing it
 
-- **Nothing is queued.** Re-share sfs with 0.22.1 only if the owner wants axe 4.14.0's results on its page; shares made before it keep 4.13.0's.
+The routine, with the released voicecap (`npx @icjia/voicecap` fetches the latest release) or with a build of the code (`node dist/cli.js`):
 
-## Also at the PC, when the owner wants
+1. **Check the PC:** `npx @icjia/voicecap preflight`. It starts nothing. `doctor` adds a 20-second live test with NVDA.
+2. **Read the site:** `npx @icjia/voicecap init` asks the questions and prints the run's command, or run it directly, for example `npx @icjia/voicecap --site https://r3.illinois.gov`. A run resumes where it stopped when the same command is run again; `--page` reads one page again; `--walkthrough <file>` repeats a run page for page. At the end, the run's closing question ("heard NVDA?") seals it: answer it, or the run isn't sealed and can't be shared.
+3. **Review what needs attention**, if anything does: `voicecap review` records a person's finding on a page, and `voicecap review --replay` reads the transcripts aloud with the computer's own voice.
+4. **Share it:** `npx @icjia/voicecap share --site https://r3.illinois.gov` (the site's address) makes the dated shareable page, its Word copy, the voice page, the report as Markdown and JSON for AI tools, and the walkthrough file, and records the share in `share/shares.json`.
+5. **Publish it:** in the transcripts home, `git add`, commit, and push. Netlify builds the website from `ICJIA/voicecap-transcripts` on every push (`netlify.toml` pins the voicecap version that builds it), and its "Deploy succeeded" notification calls docs.icjia.app's build hook, which reads `sites.json` and makes the cards. A site gets a card only in a section that already exists on docs.icjia.app; r3.illinois.gov still waits for its section (the owner adds it to `docs.json` in `ICJIA/icjia-docs` with `"url": "https://r3.illinois.gov"`, and the card follows).
 
-- **Delete `C:\guidepup test & more`** after quitting VS Code. VS Code still has two of NVDA's files from that folder loaded, so Windows won't delete it while VS Code runs.
-- **r3's card on docs.icjia.app.** r3.illinois.gov has no section on docs.icjia.app yet, so it has no card. The owner's rule: "i need to add it to docs first, then you can add the voicecap card". Once the owner has added r3's section to `docs.json` in `ICJIA/icjia-docs`, with `"url": "https://r3.illinois.gov"`, the card follows on the next build of the index, with nothing more to add. The index's README has the rest ("NVDA Accessibility cards (from voicecap)").
-- **Not yet tried at the PC with Guidepup 0.36** (each needs a real run, with the owner's OK): a connection to NVDA that fails with an error, voicecap's process ending in the middle of a run, and a stop that fails.
-- **Still to confirm on a real PC** (`docs/phase-c-handoff.md`, "Being built"):
-  - a Chrome window closed mid-page is recorded as `browser`;
-  - a real repeat with NVDA, which should end with each page's comparison.
-- **i2i.illinois.gov** will soon serve i2i's v3 (the owner, 2026-10-16). Until then, i2i's section on docs.icjia.app shows `v3--i2i.netlify.app`'s results. Once a run of i2i.illinois.gov itself is shared, the section shows that report instead, since a section shows the report shared last.
-- **Playwright 1.64, when Dependabot proposes it:** its Chromium 156 decoded voicecap's recordings 24 samples short, so the seven "decodes … to exactly its length" tests of `test/voice-browser.test.ts` failed against it. The Mac fixed the cause on 2026-10-24 (the file now declares a whole-millisecond pre-skip; `docs/phase-c-handoff.md`, "Checked on the Mac (2026-10-24)"), and checked by hand that Playwright 1.64's own Chromium decodes exactly with it. Merge the Playwright update only once that fix is on `main`.
-- **Dependabot:** nine open pull requests (from 2026-10-06 and 2026-10-13), and three alerts on vite (development only, through vitest; fixed in vite 8.3.3). The release script audits only what ships, so none of them blocks a release. As checked on 2026-10-22:
-  - #1 (source-map-js 1.2.2) is already in `main`'s lockfile, and #6 (`@guidepup/setup` 0.29.2) is replaced by the branch's 0.29.3, so both can be closed.
-  - #7 (fast-xml-parser 5.11.2, which ships), #8 (vitest 5.0.3), and #9 (jszip 3.10.2, which only the tests use) are patch updates that passed CI on every system. After the release, Dependabot rebases them.
-  - #5 (axe-core 4.14.0) can change what axe finds on a page, and #2 to #4 move three GitHub Actions to new major versions. Both are the owner's call.
-  - None of them brings vite 8.3.3, and `pnpm update vite` leaves it at 8.3.1, so clearing the alerts takes an override (`overrides:` in `pnpm-workspace.yaml`), also the owner's call.
-- **Merged branches** still on GitHub: `plan-15-sites-json` and `readme-why-voicecap`, and `guidepup-0.36`, released as 0.20.1. Deleting them is the owner's call.
+**Pull before a share, push after.** Reviews and shares are chained to the ones before them; two computers adding to the record before syncing break the chain, and `voicecap verify` reports it.
+
+**Checking a record:** `npx @icjia/voicecap verify` checks every fingerprint and chain in the home. The website publishes only files that still match their recorded fingerprints.
+
+## When something updates
+
+- **Chrome:** voicecap launches the installed Google Chrome with a fresh profile and attaches to it, so Chrome updates itself and voicecap follows. A Chrome that changes how it decodes a recording shows up in `test/voice-browser.test.ts` only when Playwright's bundled Chromium catches up (Chrome 156 did, in October 2026; fixed in 0.22.2).
+- **NVDA:** voicecap runs Guidepup's own NVDA, installed by `voicecap setup` (through `@guidepup/setup`), never the person's. The person's NVDA is stopped for a run and started again afterwards. NVDA updates don't reach Guidepup's copy; Guidepup's releases do.
+- **Guidepup** (`@guidepup/guidepup` 0.36.4 and `@guidepup/setup` 0.29.3, pinned): upgrade on a branch, as 0.20.1 did (`docs/phase-c-handoff.md`, "Guidepup 0.36.4"), and check at the PC with the owner's OK before a release: `doctor`, the demo, and a real run. Guidepup 0.36 changed how NVDA starts and quits.
+- **axe-core** (4.14.0, pinned): a new version can change what axe finds. Before a release, compare the old and new on the demo site and on every page of the current runs, as 0.22.1 did, and say in the CHANGELOG what changed. Reports already shared keep their results.
+- **Playwright** (1.63.0): its bundled Chromium runs the tests, not the audits. 1.64 (Chromium 156) is safe to merge now that 0.22.2's recordings decode whole in it.
+- **Node:** 22.19 or later (24 recommended), pnpm 10 (`packageManager` pins 10.33.4).
+- **Dependabot** opens pull requests weekly, for npm and for GitHub Actions. CI runs on each; the release script audits what ships (`pnpm audit --prod`). `vitest` and `vite` are development-only.
+
+## Releasing, if there's ever a fix to release
+
+`publish.sh` does it all, from `main`, once CI has passed there: `./publish.sh --dry-run patch`, then `./publish.sh patch`. It runs the checks (about 8 minutes), shows the commits since the last release, asks for the version to be typed, and asks for npm's 6-digit code just before it publishes (the owner's; it expires in about 30 seconds). It commits "Release vX.Y.Z", tags it, and pushes `main` and the tag. Afterwards, set the transcripts repository's `netlify.toml` to the new version (`npx --yes @icjia/voicecap@X.Y.Z site --home . --out _site`), commit, and push, under the owner's standing OK.
+
+## Loose ends, left open on purpose
+
+- **Never tried for real with Guidepup 0.36** (each needs a real run, with the owner's OK): a connection to NVDA that fails with an error, voicecap's process ending in the middle of a run, and a stop that fails (the adapter's "stop again, once" retry is tested only against a stand-in).
+- **Still to confirm on a real PC:** a Chrome window closed mid-page is recorded as `browser`; a real repeat with NVDA ends with each page's comparison.
+- **Plan 6d,** queued "eventually": an optional second reading of a page, compared with the first.
+- **The step caps** were raised to 1,500 / 500 / 1,000 on the strength of r3's 78-row table (655 read steps). A page that needs more is listed as "The reading stopped before the page's end": run it again with `--page` and `--max-steps`.
+- **i2i.illinois.gov** will serve i2i's v3; until a run of it is shared, docs.icjia.app's i2i section shows `v3--i2i.netlify.app`'s report (a section shows the report shared last).
+- **The Mac's live test on macOS 27 passes or fails by luck:** Guidepup restarts macOS's preferences daemon twice at start, and launchd holds it back for 10 seconds (`docs/phase-c-handoff.md`, "Guidepup 0.36.4", and `docs/guidepup-cfprefsd-issue-draft.md`, a draft issue the owner can file or drop). It only matters if a Mac version is ever built.
+- **The test folder on the PC,** `C:\guidepup test & more`: delete it after quitting VS Code, which keeps two of NVDA's files from it loaded.
+- **Merged branches on GitHub** (`plan-15-sites-json`, `readme-why-voicecap`, `guidepup-0.36`): deleting them is housekeeping, nothing more.
+
+## Where everything is
+
+- **Code:** github.com/ICJIA/voicecap (public, MIT; the git remote still says `cschweda/voicecap` and redirects). Releases on npm as `@icjia/voicecap`. CI: GitHub Actions, six jobs (Ubuntu, macOS, Windows; Node 22 and 24) plus a replay smoke test.
+- **Records:** the transcripts home (`$env:VOICECAP_TRANSCRIPTS` on the PC; `/Volumes/satechi/webdev/voicecap-transcripts` on the Mac), a clone of `ICJIA/voicecap-transcripts`, which Netlify builds into https://voicecap.icjia.app.
+- **docs.icjia.app:** `ICJIA/icjia-docs` (private), built by Netlify; its `build.js` reads voicecap's `sites.json`.
+- **The documents:** `README.md` (everything a person needs, including the technical details), `CHANGELOG.md` (every release), `docs/build-prompt.md` (the specification), `docs/plan.md`, `docs/superpowers/specs/` and `docs/superpowers/plans/` (each feature's design and plan), `docs/phase-b-handoff.md` and `docs/phase-c-handoff.md` (the history, with the owner's standing rules), `docs/windows-pc-checks.md`, and the two Guidepup issue drafts.

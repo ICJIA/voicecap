@@ -4,6 +4,11 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **voicecap's focus is the Windows PC, and it says so.** A ready Mac was told that audits with VoiceOver would come with voicecap's VoiceOver driver, in a later release. That driver isn't being built: voicecap runs its audits on Windows, with NVDA, and a Mac version may come later, if it's needed. The Mac's `setup`, `doctor`, and `init` still prepare and check a Mac, as groundwork, and their verdicts, `init`'s closing note, the demo's step 4, the Linux message, and the README now say where audits run and that a Mac version isn't planned for now.
+- **Long pages read to their end without a flag on the command.** Each pass's step cap, which stops a pass that never finds the page's end, is three to four times what it was: 1,500 steps for the read pass (was 400), 500 for headings (was 200), and 1,000 for Tab (was 300). A page such as a 78-row table, whose reading the old cap cut short at 400 lines and listed as a problem with the page, now reads to its end with no `--max-steps`. The 30-minute limit per page and the repeat limit still stop a page that never ends. Runs already recorded keep the caps they ran with.
+
 ### Fixed
 
 - **Recordings keep their first half millisecond in Chrome 156.** A recording's file says how much of its start a player must skip, which is the encoder's own delay, 6.5 ms. Chrome 156 rounds that to a whole millisecond before it skips, so where it decodes a recording, as the voice page's slower copies do, it cut the first half millisecond, too little to hear, and it refused a recording shorter than that altogether. The file now says 7 ms, a whole millisecond, with the difference added as silence before the sound, so every browser skips exactly what the file says. Recordings already shared keep their files.
