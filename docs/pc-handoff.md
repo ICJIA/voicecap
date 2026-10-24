@@ -1,6 +1,6 @@
-# PC handoff: after 0.22.0's release
+# PC handoff: after 0.22.1's release
 
-This file was brought up to date on the PC on 2026-10-24, after 0.22.0's release, for the next working session on the owner's Windows PC. Notes kept on one computer don't travel to the other, so everything the next session needs is here. `docs/phase-c-handoff.md` has the full history, under "Where things stand".
+This file was brought up to date on the PC on 2026-10-24, after 0.22.1's release, for the next working session on the owner's Windows PC. Notes kept on one computer don't travel to the other, so everything the next session needs is here. `docs/phase-c-handoff.md` has the full history, under "Where things stand".
 
 ## What the PC did from 2026-10-22 to 2026-10-24
 
@@ -14,6 +14,8 @@ This file was brought up to date on the PC on 2026-10-24, after 0.22.0's release
 - **sfs, dvfr, and i2i v3 were re-shared with 0.21.0** (transcripts 7a6ef15), so their pages link each card to its recording. They're live, all 19 files byte for byte.
 - **r3.illinois.gov was shared as entry 5, from run 2026-10-23_1204** (transcripts a865080). Its question was answered "all" for the owner, who had said to take it as heard. 24 of its 25 cards link to a recording: /contact/'s was lost when the /login flow took the foreground on its fourth try, so it says "Not recorded", as designed.
 - **0.22.0 was released on 2026-10-24** (tag `v0.22.0`), at the owner's word, with the owner's code relayed from the chat. The website lists the sites newest first, by when NVDA read each one, and each site's current report opens with two tiles: the day NVDA read the site, and a button to hear the recording (or "No recording" and why). The lock file also takes undici 8.12.3 for GHSA-xjj6-f33q-929c (the shipped shrinkwrap already had it). 7,902 tests passed; CI passed on all six jobs.
+- **The dependency updates were done on 2026-10-24,** at the owner's word: vitest 5.0.5 with vite 8.3.5 for the test tools' eight advisories (6b3bb76), then Dependabot's other updates as one change (9fb3b52: fast-xml-parser 5.11.2, jszip 3.10.2, and CI's checkout 7.0.1, pnpm setup 6.1.0, setup-node 7.1.0). No Dependabot PR is open, and `pnpm audit` finds nothing, development tools included.
+- **0.22.1 was released on 2026-10-24** (tag `v0.22.1`, release commit 73475d9), at the owner's word, with the owner's code relayed from the chat. It moves to axe-core 4.14.0, which runs label-content-name-mismatch (WCAG 2.5.3) with WCAG 2.1 A. Before it shipped, 4.13.0 and 4.14.0 were compared on the demo site and on every page of r3, sfs, and dvfr's newest runs (79 pages): the same on 78, and on sfs's /childhood-exposure 4.14.0 lists 7 footnote back-links ("↩", named "Back to reference 1" and so on) for a person to check. The README also gained "How voicecap is built, and what it means for testing with NVDA", near its top, for managers and auditors (the owner's ask).
 
 ## How to start
 
@@ -50,7 +52,7 @@ All of the owner's standing rules are in `docs/phase-c-handoff.md` ("Working rul
 
 ## Next, when the owner says
 
-- **axe-core 4.14.0 (Dependabot #5), as a patch release (0.22.1).** It fails only the two tests that check axe's version on purpose (`test/axe-results.test.ts`, `test/chrome-session.test.ts`); the demo site's findings look the same otherwise. Since axe makes each report's code checks, compare the demo results in full and read axe's rule changes before it ships. Done on 2026-10-24: vitest 5.0.5 with vite 8.3.5 for the test tools' eight advisories (6b3bb76), and Dependabot's other updates as one change (9fb3b52: fast-xml-parser 5.11.2, jszip 3.10.2, and CI's checkout 7.0.1, pnpm setup 6.1.0, setup-node 7.1.0); `pnpm audit` finds nothing, development tools included.
+- **Nothing is queued.** Re-share sfs with 0.22.1 only if the owner wants axe 4.14.0's results on its page; shares made before it keep 4.13.0's.
 
 ## Also at the PC, when the owner wants
 
