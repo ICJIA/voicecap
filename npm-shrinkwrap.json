@@ -1,22 +1,22 @@
 {
   "name": "@icjia/voicecap",
-  "version": "0.22.0",
+  "version": "0.22.1",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "@icjia/voicecap",
-      "version": "0.22.0",
+      "version": "0.22.1",
       "license": "MIT",
       "dependencies": {
         "@guidepup/guidepup": "0.36.4",
         "@guidepup/setup": "0.29.3",
-        "axe-core": "4.13.0",
+        "axe-core": "4.14.0",
         "commander": "15.0.0",
         "csv-parse": "7.0.3",
         "diff": "9.0.0",
         "docx": "9.8.1",
-        "fast-xml-parser": "5.11.1",
+        "fast-xml-parser": "5.11.2",
         "jiti": "2.7.0",
         "jsonc-parser": "3.3.1",
         "libopus-wasm": "0.4.1",
@@ -158,9 +158,9 @@
       "license": "MIT"
     },
     "node_modules/axe-core": {
-      "version": "4.13.0",
-      "resolved": "https://registry.npmjs.org/axe-core/-/axe-core-4.13.0.tgz",
-      "integrity": "sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A==",
+      "version": "4.14.0",
+      "resolved": "https://registry.npmjs.org/axe-core/-/axe-core-4.14.0.tgz",
+      "integrity": "sha512-9WTZxEjsZ7b13TH8JPmbV2z8CHbl80/2hm3XPEG4JgNdQLK81IBRXmSxHfMAOkSqQeRxT/0dwNDz2GOm3zzpcQ==",
       "license": "MPL-2.0",
       "engines": {
         "node": ">=4"
@@ -381,9 +381,9 @@
       }
     },
     "node_modules/fast-xml-parser": {
-      "version": "5.11.1",
-      "resolved": "https://registry.npmjs.org/fast-xml-parser/-/fast-xml-parser-5.11.1.tgz",
-      "integrity": "sha512-TBw6K/fxoQGGjCmZDw9w/ZwP3uDcnTM4YH/g+PFRWr8sbe5idXtxNN6vITh4+1ruCZaho6uBFurElsA7F0zzgw==",
+      "version": "5.11.2",
+      "resolved": "https://registry.npmjs.org/fast-xml-parser/-/fast-xml-parser-5.11.2.tgz",
+      "integrity": "sha512-R9iDuNrQYeQut46cn2r2wHKn4HYzVDvDm5J1wW+koZewykv0yuO2HChTYeZtrULyHIDM9cj9TUXloCsueCQUog==",
       "funding": [
         {
           "type": "github",
@@ -392,7 +392,7 @@
       ],
       "license": "MIT",
       "dependencies": {
-        "@nodable/entities": "^3.0.0",
+        "@nodable/entities": "^3.0.1",
         "fast-xml-builder": "^1.2.0",
         "is-unsafe": "^2.0.0",
         "path-expression-matcher": "^1.6.2",
