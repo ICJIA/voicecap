@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **Recordings keep their first half millisecond in Chrome 156.** A recording's file says how much of its start a player must skip, which is the encoder's own delay, 6.5 ms. Chrome 156 rounds that to a whole millisecond before it skips, so where it decodes a recording, as the voice page's slower copies do, it cut the first half millisecond, too little to hear, and it refused a recording shorter than that altogether. The file now says 7 ms, a whole millisecond, with the difference added as silence before the sound, so every browser skips exactly what the file says. Recordings already shared keep their files.
+
 ## [0.22.1] - 2026-10-24
 
 axe-core 4.14.0, which runs a rule more on each page, and a plain-language overview of how voicecap is built at the top of the README.

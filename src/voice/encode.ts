@@ -28,6 +28,8 @@ export const VOICE_FRAME_MS = 60;
 const FRAME_SAMPLES = (VOICE_SAMPLE_RATE * VOICE_FRAME_MS) / 1000;
 /** The rate Opus counts pre-skips in, whatever the rate it was given. */
 const OPUS_RATE = 48_000;
+/** Samples of the voice in a millisecond, the unit the pre-skip is rounded up to. */
+const SAMPLES_PER_MS = VOICE_SAMPLE_RATE / 1000;
 
 /** The largest sample, whichever way it points: 0 for silence, and 32,768 at most. */
 export function peakOf(pcm: Int16Array): number {
@@ -39,11 +41,18 @@ export function peakOf(pcm: Int16Array): number {
   return peak;
 }
 
-/** The frame at `from`: a view of the sound where it's whole, else a copy padded with zeros. */
+/**
+ * The frame at `from`, which may be before the sound's start: a view of the sound where the frame
+ * is all sound, else a copy of what the sound has there, with zeros before or after it.
+ */
 function frameAt(pcm: Int16Array, from: number): Int16Array {
-  if (from + FRAME_SAMPLES <= pcm.length) return pcm.subarray(from, from + FRAME_SAMPLES);
+  if (from >= 0 && from + FRAME_SAMPLES <= pcm.length) {
+    return pcm.subarray(from, from + FRAME_SAMPLES);
+  }
   const frame = new Int16Array(FRAME_SAMPLES);
-  frame.set(pcm.subarray(from));
+  const start = Math.max(from, 0);
+  const end = Math.min(from + FRAME_SAMPLES, pcm.length);
+  if (end > start) frame.set(pcm.subarray(start, end), start - from);
   return frame;
 }
 
@@ -60,9 +69,11 @@ function frameAt(pcm: Int16Array, from: number): Int16Array {
  *   now and then, and not what speech costs;
  * - frames of 60 ms.
  *
- * The sound is followed by silence, enough for the encoder's own delay (its lookahead, 6.5 ms) to
- * come out, and then enough to fill the last frame. The file says how much to skip at the start
- * (the pre-skip) and to discard at the end (DiscardPadding), so a player gives the sound alone.
+ * The sound is given silence before it, which makes the encoder's own delay (its lookahead, 6.5 ms)
+ * up to a whole millisecond, since Chromium 156 rounds a file's delay to one before it skips it;
+ * and silence after it, enough for the end of the sound to come out and then to fill the last
+ * frame. The file says how much to skip at the start (the pre-skip, 7 ms) and to discard at the
+ * end (DiscardPadding), so a player gives the sound alone.
  *
  * It takes about a hundredth of the recording's length, in one stretch with no pause for anything
  * else: a recording of 10 minutes holds the process up for around 6 s.
@@ -88,15 +99,18 @@ export async function encodeVoice(pcm: Int16Array): Promise<{ webm: Uint8Array; 
     frameSize: FRAME_SAMPLES,
   });
   try {
-    // A decoder gives the sound this many samples late, which the pre-skip drops. So the encoder is
-    // given that many samples of silence past the end of the sound, for the end of it to come out.
+    // A decoder gives the sound this many samples late, which the pre-skip drops. The pre-skip is
+    // that delay rounded up to a whole millisecond, and the encoder is given the difference as
+    // silence before the sound, and the delay as silence past its end, for the end of it to come out.
     const lookahead = encoder.getLookahead();
-    const frames = Math.ceil((pcm.length + lookahead) / FRAME_SAMPLES);
+    const delay = Math.ceil(lookahead / SAMPLES_PER_MS) * SAMPLES_PER_MS;
+    const lead = delay - lookahead;
+    const frames = Math.ceil((pcm.length + delay) / FRAME_SAMPLES);
     const packets: Uint8Array[] = [];
     for (let frame = 0; frame < frames; frame++) {
-      packets.push(encoder.encode(frameAt(pcm, frame * FRAME_SAMPLES)));
+      packets.push(encoder.encode(frameAt(pcm, frame * FRAME_SAMPLES - lead)));
     }
-    const preSkip = Math.round((lookahead * OPUS_RATE) / VOICE_SAMPLE_RATE);
+    const preSkip = (delay * OPUS_RATE) / VOICE_SAMPLE_RATE;
     return {
       webm: muxOpusWebm(packets, { preSkip, samples: pcm.length }),
       seconds: pcm.length / VOICE_SAMPLE_RATE,

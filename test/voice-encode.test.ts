@@ -130,15 +130,16 @@ describe("encodeVoice", () => {
     const track = childOf(file.tracks, "TrackEntry");
     expect(valueOf(track, "CodecID")).toBe("A_OPUS");
     expect(valueOf(childOf(track, "Audio"), "Channels")).toBe(1);
-    // libopus's lookahead is 104 samples at 16 kHz, 6.5 ms: 312 at the 48 kHz Opus counts in.
+    // libopus's lookahead is 104 samples at 16 kHz, 6.5 ms, and the pre-skip is the next whole
+    // millisecond, 112: 336 at the 48 kHz Opus counts in.
     const head = valueOf<Uint8Array>(track, "CodecPrivate");
     const view = new DataView(head.buffer, head.byteOffset, head.byteLength);
-    expect(view.getUint16(10, true)).toBe(312);
+    expect(view.getUint16(10, true)).toBe(336);
     expect(view.getUint32(12, true)).toBe(16_000);
-    expect(valueOf(track, "CodecDelay")).toBe(6_500_000);
+    expect(valueOf(track, "CodecDelay")).toBe(7_000_000);
 
-    // 2 s of sound, with the lookahead after it, in packets of 60 ms: 34 of them.
-    expect(file.blocks).toHaveLength(Math.ceil((pcm.length + 104) / 960));
+    // 2 s of sound, with the pre-skip's silence before and after it, in packets of 60 ms: 34.
+    expect(file.blocks).toHaveLength(Math.ceil((pcm.length + 112) / 960));
     expect(file.blocks).toHaveLength(34);
 
     // Every packet is one frame of 60 ms for one channel, and none is wider than wideband.
@@ -152,8 +153,23 @@ describe("encodeVoice", () => {
 
     // The last block carries the padding that fills out its packet, which isn't the sound's.
     expect(file.blocks.at(-1)?.discardPadding).toBe(
-      ((34 * 2880 - 312 - 3 * pcm.length) / 3) * 62_500,
+      ((34 * 2880 - 336 - 3 * pcm.length) / 3) * 62_500,
     );
+  });
+
+  // Chromium 156 rounds a track's CodecDelay to whole milliseconds before it skips it, so a file
+  // that declared libopus's 6.5 ms decoded 24 samples short there, and a file of one sample not at
+  // all. So the pre-skip is the delay rounded up to a whole millisecond, and the sound is given the
+  // difference as silence before it, for the file to say exactly what a browser will skip.
+  it("declares a pre-skip of a whole millisecond: the encoder's delay, rounded up", async () => {
+    const { webm } = await encodeVoice(busySound(0.1));
+    const track = childOf(readWebm(webm).tracks, "TrackEntry");
+    const head = valueOf<Uint8Array>(track, "CodecPrivate");
+    const preSkip = new DataView(head.buffer, head.byteOffset, head.byteLength).getUint16(10, true);
+    // 48 samples at 48 kHz are a millisecond: libopus's 312 become 336, 7 ms.
+    expect(preSkip % 48).toBe(0);
+    expect(preSkip).toBe(336);
+    expect(valueOf(track, "CodecDelay")).toBe(7_000_000);
   });
 
   it("gives the same bytes for the same PCM", async () => {
@@ -164,7 +180,8 @@ describe("encodeVoice", () => {
 
     // Pinned in three hashes, so that a change can be told from its cause:
     // - the sound's changes only if the test's own sound does (test/helpers/voice-signal.ts);
-    // - the packets' changes only if libopus-wasm's version or the encoder's settings do;
+    // - the packets' changes only if libopus-wasm's version, the encoder's settings, or the
+    //   silence the sound is led with do;
     // - the file's changes with the packets, and with the muxer's layout; so if it moves while the
     //   packets' hash holds, it is the muxer's doing.
     const packets = readWebm(first.webm).blocks.map((block) => block.packet);
@@ -172,10 +189,10 @@ describe("encodeVoice", () => {
       "218b75f9fcb667a75b42415bb9b664cde4317c49c9f6531d8d6e6f03b744b239",
     );
     expect(sha256(...packets)).toBe(
-      "85a74e6385e1ef82d1d9094d0b9a967ffb79624e8f532049d21a02aa170480dc",
+      "a679378b7f2c2c04e0f0fe3b67a07103a24d6c20b78556f2263e8d842a11c6ff",
     );
     expect(sha256(first.webm)).toBe(
-      "82cf7110edfd8e25d20dea56aa765de9f8606004258ddffe25b73d2db6bb96a4",
+      "46957838120339403942bd63404cc0d60357d9cea2a19405df28e249a4c081d9",
     );
   });
 
@@ -237,7 +254,7 @@ describe("encodeVoice", () => {
     const took = performance.now() - started;
     const after = process.memoryUsage();
     expect(seconds).toBe(180);
-    expect(readWebm(webm).blocks).toHaveLength(Math.ceil((pcm.length + 104) / 960));
+    expect(readWebm(webm).blocks).toHaveLength(Math.ceil((pcm.length + 112) / 960));
     expect(took).toBeLessThan(15_000);
     // What the call leaves behind: the heap, and the memory of the arrays (the WASM's too).
     expect(after.heapUsed - before.heapUsed).toBeLessThan(300 * MB);
@@ -263,8 +280,8 @@ describe("encodeVoice", () => {
       expect(trimmed).toHaveLength(pcm.length);
 
       // The shape of the sound is the same, and it comes no later or earlier than half a
-      // millisecond (8 samples). With no pre-skip it would be 6.5 ms late, and with one twice the
-      // size, 6.5 ms early.
+      // millisecond (8 samples). With no pre-skip it would be 7 ms late, and with one twice the
+      // size, 7 ms early.
       const lags = Array.from({ length: 33 }, (_, index) => index - 16);
       const best = lags.reduce((a, b) =>
         correlation(pcm, trimmed, b) > correlation(pcm, trimmed, a) ? b : a,

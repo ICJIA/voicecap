@@ -211,7 +211,7 @@ describe("a recording in Chromium", () => {
     const page = await open();
     const { samples } = await decoded(page, webm, true);
     // The sound at 48 kHz, each sample held for three. A decoder at 48 kHz puts SILK speech a few
-    // samples early, a third of a millisecond at most; with no pre-skip it would be 6.5 ms late.
+    // samples early, a third of a millisecond at most; with no pre-skip it would be 7 ms late.
     const sound = Array.from(pcm).flatMap((sample) => [sample, sample, sample]);
     const lags = Array.from({ length: 145 }, (_, index) => index - 72);
     const best = lags.reduce((a, b) =>
