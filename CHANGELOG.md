@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **The screenshot-size tests no longer fail on a slow runner.** A Chrome just started at a forced scale factor can take more than the screenshot's five-second limit to draw its first frame, as on Windows CI with Node 24. Those tests now give the capture one more try; the limit itself is unchanged.
+
 ## [0.22.2] - 2026-10-24
 
 Recordings decode whole in Chrome 156, long pages read to their end without a flag on the command, and voicecap says plainly that its audits run on Windows, with NVDA.

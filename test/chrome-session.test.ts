@@ -18,6 +18,7 @@ import {
   chromeArgs,
   ChromeSession,
   launchChrome,
+  LimitReachedError,
   resolveBrowser,
 } from "../src/drivers/guidepup/chrome.js";
 import type { AxeCapture } from "../src/drivers/types.js";
@@ -51,6 +52,20 @@ async function launch(extraArgs: string[] = []): Promise<ChromeSession> {
   });
   sessions.push(session);
   return session;
+}
+
+/**
+ * A screenshot, given one more try when the first runs past the session's five-second limit. A
+ * Chrome just started at a forced scale factor can take that long to draw its first frame on a slow
+ * runner (Windows CI has); the second capture measures the same thing.
+ */
+async function screenshotOf(session: ChromeSession): Promise<Uint8Array> {
+  try {
+    return await session.screenshot();
+  } catch (error) {
+    if (!(error instanceof LimitReachedError)) throw error;
+    return session.screenshot();
+  }
 }
 
 /**
@@ -246,7 +261,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     it("takes a screenshot at half the page's size", async () => {
       const session = await launch();
       await session.load(server.url, 15_000);
-      expectHalf(await session.screenshot(), await viewportOf(session));
+      expectHalf(await screenshotOf(session), await viewportOf(session));
     });
 
     // A page taller than the window is shown as far as the window shows it, not whole.
@@ -256,7 +271,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
       await session.load(`data:text/html,${encodeURIComponent(tall)}`, 15_000);
       const viewport = await viewportOf(session);
       expect(viewport.height).toBeLessThan(3000);
-      expectHalf(await session.screenshot(), viewport);
+      expectHalf(await screenshotOf(session), viewport);
     });
 
     // Colors say which part of the page it is: a red band, then a blue one, then a green one.
@@ -289,7 +304,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
       const session = await launch(["--force-device-scale-factor=2"]);
       await session.load(server.url, 15_000);
       expect(await session["page"].evaluate(() => window.devicePixelRatio)).toBe(2);
-      expectHalf(await session.screenshot(), await viewportOf(session));
+      expectHalf(await screenshotOf(session), await viewportOf(session));
     });
 
     // A page's own script can say anything of its pixel ratio. The screenshot's size never follows
@@ -307,7 +322,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
             });
           }, said);
           expect(await session["page"].evaluate(() => window.devicePixelRatio)).toBe(said);
-          expectHalf(await session.screenshot(), viewport);
+          expectHalf(await screenshotOf(session), viewport);
         }
       }
     });
