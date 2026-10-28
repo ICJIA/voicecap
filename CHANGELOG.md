@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-10-28
+
+Each site on the website stands apart in a card of its own color, which leads with the result and then big tiles to look closer.
+
 ### Changed
 
 - **Each site on the website stands apart, and its card leads with what a manager needs.** 0.23.0's site cards were the page's own colors, so the sites still ran together. Each site is now a card of its own color (a slate blue in the dark theme, a pale teal in the light), with a thick colored edge, a shadow, a colored band with the site's name, and room before the next site. Inside, what's most important comes first and biggest: the result (its verdict, how many pages NVDA read, and the day it read them); then three big tiles, each with a picture, to look closer: "See all 25 pages" (each page's screenshot and what NVDA said), "Hear NVDA" (the audio transcripts), and "Read the report"; then the Word copy, a button with a picture; and, after a line, quieter, the earlier reports and the files. The tiles take the place of 0.23.0's "Open the report", "See every page", and "Hear the audio transcripts" buttons.
@@ -853,7 +857,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.23.1...HEAD
+[0.23.1]: https://github.com/ICJIA/voicecap/compare/v0.23.0...v0.23.1
 [0.23.0]: https://github.com/ICJIA/voicecap/compare/v0.22.2...v0.23.0
 [0.22.2]: https://github.com/ICJIA/voicecap/compare/v0.22.1...v0.22.2
 [0.22.1]: https://github.com/ICJIA/voicecap/compare/v0.22.0...v0.22.1
