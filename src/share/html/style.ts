@@ -431,7 +431,7 @@ table.difftable tr.del mark { background: color-mix(in srgb, var(--bad) 35%, tra
  *   name holds its page's address, which can be long enough to hold the table 500 pixels wide at
  *   320. The shareable page's own list isn't changed.
  */
-export const VOICE_CSS = `/* the voice page: a page's player, its speed choice, and what is said of its file */
+export const VOICE_CSS = `/* the voice page: a page's player, its speed choice, and what is said of its file, beside its transcripts */
 .card audio { display: block; width: 100%; min-width: 0; }
 .card audio:focus-visible, .speeds input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 .speeds { border: 0; margin: 0; padding: 0; min-width: 0; }
@@ -442,6 +442,20 @@ export const VOICE_CSS = `/* the voice page: a page's player, its speed choice, 
 .speeds .speed-status { margin: 4px 0 0; min-height: 1.25em; line-height: 1.25; font-size: 0.82rem; color: var(--muted); }
 .voice-facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 0.82rem; color: var(--muted); }
 .voice-facts code { color: var(--fg); }
+/* each page's section, the width of the page: what it plays (its screenshot, small, cut to its top, then its player and speeds) beside what it says (its transcripts, word for word, in a box that scrolls on its own, so the player stays in view), side by side from 52em, and one over the other on a phone */
+.cards.voice-cards { grid-template-columns: minmax(0, 1fr); }
+.follow-along { display: grid; gap: 16px; align-items: start; }
+@media (min-width: 52em) { .follow-along { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); } }
+.listen-side, .follow-side { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.voice-card .listen-side img { display: block; width: 100%; height: auto; max-height: 15rem; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: 8px; }
+.follow-title { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.follow { max-height: 26rem; overflow: auto; display: grid; gap: 12px; align-content: start; padding: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.follow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.follow .tx pre { border: 0; padding: 0; background: none; }
+/* the line NVDA is saying, as the recording plays: outlined in yellow, on a yellow tint, in both themes */
+.ln.now { background: rgb(250 204 21 / 0.24); outline: 2px solid #facc15; border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+:root[data-theme="light"] .ln.now { background: #fef08a; outline-color: #ca8a04; }
+@media print { .follow { max-height: none; overflow: visible; } }
 /* the check's list of every file checked: a recording's name holds its page's address, which can be long, so its file cells wrap (the shareable page's list is its own) */
 #fp-list table.plain td:first-child { overflow-wrap: anywhere; }
 `;

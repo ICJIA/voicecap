@@ -54,7 +54,7 @@ import { rawAxe, rawNode, rawRule } from "./helpers/raw-axe.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
 import { i2iModel, linkModel } from "./helpers/share-attention.js";
-import { failedAttempt, shareRun } from "./helpers/share-data.js";
+import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
 import {
   DEMO_SITE,
@@ -63,6 +63,7 @@ import {
   LINES,
   loggedModel,
   manyPages,
+  realTranscripts,
   recordedVoice,
   recordingsOf,
   storeOf,
@@ -2993,6 +2994,13 @@ describe("the voice page", () => {
   const SPEEDS = [1, 0.75, 0.5, 0.3];
 
   /**
+   * A page with transcripts, given their real fingerprints: the voice page shows them beside each
+   * recording, and its check holds them to its run's record.
+   */
+  const withRealTranscripts = (page: SharePageSpec): SharePageSpec =>
+    page.files === undefined ? page : { ...page, fileHashes: realTranscripts(page.path) };
+
+  /**
    * The page's file, as it would be if it started at 1× (see startingAtOne), the page as voicecap
    * writes it (`written`), and the slug of each of its pages in order.
    */
@@ -3021,17 +3029,19 @@ describe("the voice page", () => {
       id: "2026-09-29_1402",
       createdAt: "2026-09-29T14:02:51-05:00",
       voicecapVersion: "0.18.0",
-      pages: [
-        { path: "/", label: "Home", ...read, voice: speech.record },
-        { path: "/about/", ...read, voice: busy.record },
-        {
-          path: "/apply/",
-          ...read,
-          voice: { error: `the recorder said ${"y".repeat(240)}`, recordedAt: VOICE_RECORDED_AT },
-        },
-        { path: LONG_PATH, ...read, voice: long.record },
-        { path: "/report.pdf", status: "skipped" },
-      ],
+      pages: (
+        [
+          { path: "/", label: "Home", ...read, voice: speech.record },
+          { path: "/about/", ...read, voice: busy.record },
+          {
+            path: "/apply/",
+            ...read,
+            voice: { error: `the recorder said ${"y".repeat(240)}`, recordedAt: VOICE_RECORDED_AT },
+          },
+          { path: LONG_PATH, ...read, voice: long.record },
+          { path: "/report.pdf", status: "skipped" },
+        ] as SharePageSpec[]
+      ).map(withRealTranscripts),
     });
     // A site named by its canonical address, with a long name set for it: the longest top.
     const model = buildShareModel(
@@ -3205,7 +3215,7 @@ describe("the voice page", () => {
         path: `/page-${at + 1}/`,
         ...read,
         voice: about,
-      })),
+      })).map(withRealTranscripts),
     });
     const model = buildShareModel(inputOf([run], { transcripts: storeOf(), canonical: CANONICAL }));
     const html = renderVoicePage(model, recordingsOf([run]), { fontCss: "" });
@@ -3381,7 +3391,9 @@ describe("the voice page", () => {
           .evaluateAll((all) => all.map((one) => one.getAttribute("value"))),
       ).toEqual(SPEEDS.map(String));
     }
-    expect(await page.locator("p.not-recorded").allTextContents()).toEqual([
+    // (The fixture's pages have no screenshots: each section says so, as the shareable page's card
+    // does, in its group; the reasons for no recording are the others.)
+    expect(await page.locator(".listen-side > p.not-recorded").allTextContents()).toEqual([
       `Not recorded: the recorder said ${"y".repeat(240)}.`,
       "Not recorded: no recording was made, since the page wasn't read.",
     ]);
@@ -3391,37 +3403,22 @@ describe("the voice page", () => {
     expect(await page.getByLabel("NVDA's voice on /about/").count()).toBe(1);
   });
 
-  // WCAG 2.5.3, Label in Name, as the browser works a name out (text that is only visually hidden is
-  // in it, and Chromium sets it apart from the words before it with a space): each link to a page's
-  // transcripts begins with the words it shows, whole, and goes on to its page, so no two links are
-  // alike.
-  it("names each link to a page's transcripts by the words it shows, whole and first, and then by its page", async () => {
+  // The transcripts beside each recording are in a box that scrolls on its own: a region a screen
+  // reader can find by its page's name, and a keyboard can reach and scroll.
+  it("names each page's box of transcripts for its page, and the keyboard reaches it", async () => {
     const page = await open(voice.file);
-    const shown = "The full transcript, on the shareable page";
-    const links = page.locator("article.card p.sub a[href*='#tx-']");
 
     // The four pages read in full each have one; the file the run skipped has none.
-    expect(await links.count()).toBe(4);
-    for (const link of await links.all()) {
-      // What the eye reads is the link's own text, not what is there for a screen reader alone.
-      expect(
-        await link.evaluate((anchor) =>
-          [...anchor.childNodes]
-            .filter((node) => node.nodeType === Node.TEXT_NODE)
-            .map((node) => node.textContent)
-            .join(""),
-        ),
-      ).toBe(shown);
-    }
-    // Every name begins with those words; the name of each ends with its own page.
-    expect(await page.getByRole("link", { name: new RegExp(`^${shown}\\s*:`) }).count()).toBe(4);
+    expect(await page.locator(".follow").count()).toBe(4);
     for (const path of ["/", "/about/", "/apply/", LONG_PATH]) {
-      const ending = path.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
-      expect(
-        await page.getByRole("link", { name: new RegExp(`^${shown}\\s*:\\s*${ending}$`) }).count(),
-        path,
-      ).toBe(1);
+      const box = page.getByRole("region", { name: `What NVDA said on ${path}`, exact: true });
+      expect(await box.count(), path).toBe(1);
+      expect(await box.getAttribute("tabindex"), path).toBe("0");
+      // Each holds the page's three transcripts, word for word.
+      expect(await box.locator("section.tx pre").count(), path).toBe(3);
     }
+    // No link on the page takes a reader to the shareable page's transcripts.
+    expect(await page.locator("a[href*='#tx-']").count()).toBe(0);
   });
 
   it("makes a slowed copy and shows it in a second player in the first one's place", async () => {
@@ -3647,6 +3644,93 @@ describe("the voice page", () => {
   // Review Focus 5: the place in the speech is the same across speeds. A recording is as long as it
   // is, and a copy 1 ÷ its speed times as long, so the place is the time in the player in view
   // times its speed, and the time in the player shown is the place ÷ its speed.
+  // The transcripts beside each recording, and the line NVDA is saying outlined as it plays: a page
+  // whose recording keeps a stretch for each pass (each begins with 3500 ms of the window's check,
+  // then the pass, whose lines take 1200 ms each), so its lines say when they were spoken. Where the
+  // player is is set on it as a stand-in (`currentTime`), and the page told it moved, so nothing
+  // plays.
+  it("outlines the line the recording is at, at 1× and in a slowed copy, and adds no words to the transcripts", async () => {
+    const speech = kept.get(voice.slugs[0] ?? "");
+    if (speech === undefined) throw new Error("No recording of /.");
+    const stretches = [
+      { startMs: 100, endMs: 100 + 3500 + 4 * 1200 },
+      { startMs: 9000, endMs: 9000 + 3500 + 2 * 1200 },
+      { startMs: 15500, endMs: 15500 + 3500 + 2 * 1200 },
+    ];
+    const run = shareRun({
+      id: "2026-09-29_1402",
+      createdAt: "2026-09-29T14:02:51-05:00",
+      voicecapVersion: "0.18.0",
+      pages: [
+        { path: "/", files: TRANSCRIPTS, passes: LINES, voice: { ...speech, stretches } },
+      ].map(withRealTranscripts),
+    });
+    const model = buildShareModel(inputOf([run], { transcripts: storeOf(), canonical: CANONICAL }));
+    const html = renderVoicePage(model, recordingsOf([run]), { fontCss: "" });
+    if (html === null) throw new Error("The voice page wasn't made.");
+    const folder = await mkdtemp(path.join(tmpdir(), "voicecap-share-voice-"));
+    folders.push(folder);
+    const file = path.join(folder, "voice.html");
+    await writeFile(file, startingAtOne(html));
+    const page = await open(file);
+    const card = sections(page).first();
+    /** Puts the player in view at `seconds`, as a stand-in, and tells the page it moved. */
+    const at = (seconds: number) =>
+      card.evaluate((article, wanted) => {
+        const sound = [...article.querySelectorAll("audio")].find((each) => !each.hidden);
+        if (sound === undefined) throw new Error("No player in view.");
+        Object.defineProperty(sound, "currentTime", { configurable: true, get: () => wanted });
+        sound.dispatchEvent(new Event("timeupdate"));
+      }, seconds);
+    const outlined = () => card.locator(".ln.now").allTextContents();
+
+    expect(await card.locator(".follow-side").isVisible()).toBe(true);
+    expect(await outlined()).toEqual([]);
+    // In the window's check, before the first line: none.
+    await at(2);
+    expect(await outlined()).toEqual([]);
+    // 5 s is the read pass's second line (4800 to 6000 ms); 13 s the headings' first (12500 to 13700).
+    await at(5);
+    expect(await outlined()).toEqual([LINES.read[1]]);
+    await at(13);
+    expect(await outlined()).toEqual([LINES.headings[0]]);
+    // Between the passes: none.
+    await at(10);
+    expect(await outlined()).toEqual([]);
+    // Yellow, in both themes, and on the tint behind its words.
+    await at(20.5);
+    expect(await outlined()).toEqual([LINES.tab[1]]);
+    const style = await card
+      .locator(".ln.now")
+      .evaluate((line) => [
+        getComputedStyle(line).outlineColor,
+        getComputedStyle(line).outlineStyle,
+      ]);
+    expect(style).toEqual(["rgb(250, 204, 21)", "solid"]);
+    // In a copy at 0.5×, the place in the speech is its time times its speed: 10 s of it is 5 s.
+    await card.getByRole("radio", { name: "0.5×" }).check();
+    await copyShown(page, 0, 0.5, speech.seconds);
+    await at(10);
+    expect(await outlined()).toEqual([LINES.read[1]]);
+    // The outline adds no words: each transcript's text is its file's lines, as the check's data has
+    // them, which is what the check reads (it reads each <pre>'s text).
+    const data = JSON.parse((await page.locator("#fp-data").textContent()) ?? "{}") as {
+      files: { name: string; text: string }[];
+    };
+    const shown = await card.locator("section.tx").evaluateAll((all) =>
+      all.map((tx) => ({
+        name: tx.getAttribute("data-file"),
+        text: tx.querySelector("pre")?.textContent,
+      })),
+    );
+    // The page shows each file's lines, under its header, which the data keeps whole.
+    expect(shown.map(({ name }) => name)).toEqual(data.files.map(({ name }) => name));
+    for (const [index, { text }] of shown.entries()) {
+      expect(text?.length, String(index)).toBeGreaterThan(0);
+      expect(data.files[index]?.text.endsWith(`\n\n${text ?? ""}\n`), String(index)).toBe(true);
+    }
+  });
+
   it("keeps the place in the speech across speeds", async () => {
     const page = await open(voice.file);
     const group = page.locator("fieldset.speeds").first();
@@ -4314,17 +4398,25 @@ describe("the voice page", () => {
       .poll(() => result(page), { timeout: 10_000 })
       .toBe(
         "Checked just now, in this browser. " +
+          "12 of 12 transcripts match their fingerprints, and " +
           "3 of 3 recordings match their fingerprints, and the run's seal checks out.",
       );
     expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result good");
-    expect(await page.locator("#fp-count").textContent()).toBe("4 checked, 0 not matching");
+    expect(await page.locator("#fp-count").textContent()).toBe("16 checked, 0 not matching");
+    // Each transcript shown beside a recording (three passes of four pages), each recording, and
+    // the run's seal.
     const rows = await page.locator("#fp-rows tr td:first-child").allTextContents();
-    expect(rows).toEqual([
-      "Run 1402 · / · voice.webm",
-      "Run 1402 · /about/ · voice.webm",
-      `Run 1402 · ${LONG_PATH} · voice.webm`,
-      "Run 1402 · its record's seal",
-    ]);
+    expect(rows).toHaveLength(16);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        "Run 1402 · / · read.txt",
+        `Run 1402 · ${LONG_PATH} · tab.txt`,
+        "Run 1402 · / · voice.webm",
+        "Run 1402 · /about/ · voice.webm",
+        `Run 1402 · ${LONG_PATH} · voice.webm`,
+        "Run 1402 · its record's seal",
+      ]),
+    );
 
     // One byte of /about/'s recording changed in the page, as someone could change it: the check
     // that passed now names it.
@@ -4348,13 +4440,14 @@ describe("the voice page", () => {
       .toBe(
         "Checked just now, in this browser. " +
           "Run 1402 · /about/ · voice.webm doesn't match its fingerprint. " +
+          "12 of 12 transcripts match their fingerprints, and " +
           "2 of 3 recordings match their fingerprints, and the run's seal checks out.",
       );
     expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
-    expect(await page.locator("#fp-count").textContent()).toBe("4 checked, 1 not matching");
+    expect(await page.locator("#fp-count").textContent()).toBe("16 checked, 1 not matching");
   });
 
-  it("shows a change being caught in a recording, in memory only", async () => {
+  it("shows a change being caught in a transcript and a recording, in memory only", async () => {
     const page = await open(voice.file);
     const before = await page.locator("#fp-data").textContent();
     const sources = () =>
@@ -4365,9 +4458,12 @@ describe("the voice page", () => {
     await expect
       .poll(() => result(page), { timeout: 10_000 })
       .toBe(
-        "Demonstration, on a copy with one byte changed (the first byte of Run 1402 · / · voice.webm); " +
+        "Demonstration, on a copy with one character changed (the first character of Run 1402 · / · read.txt, “#” to “$”), " +
+          "and one byte changed (the first byte of Run 1402 · / · voice.webm); " +
           "the page itself is unchanged. " +
+          "Run 1402 · / · read.txt doesn't match its fingerprint. " +
           "Run 1402 · / · voice.webm doesn't match its fingerprint. " +
+          "11 of 12 transcripts match their fingerprints, and " +
           "2 of 3 recordings match their fingerprints, and the run's seal checks out.",
       );
     expect(await page.locator("#fp-data").textContent()).toBe(before);
@@ -4424,7 +4520,7 @@ describe("the voice page", () => {
           .locator("#fp-list tbody td:first-child")
           .evaluateAll((cells) => cells.map((cell) => getComputedStyle(cell).overflowWrap)),
         "the list open, its file cells",
-      ).toEqual(Array.from({ length: 4 }, () => "anywhere"));
+      ).toEqual(Array.from({ length: 16 }, () => "anywhere"));
       expect(await axeFindings(page, width), "light, the list open").toEqual([]);
       expect(await overflowOf(page), "light, the list open").toEqual(fits);
       await page.locator("#theme-toggle").click();
@@ -4587,8 +4683,10 @@ describe("the voice page", () => {
     }
     expect(await page.locator(".fp-noscript").isVisible()).toBe(true);
     // The rest of the page is there to read: each page's section, and why a page has no player.
+    // The transcripts beside each recording are there too, as they're plain markup.
     expect(await page.locator("article.card").count()).toBe(5);
-    expect(await page.locator("p.not-recorded").count()).toBe(2);
+    expect(await page.locator(".listen-side > p.not-recorded").count()).toBe(2);
+    expect(await page.locator(".follow section.tx pre").count()).toBe(12);
   });
 
   it("loads nothing from outside the file", async () => {

@@ -1938,31 +1938,24 @@ describe("shareReport, with a recording of NVDA's voice on each page", () => {
     expect(page).not.toMatch(/data:audio\/webm;base64,[A-Za-z0-9+/]/);
   });
 
-  it("has the voice page link to the transcripts of the shareable page the share wrote beside it, at the folds that page has", async () => {
+  it("has the voice page show each page's transcripts beside its recording, and link only its footer to the shareable page the share wrote beside it", async () => {
     const { run, options } = await homeWithVoice();
 
     const { files } = await shareReport(options);
-    const sharePage = await readFile(files[0]!.path, "utf8");
     const voicePage = await readFile(files[2]!.path, "utf8");
 
-    // The folds of the written page, by id: where an address to a page's transcripts leads.
-    const folds = [...sharePage.matchAll(/<details class="fold tx-page" id="([^"]*)"/g)].map(
-      ([, id = ""]) => id,
-    );
-    expect(folds).toEqual(run.run.pages.map(({ slug }) => `tx-${slug}`));
-    // Each section's link, and the footer's, are to that file by name, in the same folder.
+    // Each page read in full has its transcripts beside its recording, one for each pass.
+    const shown = [
+      ...voicePage.matchAll(/<section class="tx" data-run="[^"]*" data-slug="([^"]*)"/g),
+    ].map(([, slug = ""]) => slug);
+    expect([...new Set(shown)]).toEqual(run.run.pages.map(({ slug }) => slug));
+    // The footer's link is to that file by name, in the same folder; nothing else leaves the page.
     const away = [...voicePage.matchAll(/<a href="([^"#]*)(#[^"]*)?"/g)]
       .map(([, file = "", fragment = ""]) => ({ file, fragment }))
       .filter(({ file }) => !file.startsWith("https://"));
-    expect(away).toHaveLength(run.run.pages.length + 1);
-    for (const { file } of away) expect(file).toBe(files[0]!.name);
-    expect(away.map(({ fragment }) => fragment).filter((fragment) => fragment !== "")).toEqual(
-      folds.map((id) => `#${id}`),
-    );
+    expect(away).toEqual([{ file: files[0]!.name, fragment: "" }]);
     // Beside it: the same folder, so the relative name is where the file is.
     expect(path.dirname(files[0]!.path)).toBe(path.dirname(files[2]!.path));
-    // And each fold is where the page's script finds it: an element with that id, once.
-    for (const id of folds) expect(sharePage.split(`id="${id}"`)).toHaveLength(2);
   });
 
   it("leaves a home that verify finds whole: the voice page is recorded, as it was written, and each recording is as its run sealed it", async () => {

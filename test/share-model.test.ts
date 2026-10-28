@@ -1978,11 +1978,21 @@ describe("buildShareModel", () => {
           lines: lines.length,
           bytes: recorded[name]?.bytes,
           sha256: recorded[name]?.sha256,
+          // When each line was spoken, from its pass's JSON: a step's span ends at its offset.
+          timing: (
+            JSON.parse(demoFile("1402", HOME, name.replace(".txt", ".json"))) as {
+              steps: { offsetMs: number; durationMs: number }[];
+            }
+          ).steps.map(({ offsetMs, durationMs }) => ({
+            fromMs: offsetMs - durationMs,
+            toMs: offsetMs,
+          })),
         };
       }),
       unreadable: [],
     });
     expect(appendix[0]?.files.map((file) => file.lines)).toEqual([18, 3, 9]);
+    expect(appendix[0]?.files.map((file) => file.timing?.length)).toEqual([18, 3, 9]);
   });
 
   it("says which transcripts it couldn't read", async () => {

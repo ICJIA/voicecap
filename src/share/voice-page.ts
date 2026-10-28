@@ -48,9 +48,16 @@
  * `style` attribute is set, and the only links are to the page's own parts, to the shareable page
  * beside it, and to voicecap's page. Nothing is loaded from outside it, and nothing plays by itself.
  */
-import { VOICE_FILE, type PageRecord, type RunJson, type VoiceRecord } from "../model.js";
+import {
+  PASS_NAMES,
+  VOICE_FILE,
+  type PageRecord,
+  type PassName,
+  type RunJson,
+  type VoiceRecord,
+} from "../model.js";
 import { esc, idFragment } from "../report/html.js";
-import { transcriptAnchor, voiceAnchor } from "./anchors.js";
+import { voiceAnchor } from "./anchors.js";
 import { CHECK_SCRIPT, checkDataJson, type CheckData } from "./check.js";
 import { longDate } from "./format.js";
 import { SHARE_SCRIPT } from "./html/client.js";
@@ -61,11 +68,11 @@ import {
   EXACT_COPIES,
   NO_SCRIPT,
 } from "./html/evidence.js";
-import { heading } from "./html/pages.js";
+import { heading, screenshotOf, transcriptSections } from "./html/pages.js";
 import { lineHtml, notRecorded } from "./html/parts.js";
 import { SHARE_CSS, VOICE_CSS } from "./html/style.js";
 import { firstSentenceBold } from "./line.js";
-import type { PageCard, ShareModel } from "./model.js";
+import type { AppendixFile, PageCard, ShareModel } from "./model.js";
 import { voiceRecordOf } from "./records.js";
 import {
   driverRecordsVoice,
@@ -269,41 +276,89 @@ function facts(record: KeptVoice): string {
 }
 
 /**
- * A section's link to its page's full transcript on the shareable page beside this one, in a
- * paragraph of its own as the shareable page's line on a recording is: the text of what the
- * recording says. It's relative, by the shareable page's name (`page`), at the id of the fold that
- * holds the transcript, which the page's script opens. A page with no fold there (no run read it in
- * full) has no transcript and no link. The words the link shows are whole and first in its name, and
- * its page's follow them for a screen reader alone, in the page's visually hidden class (`sr`), so
- * that the name holds the label (WCAG 2.5.3) and no two links read alike.
+ * Where in a page's recording each of its passes began, in ms, by pass. The recording keeps one
+ * stretch for each pass the run's record of the page has, in the passes' order (see VoiceStretch in
+ * ../model.ts); a stretch begins with the check of the window, before the pass's first key, and ends
+ * as the pass ends, so the pass began at its stretch's end less its length, its last line's end (see
+ * AppendixFile's `timing`). Nothing for a pass whose stretch or length isn't known, or whose start
+ * would fall before its stretch's, and nothing at all when the passes and the stretches aren't as
+ * many, so no line is ever outlined at another's time.
  */
-function transcriptLink(card: PageCard, page: string, folds: ReadonlySet<string>): string {
-  if (!folds.has(card.slug)) return "";
-  const { transcript } = VOICE_TEXT;
-  const words = `${esc(transcript.link)}<span class="sr">${esc(transcript.of(card.path))}</span>`;
-  return `<p class="sub"><a href="${esc(page)}#${esc(transcriptAnchor(card.slug))}">${words}</a></p>`;
+function passStarts(
+  page: PageRecord,
+  record: KeptVoice,
+  files: readonly AppendixFile[],
+): Map<PassName, number> {
+  const starts = new Map<PassName, number>();
+  const passes = PASS_NAMES.filter((pass) => page.passes[pass] !== undefined);
+  const stretches = Array.isArray(record.stretches) ? record.stretches : [];
+  if (passes.length !== stretches.length) return starts;
+  passes.forEach((pass, index) => {
+    const stretch = stretches[index];
+    const length = files.find((file) => file.pass === pass)?.timing?.at(-1)?.toMs;
+    if (stretch === undefined || length === undefined) return;
+    if (!isNumber(stretch.startMs) || !isNumber(stretch.endMs)) return;
+    const start = stretch.endMs - length;
+    if (start >= stretch.startMs) starts.set(pass, start);
+  });
+  return starts;
 }
 
 /**
- * A page's section: its card, as the shareable page's cards are, with a player or the reason, and,
- * last, its link to the page's transcripts.
+ * A page's transcripts beside its recording, word for word, so a person can read along as it plays
+ * without leaving the page: under the panel's title, in a box that scrolls on its own, named for its
+ * page, with a transcript for each pass (see transcriptSections). When the recording is of the run
+ * the transcripts are from, each line of a pass whose start in it is known (see passStarts) carries
+ * when it was spoken, which the page's script outlines as it plays, and a line under the box says so.
+ */
+function followAlong(card: PageCard, entry: ShareModel["appendix"][number], voice: Voice): string {
+  const { follow } = VOICE_TEXT;
+  const starts =
+    "why" in voice
+      ? new Map<PassName, number>()
+      : passStarts(voice.source.page, voice.record, entry.files);
+  const ofRecording = (file: AppendixFile): boolean =>
+    !("why" in voice) && file.run === voice.source.run.id && file.slug === voice.source.page.slug;
+  const startOf = (file: AppendixFile): number | null =>
+    ofRecording(file) ? (starts.get(file.pass) ?? null) : null;
+  const timed = entry.files.some((file) => startOf(file) !== null && file.timing !== undefined);
+  return [
+    `<div class="follow-side">`,
+    `<p class="follow-title">${esc(follow.title)}</p>`,
+    `<div class="follow" tabindex="0" role="region" aria-label="${esc(follow.region(card.path))}">${transcriptSections(card, entry, false, startOf)}</div>`,
+    ...(timed ? [`<p class="sub follow-note">${esc(follow.outlined)}</p>`] : []),
+    `</div>`,
+  ].join("");
+}
+
+/**
+ * A page's section: its heading, and where its recording is from when that isn't the latest run;
+ * then, side by side where there's room and one over the other on a phone, what it plays (its
+ * screenshot, small, as the shareable page's card has it, and its player, its speed choice, and what
+ * is said of its file, or the reason it has no player) and what it says (its transcripts, to read
+ * along, when it has any: see followAlong).
  */
 function sectionOf(
   { card, number, source, voice }: Section,
   latest: RunJson | null,
-  link: { page: string; folds: ReadonlySet<string> },
+  entry: ShareModel["appendix"][number] | undefined,
 ): string {
+  const { picture, missing } = screenshotOf(card.screenshot, card.slug);
   const body =
     "why" in voice
       ? [notRecorded(voice.why)]
       : [player(card, voice.source.page, voice.bytes), speeds(card), facts(voice.record)];
+  const listen = [picture, missing, ...body].filter((part) => part !== "").join("\n      ");
+  const sides = [
+    `<div class="listen-side">\n      ${listen}\n    </div>`,
+    ...(entry === undefined ? [] : [followAlong(card, entry, voice)]),
+  ];
   const parts = [
     heading(card, number),
     originLine(source, latest),
-    ...body,
-    transcriptLink(card, link.page, link.folds),
+    `<div class="follow-along">\n    ${sides.join("\n    ")}\n    </div>`,
   ];
-  return `<article class="card" id="${voiceAnchor(card.slug)}">\n  <div class="card-body">\n    ${parts.filter((part) => part !== "").join("\n    ")}\n  </div>\n</article>`;
+  return `<article class="card voice-card" id="${voiceAnchor(card.slug)}">\n  <div class="card-body">\n    ${parts.filter((part) => part !== "").join("\n    ")}\n  </div>\n</article>`;
 }
 
 /**
@@ -443,6 +498,13 @@ function footer(model: ShareModel): string {
  *   in view at the speed chosen the browser's own way, playing it starts the copy at that speed,
  *   as choosing the speed does, and the copy takes its place, playing on from the same place in
  *   the speech, when it's ready. The choice shows that speed throughout.
+ * - The line NVDA is saying is outlined as the recording plays: each line of a section's
+ *   transcripts that says when it was spoken (`data-from` and `data-to`, in ms of the recording; see
+ *   transcriptOf in ./html/pages.ts) is outlined (class `now`) while the place in the speech (the
+ *   player in view's `currentTime` times its speed, as above) is in its span, at any speed and in
+ *   either player, and none is between the lines' spans. A line outlined that isn't in view in the
+ *   box its transcripts scroll in is scrolled to a third of the way down it; the page itself never
+ *   scrolls. Nothing of the text changes, so the fingerprint check reads it as it was.
  * - Each choice starts hidden, since it does nothing without this script, and the script shows it;
  *   a page whose markup isn't there is left alone, and the script uses nothing of the window until
  *   a choice is made.
@@ -540,6 +602,29 @@ function wire(group) {
   // number of the choice whose copy was last begun (none yet).
   var copy = null, kept = {}, shown = 1, chosen = 1, job = 0, fallen = false, making = -1;
   function view() { return shown === 1 ? sound : copy; }
+  // The lines of the section's transcripts that say when they were spoken, with their spans, the box
+  // they scroll in, and the line outlined.
+  var lines = card.querySelectorAll(".ln[data-from]"), box = card.querySelector(".follow"), now = null;
+  var spans = Array.prototype.map.call(lines, function (line) {
+    return [Number(line.getAttribute("data-from")), Number(line.getAttribute("data-to"))];
+  });
+  // Outlines the line the place in the speech is in, or none, and keeps it in view in its box.
+  function follow() {
+    var at = view().currentTime * shown * 1000, line = null;
+    for (var i = 0; i < spans.length; i++) {
+      if (at >= spans[i][0] && at < spans[i][1]) { line = lines[i]; break; }
+    }
+    if (line === now) return;
+    if (now) now.classList.remove("now");
+    now = line;
+    if (!line) return;
+    line.classList.add("now");
+    if (!box) return;
+    var outer = box.getBoundingClientRect(), inner = line.getBoundingClientRect();
+    if (inner.top < outer.top || inner.bottom > outer.bottom) {
+      box.scrollTop += inner.top - outer.top - box.clientHeight / 3;
+    }
+  }
   function said(key, label) { return (group.dataset[key] || "").split("${SPEED_TOKEN}").join(label); }
   // The radios show the chosen speed, or none if the player in view is at another rate. The first
   // player at the chosen speed the browser's own way, while its copy is to come, is at that speed.
@@ -559,6 +644,7 @@ function wire(group) {
     player.hidden = false;
     if (focused && player !== from) player.focus({ preventScroll: true });
     shown = speed;
+    follow();
     var started = playing ? player.play() : null;
     if (started && started.catch) started.catch(function () {});
   }
@@ -569,6 +655,8 @@ function wire(group) {
       copy.controls = true;
       copy.preload = "auto";
       copy.addEventListener("ratechange", mark);
+      copy.addEventListener("timeupdate", follow);
+      copy.addEventListener("seeked", follow);
       sound.parentNode.insertBefore(copy, sound.nextSibling);
     }
     copy.setAttribute("aria-label", said("slowed", label));
@@ -617,6 +705,8 @@ function wire(group) {
     choose(Number(radio.value), radio.parentNode.textContent.trim());
   });
   sound.addEventListener("ratechange", mark);
+  sound.addEventListener("timeupdate", follow);
+  sound.addEventListener("seeked", follow);
   // Played at the chosen speed the browser's own way, with no copy of it on the way: the copy is
   // made, and takes its place when it's ready.
   sound.addEventListener("play", function () {
@@ -657,9 +747,9 @@ export function renderVoicePage(
 ): string | null {
   const { sources, latest } = sourcesOf(model);
   const latestVersion = latest === null ? null : versionOf(latest);
-  // The pages whose transcripts the shareable page folds into their cards: every page with a run
+  // Each page's transcripts, which its section shows beside its recording: every page with a run
   // that read it in full, as that page's own list of transcripts says (the model's `appendix`).
-  const folds: ReadonlySet<string> = new Set(model.appendix.map((entry) => entry.slug));
+  const entries = new Map(model.appendix.map((entry) => [entry.slug, entry]));
   const recordedAny = new Map<RunJson, boolean>();
   const sections = model.pages.map((card, index): Section => {
     const source = sources.get(card.key) ?? null;
@@ -673,18 +763,23 @@ export function renderVoicePage(
   const played = sections.flatMap(({ voice }) => ("why" in voice ? [] : [voice]));
   if (played.length === 0) return null;
 
-  // What the check checks: the recordings the page plays, and the sealed record of each run they
-  // and the reasons are from, exactly as recorded, once, oldest first (the model's order).
-  // The latest run too, though every section may be from an older one: the page says what it says
-  // of when the report was tested, and which run each recording is from, by that run's record.
+  // What the check checks: the recordings the page plays, the transcripts and screenshots it shows
+  // beside them (the shareable page's own: every section shows its card's), and the sealed record
+  // of each run they and the reasons are from, exactly as recorded, once, oldest first (the model's
+  // order). The latest run too, though every section may be from an older one: the page says what
+  // it says of when the report was tested, and which run each recording is from, by that run's
+  // record.
+  const { files, screenshots } = model.check;
   const used = new Set([
     ...sections.flatMap(({ source }) => (source === null ? [] : [source.run.id])),
+    ...files.map(({ run }) => run),
+    ...screenshots.map(({ run }) => run),
     ...(latest === null ? [] : [latest.id]),
   ]);
   const data: CheckData = {
     runs: model.check.runs.filter((run) => used.has(run.id)),
-    files: [],
-    screenshots: [],
+    files,
+    screenshots,
     axe: [],
     recordings: played.map(({ source }) => ({
       run: source.run.id,
@@ -699,9 +794,9 @@ export function renderVoicePage(
     `<section id="pages" aria-labelledby="pages-h">`,
     `  <h2 id="pages-h">${esc(PAGES_TEXT.title)}</h2>`,
     `  <p class="gist">${esc(VOICE_TEXT.note)}</p>`,
-    `  <div class="cards">`,
+    `  <div class="cards voice-cards">`,
     sections
-      .map((section) => sectionOf(section, latest, { page: model.footer.fileName, folds }))
+      .map((section) => sectionOf(section, latest, entries.get(section.card.slug)))
       .join("\n"),
     `  </div>`,
     `</section>`,

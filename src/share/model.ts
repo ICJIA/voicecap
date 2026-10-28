@@ -34,6 +34,7 @@ import {
   type ReviewsFile,
   type RunJson,
   type ShareResult,
+  type StepRecord,
 } from "../model.js";
 import { canonicalName, readLocation, toCanonical } from "../pages/canonical.js";
 import { describeChanges, distinctEnvironments } from "../report/compare.js";
@@ -119,6 +120,13 @@ export interface AppendixFile {
   /** The file's size and SHA-256, as its run recorded them. */
   bytes: number;
   sha256: string;
+  /**
+   * When each line was spoken, from its pass's JSON: for each line, in order, the time from the
+   * pass's start at which its step began (its key was pressed) and ended, in ms. The voice page
+   * outlines the line its recording is at (../voice-page.ts). None when the pass's JSON can't be read
+   * as recorded, or its steps aren't one for each line, so a line is never given another's time.
+   */
+  timing?: { fromMs: number; toMs: number }[];
 }
 
 export interface ShareModel {
@@ -760,6 +768,27 @@ function shownTranscripts(page: PageStanding, transcripts: TranscriptStore): Sho
   });
 }
 
+/**
+ * When each line of a transcript was spoken, from its pass's steps (see AppendixFile's `timing`): a
+ * step's span is from its end (`offsetMs`, from the pass's start) less its length, to its end. Null
+ * when there are no steps, they aren't one for each of the transcript's `lines`, or a step's times
+ * aren't numbers that make a span.
+ */
+function timingOf(
+  steps: StepRecord[] | null,
+  lines: number,
+): { fromMs: number; toMs: number }[] | null {
+  if (steps === null || steps.length !== lines || lines === 0) return null;
+  const spans = steps.map(({ offsetMs, durationMs }) => ({
+    fromMs: offsetMs - durationMs,
+    toMs: offsetMs,
+  }));
+  const usable = spans.every(
+    ({ fromMs, toMs }) => Number.isFinite(fromMs) && Number.isFinite(toMs) && fromMs <= toMs,
+  );
+  return usable ? spans : null;
+}
+
 function appendixOf(
   standing: Standing,
   transcripts: TranscriptStore,
@@ -775,6 +804,7 @@ function appendixOf(
         files: own.flatMap(({ run, slug, pass, name, hash, text }): AppendixFile[] => {
           if (text === null) return [];
           const lines = extractBody(text);
+          const timing = timingOf(transcripts.steps(run, slug, pass), lines.length);
           return [
             {
               pass,
@@ -785,6 +815,7 @@ function appendixOf(
               lines: lines.length,
               bytes: hash.bytes,
               sha256: hash.sha256,
+              ...(timing === null ? {} : { timing }),
             },
           ];
         }),

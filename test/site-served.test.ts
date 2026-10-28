@@ -958,6 +958,7 @@ describe("a share's voice page, served as Netlify serves it", () => {
       .poll(() => result(page), { timeout: 10_000 })
       .toBe(
         "Checked just now, in this browser. " +
+          "9 of 9 transcripts match their fingerprints, and " +
           "3 of 3 recordings match their fingerprints, and the run's seal checks out.",
       );
     await page.locator("#theme-toggle").click();

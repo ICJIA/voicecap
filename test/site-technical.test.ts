@@ -992,7 +992,7 @@ describe("renderTechnical", () => {
     expect(VOICE_SCRIPT).toContain("sound.preservesPitch = true;");
     expect(VOICE_TEXT.lead).toContain("recorded from NVDA alone and sealed with the run");
     expect(VOICE_TEXT.lead).toContain(
-      "The transcripts on the shareable page are the record of what was reviewed.",
+      "Beside each recording are its page's screenshot and transcripts, the record of what was reviewed",
     );
   });
 

@@ -91,9 +91,9 @@ function modelOf(
 
 /** The sections of a voice page: each card's id, as its markup. */
 function sectionsOf(html: string): { id: string; markup: string }[] {
-  return [...html.matchAll(/<article class="card" id="([^"]*)">([\s\S]*?)<\/article>/g)].map(
-    ([, id = "", markup = ""]) => ({ id, markup }),
-  );
+  return [
+    ...html.matchAll(/<article class="card voice-card" id="([^"]*)">([\s\S]*?)<\/article>/g),
+  ].map(([, id = "", markup = ""]) => ({ id, markup }));
 }
 
 /** The audio each section of a voice page plays, as bytes, by the section's id. */

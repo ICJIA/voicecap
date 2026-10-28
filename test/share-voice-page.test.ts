@@ -115,8 +115,19 @@ beforeAll(() => {
 
 /** A page's sections: each card's id, as its markup. */
 function sectionsOf(html: string): { id: string; markup: string }[] {
-  return [...html.matchAll(/<article class="card" id="([^"]*)">([\s\S]*?)<\/article>/g)].map(
-    ([, id = "", markup = ""]) => ({ id, markup }),
+  return [
+    ...html.matchAll(/<article class="card voice-card" id="([^"]*)">([\s\S]*?)<\/article>/g),
+  ].map(([, id = "", markup = ""]) => ({ id, markup }));
+}
+
+/**
+ * A section without what it says of its page's screenshot, when it has none (the line the shareable
+ * page's card has, in its group): so that the section's first line not recorded is its recording's.
+ */
+function withoutScreenshot(markup: string): string {
+  return markup.replace(
+    /<div role="group" aria-label="[^"]*"><p class="not-recorded">[\s\S]*?<\/p><\/div>/,
+    "",
   );
 }
 
@@ -224,7 +235,7 @@ describe("renderVoicePage", () => {
       "NVDA's voice: dvfr.illinois.gov, 29 September 2026, 14:02",
     );
     expect(VOICE_TEXT.lead).toBe(
-      "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast, so each recording starts at 0.3×: press play to hear it slowly, or choose another speed. voicecap's own stretcher slows it down in your browser, with the pitch kept and nothing sent anywhere. The transcripts on the shareable page are the record of what was reviewed.",
+      "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast, so each recording starts at 0.3×: press play to hear it slowly, or choose another speed. voicecap's own stretcher slows it down in your browser, with the pitch kept and nothing sent anywhere. Beside each recording are its page's screenshot and transcripts, the record of what was reviewed, and as it plays, the line NVDA is saying is outlined in yellow.",
     );
     // Each pass's stretch starts with its title check, and between the passes the recording is
     // silenced (the NVDA driver's stretches, which the run keeps).
@@ -243,7 +254,7 @@ describe("renderVoicePage", () => {
     expect(text.split(VOICE_TEXT.note)).toHaveLength(2);
     expect(
       html.indexOf(VOICE_TEXT.note.replaceAll('"', "&quot;").replaceAll("'", "&#39;")),
-    ).toBeLessThan(html.indexOf('<article class="card"'));
+    ).toBeLessThan(html.indexOf('<article class="card voice-card"'));
   });
 
   it("never calls voicecap automated, never says a person listened, and names no tool it's built on", () => {
@@ -403,30 +414,24 @@ describe("renderVoicePage", () => {
       '<script type="application/json" id="fp-data">',
     ]);
     // Nothing loaded from outside: no linked file, no import, no source but a recording's own
-    // address in an audio element, and every url() the page's own data.
+    // address in an audio element and a screenshot's in an image, and every url() the page's own
+    // data.
     const markup = markupOf(html);
-    expect(markup).not.toMatch(/<link\b|<img\b|<iframe\b|<video\b|<source\b|<track\b/i);
+    expect(markup).not.toMatch(/<link\b|<iframe\b|<video\b|<source\b|<track\b/i);
+    for (const source of attributes(markup, "src")) expect(source).toMatch(/^data:/);
     expect(html).not.toMatch(/@import/i);
     for (const [, address = ""] of html.matchAll(/url\(\s*["']?([^"')]*)/g)) {
       expect(address).toMatch(/^data:/);
     }
     // The only links go to the page's own parts, to voicecap's page, and to the shareable page beside
-    // it: each page read in full has one to its transcripts, and the footer has one to the page.
+    // it, from the footer: a page's transcripts are beside its recording, so nothing a person reads
+    // along with takes them off the page while it plays.
     const page = recorded.model.footer.fileName;
-    const readInFull = recorded.model.pages
-      .filter(({ path }) => path !== "/report.pdf")
-      .map(({ slug }) => `${page}#${transcriptAnchor(slug)}`);
-    expect(readInFull).toHaveLength(3);
     expect(
       attributes(markup, "href")
         .map(decode)
         .filter((href) => !href.startsWith("#")),
-    ).toEqual([
-      "https://github.com/ICJIA/voicecap",
-      ...readInFull,
-      "https://github.com/ICJIA/voicecap",
-      page,
-    ]);
+    ).toEqual(["https://github.com/ICJIA/voicecap", "https://github.com/ICJIA/voicecap", page]);
     // The page's one script is the page's, then the check's, then the speed choice's.
     expect(
       html.endsWith(
@@ -627,7 +632,10 @@ describe("renderVoicePage", () => {
       const all = new Map([...recordingsOf([]), ...recordings, ...soundsFor(model)]);
       const html = pageOf(model, all);
       const slug = model.pages.find(({ path }) => path === "/old/")?.slug ?? "";
-      return textOf(/<p class="not-recorded">(.*?)<\/p>/.exec(sectionOf(html, slug))?.[1] ?? "");
+      return textOf(
+        /<p class="not-recorded">(.*?)<\/p>/.exec(withoutScreenshot(sectionOf(html, slug)))?.[1] ??
+          "",
+      );
     }
 
     /** Home's recording, which every model here needs one of, so that a page is made. */
@@ -802,9 +810,9 @@ describe("renderVoicePage", () => {
       `<b>Home</b> & "x" </script><script>window.__pwned = 1</script>`,
     );
     const second = sectionOf(html, model.pages[1]?.slug ?? "");
-    expect(textOf(/<p class="not-recorded">(.*?)<\/p>/.exec(second)?.[1] ?? "")).toBe(
-      `Not recorded: </script><script>window.__pwned = 1</script> <b>bold</b> & "q".`,
-    );
+    expect(
+      textOf(/<p class="not-recorded">(.*?)<\/p>/.exec(withoutScreenshot(second))?.[1] ?? ""),
+    ).toBe(`Not recorded: </script><script>window.__pwned = 1</script> <b>bold</b> & "q".`);
     // An address is text too: in the page's name, the player's label, its speeds' legend, and the
     // name its speed choice carries for a slowed copy.
     const search = sectionOf(html, model.pages[2]?.slug ?? "");
@@ -820,7 +828,7 @@ describe("renderVoicePage", () => {
     expect(json).not.toContain("<");
   });
 
-  it("carries the check's data: each recording it plays, and the sealed record of each run they're from", async () => {
+  it("carries the check's data: each recording it plays, the transcripts and screenshots beside them, and the sealed record of each run they're from", async () => {
     const { html, run, model } = recorded;
     const data = dataOf(html);
     const [slugHome = "", slugAbout = ""] = model.pages.map(({ slug }) => slug);
@@ -831,16 +839,19 @@ describe("renderVoicePage", () => {
       { run: RUN, slug: slugHome, name: VOICE_FILE },
       { run: RUN, slug: slugAbout, name: VOICE_FILE },
     ]);
-    // Nothing else is checked on this page: it shows no transcript, screenshot, or axe result.
-    expect(data.files).toEqual([]);
-    expect(data.screenshots).toEqual([]);
+    // The transcripts and screenshots it shows beside them are the shareable page's own, checked as
+    // they are there; it shows no axe result.
+    expect(data.files).toEqual(model.check.files);
+    expect(data.files).toHaveLength(9);
+    expect(data.screenshots).toEqual(model.check.screenshots);
     expect(data.axe).toEqual([]);
     expect(data.reviews).toBeNull();
 
     // The check finds each recording the page plays as its run recorded it, and the run's seal.
+    // (The transcripts are checked as the shareable page's are; see shownTextsOf below.)
     const sounds = soundsOf(html);
     const checked = await library.checkAll(
-      data,
+      { ...data, files: [] },
       library.sha256Hex,
       undefined,
       undefined,
@@ -932,11 +943,11 @@ describe("renderVoicePage", () => {
       '<p class="fp-result fp-noscript">To check the fingerprints without scripts, use those two commands.</p>',
     );
     expect(text).toContain(
-      "every recording on it is exactly the one its run's sealed record lists",
+      "every recording, transcript, and screenshot on it is exactly the one its run's sealed record lists",
     );
     expect(text).toContain("npx @icjia/voicecap verify");
     // It claims nothing of what it doesn't show.
-    expect(text).not.toMatch(/transcripts shown|axe/i);
+    expect(text).not.toMatch(/axe/i);
   });
 
   it("gives a heading for each section and for the check, one level under the name", () => {
@@ -945,26 +956,21 @@ describe("renderVoicePage", () => {
 
     expect(levels[0]).toBe(1);
     expect(levels.filter((level) => level === 1)).toHaveLength(1);
-    // Every page's section is an h3, under the h2 that names them, and the check is an h2 too.
-    expect(levels).toEqual([1, 2, 3, 3, 3, 3, 2]);
+    // Every page's section is an h3, under the h2 that names them, each transcript beside it an h4
+    // under it (read, headings, and Tab, for the three pages read in full), and the check is an h2.
+    expect(levels).toEqual([1, 2, 3, 4, 4, 4, 3, 4, 4, 4, 3, 4, 4, 4, 3, 2]);
   });
 });
 
-// The voice page is audio alone, so its text alternative is one step away: each section links to
-// its page's transcripts on the shareable page beside it, and the footer links to that page by name
-// (WCAG 1.2.1). The links are relative, so they work in the folder, in the two files of an email
-// opened side by side, and on the website, where the two are published in one folder.
-describe("the voice page's links to the shareable page", () => {
+// The voice page is audio alone, so its text alternative is on it (WCAG 1.2.1): each section shows
+// its page's transcripts beside its recording, word for word, so a person can read along as it plays
+// without leaving the page, and the footer links to the shareable page by name. The link is
+// relative, so it works in the folder, in the two files of an email opened side by side, and on the
+// website, where the two are published in one folder.
+describe("the voice page's transcripts beside each recording", () => {
   /** The shareable page's name beside the voice page: the same stem, as a share names the pair. */
   const PAGE = VOICE_PAGE.replace(".voice.html", ".html");
   const WORD = VOICE_PAGE.replace(".voice.html", ".docx");
-
-  /** What each link to a page's transcripts shows, whatever the page. */
-  const VISIBLE = "The full transcript, on the shareable page";
-
-  /** The id of each full transcript's fold on a shareable page: what an address to a fold points at. */
-  const foldsOf = (html: string): string[] =>
-    [...html.matchAll(/<details class="fold tx-page" id="([^"]*)"/g)].map(([, id = ""]) => id);
 
   /** The run's model as a share makes it: the pair named, and the voice page beside them. */
   function sharedModel(run: RunJson): ShareModel {
@@ -979,79 +985,44 @@ describe("the voice page's links to the shareable page", () => {
     );
   }
 
-  it("links each page's section to the page's transcripts, at the id of their fold on the shareable page", () => {
-    const model = sharedModel(recorded.run);
-    const voicePage = pageOf(model, recordingsOf([recorded.run]));
-    const sharePage = renderSharePage(model, NO_FONTS);
-    const folds = foldsOf(sharePage);
+  /** The transcripts a section shows: each `section.tx`'s file, and the text of its `<pre>`. */
+  const shownTextsOf = (markup: string): { file: string; text: string }[] =>
+    [
+      ...markup.matchAll(
+        /<section class="tx" data-run="[^"]*" data-slug="[^"]*" data-file="([^"]*)">[\s\S]*?<pre>([\s\S]*?)<\/pre>/g,
+      ),
+    ].map(([, file = "", pre = ""]) => ({
+      file,
+      text: decode(pre.replace(/<[^>]+>/g, "")).replace(/^\n/, ""),
+    }));
 
-    // Three pages were read in full; the skipped file has no transcripts, so it has no fold.
-    expect(folds).toHaveLength(3);
-    for (const card of model.pages) {
-      const links = attributes(sectionOf(voicePage, card.slug), "href").map(decode);
-      const fold = `tx-${card.slug}`;
-      if (!folds.includes(fold)) {
-        // No transcripts to read: the section links to none, and says so only by saying why it has
-        // no recording.
-        expect(links, card.path).toEqual([]);
-        continue;
-      }
-      expect(links, card.path).toEqual([`${PAGE}#${fold}`]);
-      // Relative, by the shareable page's own name: no address, no folder, no scheme.
-      expect(links[0], card.path).toMatch(/^[^/:?#]+#tx-[^/:?#]+$/);
-    }
-    // Every target is a fold the real shareable page has, which its script opens when it's the
-    // address's fragment.
-    const targets = attributes(markupOf(voicePage), "href")
-      .map(decode)
-      .filter((href) => href.startsWith(`${PAGE}#`))
-      .map((href) => href.slice(PAGE.length + 1));
-    expect(targets).toHaveLength(3);
-    for (const target of targets) expect(folds).toContain(target);
-  });
-
-  it("says in the link what it leads to, and which page's it is, for a screen reader alone", () => {
+  it("shows each page's transcripts beside its recording, word for word, in a box of their own named for the page", () => {
     const model = sharedModel(recorded.run);
     const voicePage = pageOf(model, recordingsOf([recorded.run]));
     const about = model.pages.find(({ path }) => path === "/about/");
     const section = sectionOf(voicePage, about?.slug ?? "");
-    const link = /<a href="[^"]*#tx-[^"]*">.*?<\/a>/s.exec(section)?.[0] ?? "";
+    const entry = model.appendix.find(({ slug }) => slug === about?.slug);
 
-    expect(link).toBe(
-      `<a href="${PAGE}#tx-${about?.slug}">The full transcript, on the shareable page<span class="sr">: /about/</span></a>`,
+    // What it plays, then what it says: the player is on the left, the transcripts on the right.
+    expect(section.indexOf('<div class="listen-side">')).toBeLessThan(section.indexOf("<audio"));
+    expect(section.indexOf("<audio")).toBeLessThan(section.indexOf('<div class="follow-side">'));
+    expect(section).toContain(
+      `<p class="follow-title">What NVDA said, word for word</p><div class="follow" tabindex="0" role="region" aria-label="What NVDA said on /about/">`,
     );
-    expect(textOf(link, "")).toBe("The full transcript, on the shareable page: /about/");
-    // In a paragraph of its own, as the card's line on the voice page is, and after the recording.
-    expect(section).toContain(`<p class="sub">${link}</p>`);
-    expect(section.indexOf("<audio")).toBeLessThan(section.indexOf(link));
+    // Each pass's transcript, as the shareable page's fold has it: the same files, word for word.
+    expect(shownTextsOf(section)).toEqual(
+      (entry?.files ?? []).map(({ name, text }) => ({ file: name, text })),
+    );
+    expect(shownTextsOf(section).map(({ file }) => file)).toEqual([
+      "read.txt",
+      "headings.txt",
+      "tab.txt",
+    ]);
+    // No link takes a reader off the page to read them.
+    expect(attributes(section, "href")).toEqual([]);
   });
 
-  // WCAG 2.5.3, Label in Name: what a link shows is the start of what it's called, so a person who
-  // speaks the words they read (to Voice Control, or Dragon) is understood, and a screen reader says
-  // first what the eye reads first. The page's address goes after the visible words, for a screen
-  // reader alone, and that is what keeps the links, which go to different places, from reading alike.
-  it("names each link by its visible words, whole and first, then by its page, so that no two read alike", () => {
-    const model = sharedModel(recorded.run);
-    const voicePage = pageOf(model, recordingsOf([recorded.run]));
-    const inner = [...voicePage.matchAll(/<a href="[^"]*#tx-[^"]*">(.*?)<\/a>/gs)].map(
-      ([, markup = ""]) => markup,
-    );
-    // The words a sighted reader sees: what's left once the text for a screen reader alone is out.
-    const visible = (markup: string): string =>
-      textOf(markup.replace(/<span class="sr">.*?<\/span>/gs, ""), "");
-
-    expect(inner).toHaveLength(3);
-    for (const markup of inner) {
-      expect(visible(markup)).toBe(VISIBLE);
-      const name = textOf(markup, "");
-      expect(name.startsWith(visible(markup)), name).toBe(true);
-    }
-    const names = inner.map((markup) => textOf(markup, ""));
-    expect(names).toEqual(["/", "/about/", "/apply/"].map((path) => `${VISIBLE}: ${path}`));
-    expect(new Set(names).size).toBe(names.length);
-  });
-
-  it("gives a page with no recording its transcripts' link too, since they are what it has", () => {
+  it("shows a page with no recording its transcripts too, since they are what it has", () => {
     const model = sharedModel(recorded.run);
     const voicePage = pageOf(model, recordingsOf([recorded.run]));
     const apply = model.pages.find(({ path }) => path === "/apply/");
@@ -1059,7 +1030,114 @@ describe("the voice page's links to the shareable page", () => {
 
     // /apply/ was read in full, and has a reason in place of a player.
     expect(section).toContain("Not recorded: the recording is silent.");
-    expect(attributes(section, "href")).toEqual([`${PAGE}#tx-${apply?.slug}`]);
+    expect(shownTextsOf(section)).toHaveLength(3);
+    // With no recording, there's nothing to outline.
+    expect(section).not.toContain('class="ln"');
+    expect(section).not.toContain(VOICE_TEXT.follow.outlined);
+  });
+
+  /**
+   * A run of one page read in full whose recording keeps a stretch for each pass, as a run of
+   * voicecap's real driver does: each begins with the window's check (3500 ms here), then the pass,
+   * whose lines take 1200 ms each (the test store's steps): 4 lines read, 2 headings, 2 Tab stops.
+   */
+  function timedRun(
+    stretches = [
+      { startMs: 100, endMs: 100 + 3500 + 4 * 1200 },
+      { startMs: 9000, endMs: 9000 + 3500 + 2 * 1200 },
+      { startMs: 15500, endMs: 15500 + 3500 + 2 * 1200 },
+    ],
+  ): RunJson {
+    const { record } = speech;
+    return shareRun({
+      id: RUN,
+      createdAt: "2026-09-29T14:02:51-05:00",
+      voicecapVersion: "0.18.0",
+      pages: [read("/", { ...record, stretches })],
+    });
+  }
+
+  /** Each line a section's transcripts mark with when it was spoken: its span, and its words. */
+  const timedLines = (markup: string): [number, number, string][] =>
+    [...markup.matchAll(/<span class="ln" data-from="(\d+)" data-to="(\d+)">([^<]*)<\/span>/g)].map(
+      ([, from = "", to = "", words = ""]) => [Number(from), Number(to), decode(words)],
+    );
+
+  it("marks each line with when the recording says it: its pass's start, at its stretch's end less its length, and the line's span from the pass's start", () => {
+    const run = timedRun();
+    const model = sharedModel(run);
+    const section = sectionOf(pageOf(model, recordingsOf([run])), model.pages[0]?.slug ?? "");
+
+    // The read pass ends where its stretch ends (8400), 4800 ms after it began (3600); the headings
+    // pass began at 14900 less 2400; the Tab pass at 21400 less 2400.
+    expect(timedLines(section)).toEqual([
+      [3600, 4800, LINES.read[0]],
+      [4800, 6000, LINES.read[1]],
+      [6000, 7200, LINES.read[2]],
+      [7200, 8400, LINES.read[3]],
+      [12500, 13700, LINES.headings[0]],
+      [13700, 14900, LINES.headings[1]],
+      [19000, 20200, LINES.tab[0]],
+      [20200, 21400, LINES.tab[1]],
+    ]);
+    expect(section).toContain(`<p class="sub follow-note">${esc(VOICE_TEXT.follow.outlined)}</p>`);
+    // The text is the transcript's, as the fingerprint check reads it: the spans add no words.
+    expect(shownTextsOf(section).map(({ text }) => text)).toEqual(
+      model.appendix[0]?.files.map(({ text }) => text),
+    );
+  });
+
+  it("marks no line when the recording's stretches aren't one for each pass, or a pass would begin before its stretch", () => {
+    for (const stretches of [
+      // Two stretches for three passes: which is which can't be said.
+      [
+        { startMs: 100, endMs: 8400 },
+        { startMs: 9000, endMs: 14900 },
+      ],
+      // The read pass is longer than its stretch: its start would be before the stretch's.
+      [
+        { startMs: 100, endMs: 3000 },
+        { startMs: 9000, endMs: 14900 },
+        { startMs: 15500, endMs: 21400 },
+      ],
+    ]) {
+      const run = timedRun(stretches);
+      const model = sharedModel(run);
+      const section = sectionOf(pageOf(model, recordingsOf([run])), model.pages[0]?.slug ?? "");
+      // No read line: the read pass would be the first stretch, before 9000.
+      expect(
+        timedLines(section).filter(([from]) => from < 9000),
+        JSON.stringify(stretches),
+      ).toEqual([]);
+      // The transcripts are there all the same.
+      expect(shownTextsOf(section)).toHaveLength(3);
+    }
+    // With two stretches, no line at all, and no word of an outline.
+    const two = timedRun([
+      { startMs: 100, endMs: 8400 },
+      { startMs: 9000, endMs: 14900 },
+    ]);
+    const model = sharedModel(two);
+    const section = sectionOf(pageOf(model, recordingsOf([two])), model.pages[0]?.slug ?? "");
+    expect(timedLines(section)).toEqual([]);
+    expect(section).not.toContain(VOICE_TEXT.follow.outlined);
+  });
+
+  it("has no transcripts for a page never read in full, and its recording alone", () => {
+    const run = shareRun({
+      id: RUN,
+      createdAt: "2026-09-29T14:02:51-05:00",
+      voicecapVersion: "0.18.0",
+      pages: [read("/", speech.record), { path: "/broke/", status: "failed", voice: busy.record }],
+    });
+    const model = sharedModel(run);
+    const voicePage = pageOf(model, recordingsOf([run]));
+    const broke = model.pages.find(({ path }) => path === "/broke/");
+    const section = sectionOf(voicePage, broke?.slug ?? "");
+
+    expect(section).toContain("<audio");
+    expect(section).not.toContain('class="follow-side"');
+    expect(attributes(section, "href")).toEqual([]);
   });
 
   it("links the footer to the shareable page by its name, and names its Word copy as plain words", () => {
@@ -1096,9 +1174,7 @@ describe("the voice page's links to the shareable page", () => {
     expect(markup).not.toMatch(/https?:\/\/(?!github\.com\/ICJIA\/voicecap)/);
   });
 
-  it("links to the real shareable page's folds by the same ids the page makes them with", () => {
-    // The scheme is one: the page's fold, and the voice page's link to it, are made by the same
-    // function, so a change to how a fold is named is a change to both.
+  it("names the parts of a page by the same ids the shareable page makes them with", () => {
     expect(transcriptAnchor("home")).toBe("tx-home");
     expect(transcriptAnchor("a b/c")).toBe("tx-a-b-c");
     expect(voiceAnchor("a b/c")).toBe("voice-a-b-c");
@@ -1108,26 +1184,6 @@ describe("the voice page's links to the shareable page", () => {
     for (const card of model.pages) {
       expect(sharePage.includes(`id="${cardAnchor(card.slug)}"`), card.path).toBe(true);
     }
-  });
-
-  it("links to nothing that isn't there: a page of a shareable page with no transcripts has no fold to link to", () => {
-    // The page never read in full (it failed, and no run read it) has no transcripts, so its card
-    // has no fold, and its section no link, though a recording was made of the attempt.
-    const run = shareRun({
-      id: RUN,
-      createdAt: "2026-09-29T14:02:51-05:00",
-      voicecapVersion: "0.18.0",
-      pages: [read("/", speech.record), { path: "/broke/", status: "failed", voice: busy.record }],
-    });
-    const model = sharedModel(run);
-    const voicePage = pageOf(model, recordingsOf([run]));
-    const sharePage = renderSharePage(model, NO_FONTS);
-    const broke = model.pages.find(({ path }) => path === "/broke/");
-
-    expect(foldsOf(sharePage)).not.toContain(`tx-${broke?.slug}`);
-    const section = sectionOf(voicePage, broke?.slug ?? "");
-    expect(section).toContain("<audio");
-    expect(attributes(section, "href")).toEqual([]);
   });
 });
 
@@ -1194,8 +1250,9 @@ describe("a section's markup", () => {
     const { model, html } = recorded;
     const sharePage = renderSharePage(model, NO_FONTS);
     const headingOf = (markup: string, id: string): string =>
-      new RegExp(`<article class="card" id="${id}">[\\s\\S]*?(<h3>.*?</h3>)`).exec(markup)?.[1] ??
-      "";
+      new RegExp(`<article class="card(?: voice-card)?" id="${id}">[\\s\\S]*?(<h3>.*?</h3>)`).exec(
+        markup,
+      )?.[1] ?? "";
 
     for (const card of model.pages) {
       const voice = headingOf(html, voiceAnchor(card.slug));
@@ -1227,7 +1284,9 @@ describe("a section's markup", () => {
       expect(waiting?.speaksFor, version).toBeNull();
       const html = pageOf(model, recordingsOf([run]));
       return textOf(
-        /<p class="not-recorded">(.*?)<\/p>/.exec(sectionOf(html, waiting?.slug ?? ""))?.[1] ?? "",
+        /<p class="not-recorded">(.*?)<\/p>/.exec(
+          withoutScreenshot(sectionOf(html, waiting?.slug ?? "")),
+        )?.[1] ?? "",
       );
     };
 
@@ -1341,9 +1400,11 @@ describe("the player's script and rules", () => {
     expect(() => new vm.Script(SHARE_SCRIPT + CHECK_SCRIPT + VOICE_SCRIPT)).not.toThrow();
     // The stretcher and its finisher (the filter, the loudness match, and the WAV writer, which a
     // copy goes through in slices) are most of it; the limit was raised for the copies the page keeps
-    // (a list it cuts back to four, and the check of which copies are in view, as those never go).
-    expect(VOICE_SCRIPT.length).toBeLessThan(22_000);
-    expect(VOICE_CSS.length).toBeLessThan(2_500);
+    // (a list it cuts back to four, and the check of which copies are in view, as those never go),
+    // and again for the line it outlines as a recording plays; the style, for the transcripts beside
+    // each recording.
+    expect(VOICE_SCRIPT.length).toBeLessThan(24_000);
+    expect(VOICE_CSS.length).toBeLessThan(3_500);
   });
 
   it("sets the pitch explicitly, and catches the error a browser throws for a speed it won't play at", () => {

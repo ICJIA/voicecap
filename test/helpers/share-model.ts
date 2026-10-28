@@ -15,17 +15,20 @@ import path from "node:path";
 import { keptAxeResults } from "../../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
 import { gestureOf } from "../../src/drivers/guidepup/nvda-log.js";
-import type {
-  AxeRecord,
-  FileHash,
-  FlagResult,
-  NewRunEvent,
-  PassName,
-  ReviewsFile,
-  RunEvent,
-  RunJson,
-  VoiceRecord,
+import {
+  PASS_NAMES,
+  type AxeRecord,
+  type FileHash,
+  type FlagResult,
+  type NewRunEvent,
+  type PassName,
+  type ReviewsFile,
+  type RunEvent,
+  type RunJson,
+  type VoiceRecord,
 } from "../../src/model.js";
+import { pageSlug } from "../../src/pages/slug.js";
+import { canonicalKey } from "../../src/pages/url.js";
 import { loadShareInput, type ShareInput, type TranscriptStore } from "../../src/share/load.js";
 import {
   buildShareModel,
@@ -71,6 +74,20 @@ export type Lines = Partial<Record<PassName, string[]>>;
 /** A transcript as voicecap writes it: a header block, a blank line, then one line per step. */
 export function txtOf(slug: string, pass: PassName, lines: string[]): string {
   return `${[`# voicecap transcript: ${pass} pass`, `# Page: ${slug}`, "", ...lines].join("\n")}\n`;
+}
+
+/**
+ * The real fingerprint of each TXT transcript the test store gives a page at `path` (see storeOf):
+ * for a run whose page's fingerprint check reads its transcripts, as SharePageSpec's `fileHashes`.
+ */
+export function realTranscripts(path: string, lines: Lines = LINES): Record<string, FileHash> {
+  const slug = pageSlug(canonicalKey(new URL(path, SITE).href));
+  return Object.fromEntries(
+    PASS_NAMES.flatMap((pass) => {
+      const said = lines[pass];
+      return said === undefined ? [] : [[`${pass}.txt`, fileHash(txtOf(slug, pass, said))]];
+    }),
+  );
 }
 
 /**

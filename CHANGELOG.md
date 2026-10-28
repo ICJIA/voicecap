@@ -4,6 +4,15 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-28
+
+The voice page shows each page's screenshot and transcripts beside its recording, and outlines in yellow the line NVDA is saying as it plays, so an auditor can follow along without leaving the page.
+
+### Added
+
+- **Each page's screenshot and transcripts are beside its recording, and the line NVDA is saying is outlined in yellow as it plays.** A reader clicked the voice page's link to a transcript while a recording played: the recording stopped, and the shareable page opened in its place. Now each page's section shows, on the left, its screenshot (small, cut to its top), its player, and its speeds, and, on the right, what NVDA said, word for word: the read, headings, and Tab transcripts in a box that scrolls on its own, so the player stays in view. As the recording plays, at any speed, the line NVDA is saying is outlined in yellow, and the box scrolls to keep it in view; the page itself never moves. Each line's time comes from its pass's JSON transcript (when its key was pressed, from the pass's start) and the recording's stretches (each pass's stretch begins with the check of the window and ends as the pass ends). Checked against the sound of real recordings of sfs, dvfr, and r3 (1,088 lines): NVDA starts speaking 0.3 s into nearly every line's span. A page whose recording and transcripts don't line up (a pass with no JSON, or stretches that aren't one for each pass) shows its transcripts with no outline. Side by side from 52em, one over the other on a phone. The section no longer links to the shareable page's transcripts; the footer still links to the page.
+- **The voice page's check covers its transcripts and screenshots too.** "Check the fingerprints" holds every transcript and screenshot the page shows to its run's sealed record, as the shareable page's check does, as well as each recording, and what the check proves says so.
+
 ## [0.23.1] - 2026-10-28
 
 Each site on the website stands apart in a card of its own color, which leads with the result and then big tiles to look closer.
@@ -857,7 +866,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.23.1...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/ICJIA/voicecap/compare/v0.23.1...v0.24.0
 [0.23.1]: https://github.com/ICJIA/voicecap/compare/v0.23.0...v0.23.1
 [0.23.0]: https://github.com/ICJIA/voicecap/compare/v0.22.2...v0.23.0
 [0.22.2]: https://github.com/ICJIA/voicecap/compare/v0.22.1...v0.22.2

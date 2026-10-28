@@ -52,6 +52,12 @@ export interface SharePageSpec {
    */
   files?: string[];
   /**
+   * Fingerprints to give some of `files` in place of the placeholder, by name: a test whose page's
+   * fingerprint check reads the transcripts gives each its real one (see realTranscripts in
+   * ./share-model.ts). Default: none.
+   */
+  fileHashes?: Partial<Record<string, FileHash>>;
+  /**
    * The passes the page was read in, each as the body lines of its TXT transcript (as `extractBody`
    * gives them): the record gets a summary of each pass, whose `contentSha256` is the lines'. No
    * file is written, so a test that needs the lines keeps them itself. Default: none.
@@ -316,7 +322,9 @@ function sharePage(page: SharePageSpec, site: string): PageRecord {
     ...(page.title === undefined ? {} : { title: page.title }),
     ...(page.failedAttempts === undefined ? {} : { failedAttempts: page.failedAttempts }),
     passes: passSummaries(page.passes, page.stopped),
-    files: Object.fromEntries((page.files ?? []).map((name) => [name, PLACEHOLDER_FILE])),
+    files: Object.fromEntries(
+      (page.files ?? []).map((name) => [name, page.fileHashes?.[name] ?? PLACEHOLDER_FILE]),
+    ),
     ...(page.screenshot === undefined ? {} : { screenshot: page.screenshot }),
     ...(page.axe === undefined ? {} : { axe: page.axe }),
     ...(page.voice === undefined ? {} : { voice: page.voice }),

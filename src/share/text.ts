@@ -939,7 +939,7 @@ export const VOICE_TEXT = {
    * down and how that is done (by voicecap's own stretcher, in the reader's browser, with the pitch
    * kept and nothing sent anywhere), and which words are the record of what was reviewed.
    */
-  lead: "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast, so each recording starts at 0.3×: press play to hear it slowly, or choose another speed. voicecap's own stretcher slows it down in your browser, with the pitch kept and nothing sent anywhere. The transcripts on the shareable page are the record of what was reviewed.",
+  lead: "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast, so each recording starts at 0.3×: press play to hear it slowly, or choose another speed. voicecap's own stretcher slows it down in your browser, with the pitch kept and nothing sent anywhere. Beside each recording are its page's screenshot and transcripts, the record of what was reviewed, and as it plays, the line NVDA is saying is outlined in yellow.",
   /**
    * Said once, above the pages: why each pass's recording starts with a code, and why it's silent
    * between the passes (the run keeps only each pass's stretch: see confirmFront, in the driver).
@@ -1071,22 +1071,20 @@ export const VOICE_TEXT = {
   changed: `Not shown: ${VOICE_FILE} isn't as the run recorded it; voicecap verify names it.`,
   unreadable: "Not shown: the run's record of this page's recording couldn't be read.",
   /**
-   * A section's link to its page's full transcript on the shareable page beside this one, which is
-   * the text of what the recording says (WCAG 1.2.1): "The full transcript, on the shareable page"
-   * (`link`, the words a reader sees, whole), and for a screen reader alone which page it is of
-   * (`of`, set apart, after them: ": /about/"), so that no two links read alike and go to different
-   * places. The words a reader sees are the start of the link's name, unbroken, so a person who says
-   * what they read is understood (WCAG 2.5.3, Label in Name). A page no run read in full has no
-   * transcript, and no link.
+   * Beside each recording, its page's transcripts, word for word, the text of what the recording
+   * says (WCAG 1.2.1), so a person can read along as it plays without leaving the page: the panel's
+   * title; the name of the box they scroll in, with its page, for a screen reader; and, when the
+   * page can outline the line NVDA is saying, how it shows. A page no run read in full has no
+   * transcript, and no panel.
    */
-  transcript: {
-    link: "The full transcript, on the shareable page",
-    of: (path: string): string => `: ${path}`,
+  follow: {
+    title: "What NVDA said, word for word",
+    region: (path: string): string => `What NVDA said on ${path}`,
+    outlined: "As it plays, the line NVDA is saying is outlined in yellow.",
   },
   /**
-   * The page's own check: the heading of its section, and what the check proves, which is what it
-   * can show of a page that carries recordings and no transcript: each recording is the one its
-   * run's sealed record lists. It ends as the shareable page's does (`unchangedTail`), naming the
+   * The page's own check: the heading of its section, and what the check proves: each recording,
+   * transcript, and screenshot on it is the one its run's sealed record lists. It ends as the shareable page's does (`unchangedTail`), naming the
    * same two stronger checks, so the line that says how to check without scripts (the shareable
    * page's, shared) is true of both; but it says `voicecap share` prints the file's fingerprint
    * with the other files it writes, since the line for the email names only the page and its Word
@@ -1096,7 +1094,7 @@ export const VOICE_TEXT = {
     title: "The evidence behind these recordings",
     proves: (verify: string): Line => [
       { text: "What the check proves:", bold: true },
-      " this page is consistent with itself, so every recording on it is exactly the one its run's sealed record lists.",
+      " this page is consistent with itself, so every recording, transcript, and screenshot on it is exactly the one its run's sealed record lists.",
       ...unchangedTail(verify, "prints it with the other files it writes"),
     ],
   },

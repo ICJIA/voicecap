@@ -70,8 +70,9 @@ type Kind = "ok" | "warn" | "bad" | "quiet";
  * The picture is laid out at the size its record gives, which the browser then holds the room for
  * as the page loads. It names its page and file (`data-slug`, `data-file`), so the page's
  * fingerprint check can find the copy the page shows, on the card, and hold it to its run's record.
+ * The voice page (../voice-page.ts) shows it beside each recording too, small.
  */
-function screenshotOf(
+export function screenshotOf(
   shot: PageCard["screenshot"],
   slug: string,
 ): { picture: string; missing: string } {
@@ -458,15 +459,39 @@ function transcriptHeading(pass: PassName, path: string, sub = ""): string {
  * scroll. A transcript with no lines says so rather than show an empty box. A browser drops the
  * newline right after `<pre>`, so a first line that's blank needs one more. Its section names its
  * file (`data-run`, `data-slug`, `data-file`), so the fingerprint check can compare the text shown
- * with the file the page carries.
+ * with the file the page carries. `boxed` is false where the transcripts are in a box to scroll of
+ * their own already (the voice page's), so a transcript's words are not a box in that box.
+ *
+ * `at`, given only by the voice page, is where in the page's recording the transcript's pass began,
+ * in ms: with it, and the file's `timing`, each line is a `span` of its own (class `ln`) with the
+ * span of the recording it was spoken in (`data-from` and `data-to`, in ms), which the voice page's
+ * script outlines as it plays. The lines are still apart by the newlines between them, so the
+ * `<pre>`'s text is the file's, as the fingerprint check reads it.
  */
-function transcriptOf(file: AppendixFile, path: string): string {
+function transcriptOf(file: AppendixFile, path: string, boxed: boolean, at: number | null): string {
   const title = PASS_TITLE[file.pass];
   const lead = file.text.startsWith("\n") ? "\n" : "";
+  const timing = at === null ? undefined : file.timing;
+  const body =
+    timing === undefined || at === null
+      ? esc(file.text)
+      : file.text
+          .split("\n")
+          .map((line, index) => {
+            const span = timing[index];
+            if (span === undefined) return esc(line);
+            const from = Math.round(at + span.fromMs);
+            const to = Math.round(at + span.toMs);
+            return `<span class="ln" data-from="${from}" data-to="${to}">${esc(line)}</span>`;
+          })
+          .join("\n");
+  const pre = `<pre>${lead}${body}</pre>`;
   const words =
     file.lines === 0
       ? `<p class="sub">${esc(APPENDIX_TEXT.noLines)}</p>`
-      : scroll(`${title} transcript, ${path}`, `<pre>${lead}${esc(file.text)}</pre>`);
+      : boxed
+        ? scroll(`${title} transcript, ${path}`, pre)
+        : pre;
   const names = `data-run="${esc(file.run)}" data-slug="${esc(file.slug)}" data-file="${esc(file.name)}"`;
   const heading = transcriptHeading(file.pass, path, esc(lineCount(file.lines)));
   const fingerprint = `<p class="fp">${lineHtml(fileFingerprint(file))}</p>`;
@@ -509,11 +534,32 @@ function transcriptFold(
   const inside = esc(transcriptsInside(passes));
   const ofPage = `<span class="sr"> ${esc(PAGES_TEXT.fullTranscriptOf)} ${esc(card.path)}</span>`;
   const summary = `<span class="what">${esc(PAGES_TEXT.fullTranscript)}:</span> <span class="sub">${inside}</span>${ofPage}`;
+  const body = `${originLine(card, latest)}${transcriptSections(card, entry, true)}`;
+  return fold(summary, body, { id: transcriptAnchor(entry.slug), className: "tx-page" });
+}
+
+/**
+ * A page's transcripts, one for each pass its run recorded, in the passes' order (see transcriptOf),
+ * or the words that say its record lists no transcript file. The card's fold holds them, and the
+ * voice page (../voice-page.ts) shows them beside each recording, in a box to scroll of its own
+ * (`boxed` false), so a person can read along as it plays, and gives `startOf`: where in the
+ * recording each transcript's pass began, or null where it can't say (see transcriptOf).
+ */
+export function transcriptSections(
+  card: PageCard,
+  entry: ShareModel["appendix"][number],
+  boxed: boolean,
+  startOf: (file: AppendixFile) => number | null = () => null,
+): string {
+  const passes = PASS_NAMES.filter(
+    (pass) => entry.files.some((file) => file.pass === pass) || entry.unreadable.includes(pass),
+  );
   const sections = passes.map((pass) => {
     const file = entry.files.find((each) => each.pass === pass);
-    return file === undefined ? unreadableOf(pass, card.path) : transcriptOf(file, card.path);
+    return file === undefined
+      ? unreadableOf(pass, card.path)
+      : transcriptOf(file, card.path, boxed, startOf(file));
   });
   const none = passes.length === 0 ? `<p>${esc(APPENDIX_TEXT.noFiles)}</p>` : "";
-  const body = `${originLine(card, latest)}${sections.join("")}${none}`;
-  return fold(summary, body, { id: transcriptAnchor(entry.slug), className: "tx-page" });
+  return `${sections.join("")}${none}`;
 }
