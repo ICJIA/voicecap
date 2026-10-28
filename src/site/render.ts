@@ -333,91 +333,126 @@ function bySiteOrder(
 }
 
 /**
- * The two tiles at the top of a site's current report's card, side by side where they fit (see
- * ./style.ts). The first says when NVDA read the site: its label, the day, big, in a `time`, and
- * under it the time, and how many runs the report is of, when more than one (see capturedOf); a
- * report that records no run has no first tile. The second is the report's recording: with its
- * voice page here, the tile is a link to it, whose label a screen reader doesn't hear, since the
- * link's words say it, and after whose words it hears `of`, the site's name and the report's line,
- * as after the card's other links; with none, the tile says there's no recording, and why. A
+ * When NVDA read the site for a report, as a tile: its label, the day, big, in a `time`, and under
+ * it the time, and how many runs the report is of, when more than one (see capturedOf). Nothing for
+ * a report that records no run. It sits in the card's result, beside the verdict (see result).
+ */
+function capturedTile(shared: PublishedReport): string[] {
+  const words = SITE_TEXT.glance;
+  const captured = capturedOf(shared);
+  if (captured === null) return [];
+  return [
+    [
+      '<p class="glance-tile captured">',
+      `<span class="glance-label">${SITE_ICONS.captured}${esc(words.captured)}</span>`,
+      `<span class="glance-big"><time datetime="${esc(captured.at)}">${esc(longDate(captured.at))}</time></span>`,
+      `<span class="glance-small">${esc(words.when(captured.at, captured.runs, captured.first))}</span>`,
+      "</p>",
+    ].join(" "),
+  ];
+}
+
+/**
+ * A current report's result, first in its card and the biggest thing in it, for what a manager asks
+ * first: its verdict and how many pages NVDA read (see verdict), and beside them the day NVDA read
+ * the site (see capturedTile). Nothing for a report with neither.
+ */
+function result(shared: PublishedReport): string[] {
+  const said = verdict(shared.result);
+  const day = capturedTile(shared);
+  if (said.length === 0 && day.length === 0) return [];
+  const outcome = said.length === 0 ? "" : `<div class="outcome">${said.join("")}</div>`;
+  return [`<div class="result">${outcome}${day.join("")}</div>`];
+}
+
+/**
+ * The tiles of a site's current report, under its result, side by side where they fit and one over
+ * the other on a phone (see ./style.ts): where a reader goes to look closer, each a big link with
+ * its picture. The first leads to its page's "Every page" section, a card for each page with its
+ * screenshot, and says how many pages there are when the report records it; the second is its
+ * recording, its audio transcripts, the voice page; the third is its whole page. A tile whose file
+ * isn't here isn't drawn, but for the recording's, which says there's none, and why. A link's label
+ * isn't heard by a screen reader, since the link's words say it, and after its words a screen reader
+ * hears `of`, the site's name and the report's line, so that no two links on the page read alike. A
  * tile's parts are apart by a space, which its column doesn't draw, so that a screen reader, and a
- * copy of its words, has them as words apart. A
- * report that records no run and has no recording, one shared before voicecap recorded either, has
- * no tiles: there would be nothing at a glance but what it lacks.
+ * copy of its words, has them as words apart. A report with neither its page nor a recording, nor a
+ * record of one, has no tiles.
  */
 function glance(shared: PublishedReport, of: string): string[] {
   const words = SITE_TEXT.glance;
-  const captured = capturedOf(shared);
+  const page = fileOf(shared, "page");
   const voice = fileOf(shared, "voice");
   const voiceGone = shared.notPublished.some(({ name }) => fileKind(name) === "voice");
-  if (captured === null && voice === undefined && !voiceGone) return [];
+  if (page === undefined && voice === undefined && !voiceGone) return [];
   const label = (icon: string, text: string, heard = true): string =>
     `<span class="glance-label"${heard ? "" : ' aria-hidden="true"'}>${icon}${esc(text)}</span>`;
+  const link = (href: string, icon: string, title: string, big: string, small: string): string =>
+    [
+      `<a class="glance-tile go" href="${esc(href)}">`,
+      label(icon, title, false),
+      // The link's words, then whose it is, for a screen reader, then what it leads to.
+      `<span class="glance-big">${big}</span>${of}`,
+      `<span class="glance-small">${esc(small)}</span>`,
+      "</a>",
+    ].join(" ");
+  const pages = hasVerdict(shared.result) ? shared.result.pages : null;
   const tiles = [
-    ...(captured === null
+    ...(page === undefined
       ? []
       : [
-          [
-            '<p class="glance-tile">',
-            label(SITE_ICONS.captured, words.captured),
-            `<span class="glance-big"><time datetime="${esc(captured.at)}">${esc(longDate(captured.at))}</time></span>`,
-            `<span class="glance-small">${esc(words.when(captured.at, captured.runs, captured.first))}</span>`,
-            "</p>",
-          ].join(" "),
+          link(
+            `${page.href}#${PAGES_ANCHOR}`,
+            SITE_ICONS.pages,
+            words.pages,
+            esc(words.seePages(pages)),
+            words.pagesSmall,
+          ),
         ]),
     voice === undefined
-      ? [
-          '<p class="glance-tile none">',
-          label(SITE_ICONS.listen, words.listen),
-          `<span class="glance-big">${esc(words.none)}</span>`,
-          `<span class="glance-small">${esc(voiceGone ? words.voiceGone : words.noVoice)}</span>`,
-          "</p>",
-        ].join(" ")
+      ? voiceGone || page !== undefined
+        ? [
+            '<p class="glance-tile none">',
+            label(SITE_ICONS.listen, words.listen),
+            `<span class="glance-big">${esc(words.none)}</span>`,
+            `<span class="glance-small">${esc(voiceGone ? words.voiceGone : words.noVoice)}</span>`,
+            "</p>",
+          ].join(" ")
+        : ""
+      : link(
+          voice.href,
+          SITE_ICONS.listen,
+          words.listen,
+          `<span aria-hidden="true">▶ </span>${esc(words.play)}`,
+          words.voice,
+        ),
+    ...(page === undefined
+      ? []
       : [
-          `<a class="glance-tile listen" href="${esc(voice.href)}">`,
-          label(SITE_ICONS.listen, words.listen, false),
-          // The link's words, then whose it is, for a screen reader, then what the recording is.
-          `<span class="glance-big"><span aria-hidden="true">▶ </span>${esc(words.play)}</span>${of}`,
-          `<span class="glance-small">${esc(words.voice)}</span>`,
-          "</a>",
-        ].join(" "),
+          link(
+            page.href,
+            SITE_ICONS.report,
+            words.report,
+            esc(words.readReport),
+            words.reportSmall,
+          ),
+        ]),
   ];
   return [`<div class="glance">${tiles.join("")}</div>`];
 }
 
 /**
- * A site's current report: a heading that says it's the current one, with its line; who prepared
- * it; the links a reader wants, to open its page, to its page's "Every page" section (a card for
- * each page, with its screenshot), to its voice page when it has one, and to download its Word
- * copy; and, last, the line for AI tools, when its share has the report as Markdown and as JSON (see
- * forAi). A screen reader hears the site's name, `name`, and the report's line after each link's
- * words, so that no two links on the page read alike. Of the page and the Word copy, one that isn't
- * published has its line in place of its link. What else the record names that isn't here is said in the fold (see
- * filesFold). `level` is the heading's.
+ * A site's current report, in the order a reader needs it: a heading that says it's the current
+ * one, with its line; its result, the biggest thing in it (see result); its tiles, to look closer
+ * (see glance): every page, the audio transcripts, and the whole report; who prepared it; its Word
+ * copy, to keep, as a button with its picture; and, last, the line for AI tools, when its share has
+ * the report as Markdown and as JSON (see forAi). A screen reader hears the site's name, `name`, and
+ * the report's line after each link's words, so that no two links on the page read alike. Of the
+ * page and the Word copy, one that isn't published has its line in place of its link. What else the
+ * record names that isn't here is said in the fold (see filesFold). `level` is the heading's.
  */
 function currentReport(shared: PublishedReport, level: 3 | 4, name: string): string {
-  const page = fileOf(shared, "page");
   const word = fileOf(shared, "word");
-  const voice = fileOf(shared, "voice");
   const of = hidden(SITE_TEXT.of(name, shared.at));
-  const links = [
-    ...(page === undefined
-      ? []
-      : [`<a class="action" href="${esc(page.href)}">${esc(SITE_TEXT.open)}${of}</a>`]),
-    ...(page === undefined
-      ? []
-      : [
-          `<a class="action" href="${esc(page.href)}#${PAGES_ANCHOR}">${esc(SITE_TEXT.everyPage)}${of}</a>`,
-        ]),
-    ...(voice === undefined
-      ? []
-      : [`<a class="action" href="${esc(voice.href)}">${esc(SITE_TEXT.audio)}${of}</a>`]),
-    ...(word === undefined
-      ? []
-      : [
-          `<a class="action" href="${esc(word.href)}" download>${esc(SITE_TEXT.download)}${of}</a>`,
-        ]),
-  ];
   const gone = shared.notPublished.filter(({ name: file }) => {
     const kind = fileKind(file);
     return kind === "page" || kind === "word";
@@ -425,17 +460,21 @@ function currentReport(shared: PublishedReport, level: 3 | 4, name: string): str
   return [
     `<article class="report" id="${esc(shared.id)}">`,
     `<h${level}><span class="label">${esc(SITE_TEXT.current)}</span> ${timeOf(shared.at)}</h${level}>`,
-    // When NVDA read the site, and its recording, at a glance.
+    // What a manager asks first: did it pass, and when was it read?
+    ...result(shared),
+    // Where to look closer: every page, the audio transcripts, and the whole report.
     ...glance(shared, of),
-    // What a manager asks first: did it pass?
-    ...verdict(shared.result),
     `<p class="by">${esc(SITE_TEXT.preparedBy(shared.by))}</p>`,
-    // No paragraph with no link in it.
-    ...(links.length === 0 ? [] : [`<p class="actions">${links.join(" ")}</p>`]),
+    // To keep: the Word copy. No paragraph with no link in it.
+    ...(word === undefined
+      ? []
+      : [
+          `<p class="actions"><a class="action" href="${esc(word.href)}" download>${SITE_ICONS.download}${esc(SITE_TEXT.download)}${of}</a></p>`,
+        ]),
     ...gone.map(
       ({ name: file, reason }) => `<p class="gone">${esc(SITE_TEXT.gone[reason](file))}</p>`,
     ),
-    // The card's last line, under the buttons and what's said of the ones that aren't here.
+    // The card's last line, under the button and what's said of the files that aren't here.
     ...forAi(shared, of),
     "</article>",
   ].join("\n");

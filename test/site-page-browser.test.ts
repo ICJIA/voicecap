@@ -638,6 +638,13 @@ describe("the site's page", () => {
     AXE_TIMEOUT,
   );
 
+  /**
+   * On the page of each kind of verdict, three cards: the tiles that are links (each card's every
+   * page and whole report, and one card's recording), and those with no recording (the other two).
+   */
+  const GLANCE_LINKS = 3 * 2 + 1;
+  const GLANCE_NONE = 2;
+
   it(
     "passes axe with zero violations, dark and light, with each kind of verdict on a card",
     async () => {
@@ -647,10 +654,11 @@ describe("the site's page", () => {
       await openFolds(page);
       expect(await page.locator("p.verdict").count()).toBe(3);
       expect(await page.locator("li", { hasText: "NVDA's voice" }).isVisible()).toBe(true);
-      // The tiles at a glance: two cards' worth, one a link to hear NVDA, and one with none.
-      expect(await page.locator(".glance").count()).toBe(2);
-      expect(await page.locator("a.glance-tile").count()).toBe(1);
-      expect(await page.locator(".glance-tile.none").count()).toBe(1);
+      // The tiles: three cards' worth, with links to every page, the whole report, and one to hear
+      // NVDA, and one card with no recording.
+      expect(await page.locator(".glance").count()).toBe(3);
+      expect(await page.locator("a.glance-tile").count()).toBe(GLANCE_LINKS);
+      expect(await page.locator(".glance-tile.none").count()).toBe(GLANCE_NONE);
 
       expect(await axeFindings(page, 1280), "dark").toEqual([]);
       await page.locator("#theme-toggle").click();
@@ -758,8 +766,8 @@ describe("the site's page", () => {
     AXE_TIMEOUT,
   );
 
-  // 0.22.0: a current report's two tiles sit side by side where both fit, and one over the other
-  // on a phone; the tile to hear NVDA is a link, the whole tile its target.
+  // 0.22.0: a current report's tiles sit side by side where they fit, and one over the other on a
+  // phone; a tile that leads somewhere is a link, the whole tile its target.
   it("lays a card's tiles side by side on a wide window and one over the other on a phone", async () => {
     for (const [width, side] of [
       [1280, true],
@@ -773,14 +781,17 @@ describe("the site's page", () => {
         .evaluateAll((tiles) =>
           tiles.map((tile) => tile.getBoundingClientRect().toJSON() as DOMRect),
         );
-      expect(boxes, String(width)).toHaveLength(2);
+      expect(boxes.length, String(width)).toBeGreaterThanOrEqual(2);
       const [first, second] = boxes as [DOMRect, DOMRect];
       expect(second.top === first.top, String(width)).toBe(side);
       expect(second.left > first.left, String(width)).toBe(side);
-      // The link is the tile: its box is the tile's, so the whole tile can be clicked.
-      const link = await page.locator("a.glance-tile").first().boundingBox();
-      expect(link?.width, String(width)).toBeCloseTo(second.width, 0);
-      expect(link?.height, String(width)).toBeCloseTo(second.height, 0);
+      // The link is the tile: the first tile, every page's, is a link whose box is the tile's, so
+      // the whole tile can be clicked.
+      const link = page.locator(".glance").first().locator(".glance-tile").first();
+      expect(await link.evaluate((tile) => tile.tagName), String(width)).toBe("A");
+      const box = await link.boundingBox();
+      expect(box?.width, String(width)).toBeCloseTo(first.width, 0);
+      expect(box?.height, String(width)).toBeCloseTo(first.height, 0);
     }
   });
 
@@ -1466,9 +1477,13 @@ describe("the site's page", () => {
     for (const heading of await page.locator("main h2").all()) {
       expect(await heading.isVisible()).toBe(true);
     }
-    // Each current report's page, its "Every page", and its Word copy, where they're here.
+    // Each current report's tiles, and its Word copy, where it's here.
+    for (const tile of await page.locator("a.glance-tile").all()) {
+      expect(await tile.isVisible()).toBe(true);
+    }
+    expect(await page.locator("a.glance-tile").count()).toBeGreaterThan(0);
     const actions = page.locator("a.action");
-    expect(await actions.count()).toBe(8);
+    expect(await actions.count()).toBe(2);
     for (const link of await actions.all()) expect(await link.isVisible()).toBe(true);
     expect(await page.locator(".earlier a").count()).toBe(1);
     expect(await page.locator(".earlier a").isVisible()).toBe(true);

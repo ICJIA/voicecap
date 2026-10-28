@@ -133,8 +133,10 @@ export const SITE_TEXT = {
    */
   reading: (result: ShareResult): string => `NVDA read ${pagesRead(result)}.`,
   /**
-   * The two tiles at the top of a site's current report's card: when NVDA read the site, and its
-   * recording. Each has a small label, a big line, and a small line under it.
+   * The tiles of a site's current report's card, under its verdict: when NVDA read the site, every
+   * page of its report, and its recording. Each has a small label, a big line, and a small line
+   * under it. They are what a manager comes for, so they are big, and what else the card has is
+   * quieter.
    */
   glance: {
     /** The first tile's label, over the day NVDA read the site (see longDate in ../share/format.ts). */
@@ -148,12 +150,25 @@ export const SITE_TEXT = {
       runs > 1
         ? `NVDA read the site at ${clock(at)}. The report is of ${runs} runs, ${dateRange(first, at)}.`
         : `NVDA read the site at ${clock(at)}.`,
-    /** The second tile's label, over its link to the report's voice page or over what it lacks. */
-    listen: "Hear NVDA",
-    /** The second tile's big line, as a link to the report's voice page. */
-    play: "Listen to the recording",
+    /** The second tile's label, over its link to the report's "Every page" section. */
+    pages: "Every page",
+    /** Its big line: how many pages, when the report says, as a link. */
+    seePages: (pages: number | null): string =>
+      pages === null ? "See every page" : `See all ${plural(pages, "page")}`,
+    /** Under it: what each page's card has. */
+    pagesSmall: "Each page's screenshot, and what NVDA said on it.",
+    /** The last tile's label, over its link to the report's page: the whole report. */
+    report: "Full report",
+    /** Its big line, as a link. */
+    readReport: "Read the report",
+    /** Under it: what the page is. */
+    reportSmall: "Everything on one page: the result, every page, and how it was tested.",
+    /** The third tile's label, over its link to the report's voice page or over what it lacks. */
+    listen: "Audio transcripts",
+    /** The third tile's big line, as a link to the report's voice page. */
+    play: "Hear NVDA",
     /** Under it: what the voice page plays. */
-    voice: "NVDA's own voice, page by page, as it read the site.",
+    voice: "NVDA's own voice, page by page, slowed so it's easy to follow.",
     /** The second tile's big line, for a report with no voice page here. */
     none: "No recording",
     /** Under it: a report whose share has no voice page (one made before voicecap recorded NVDA). */
@@ -181,13 +196,6 @@ export const SITE_TEXT = {
   /** The current report's two links: its page, which opens in the browser, and its Word copy. */
   open: "Open the report",
   download: "Download the Word copy",
-  /**
-   * The current report's two links after those: to its "Every page" section, a card for each page
-   * with its screenshot and its transcripts, and to its voice page, which plays NVDA's recordings.
-   * A reader said both were hard to find behind "Open the report" alone.
-   */
-  everyPage: "See every page",
-  audio: "Hear the audio transcripts",
   /**
    * The line under them, when the report's share has its report for AI tools, as Markdown and as
    * JSON: what they are, and then a link to each, "For AI tools such as Claude or ChatGPT: the

@@ -86,17 +86,22 @@
  *   a big number in `--good`, at the end of the line, or under them where there's no room. A count
  *   beside a smaller heading is a chip. A site's heading has its picture in a circle too, and its
  *   link to the site itself, a button, ends the line, or goes under it where there's no room;
- * - each site is a card of its own, with all of the site in it, so one site never runs into the
- *   next; the cards in it are on `--panel-2`, and their tiles and files on the panel again;
- * - a site's current report is a card, headed by its line under what it is (a small, quieter
- *   label), with its links as buttons, which wrap onto a line of their own where there's no
- *   room. Its verdict is a pill in the verdict's color, green as `--good`, amber as `--warn`, and
- *   red as `--bad`, in ordinary case, after a sign which a screen reader doesn't read
- *   (`content: "✓" / ""`), since the words say it; how many pages NVDA read is a bar in the same
- *   color (the shareable page's `track`), with its words beside it, or under it on a narrow window;
- *   over its verdict, two tiles at a glance: the day NVDA read the site, big, with its time under it,
- *   and its recording, a link in `--act` to its voice page, or, quieter, that there's none. They sit
- *   side by side where both fit, and one over the other on a phone;
+ * - each site is a card of its own that a first-time reader can't miss, for managers who know
+ *   nothing of what's in it: its own background (`--site-bg`, a slate blue in the dark theme and a
+ *   pale teal in the light, plainly not the page's), a thick edge in `--act` at its left, a shadow,
+ *   and room between one site and the next. Its head is a band of `--act` across its top, with its
+ *   name big. What's in it goes from what matters most to what matters least: the result; the
+ *   tiles, to look closer; the Word copy, to keep; and, after a line, quieter, the earlier reports
+ *   and the fold of files;
+ * - a site's current report isn't a card in the site's card: its parts sit on the site's card. First
+ *   is its result, the biggest thing in it: its verdict, big, a pill in the verdict's color, green
+ *   as `--good`, amber as `--warn`, and red as `--bad`, in ordinary case, after a sign which a
+ *   screen reader doesn't read (`content: "✓" / ""`), since the words say it, and how many pages
+ *   NVDA read, a bar in the same color (the shareable page's `track`), with its words under it, in
+ *   a tile of their own; and beside them the day NVDA read the site, big, with its time under it.
+ *   Then the tiles, each a link in `--act` with its picture: every page, the audio transcripts (or,
+ *   quieter, that there's no recording), and the whole report. Tiles sit side by side where they
+ *   fit, and one over the other on a phone. Then its Word copy, a button with its picture;
  * - the fold of files is a card whose line has a marker, which a screen reader doesn't read either,
  *   turned when it's open. The files of a report are a grid of cards in the card, whose columns are
  *   no wider than their own box (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window
@@ -170,12 +175,15 @@ export const SITE_CSS = `:root {
   --mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
   /* A small capital is about as tall as a lowercase letter, Windows' drawn ones and a Mac's real ones alike: a short label in small capitals is drawn this many times its size, to stand as tall as a capital at that size, with its spacing and its line divided by it. */
   --caps-scale: 1.4;
+  /* A site's card: a slate blue that is plainly not the page, its head a band of --act over it, and a shadow under it. */
+  --site-bg: #18212b; --site-tile: #202b37; --site-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
   color-scheme: dark;
 }
 :root[data-theme="light"] {
   --bg: #f9fafb; --panel: #ffffff; --panel-2: #f3f4f6; --line: #e5e7eb;
   --heading: #111827; --text: #1f2937; --text-2: #374151; --muted: #4b5563; --link: #2563eb;
   --good: #196549; --warn: #705510; --bad: #8b3f3f; --act: #2c626a;
+  --site-bg: #ebf3f5; --site-tile: #ffffff; --site-shadow: 0 10px 28px rgb(17 24 39 / 0.12);
   color-scheme: light;
 }
 @media print { :root { --bg: #f9fafb; --panel: #ffffff; --panel-2: #f3f4f6; --line: #e5e7eb; --heading: #111827; --text: #1f2937; --text-2: #374151; --muted: #4b5563; --link: #2563eb; --good: #196549; --warn: #705510; --bad: #8b3f3f; --act: #2c626a; color-scheme: light; } .theme { display: none; } }
@@ -256,6 +264,9 @@ tbody tr:last-child > * { border-bottom: 0; }
 /* a button: an outline in the line's color, with words in the headline's on the panel */
 .action, .visit { border: 1px solid var(--line); color: var(--heading); background: var(--panel); border-radius: 8px; padding: 8px 16px; font-weight: 600; text-decoration: none; }
 .action:hover, .visit:hover { border-color: var(--muted); background: var(--panel-2); }
+/* a button with a picture: the picture before its words, in --act */
+.action { display: inline-flex; align-items: center; gap: 8px; }
+.action > .icon { flex: none; width: 1.125rem; height: 1.125rem; color: var(--act); }
 /* Its focus keeps its corners. */
 .action:focus-visible, .visit:focus-visible { border-radius: 8px; }
 /* the views */
@@ -271,12 +282,29 @@ tbody tr:last-child > * { border-bottom: 0; }
 .view-head > .count b { color: var(--good); font-family: var(--mono); font-weight: 900; font-size: clamp(1.5rem, 17cqi, 2.375rem); line-height: 1; font-variant-numeric: tabular-nums; }
 /* how many there are beside a smaller heading: a chip */
 .count { display: inline-block; border: 1px solid var(--line); background: var(--panel-2); color: var(--text-2); border-radius: 6px; padding: 1px 8px; font-family: var(--mono); font-size: 0.8125rem; font-weight: 700; line-height: 1.4; font-variant-numeric: tabular-nums; }
-/* each site, as a card of its own, which holds all of it: its head, its current report, its earlier reports, and its fold of files. The cards in it are a card in a card, on --panel-2, and their tiles and files on the panel again, so each stands apart from what it's on */
-.site { display: grid; gap: 14px; margin-top: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 24px 22px; }
+/* each site, as a card of its own that a first-time reader can't miss: its own background, plainly not the page's (--site-bg), a thick edge in --act at its left, a shadow, and room between one site and the next. Its head is a band of --act across its top, with its name big. Its current report isn't a card in the card: the site is the card, and the report's parts sit on it, with its tiles on --site-tile. Its earlier reports and its fold of files come after a line, quieter */
+.site { --site-line: color-mix(in srgb, var(--act) 40%, var(--line)); display: grid; gap: 18px; margin-top: 12px; background: var(--site-bg); border: 1px solid var(--site-line); border-left: 8px solid var(--act); border-radius: 18px; padding: 0 28px 28px; box-shadow: var(--site-shadow); }
+.site + .site { margin-top: 44px; }
 .site > * { min-width: 0; }
-.site > .report, .site > details.fold { background: var(--panel-2); }
-.site .glance-tile:not(a), .site .files li { background: var(--panel); }
-/* a site's head: its title row, its picture in a circle and its name, big and heavy, which stay on one line together; and the link to the site itself, as a button, at the end of the line, or under them where there's no room */
+.site > .site-head { margin-inline: -28px; padding: 20px 28px; background: color-mix(in srgb, var(--act) 16%, var(--site-bg)); border-bottom: 1px solid var(--site-line); border-radius: 10px 10px 0 0; }
+.site > .site-head h3 { font-size: clamp(1.625rem, 4.4vw, 2.25rem); }
+.site > .report { background: none; border: 0; border-radius: 0; padding: 0; gap: 18px; }
+.site > .report > h4 { font-size: 1rem; color: var(--muted); }
+.site > .report > h4 > time { font-size: 0.9375rem; }
+/* a current report's result, first and biggest: did it pass, and how many pages NVDA read, in a tile of its own, and the day NVDA read the site beside it, or under it on a phone */
+.result { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr)); gap: 12px; }
+.outcome { display: grid; gap: 14px; align-content: center; min-width: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-2); }
+.site .outcome { background: var(--site-tile); }
+.outcome > .verdict { font-size: 1.375rem; letter-spacing: 0.02em; padding: 8px 16px; border-radius: 10px; }
+.outcome > .reading > p { font-size: 1.0625rem; }
+.site .glance-tile:not(a), .site .files li, .site > details.fold { background: var(--site-tile); }
+.site .glance-tile { padding: 18px 20px; border-radius: 14px; }
+.site .glance-label > .icon { width: 1.375rem; height: 1.375rem; }
+.site .glance-big { font-size: 1.5rem; }
+/* on a phone, less room inside the card, so its words have more */
+@media (max-width: 30em) { .site { padding: 0 16px 20px; border-left-width: 6px; } .site > .site-head { margin-inline: -16px; padding: 16px; } }
+/* the earlier reports and the files: after a line, quieter */
+.site > .sub-head { border-top: 1px solid var(--site-line); padding-top: 18px; margin-top: 6px; }
 .site-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .site-head > .title { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .site-head h3 { min-width: 0; font-size: clamp(1.375rem, 3.6vw, 1.75rem); font-weight: 900; line-height: 1.15; }

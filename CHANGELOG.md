@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **Each site on the website stands apart, and its card leads with what a manager needs.** 0.23.0's site cards were the page's own colors, so the sites still ran together. Each site is now a card of its own color (a slate blue in the dark theme, a pale teal in the light), with a thick colored edge, a shadow, a colored band with the site's name, and room before the next site. Inside, what's most important comes first and biggest: the result (its verdict, how many pages NVDA read, and the day it read them); then three big tiles, each with a picture, to look closer: "See all 25 pages" (each page's screenshot and what NVDA said), "Hear NVDA" (the audio transcripts), and "Read the report"; then the Word copy, a button with a picture; and, after a line, quieter, the earlier reports and the files. The tiles take the place of 0.23.0's "Open the report", "See every page", and "Hear the audio transcripts" buttons.
+
 ## [0.23.0] - 2026-10-28
 
 Each site on the website is a card of its own, with buttons straight to its pages and its recordings, and the voice page plays NVDA slowly from the first press of play.

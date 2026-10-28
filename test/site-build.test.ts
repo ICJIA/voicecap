@@ -3891,15 +3891,13 @@ describe("buildSite", () => {
       expect(index).toContain(`<code>${voice?.sha256}</code>`);
       // The report's own links are its page, which opens, and its Word copy, which downloads: the
       // voice page is never the page, though its name ends in .html as the page's does. It's linked
-      // from the report's tile to hear NVDA (from 0.22.0), its "Hear the audio transcripts" button,
-      // and in the fold, and opens each time.
+      // from the report's tile for its audio transcripts (from 0.22.0), and in the fold, and opens
+      // each time.
       expect(page?.kind).toBe("page");
-      expect(index).toContain(
-        `<a class="action" href="${page?.href}">Open the report<span class="sr"> of ${VOICE_FOLDER}, `,
-      );
+      expect(index).toContain(`<a class="glance-tile go" href="${page?.href}">`);
       expect(index).toContain(`<a class="action" href="${word?.href}" download>`);
-      expect(index.match(new RegExp(`href="${voice?.href}"`, "g"))).toHaveLength(3);
-      expect(index).toContain(`<a class="glance-tile listen" href="${voice?.href}">`);
+      expect(index.match(new RegExp(`href="${voice?.href}"`, "g"))).toHaveLength(2);
+      expect(index).toContain(`<a class="glance-tile go" href="${voice?.href}">`);
       expect(index).not.toContain(`href="${voice?.href}" download`);
     });
 
@@ -4054,16 +4052,14 @@ describe("buildSite", () => {
       ]);
       // The report's one page is the pair's, and the current report opens it.
       const index = await readFile(path.join(out, "index.html"), "utf8");
-      expect(index).toContain(
-        `<a class="action" href="${VOICE_FOLDER}/${VOICE_STEM}.html">Open the report`,
-      );
-      // The voice page is never opened as the report: its one button is "Hear the audio transcripts".
-      expect(index).not.toContain(
-        `<a class="action" href="${VOICE_FOLDER}/${VOICE_PAGE}">Open the report`,
-      );
-      expect(index).toContain(
-        `<a class="action" href="${VOICE_FOLDER}/${VOICE_PAGE}">Hear the audio transcripts`,
-      );
+      const tileTo = (href: string, words: string): RegExp =>
+        new RegExp(
+          `<a class="glance-tile go" href="${href.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}">(?:(?!</a>)[^])*?<span class="glance-big">(?:<span aria-hidden="true">▶ </span>)?${words}</span>`,
+        );
+      expect(index).toMatch(tileTo(`${VOICE_FOLDER}/${VOICE_STEM}.html`, "Read the report"));
+      // The voice page is never opened as the report: its one tile is its audio transcripts'.
+      expect(index).not.toMatch(tileTo(`${VOICE_FOLDER}/${VOICE_PAGE}`, "Read the report"));
+      expect(index).toMatch(tileTo(`${VOICE_FOLDER}/${VOICE_PAGE}`, "Hear NVDA"));
     });
   });
 
@@ -4408,11 +4404,16 @@ describe("buildSite", () => {
           ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ].sort(),
       );
-      // The page links to each, twice (as the current report or an earlier one, and in the fold of
+      // The page links to each, twice (from the current report's tile or an earlier one's line, and in the fold of
       // files), and each link leads to the file of the folder it names. The bars' links to the
       // website's pages are pages of the website, not a report's files.
-      const website = new Set(["trust.html", "whats-new.html", "technical-details.html"]);
-      const links = [...index.matchAll(/<a (?:class="action" )?href="([^"#]+\.html)"/g)]
+      const website = new Set([
+        "index.html",
+        "trust.html",
+        "whats-new.html",
+        "technical-details.html",
+      ]);
+      const links = [...index.matchAll(/<a (?:class="[^"]*" )?href="([^"#]+\.html)"/g)]
         .map(([, href = ""]) => href)
         .filter((href) => !website.has(href));
       expect(links.toSorted()).toEqual(

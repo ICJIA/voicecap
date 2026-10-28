@@ -20,6 +20,7 @@ import vm from "node:vm";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
+import type { ShareResult } from "../src/model.js";
 import { DEMO_CANONICAL } from "../src/demo/server.js";
 import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { SHARE_CSS, THEME_CSS } from "../src/share/html/style.js";
@@ -531,16 +532,16 @@ describe("renderSiteIndex", () => {
     // No section is made from a folder's name. A folder's name is only where its files are.
     expect(page).not.toContain('id="site-127.0.0.1_4848"');
     expect(page).not.toContain('id="site-localhost_3000"');
-    // The report's page, linked from the current report, at its "Every page" too, and from the
-    // fold of files.
+    // The report's page, linked from the current report's tiles, at its "Every page" and whole,
+    // and from the fold of files.
     expect(linksOf(sectionOf(page, "site-voicecap.icjia.app")).map(({ href }) => href)).toEqual([
-      "127.0.0.1_4848/127.0.0.1_4848_page.html",
       "127.0.0.1_4848/127.0.0.1_4848_page.html#pages",
+      "127.0.0.1_4848/127.0.0.1_4848_page.html",
       "127.0.0.1_4848/127.0.0.1_4848_page.html",
     ]);
     // A screen reader hears each report's links named by the site's name, not its folder's.
-    expect(textsOf(sectionOf(page, "site-voicecap.icjia.app"), "a")[0]).toBe(
-      "Open the report of voicecap.icjia.app, 3 October 2026, 10:00",
+    expect(textsOf(sectionOf(page, "site-voicecap.icjia.app"), "a")[0]).toMatch(
+      /^Every page See every page of voicecap\.icjia\.app, 3 October 2026, 10:00 /,
     );
   });
 
@@ -561,13 +562,13 @@ describe("renderSiteIndex", () => {
     // One count, from 0.13.1: beside the earlier reports' heading, how many they are, for the eye.
     expect(site.match(/class="count"/g)).toHaveLength(1);
     expect(site).toContain('<span class="count" aria-hidden="true">2</span>');
-    // Each report's files are at its own folder's address: the current one's links (its page, and
-    // its page at "Every page") and each earlier one's, then each in the fold, in the same order.
+    // Each report's files are at its own folder's address: the current one's tiles (its page at
+    // "Every page", and whole) and each earlier one's, then each in the fold, in the same order.
     const pages = reports.map(({ folder }) => `${folder}/${folder}_page.html`);
     const [current, ...earlier] = pages;
     expect(linksOf(site).map(({ href }) => href)).toEqual([
-      current,
       `${current}#pages`,
+      current,
       ...earlier,
       ...pages,
     ]);
@@ -709,7 +710,7 @@ describe("renderSiteIndex", () => {
     );
   });
 
-  it("leads each site with its current report: its date, who prepared it, and links to open its page, see every page, and download its Word copy", () => {
+  it("leads each site with its current report: its date, its tiles to see every page and read the report, who prepared it, and its Word copy", () => {
     const article = articleOf(html, DVFR_NEWEST.id);
     const of = ` of ${DVFR}, 3 October 2026, 14:05`;
 
@@ -718,15 +719,16 @@ describe("renderSiteIndex", () => {
       '<h4><span class="label">The current report, shared</span> <time datetime="2026-10-03T14:05:00-05:00">3 October 2026, 14:05</time></h4>',
     );
     expect(textsOf(article, "p")).toEqual([
+      "Audio transcripts No recording This report has no recording of NVDA's voice.",
       "Prepared by Pat Lee",
-      `Open the report${of} See every page${of} Download the Word copy${of}`,
+      `Download the Word copy${of}`,
       `For AI tools such as Claude or ChatGPT: the report as Markdown${of}, or as JSON${of}`,
     ]);
-    // The page opens in the browser, at its top and at its "Every page", and the Word copy and the
+    // The page opens in the browser, at its "Every page" and whole, and the Word copy and the
     // report for AI tools are downloaded. The walkthrough files are only in the fold.
     expect(linksOf(article)).toEqual([
-      { href: `${DVFR}/${DVFR}_2026-10-03.html`, download: false },
       { href: `${DVFR}/${DVFR}_2026-10-03.html#pages`, download: false },
+      { href: `${DVFR}/${DVFR}_2026-10-03.html`, download: false },
       { href: `${DVFR}/${DVFR}_2026-10-03.docx`, download: true },
       { href: `${DVFR}/${DVFR}_2026-10-03.md`, download: true },
       { href: `${DVFR}/${DVFR}_2026-10-03.json`, download: true },
@@ -735,20 +737,20 @@ describe("renderSiteIndex", () => {
     // What a reader sees of each link is its words. A screen reader hears the site and the date
     // after them too, so no two links on the page read alike.
     expect(textsOf(withoutHidden(article), "a")).toEqual([
-      "Open the report",
-      "See every page",
+      "Every page See every page Each page's screenshot, and what NVDA said on it.",
+      "Full report Read the report Everything on one page: the result, every page, and how it was tested.",
       "Download the Word copy",
       "Markdown",
       "JSON",
     ]);
-    expect(article).toContain(`Open the report<span class="sr">${of}</span></a>`);
+    expect(article).toContain(`Read the report</span><span class="sr">${of}</span>`);
 
     // The demo's is the same, a level up, under the demo's heading, and named for the demo.
     const demo = articleOf(html, DEMO_REPORT.id);
     expect(textsOf(demo, "h3")).toEqual(["The current report, shared 29 September 2026, 15:40"]);
     expect(textsOf(demo, "a")).toEqual([
-      "Open the report of the demo, 29 September 2026, 15:40",
-      "See every page of the demo, 29 September 2026, 15:40",
+      "Every page See every page of the demo, 29 September 2026, 15:40 Each page's screenshot, and what NVDA said on it.",
+      "Full report Read the report of the demo, 29 September 2026, 15:40 Everything on one page: the result, every page, and how it was tested.",
       "Download the Word copy of the demo, 29 September 2026, 15:40",
       "Markdown of the demo, 29 September 2026, 15:40",
       "JSON of the demo, 29 September 2026, 15:40",
@@ -905,8 +907,9 @@ describe("renderSiteIndex", () => {
       expect(textsOf(card, "p")).toEqual([
         "Nothing needs attention",
         "NVDA read all 9 pages.",
+        "Audio transcripts No recording This report has no recording of NVDA's voice.",
         "Prepared by Pat Lee",
-        `Open the report of ${DVFR}, 3 October 2026, 14:05 See every page of ${DVFR}, 3 October 2026, 14:05 Download the Word copy of ${DVFR}, 3 October 2026, 14:05`,
+        `Download the Word copy of ${DVFR}, 3 October 2026, 14:05`,
         `For AI tools such as Claude or ChatGPT: the report as Markdown of ${DVFR}, 3 October 2026, 14:05, or as JSON of ${DVFR}, 3 October 2026, 14:05`,
       ]);
     });
@@ -1201,8 +1204,8 @@ describe("renderSiteIndex", () => {
     // The example site's Word copy is missing: its page has its link, and the Word copy a line.
     const example = articleOf(html, EXAMPLE_REPORT.id);
     expect(textsOf(example, "p")).toEqual([
+      "Audio transcripts No recording This report has no recording of NVDA's voice.",
       "Prepared by Sam Rivera",
-      `Open the report of ${EXAMPLE}, 2 October 2026, 09:30 See every page of ${EXAMPLE}, 2 October 2026, 09:30`,
       `${EXAMPLE}_2026-10-02.docx isn't here: the file is missing.`,
     ]);
     expect(example).toContain('<p class="gone">');
@@ -1559,22 +1562,20 @@ describe("renderSiteIndex", () => {
     it("opens in the browser, as the report's page does, and is never a download", () => {
       const links = linksOf(sectionOf(pageOf(withVoice), `site-${DVFR}`));
 
-      // Linked three times: from the current report's tile (from 0.22.0), its "Hear the audio
-      // transcripts" button, and in the fold.
+      // Linked twice: from the current report's tile for its audio transcripts, and in the fold.
       expect(links.filter(({ href }) => href === `${DVFR}/${VOICE}`)).toEqual([
-        { href: `${DVFR}/${VOICE}`, download: false },
         { href: `${DVFR}/${VOICE}`, download: false },
         { href: `${DVFR}/${VOICE}`, download: false },
       ]);
       expect(
         links.filter(({ href }) => /\.html(?:#pages)?$/.test(href)).map(({ download }) => download),
-      ).toEqual([false, false, false, false, false, false]);
+      ).toEqual([false, false, false, false, false]);
       expect(
         links.filter(({ href }) => href.endsWith(".docx")).map(({ download }) => download),
       ).toEqual([true, true]);
     });
 
-    it("is the current report's tile to hear NVDA and its button for the audio transcripts, and leads no report: an earlier report's line and the list by date are of its page", () => {
+    it("is the current report's tile for the audio transcripts, and leads no report: an earlier report's line and the list by date are of its page", () => {
       const older: PublishedReport = {
         ...DVFR_OLDEST,
         files: [
@@ -1592,24 +1593,21 @@ describe("renderSiteIndex", () => {
         ],
       });
 
-      // The current report: its tile, which opens the voice page, then its page, its page at
-      // "Every page", its voice page again, and its Word copy, then its line for AI tools, with the
-      // Markdown and the JSON.
+      // The current report: its tiles, to its page at "Every page", its voice page, and its page,
+      // then its Word copy, then its line for AI tools, with the Markdown and the JSON.
       const article = articleOf(page, withVoice.id);
       expect(linksOf(article)).toEqual([
-        { href: `${DVFR}/${VOICE}`, download: false },
-        { href: PAGE, download: false },
         { href: `${PAGE}#pages`, download: false },
         { href: `${DVFR}/${VOICE}`, download: false },
+        { href: PAGE, download: false },
         { href: WORD, download: true },
         { href: `${DVFR}/${DVFR}_2026-10-03.md`, download: true },
         { href: `${DVFR}/${DVFR}_2026-10-03.json`, download: true },
       ]);
       expect(textsOf(withoutHidden(article), "a")).toEqual([
-        "Hear NVDA ▶ Listen to the recording NVDA's own voice, page by page, as it read the site.",
-        "Open the report",
-        "See every page",
-        "Hear the audio transcripts",
+        "Every page See every page Each page's screenshot, and what NVDA said on it.",
+        "Audio transcripts ▶ Hear NVDA NVDA's own voice, page by page, slowed so it's easy to follow.",
+        "Full report Read the report Everything on one page: the result, every page, and how it was tested.",
         "Download the Word copy",
         "Markdown",
         "JSON",
@@ -1640,15 +1638,14 @@ describe("renderSiteIndex", () => {
       });
 
       // The current report says its page isn't here, and links its voice page and its Word copy
-      // alone: no "See every page", which is a part of its page.
+      // alone: no tile for every page or the whole report, which are its page.
       const article = articleOf(page, voiceOnly.id);
       expect(textsOf(article, "p")).toEqual([
         "Prepared by Pat Lee",
-        `Hear the audio transcripts${of} Download the Word copy${of}`,
+        `Download the Word copy${of}`,
         `${DVFR}_2026-10-03.html isn't here: the file is missing.`,
       ]);
       expect(linksOf(article)).toEqual([
-        { href: `${DVFR}/${VOICE}`, download: false },
         { href: `${DVFR}/${VOICE}`, download: false },
         { href: WORD, download: true },
       ]);
@@ -1677,12 +1674,12 @@ describe("renderSiteIndex", () => {
       };
       const page = pageOf(missing);
 
-      // The card's tile says there's no recording here, then its links, with no button for the audio
-      // transcripts, and its line for AI tools.
+      // The card's tile for the audio transcripts says there's no recording here, then its Word
+      // copy, and its line for AI tools.
       expect(textsOf(articleOf(page, missing.id), "p")).toEqual([
-        "Hear NVDA No recording Its recording isn't on this website: the files below say why.",
+        "Audio transcripts No recording Its recording isn't on this website: the files below say why.",
         "Prepared by Pat Lee",
-        `Open the report${of} See every page${of} Download the Word copy${of}`,
+        `Download the Word copy${of}`,
         `For AI tools such as Claude or ChatGPT: the report as Markdown${of}, or as JSON${of}`,
       ]);
       // The fold says which file isn't here, and why.
@@ -1692,7 +1689,7 @@ describe("renderSiteIndex", () => {
       ]);
     });
 
-    it("gives a share whose only published file is its voice page its tile's link and its button for the audio transcripts alone in its card, and lists the voice page in its fold", () => {
+    it("gives a share whose only published file is its voice page its tile's link alone in its card, and lists the voice page in its fold", () => {
       const alone: PublishedReport = {
         ...DVFR_NEWEST,
         files: [published("voice", DVFR, VOICE, 900)],
@@ -1703,12 +1700,9 @@ describe("renderSiteIndex", () => {
       expect(filesIn(sharedBlocksOf(page)[0] ?? "")).toEqual([
         `NVDA's voice ${VOICE} 900 KB, SHA-256 ${fingerprintOf(VOICE)}`,
       ]);
-      // No link of the report's own but the voice page's.
-      expect(articleOf(page, alone.id)).toContain(
-        `<p class="actions"><a class="action" href="${DVFR}/${VOICE}">Hear the audio transcripts<span class="sr">${of}</span></a></p>`,
-      );
+      // No link of the report's own, and no paragraph of them with nothing in it.
+      expect(articleOf(page, alone.id)).not.toContain('class="actions"');
       expect(linksOf(articleOf(page, alone.id))).toEqual([
-        { href: `${DVFR}/${VOICE}`, download: false },
         { href: `${DVFR}/${VOICE}`, download: false },
       ]);
     });
@@ -3278,14 +3272,16 @@ describe("SITE_CSS", () => {
     // the narrower layout in a wider window: a width in pixels would give the wider one to a window
     // that a larger size makes narrow. The trust page's four big numbers go two across from 36em,
     // and four from 60em, and Technical details' steps of a run two a row from 36em, and three
-    // from 60em, by the same measure. The one other is no width at all: `screen`, for the footer at
-    // the window's bottom, which print leaves as it was.
+    // from 60em, by the same measure, and a site's card has less room inside it up to 30em, on a
+    // phone. The one other is no width at all: `screen`, for the footer at the window's bottom,
+    // which print leaves as it was.
     const queries = [...SITE_CSS.matchAll(/@media ([^{]*)\{/g)].map(([, query = ""]) =>
       query.trim(),
     );
     expect(queries).toEqual([
       "print",
       "(min-width: 40em)",
+      "(max-width: 30em)",
       "(min-width: 36em)",
       "(min-width: 60em)",
       "(min-width: 36em)",
@@ -3428,18 +3424,27 @@ describe("SITE_SCRIPT", () => {
 });
 
 // 0.22.0: each site's current report opens with two tiles, when NVDA read the site and its
-// recording, and the sites come in the order NVDA read them, the latest first.
+// recording, and the sites come in the order NVDA read them, the latest first. 0.23.1: the day NVDA
+// read the site is in the card's result, beside its verdict, and the tiles, under it, are where a
+// reader looks closer: every page, the recording, and the whole report.
 describe("the current report's glance, and the sites' order", () => {
   const AT = "2026-10-23T19:04:00-05:00";
   const VOICE = `${DVFR}/${DVFR}_2026-10-23.voice.html`;
+  const PAGE = `${DVFR}/${DVFR}_2026-10-23.html`;
   /** A report of `folder` shared at `at`, of these runs, with its voice page when `voice`. */
-  const reportOf = (folder: string, runs: string[], voice: boolean, at = AT): PublishedReport => ({
+  const reportOf = (
+    folder: string,
+    runs: string[],
+    voice: boolean,
+    at = AT,
+    page = true,
+  ): PublishedReport => ({
     folder,
     id: `report-${folder}-1`,
     at,
     by: "Pat Lee",
     files: [
-      published("page", folder, `${folder}_2026-10-23.html`, 10),
+      ...(page ? [published("page", folder, `${folder}_2026-10-23.html`, 10)] : []),
       ...(voice ? [published("voice", folder, `${folder}_2026-10-23.voice.html`, 10)] : []),
     ],
     notPublished: [],
@@ -3459,54 +3464,78 @@ describe("the current report's glance, and the sites' order", () => {
     );
   const glanceOf = (card: string): string =>
     /<div class="glance">([\s\S]*?)<\/div>/.exec(card)?.[1] ?? "";
+  /** The tile of when NVDA read the site, in the card's result. */
+  const capturedIn = (card: string): string =>
+    /<p class="glance-tile captured">[\s\S]*?<\/p>/.exec(card)?.[0] ?? "";
+  /** What a screen reader hears of each link: no label or arrow, which only repeat its words. */
+  const heard = (markup: string): string[] =>
+    textsOf(markup.replace(/<span[^>]*aria-hidden="true"[^>]*>[\s\S]*?<\/span>/g, ""), "a");
 
-  it("says when NVDA read the site, the day big, from the newest of the runs the report is of", () => {
+  it("says when NVDA read the site, the day big, from the newest of the runs the report is of, beside its verdict", () => {
     const card = cardOf(reportOf(DVFR, ["2026-10-09_0909", "2026-10-14_0626"], true));
-    const glance = glanceOf(card);
+    const captured = capturedIn(card);
 
-    expect(glance).toContain(
+    expect(captured).toContain(
       '<span class="glance-big"><time datetime="2026-10-14T06:26">14 October 2026</time></span>',
     );
-    expect(textsOf(glance, "p")).toEqual([
+    expect(textsOf(captured, "p")).toEqual([
       "Captured 14 October 2026 NVDA read the site at 06:26. The report is of 2 runs, 9 to 14 October 2026.",
     ]);
+    // In the card's result, first in the card, over the tiles.
+    expect(card.indexOf('<div class="result">')).toBeLessThan(card.indexOf("glance-tile captured"));
+    expect(card.indexOf("glance-tile captured")).toBeLessThan(card.indexOf('class="glance"'));
     // One run: its time alone. A run named, or begun in the same minute as another, is by its start.
     expect(
-      textsOf(glanceOf(cardOf(reportOf(DVFR, ["2026-10-23_1204_full-2"], true))), "p"),
+      textsOf(capturedIn(cardOf(reportOf(DVFR, ["2026-10-23_1204_full-2"], true))), "p"),
     ).toEqual(["Captured 23 October 2026 NVDA read the site at 12:04."]);
   });
 
-  it("links the report's voice page from its second tile, a link named for the site and the report", () => {
-    const glance = glanceOf(cardOf(reportOf(DVFR, ["2026-10-14_0626"], true)));
-
-    expect(linksOf(glance)).toEqual([{ href: VOICE, download: false }]);
-    // A screen reader hears the link's words and whose it is, not the label or the arrow, which
-    // only repeat them.
-    expect(
-      textsOf(glance.replace(/<span[^>]*aria-hidden="true"[^>]*>[\s\S]*?<\/span>/g, ""), "a")[0],
-    ).toBe(
-      `Listen to the recording of ${DVFR}, 23 October 2026, 19:04 NVDA's own voice, page by page, as it read the site.`,
-    );
-    // Its tiles come first in the card, over the verdict and the links.
+  it("links every page, the voice page, and the whole page from its tiles, each named for the site and the report", () => {
     const card = cardOf(reportOf(DVFR, ["2026-10-14_0626"], true));
+    const glance = glanceOf(card);
+    const of = ` of ${DVFR}, 23 October 2026, 19:04`;
+
+    expect(linksOf(glance)).toEqual([
+      { href: `${PAGE}#pages`, download: false },
+      { href: VOICE, download: false },
+      { href: PAGE, download: false },
+    ]);
+    expect(heard(glance)).toEqual([
+      `See every page${of} Each page's screenshot, and what NVDA said on it.`,
+      `Hear NVDA${of} NVDA's own voice, page by page, slowed so it's easy to follow.`,
+      `Read the report${of} Everything on one page: the result, every page, and how it was tested.`,
+    ]);
+    // Each has its label, for the eye, and a picture.
+    expect(textsOf(glance.replace(/<svg[\s\S]*?<\/svg>/g, ""), "span")).toEqual(
+      expect.arrayContaining(["Every page", "Audio transcripts", "Full report"]),
+    );
+    // Under the result, and over who prepared it.
     expect(card.indexOf('class="glance"')).toBeLessThan(card.indexOf('class="by"'));
   });
 
-  it("says there's no recording, quieter, when the report has none, and has no tiles with neither runs nor a recording", () => {
+  it("says how many pages there are on its tile for every page, when the report records it", () => {
+    const result: ShareResult = { pages: 25, read: 25, problems: 0, problemPages: 0 };
+    const report = { ...reportOf(DVFR, ["2026-10-14_0626"], true), result };
+    expect(heard(glanceOf(cardOf(report)))[0]).toMatch(/^See all 25 pages of /);
+  });
+
+  it("says there's no recording, quieter, when the report has none, and has no tiles with neither its page nor a recording", () => {
     const glance = glanceOf(cardOf(reportOf(DVFR, ["2026-10-06_1134"], false)));
 
-    expect(linksOf(glance)).toEqual([]);
-    expect(glance).toContain('<p class="glance-tile none">');
-    expect(textsOf(glance, "p")[1]).toBe(
-      "Hear NVDA No recording This report has no recording of NVDA's voice.",
-    );
-    expect(cardOf(reportOf(DVFR, [], false))).not.toContain('class="glance"');
-    // A run's id of a shape voicecap doesn't give says nothing of when (records.ts never passes
-    // one on); a recording alone is a tile alone.
-    expect(textsOf(glanceOf(cardOf(reportOf(DVFR, [], true))), "p")).toEqual([]);
-    expect(linksOf(glanceOf(cardOf(reportOf(DVFR, [], true))))).toEqual([
-      { href: VOICE, download: false },
+    expect(linksOf(glance)).toEqual([
+      { href: `${PAGE}#pages`, download: false },
+      { href: PAGE, download: false },
     ]);
+    expect(glance).toContain('<p class="glance-tile none">');
+    expect(textsOf(glance, "p")).toEqual([
+      "Audio transcripts No recording This report has no recording of NVDA's voice.",
+    ]);
+    expect(cardOf(reportOf(DVFR, [], false, AT, false))).not.toContain('class="glance"');
+    // A run's id of a shape voicecap doesn't give says nothing of when (records.ts never passes
+    // one on), and a recording alone is a tile alone.
+    const alone = cardOf(reportOf(DVFR, [], true, AT, false));
+    expect(alone).not.toContain("glance-tile captured");
+    expect(linksOf(glanceOf(alone))).toEqual([{ href: VOICE, download: false }]);
   });
 
   it("puts the site NVDA read last first, by its current report's newest run, whatever its name or when it was shared", () => {
