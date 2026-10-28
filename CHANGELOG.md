@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-28
+
+Each site on the website is a card of its own, with buttons straight to its pages and its recordings, and the voice page plays NVDA slowly from the first press of play.
+
 ### Changed
 
 - **Each site on the website is a card of its own, with direct links to its pages and its recordings.** A reader found it hard to see the report of each page of a site, with its screenshot, and couldn't find the recordings of NVDA's voice. Each site's head, current report, earlier reports, and files are now in one card, so one site never runs into the next, and the current report has two more buttons: "See every page", which opens the report at its card for each page, and "Hear the audio transcripts", which opens its voice page.
@@ -845,7 +849,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.22.2...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/ICJIA/voicecap/compare/v0.22.2...v0.23.0
 [0.22.2]: https://github.com/ICJIA/voicecap/compare/v0.22.1...v0.22.2
 [0.22.1]: https://github.com/ICJIA/voicecap/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/ICJIA/voicecap/compare/v0.21.0...v0.22.0
