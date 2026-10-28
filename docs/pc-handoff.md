@@ -7,8 +7,22 @@ This file was written on 2026-10-24, on the owner's Mac, as the closing handoff,
 voicecap takes NVDA through every page of a website, saves every word it says as transcripts with a recording of its voice, runs axe on each page, and keeps a sealed record of it all. A share of a run is published at **https://voicecap.icjia.app**, and docs.icjia.app shows a card for each site from it. The point is due diligence: managers, auditors, and lawyers get the address and the records, a trail that a real screen reader read every single page, with the problems it found and what was done about them.
 
 - **The Windows PC is voicecap's focus.** Audits run there, with NVDA and Chrome. The Mac prepares and checks itself for VoiceOver (`setup`, `doctor`, `init`) as groundwork, but no audit runs there: a Mac version may come later, if it's needed, and isn't part of voicecap now.
-- **Released:** 0.22.2 is the wrap-up release (see the CHANGELOG): recordings declare a whole-millisecond pre-skip, so Chrome 156 decodes them whole; every place that promised a VoiceOver driver says where audits run instead; and the step caps are 1,500 / 500 / 1,000 (read / headings / Tab), so a long page reads to its end without `--max-steps`.
+- **Released:** 0.24.0 is the latest (2026-10-28; see "Since then", below). 0.22.2 was the wrap-up release (see the CHANGELOG): recordings declare a whole-millisecond pre-skip, so Chrome 156 decodes them whole; every place that promised a VoiceOver driver says where audits run instead; and the step caps are 1,500 / 500 / 1,000 (read / headings / Tab), so a long page reads to its end without `--max-steps`.
 - **Sites on the website:** sfs.icjia.illinois.gov, dvfr.illinois.gov, v3--i2i.netlify.app (i2i, until i2i.illinois.gov serves v3), and r3.illinois.gov (entry 5, 25 of 25 pages, nothing needing attention).
+
+## Since then: 2026-10-28, on the Mac
+
+Three releases, from the Mac at the owner's word, after a reader of the website found it hard to see each page's report and screenshot, and couldn't find the recordings:
+
+- **0.23.0 and 0.23.1, the website.** Each site is a card of its own color (slate blue in the dark theme, pale teal in the light) for non-technical managers, in order of importance: the result (verdict, pages read, the day NVDA read them); three big tiles with pictures, "See all N pages" (every page with its screenshot), "Hear NVDA" (the voice page), and "Read the report"; the Word copy; and, after a line, the earlier reports and the files.
+- **0.23.0, the voice page starts at 0.3×.** Pressing play slows it at once, the browser's way, and voicecap's clearer copy takes over from the same place when it's ready (about 2 s for a recording of 3.5 minutes).
+- **0.24.0, the voice page is one to follow along with.** Each page's section has its screenshot, player, and speeds on the left, and its read, headings, and Tab transcripts on the right, in a box that scrolls on its own; nothing on the page leaves it while a recording plays. As it plays, the line NVDA is saying is outlined in yellow (each line's span from its pass's JSON, placed by the recording's stretch for that pass; checked against the sound of real recordings). The page's check now covers its transcripts and screenshots too.
+- **The website builds with 0.24.0**, and sfs, dvfr, and r3 were shared again with it (sfs entry 9, dvfr 5, r3 7): the same runs and results, no new audio. A voice page is written when a site is shared, so a site shows a new voice page only once it's shared again.
+
+**Next, on the PC:**
+
+1. **Read v3--i2i.netlify.app again with NVDA, and share it with 0.24.0 or later.** Its runs are all from 2026-10-06, before voicecap recorded NVDA's voice (0.18.0), so it has never had a recording, and its card says "No recording". The owner's manager wants an audio transcript of the site in progress now; it will be read again once it's i2i.illinois.gov. Only with the owner's OK, as every real run.
+2. **The forms phase, a request of 2026-10-28, not started.** The owner's manager wants each site's forms tested with NVDA: voicecap should give pages with forms special emphasis, try the submit button, and read what keeps a form from being sent (a missing required field, say). It's a new pass in the driver, so design it first, with the owner (a brainstorm, then a spec and a plan), before any code. Questions to raise: never sending real data (press submit with the form empty only? stop on a success?), forms that send email or write records, CAPTCHAs, forms in several steps, how the report shows a form's result, and whether the recording covers the new pass.
 
 ## How to start
 
