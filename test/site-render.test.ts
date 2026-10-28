@@ -401,8 +401,16 @@ describe("renderSiteIndex", () => {
     const links = linksOf(html);
     const files = filesOf(CONTENT);
     const anchors = ["#main", "#demo", "#sites", "#by-date"];
+    // Each current report's page, at its "Every page" section too.
+    const everyPage = [CONTENT.demo, ...CONTENT.sites.map(({ reports }) => reports[0])].flatMap(
+      (report) =>
+        (report?.files ?? [])
+          .filter(({ kind }) => kind === "page")
+          .map(({ href }) => `${href}#pages`),
+    );
     const allowed = [
       ...anchors,
+      ...everyPage,
       INDEX_HREF,
       TRUST_PAGE_HREF,
       WHATS_NEW_HREF,
@@ -523,9 +531,11 @@ describe("renderSiteIndex", () => {
     // No section is made from a folder's name. A folder's name is only where its files are.
     expect(page).not.toContain('id="site-127.0.0.1_4848"');
     expect(page).not.toContain('id="site-localhost_3000"');
-    // The report's page, linked from the current report and from the fold of files.
+    // The report's page, linked from the current report, at its "Every page" too, and from the
+    // fold of files.
     expect(linksOf(sectionOf(page, "site-voicecap.icjia.app")).map(({ href }) => href)).toEqual([
       "127.0.0.1_4848/127.0.0.1_4848_page.html",
+      "127.0.0.1_4848/127.0.0.1_4848_page.html#pages",
       "127.0.0.1_4848/127.0.0.1_4848_page.html",
     ]);
     // A screen reader hears each report's links named by the site's name, not its folder's.
@@ -551,10 +561,16 @@ describe("renderSiteIndex", () => {
     // One count, from 0.13.1: beside the earlier reports' heading, how many they are, for the eye.
     expect(site.match(/class="count"/g)).toHaveLength(1);
     expect(site).toContain('<span class="count" aria-hidden="true">2</span>');
-    // Each report's files are at its own folder's address: the current one's link and each
-    // earlier one's, then each in the fold, in the same order.
+    // Each report's files are at its own folder's address: the current one's links (its page, and
+    // its page at "Every page") and each earlier one's, then each in the fold, in the same order.
     const pages = reports.map(({ folder }) => `${folder}/${folder}_page.html`);
-    expect(linksOf(site).map(({ href }) => href)).toEqual([...pages, ...pages]);
+    const [current, ...earlier] = pages;
+    expect(linksOf(site).map(({ href }) => href)).toEqual([
+      current,
+      `${current}#pages`,
+      ...earlier,
+      ...pages,
+    ]);
   });
 
   it("shows every report it's given: keeping a site's newest is the build's to do", () => {
@@ -693,7 +709,7 @@ describe("renderSiteIndex", () => {
     );
   });
 
-  it("leads each site with its current report: its date, who prepared it, and links to open its page and download its Word copy", () => {
+  it("leads each site with its current report: its date, who prepared it, and links to open its page, see every page, and download its Word copy", () => {
     const article = articleOf(html, DVFR_NEWEST.id);
     const of = ` of ${DVFR}, 3 October 2026, 14:05`;
 
@@ -703,13 +719,14 @@ describe("renderSiteIndex", () => {
     );
     expect(textsOf(article, "p")).toEqual([
       "Prepared by Pat Lee",
-      `Open the report${of} Download the Word copy${of}`,
+      `Open the report${of} See every page${of} Download the Word copy${of}`,
       `For AI tools such as Claude or ChatGPT: the report as Markdown${of}, or as JSON${of}`,
     ]);
-    // The page opens in the browser, and the Word copy and the report for AI tools are downloaded.
-    // The walkthrough files are only in the fold.
+    // The page opens in the browser, at its top and at its "Every page", and the Word copy and the
+    // report for AI tools are downloaded. The walkthrough files are only in the fold.
     expect(linksOf(article)).toEqual([
       { href: `${DVFR}/${DVFR}_2026-10-03.html`, download: false },
+      { href: `${DVFR}/${DVFR}_2026-10-03.html#pages`, download: false },
       { href: `${DVFR}/${DVFR}_2026-10-03.docx`, download: true },
       { href: `${DVFR}/${DVFR}_2026-10-03.md`, download: true },
       { href: `${DVFR}/${DVFR}_2026-10-03.json`, download: true },
@@ -719,6 +736,7 @@ describe("renderSiteIndex", () => {
     // after them too, so no two links on the page read alike.
     expect(textsOf(withoutHidden(article), "a")).toEqual([
       "Open the report",
+      "See every page",
       "Download the Word copy",
       "Markdown",
       "JSON",
@@ -730,6 +748,7 @@ describe("renderSiteIndex", () => {
     expect(textsOf(demo, "h3")).toEqual(["The current report, shared 29 September 2026, 15:40"]);
     expect(textsOf(demo, "a")).toEqual([
       "Open the report of the demo, 29 September 2026, 15:40",
+      "See every page of the demo, 29 September 2026, 15:40",
       "Download the Word copy of the demo, 29 September 2026, 15:40",
       "Markdown of the demo, 29 September 2026, 15:40",
       "JSON of the demo, 29 September 2026, 15:40",
@@ -887,7 +906,7 @@ describe("renderSiteIndex", () => {
         "Nothing needs attention",
         "NVDA read all 9 pages.",
         "Prepared by Pat Lee",
-        `Open the report of ${DVFR}, 3 October 2026, 14:05 Download the Word copy of ${DVFR}, 3 October 2026, 14:05`,
+        `Open the report of ${DVFR}, 3 October 2026, 14:05 See every page of ${DVFR}, 3 October 2026, 14:05 Download the Word copy of ${DVFR}, 3 October 2026, 14:05`,
         `For AI tools such as Claude or ChatGPT: the report as Markdown of ${DVFR}, 3 October 2026, 14:05, or as JSON of ${DVFR}, 3 October 2026, 14:05`,
       ]);
     });
@@ -1183,7 +1202,7 @@ describe("renderSiteIndex", () => {
     const example = articleOf(html, EXAMPLE_REPORT.id);
     expect(textsOf(example, "p")).toEqual([
       "Prepared by Sam Rivera",
-      `Open the report of ${EXAMPLE}, 2 October 2026, 09:30`,
+      `Open the report of ${EXAMPLE}, 2 October 2026, 09:30 See every page of ${EXAMPLE}, 2 October 2026, 09:30`,
       `${EXAMPLE}_2026-10-02.docx isn't here: the file is missing.`,
     ]);
     expect(example).toContain('<p class="gone">');
@@ -1540,20 +1559,22 @@ describe("renderSiteIndex", () => {
     it("opens in the browser, as the report's page does, and is never a download", () => {
       const links = linksOf(sectionOf(pageOf(withVoice), `site-${DVFR}`));
 
-      // Linked twice, from 0.22.0: from the current report's tile, and in the fold.
+      // Linked three times: from the current report's tile (from 0.22.0), its "Hear the audio
+      // transcripts" button, and in the fold.
       expect(links.filter(({ href }) => href === `${DVFR}/${VOICE}`)).toEqual([
+        { href: `${DVFR}/${VOICE}`, download: false },
         { href: `${DVFR}/${VOICE}`, download: false },
         { href: `${DVFR}/${VOICE}`, download: false },
       ]);
       expect(
-        links.filter(({ href }) => href.endsWith(".html")).map(({ download }) => download),
-      ).toEqual([false, false, false, false]);
+        links.filter(({ href }) => /\.html(?:#pages)?$/.test(href)).map(({ download }) => download),
+      ).toEqual([false, false, false, false, false, false]);
       expect(
         links.filter(({ href }) => href.endsWith(".docx")).map(({ download }) => download),
       ).toEqual([true, true]);
     });
 
-    it("is the current report's tile to hear NVDA, and leads no report: its links, an earlier report's line, and the list by date are of its page", () => {
+    it("is the current report's tile to hear NVDA and its button for the audio transcripts, and leads no report: an earlier report's line and the list by date are of its page", () => {
       const older: PublishedReport = {
         ...DVFR_OLDEST,
         files: [
@@ -1571,12 +1592,15 @@ describe("renderSiteIndex", () => {
         ],
       });
 
-      // The current report: its tile, which opens the voice page, then its page and its Word copy,
-      // then its line for AI tools, with the Markdown and the JSON.
+      // The current report: its tile, which opens the voice page, then its page, its page at
+      // "Every page", its voice page again, and its Word copy, then its line for AI tools, with the
+      // Markdown and the JSON.
       const article = articleOf(page, withVoice.id);
       expect(linksOf(article)).toEqual([
         { href: `${DVFR}/${VOICE}`, download: false },
         { href: PAGE, download: false },
+        { href: `${PAGE}#pages`, download: false },
+        { href: `${DVFR}/${VOICE}`, download: false },
         { href: WORD, download: true },
         { href: `${DVFR}/${DVFR}_2026-10-03.md`, download: true },
         { href: `${DVFR}/${DVFR}_2026-10-03.json`, download: true },
@@ -1584,6 +1608,8 @@ describe("renderSiteIndex", () => {
       expect(textsOf(withoutHidden(article), "a")).toEqual([
         "Hear NVDA ▶ Listen to the recording NVDA's own voice, page by page, as it read the site.",
         "Open the report",
+        "See every page",
+        "Hear the audio transcripts",
         "Download the Word copy",
         "Markdown",
         "JSON",
@@ -1613,14 +1639,16 @@ describe("renderSiteIndex", () => {
         sites: [{ name: DVFR, folders: [DVFR], reports: [voiceOnly] }, ...CONTENT.sites.slice(1)],
       });
 
-      // The current report says its page isn't here, and links its Word copy alone.
+      // The current report says its page isn't here, and links its voice page and its Word copy
+      // alone: no "See every page", which is a part of its page.
       const article = articleOf(page, voiceOnly.id);
       expect(textsOf(article, "p")).toEqual([
         "Prepared by Pat Lee",
-        `Download the Word copy${of}`,
+        `Hear the audio transcripts${of} Download the Word copy${of}`,
         `${DVFR}_2026-10-03.html isn't here: the file is missing.`,
       ]);
       expect(linksOf(article)).toEqual([
+        { href: `${DVFR}/${VOICE}`, download: false },
         { href: `${DVFR}/${VOICE}`, download: false },
         { href: WORD, download: true },
       ]);
@@ -1649,11 +1677,12 @@ describe("renderSiteIndex", () => {
       };
       const page = pageOf(missing);
 
-      // The card's tile says there's no recording here, then its two links, and its line for AI tools.
+      // The card's tile says there's no recording here, then its links, with no button for the audio
+      // transcripts, and its line for AI tools.
       expect(textsOf(articleOf(page, missing.id), "p")).toEqual([
         "Hear NVDA No recording Its recording isn't on this website: the files below say why.",
         "Prepared by Pat Lee",
-        `Open the report${of} Download the Word copy${of}`,
+        `Open the report${of} See every page${of} Download the Word copy${of}`,
         `For AI tools such as Claude or ChatGPT: the report as Markdown${of}, or as JSON${of}`,
       ]);
       // The fold says which file isn't here, and why.
@@ -1663,7 +1692,7 @@ describe("renderSiteIndex", () => {
       ]);
     });
 
-    it("gives a share whose only published file is its voice page its tile's link alone in its card, and lists the voice page in its fold", () => {
+    it("gives a share whose only published file is its voice page its tile's link and its button for the audio transcripts alone in its card, and lists the voice page in its fold", () => {
       const alone: PublishedReport = {
         ...DVFR_NEWEST,
         files: [published("voice", DVFR, VOICE, 900)],
@@ -1674,9 +1703,12 @@ describe("renderSiteIndex", () => {
       expect(filesIn(sharedBlocksOf(page)[0] ?? "")).toEqual([
         `NVDA's voice ${VOICE} 900 KB, SHA-256 ${fingerprintOf(VOICE)}`,
       ]);
-      // No link of the report's own, and no paragraph of them with nothing in it.
-      expect(articleOf(page, alone.id)).not.toContain('class="actions"');
+      // No link of the report's own but the voice page's.
+      expect(articleOf(page, alone.id)).toContain(
+        `<p class="actions"><a class="action" href="${DVFR}/${VOICE}">Hear the audio transcripts<span class="sr">${of}</span></a></p>`,
+      );
       expect(linksOf(articleOf(page, alone.id))).toEqual([
+        { href: `${DVFR}/${VOICE}`, download: false },
         { href: `${DVFR}/${VOICE}`, download: false },
       ]);
     });

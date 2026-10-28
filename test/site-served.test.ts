@@ -941,7 +941,8 @@ describe("a share's voice page, served as Netlify serves it", () => {
     await visit(page, addressOf(VOICE_HREF));
 
     // The script showed each choice, and a choice makes a slowed copy in the page, which a second
-    // player loads from its blob: address, while the first player is as it was, at 1×.
+    // player loads from its blob: address, while the first player is as it was, at the 0.3× it
+    // starts at, the browser's own way.
     const group = page.locator("fieldset.speeds").first();
     await group.getByRole("radio", { name: "0.5×" }).check();
     await copyLoaded(page);
@@ -950,7 +951,7 @@ describe("a share's voice page, served as Netlify serves it", () => {
         const sound = document.querySelector<HTMLAudioElement>("audio[data-file]");
         return sound === null ? null : [sound.playbackRate, sound.preservesPitch, sound.paused];
       }),
-    ).toEqual([1, true, true]);
+    ).toEqual([0.3, true, true]);
     // The check reads each recording from its own address and hashes it, with nothing sent anywhere.
     await page.locator("#fp-run").click();
     await expect
@@ -970,7 +971,15 @@ describe("a share's voice page, served as Netlify serves it", () => {
     const policy = await visit(page, addressOf(VOICE_HREF));
     expect(policy).toContain("; media-src data: blob:;");
 
-    await page.locator("fieldset.speeds").first().getByRole("radio", { name: "0.3×" }).check();
+    // The page starts at 0.3×, and its copy is made when the first player is played: a play event
+    // stands for a person pressing play, with no sound played.
+    expect(
+      await page.locator("fieldset.speeds").first().locator("input:checked").getAttribute("value"),
+    ).toBe("0.3");
+    await page
+      .locator("audio[data-file]")
+      .first()
+      .evaluate((sound) => sound.dispatchEvent(new Event("play")));
     await copyLoaded(page);
 
     // It is a second player in view, from a blob: address, and never played.

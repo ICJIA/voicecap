@@ -2992,8 +2992,23 @@ describe("the voice page", () => {
   /** What the page's speed choice offers, in its order. */
   const SPEEDS = [1, 0.75, 0.5, 0.3];
 
-  /** The page's file, and the slug of each of its pages in order. */
-  let voice: { file: string; slugs: string[] };
+  /**
+   * The page's file, as it would be if it started at 1× (see startingAtOne), the page as voicecap
+   * writes it (`written`), and the slug of each of its pages in order.
+   */
+  let voice: { file: string; written: string; slugs: string[] };
+
+  /**
+   * A voice page as it would be if its groups started at 1×: they name 1× as their start
+   * (`data-start`) and have it chosen. The page as written starts at 0.3× (VOICE_TEXT.speed.start),
+   * and the tests of its copies choose 0.3× as a slower speed, which they make from 1×, so they
+   * open this; the page's own start is tested on the page as written.
+   */
+  const startingAtOne = (html: string): string =>
+    html
+      .replaceAll('data-start="0.3"', 'data-start="1"')
+      .replaceAll('value="1">', 'value="1" checked>')
+      .replaceAll('value="0.3" checked>', 'value="0.3">');
   /** The record of each recording the page plays, by the page's slug. */
   const kept = new Map<string, Awaited<ReturnType<typeof recordedVoice>>["record"]>();
 
@@ -3027,8 +3042,10 @@ describe("the voice page", () => {
     const folder = await mkdtemp(path.join(tmpdir(), "voicecap-share-voice-"));
     folders.push(folder);
     const file = path.join(folder, "voice.html");
-    await writeFile(file, html);
-    voice = { file, slugs: model.pages.map(({ slug }) => slug) };
+    const written = path.join(folder, "voice.written.html");
+    await writeFile(file, startingAtOne(html));
+    await writeFile(written, html);
+    voice = { file, written, slugs: model.pages.map(({ slug }) => slug) };
     for (const [at, recorded] of [speech, busy, undefined, long].entries()) {
       const slug = voice.slugs[at];
       if (slug !== undefined && recorded !== undefined) kept.set(slug, recorded.record);
@@ -3196,7 +3213,7 @@ describe("the voice page", () => {
     const folder = await mkdtemp(path.join(tmpdir(), "voicecap-share-voice-"));
     folders.push(folder);
     const file = path.join(folder, "voice.html");
-    await writeFile(file, html);
+    await writeFile(file, startingAtOne(html));
     return { file, seconds: about.seconds };
   }
 
@@ -3317,7 +3334,7 @@ describe("the voice page", () => {
    * the player each is made on, "first" for the one that holds a recording and "second" for a
    * copy's, in `window.calls`, and `play()` answers as a player that started does.
    */
-  async function recordingPlays(): Promise<Page> {
+  async function recordingPlays(file = voice.file): Promise<Page> {
     const context = await newContext();
     await context.addInitScript(() => {
       const calls: string[] = [];
@@ -3333,7 +3350,7 @@ describe("the voice page", () => {
       };
     });
     const page = await context.newPage();
-    await page.goto(addressOf(voice.file));
+    await page.goto(addressOf(file));
     return page;
   }
 
@@ -4152,6 +4169,74 @@ describe("the voice page", () => {
 
     expect((await players(page))[0]?.rate).toBe(1);
     expect(await chosenIn(page.locator("fieldset.speeds").first())).toEqual(["1"]);
+  });
+
+  it("starts each player at 0.3×, the browser's own way, with 0.3× chosen and nothing made yet", async () => {
+    const page = await open(voice.written);
+
+    for (const group of await page.locator("fieldset.speeds").all()) {
+      expect(await group.isVisible()).toBe(true);
+      expect(await chosenIn(group)).toEqual(["0.3"]);
+      expect(await group.locator(".speed-status").textContent()).toBe("");
+    }
+    expect(await players(page)).toEqual([
+      { rate: 0.3, pitch: true, paused: true, at: 0 },
+      { rate: 0.3, pitch: true, paused: true, at: 0 },
+      { rate: 0.3, pitch: true, paused: true, at: 0 },
+    ]);
+    // No copy is made until a player is played: the page has its first players alone.
+    expect(await page.locator("audio").count()).toBe(3);
+  });
+
+  it("makes the 0.3× copy when a player is first played, and plays on in it, with 0.3× chosen throughout", async () => {
+    const page = await recordingPlays(voice.written);
+    const group = page.locator("fieldset.speeds").first();
+    const first = sections(page).first().locator("audio[data-file]");
+
+    // Played, as a person pressing its play button does: it plays at once at 0.3× the browser's
+    // way, while voicecap's copy is made, and the copy then plays on in its place.
+    await playing(first);
+    await first.evaluate((sound) => sound.dispatchEvent(new Event("play")));
+    expect(await chosenIn(group)).toEqual(["0.3"]);
+    await copyShown(page, 0, 0.3);
+    expect((await callsOf(page)).toSorted()).toEqual(["pause first", "play second"]);
+    expect(await chosenIn(group)).toEqual(["0.3"]);
+    expect(await group.locator(".speed-status").textContent()).toBe("0.3× is ready.");
+    // The other sections are as they were: nothing is made for a player that wasn't played.
+    expect(await shownCopies(page)).toEqual([
+      await sections(page).first().locator("audio:not([data-file])").getAttribute("src"),
+      "",
+      "",
+    ]);
+  });
+
+  it("makes no copy when a player is played at 1×, chosen before it's played", async () => {
+    const page = await recordingPlays(voice.written);
+    const group = page.locator("fieldset.speeds").first();
+    const first = sections(page).first().locator("audio[data-file]");
+
+    await group.getByRole("radio", { name: "1×" }).check();
+    await playing(first);
+    await first.evaluate((sound) => sound.dispatchEvent(new Event("play")));
+    expect((await players(page))[0]?.rate).toBe(1);
+    expect(await page.locator("audio").count()).toBe(3);
+    expect(await group.locator(".speed-status").textContent()).toBe("");
+  });
+
+  it("stays at 0.3× the browser's own way when it can't decode a recording that's played", async () => {
+    const context = await refusingContext(1_000);
+    const page = await context.newPage();
+    await page.goto(addressOf(voice.written));
+    const group = page.locator("fieldset.speeds").first();
+    const first = sections(page).first().locator("audio[data-file]");
+
+    await first.evaluate((sound) => sound.dispatchEvent(new Event("play")));
+    await expect
+      .poll(() => group.locator(".speed-status").textContent())
+      .toBe("This browser slows it down with its own stretcher.");
+    expect((await players(page))[0]).toEqual({ rate: 0.3, pitch: true, paused: true, at: 0 });
+    expect(await chosenIn(group)).toEqual(["0.3"]);
+    expect(await page.locator("audio").count()).toBe(3);
   });
 
   it("keeps the pitch from the start, in a browser that doesn't unless the page says so", async () => {

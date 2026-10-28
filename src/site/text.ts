@@ -182,6 +182,13 @@ export const SITE_TEXT = {
   open: "Open the report",
   download: "Download the Word copy",
   /**
+   * The current report's two links after those: to its "Every page" section, a card for each page
+   * with its screenshot and its transcripts, and to its voice page, which plays NVDA's recordings.
+   * A reader said both were hard to find behind "Open the report" alone.
+   */
+  everyPage: "See every page",
+  audio: "Hear the audio transcripts",
+  /**
    * The line under them, when the report's share has its report for AI tools, as Markdown and as
    * JSON: what they are, and then a link to each, "For AI tools such as Claude or ChatGPT: the
    * report as Markdown, or as JSON". The line is `lead`, the first link's words, `or`, and the

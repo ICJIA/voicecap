@@ -224,7 +224,7 @@ describe("renderVoicePage", () => {
       "NVDA's voice: dvfr.illinois.gov, 29 September 2026, 14:02",
     );
     expect(VOICE_TEXT.lead).toBe(
-      "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast: choose a slower speed, and voicecap's own stretcher slows it down in your browser, with the pitch kept and nothing sent anywhere. The transcripts on the shareable page are the record of what was reviewed.",
+      "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast, so each recording starts at 0.3×: press play to hear it slowly, or choose another speed. voicecap's own stretcher slows it down in your browser, with the pitch kept and nothing sent anywhere. The transcripts on the shareable page are the record of what was reviewed.",
     );
     // Each pass's stretch starts with its title check, and between the passes the recording is
     // silenced (the NVDA driver's stretches, which the run keeps).
@@ -489,7 +489,10 @@ describe("renderVoicePage", () => {
     expect(radios.every((tag) => tag.includes('type="radio"'))).toBe(true);
     // One group of them for the player: they share a name, which no other player's has.
     expect(new Set(radios.flatMap((tag) => attributes(tag, "name"))).size).toBe(1);
-    expect(radios.map((tag) => tag.includes(" checked"))).toEqual([true, false, false, false]);
+    // 0.3× chosen, so a person who presses play hears words they can follow; the group names it.
+    expect(VOICE_TEXT.speed.start).toBe(0.3);
+    expect(radios.map((tag) => tag.includes(" checked"))).toEqual([false, false, false, true]);
+    expect(attributes(group, "data-start")).toEqual(["0.3"]);
     expect(
       [...group.matchAll(/<label>(.*?)<\/label>/gs)].map(([, label = ""]) => textOf(label)),
     ).toEqual(["1×", "0.75×", "0.5×", "0.3×"]);
@@ -514,10 +517,10 @@ describe("renderVoicePage", () => {
     expect(VOICE_TEXT.speed.own).toBe("This browser slows it down with its own stretcher.");
     expect(VOICE_TEXT.slowed("/about/", "0.3×")).toBe("NVDA's voice on /about/, at 0.3×");
 
-    // A section's fieldset carries all four, after `hidden`, in this order, escaped as every value
+    // A section's fieldset carries the speed it starts at, then all four, after `hidden`, in this order, escaped as every value
     // is (the apostrophe in "NVDA's"), with its own page's address in the name of its slowed copy.
     expect(/^<fieldset\b[^>]*>/.exec(about)?.[0]).toBe(
-      '<fieldset class="speeds" hidden data-making="Getting {speed} ready…" data-made="{speed} is ready." data-own="This browser slows it down with its own stretcher." data-slowed="NVDA&#39;s voice on /about/, at {speed}">',
+      '<fieldset class="speeds" hidden data-start="0.3" data-making="Getting {speed} ready…" data-made="{speed} is ready." data-own="This browser slows it down with its own stretcher." data-slowed="NVDA&#39;s voice on /about/, at {speed}">',
     );
     for (const [group, path] of [
       [home, "/"],

@@ -939,7 +939,7 @@ export const VOICE_TEXT = {
    * down and how that is done (by voicecap's own stretcher, in the reader's browser, with the pitch
    * kept and nothing sent anywhere), and which words are the record of what was reviewed.
    */
-  lead: "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast: choose a slower speed, and voicecap's own stretcher slows it down in your browser, with the pitch kept and nothing sent anywhere. The transcripts on the shareable page are the record of what was reviewed.",
+  lead: "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast, so each recording starts at 0.3×: press play to hear it slowly, or choose another speed. voicecap's own stretcher slows it down in your browser, with the pitch kept and nothing sent anywhere. The transcripts on the shareable page are the record of what was reviewed.",
   /**
    * Said once, above the pages: why each pass's recording starts with a code, and why it's silent
    * between the passes (the run keeps only each pass's stretch: see confirmFront, in the driver).
@@ -955,7 +955,8 @@ export const VOICE_TEXT = {
   slowed: (path: string, speed: string): string => `NVDA's voice on ${path}, at ${speed}`,
   /**
    * A player's speed choice: the legend over its radio buttons, with the page it's for after it for
-   * a screen reader alone (`on`), and the speeds, in order, with 1× chosen. 1× is the recording as
+   * a screen reader alone (`on`), and the speeds, in order, with `start` chosen: 0.3×, the owner's
+   * pick, so a reader who presses play hears words they can follow. 1× is the recording as
    * recorded, and the pitch is kept at each slower speed. Under the buttons is a status line, which
    * says what is happening to the speed chosen, by its label ("0.3×"): that a copy is being made
    * (`making`), and that it's ready (`made`), or, where the page can't make one and the browser
@@ -966,6 +967,7 @@ export const VOICE_TEXT = {
     legend: "Speed",
     on: (path: string): string => ` on ${path}`,
     rates: [1, 0.75, 0.5, 0.3] as readonly number[],
+    start: 0.3,
     label: (rate: number): string => `${rate}×`,
     making: (speed: string): string => `Getting ${speed} ready…`,
     made: (speed: string): string => `${speed} is ready.`,

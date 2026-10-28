@@ -977,7 +977,7 @@ describe("renderTechnical", () => {
     const speeds = names(VOICE_TEXT.speed.rates.map((rate) => VOICE_TEXT.speed.label(rate)));
     expect(speeds).toBe("1×, 0.75×, 0.5×, and 0.3×");
     expect(flow).toContain(
-      `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${speeds}: 1× as recorded, and each slower speed made in the reader's browser by voicecap's own stretcher, a phase vocoder with phase locking, then a gentle filter (a low cut at 100 Hz, and the highs eased by 6 dB from 6 kHz), with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
+      `When a page has a recording of NVDA's voice, the share adds a voice page, which plays each recording at ${speeds}, starting at 0.3×: 1× as recorded, and each slower speed made in the reader's browser by voicecap's own stretcher, a phase vocoder with phase locking, then a gentle filter (a low cut at 100 Hz, and the highs eased by 6 dB from 6 kHz), with the pitch kept. The recording is evidence of what NVDA said aloud: the person's review is made from the transcripts.`,
     );
     // The filter's numbers in that sentence are the stretcher's own (STRETCH_LIBRARY's constants):
     // the low cut and the high shelf's start, in Hz, and the shelf's gain in dB, a cut.

@@ -4,6 +4,11 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **Each site on the website is a card of its own, with direct links to its pages and its recordings.** A reader found it hard to see the report of each page of a site, with its screenshot, and couldn't find the recordings of NVDA's voice. Each site's head, current report, earlier reports, and files are now in one card, so one site never runs into the next, and the current report has two more buttons: "See every page", which opens the report at its card for each page, and "Hear the audio transcripts", which opens its voice page.
+- **The voice page starts each recording at 0.3×.** NVDA speaks too fast to follow at 1×, so a reader who presses play now hears it slowly at once: the browser slows it until voicecap's own stretcher has made its clearer copy, about two seconds for a recording of three and a half minutes, which then plays on from the same place. Any other speed is still a click away. A share's voice page is written when it's shared, so the website's recordings start at 0.3× once each site is shared again.
+
 ### Fixed
 
 - **The screenshot-size tests no longer fail on a slow runner.** A Chrome just started at a forced scale factor can take more than the screenshot's five-second limit to draw its first frame, as on Windows CI with Node 24. Those tests now give the capture one more try; the limit itself is unchanged.

@@ -134,6 +134,12 @@ export function fileKind(name: string): PublishedFile["kind"] {
   return "other";
 }
 
+/**
+ * The id of the shareable page's "Every page" section, its card for each page (see
+ * ../share/html/pages.ts), which a current report's "See every page" links to.
+ */
+const PAGES_ANCHOR = "pages";
+
 /** The id of the heading that names a view's section, from the section's own id. */
 const headingId = (id: string): string => `heading-${id}`;
 
@@ -381,21 +387,31 @@ function glance(shared: PublishedReport, of: string): string[] {
 
 /**
  * A site's current report: a heading that says it's the current one, with its line; who prepared
- * it; the two links a reader wants, to open its page and to download its Word copy; and, last, the
- * line for AI tools, when its share has the report as Markdown and as JSON (see forAi). A screen
- * reader hears the site's name, `name`, and the report's line after each link's words, so that no
- * two links on the page read alike. Of the page and the Word copy, one that isn't published has its
- * line in place of its link. What else the record names that isn't here is said in the fold (see
+ * it; the links a reader wants, to open its page, to its page's "Every page" section (a card for
+ * each page, with its screenshot), to its voice page when it has one, and to download its Word
+ * copy; and, last, the line for AI tools, when its share has the report as Markdown and as JSON (see
+ * forAi). A screen reader hears the site's name, `name`, and the report's line after each link's
+ * words, so that no two links on the page read alike. Of the page and the Word copy, one that isn't
+ * published has its line in place of its link. What else the record names that isn't here is said in the fold (see
  * filesFold). `level` is the heading's.
  */
 function currentReport(shared: PublishedReport, level: 3 | 4, name: string): string {
   const page = fileOf(shared, "page");
   const word = fileOf(shared, "word");
+  const voice = fileOf(shared, "voice");
   const of = hidden(SITE_TEXT.of(name, shared.at));
   const links = [
     ...(page === undefined
       ? []
       : [`<a class="action" href="${esc(page.href)}">${esc(SITE_TEXT.open)}${of}</a>`]),
+    ...(page === undefined
+      ? []
+      : [
+          `<a class="action" href="${esc(page.href)}#${PAGES_ANCHOR}">${esc(SITE_TEXT.everyPage)}${of}</a>`,
+        ]),
+    ...(voice === undefined
+      ? []
+      : [`<a class="action" href="${esc(voice.href)}">${esc(SITE_TEXT.audio)}${of}</a>`]),
     ...(word === undefined
       ? []
       : [

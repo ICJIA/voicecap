@@ -86,8 +86,10 @@
  *   a big number in `--good`, at the end of the line, or under them where there's no room. A count
  *   beside a smaller heading is a chip. A site's heading has its picture in a circle too, and its
  *   link to the site itself, a button, ends the line, or goes under it where there's no room;
+ * - each site is a card of its own, with all of the site in it, so one site never runs into the
+ *   next; the cards in it are on `--panel-2`, and their tiles and files on the panel again;
  * - a site's current report is a card, headed by its line under what it is (a small, quieter
- *   label), with its two links as buttons, which wrap onto a line of their own where there's no
+ *   label), with its links as buttons, which wrap onto a line of their own where there's no
  *   room. Its verdict is a pill in the verdict's color, green as `--good`, amber as `--warn`, and
  *   red as `--bad`, in ordinary case, after a sign which a screen reader doesn't read
  *   (`content: "✓" / ""`), since the words say it; how many pages NVDA read is a bar in the same
@@ -269,10 +271,11 @@ tbody tr:last-child > * { border-bottom: 0; }
 .view-head > .count b { color: var(--good); font-family: var(--mono); font-weight: 900; font-size: clamp(1.5rem, 17cqi, 2.375rem); line-height: 1; font-variant-numeric: tabular-nums; }
 /* how many there are beside a smaller heading: a chip */
 .count { display: inline-block; border: 1px solid var(--line); background: var(--panel-2); color: var(--text-2); border-radius: 6px; padding: 1px 8px; font-family: var(--mono); font-size: 0.8125rem; font-weight: 700; line-height: 1.4; font-variant-numeric: tabular-nums; }
-.site { display: grid; gap: 14px; margin-top: 8px; }
+/* each site, as a card of its own, which holds all of it: its head, its current report, its earlier reports, and its fold of files. The cards in it are a card in a card, on --panel-2, and their tiles and files on the panel again, so each stands apart from what it's on */
+.site { display: grid; gap: 14px; margin-top: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 24px 22px; }
 .site > * { min-width: 0; }
-/* a line between one site and the next */
-.site + .site { border-top: 1px solid var(--line); padding-top: 28px; margin-top: 14px; }
+.site > .report, .site > details.fold { background: var(--panel-2); }
+.site .glance-tile:not(a), .site .files li { background: var(--panel); }
 /* a site's head: its title row, its picture in a circle and its name, big and heavy, which stay on one line together; and the link to the site itself, as a button, at the end of the line, or under them where there's no room */
 .site-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .site-head > .title { display: flex; align-items: center; gap: 12px; min-width: 0; }

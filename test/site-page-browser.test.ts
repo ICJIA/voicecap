@@ -1253,12 +1253,13 @@ describe("the site's page", () => {
     // The skip link, the top bar's four links (the website's name and its three pages) and its
     // button, the banner's link to every update, the "On this page" row's three links, the link to
     // the demo's pages, the link to the first site itself (the second has no address people
-    // visit), the current reports' links (the demo's four and the first site's four: its page, its
-    // Word copy, and the report for AI tools as Markdown and as JSON; and the second site's one:
-    // its Word copy is missing, and it has no report for AI tools), the earlier report's one (its
+    // visit), the current reports' links (the demo's five and the first site's five: its page, its
+    // page at "Every page", its Word copy, and the report for AI tools as Markdown and as JSON; and
+    // the second site's two: its page and its page at "Every page", as its Word copy is missing,
+    // and it has no report for AI tools), the earlier report's one (its
     // Word copy changed), the three folds' summaries, each report's page by date, and the bottom
     // bar's five links.
-    const closed = 1 + 4 + 1 + 1 + 3 + 1 + 1 + 9 + 1 + 3 + reportsOf(CONTENT).length + 5;
+    const closed = 1 + 4 + 1 + 1 + 3 + 1 + 1 + 12 + 1 + 3 + reportsOf(CONTENT).length + 5;
     expect(await stops()).toBe(closed);
     expect(await stopsUnderTheBar(page)).toEqual([]);
 
@@ -1465,8 +1466,9 @@ describe("the site's page", () => {
     for (const heading of await page.locator("main h2").all()) {
       expect(await heading.isVisible()).toBe(true);
     }
+    // Each current report's page, its "Every page", and its Word copy, where they're here.
     const actions = page.locator("a.action");
-    expect(await actions.count()).toBe(5);
+    expect(await actions.count()).toBe(8);
     for (const link of await actions.all()) expect(await link.isVisible()).toBe(true);
     expect(await page.locator(".earlier a").count()).toBe(1);
     expect(await page.locator(".earlier a").isVisible()).toBe(true);

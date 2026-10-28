@@ -215,7 +215,8 @@ function player(card: PageCard, page: PageRecord, bytes: Uint8Array): string {
 export const SPEED_TOKEN = "{speed}";
 
 /**
- * The speed choice: a group of radio buttons under the legend "Speed", 1× chosen, named for the page
+ * The speed choice: a group of radio buttons under the legend "Speed", the speed it starts at
+ * chosen (`VOICE_TEXT.speed.start`, which the group carries as `data-start` too), named for the page
  * for a screen reader alone, and under them a status line, empty (`role="status"`, so what the
  * script writes in it is said politely). Its choice sets the speed the recording plays at, and does
  * nothing without the script, so it starts hidden and the script shows it, as the check's buttons
@@ -232,7 +233,7 @@ function speeds(card: PageCard): string {
   const name = `speed-${idFragment(card.slug)}`;
   const choices = speed.rates.map(
     (rate) =>
-      `<label><input type="radio" name="${name}" value="${rate}"${rate === 1 ? " checked" : ""}> ${esc(speed.label(rate))}</label>`,
+      `<label><input type="radio" name="${name}" value="${rate}"${rate === speed.start ? " checked" : ""}> ${esc(speed.label(rate))}</label>`,
   );
   const legend = `<legend>${esc(speed.legend)}<span class="sr">${esc(speed.on(card.path))}</span></legend>`;
   const words = Object.entries({
@@ -244,7 +245,7 @@ function speeds(card: PageCard): string {
     .map(([key, said]) => ` data-${key}="${esc(said)}"`)
     .join("");
   const status = `<p class="speed-status" role="status"></p>`;
-  return `<fieldset class="speeds" hidden${words}>${legend}<div class="speed-choices">${choices.join("")}</div>${status}</fieldset>`;
+  return `<fieldset class="speeds" hidden data-start="${speed.start}"${words}>${legend}<div class="speed-choices">${choices.join("")}</div>${status}</fieldset>`;
 }
 
 /**
@@ -434,9 +435,14 @@ function footer(model: ShareModel): string {
  * - The choice follows the player: it shows the speed chosen while the player in view is at its
  *   normal speed, and none while it isn't (the browser's own controls have a menu for the speed);
  *   where the browser slows the recording itself it shows the speed the player is at, and none when
- *   that's a speed the page doesn't offer. The page starts with each player at 1×, with its pitch
- *   kept, set as a choice is, and the choice showing it: a browser that loads a page again may
- *   bring back the button a person chose, while the player starts over.
+ *   that's a speed the page doesn't offer. The page starts with each choice at the speed its group
+ *   names (`data-start`, 0.3×) and its first player at that speed the browser's own way, with its
+ *   pitch kept, and the choice showing it: a browser that loads a page again may bring back the
+ *   button a person chose, while the player starts over.
+ * - So a person can press play and hear words they can follow at once: while the first player is
+ *   in view at the speed chosen the browser's own way, playing it starts the copy at that speed,
+ *   as choosing the speed does, and the copy takes its place, playing on from the same place in
+ *   the speech, when it's ready. The choice shows that speed throughout.
  * - Each choice starts hidden, since it does nothing without this script, and the script shows it;
  *   a page whose markup isn't there is left alone, and the script uses nothing of the window until
  *   a choice is made.
@@ -530,13 +536,16 @@ function wire(group) {
   var status = group.querySelector(".speed-status"), radios = group.querySelectorAll('input[type="radio"]');
   if (!sound || !status) return;
   // State: the second player, the copies by speed, the speed in view (1 is the first player), the
-  // speed chosen, the choice's number, and whether this browser slows the recording itself.
-  var copy = null, kept = {}, shown = 1, chosen = 1, job = 0, fallen = false;
+  // speed chosen, the choice's number, whether this browser slows the recording itself, and the
+  // number of the choice whose copy was last begun (none yet).
+  var copy = null, kept = {}, shown = 1, chosen = 1, job = 0, fallen = false, making = -1;
   function view() { return shown === 1 ? sound : copy; }
   function said(key, label) { return (group.dataset[key] || "").split("${SPEED_TOKEN}").join(label); }
-  // The radios show the chosen speed, or none if the player in view is at another rate.
+  // The radios show the chosen speed, or none if the player in view is at another rate. The first
+  // player at the chosen speed the browser's own way, while its copy is to come, is at that speed.
   function mark() {
-    var rate = view().playbackRate, speed = fallen ? rate : Math.abs(rate - 1) < 0.001 ? chosen : 0;
+    var rate = view().playbackRate, near = function (a, b) { return Math.abs(a - b) < 0.001; };
+    var speed = fallen || (shown === 1 && near(rate, chosen)) ? rate : near(rate, 1) ? chosen : 0;
     for (var i = 0; i < radios.length; i++) radios[i].checked = Math.abs(Number(radios[i].value) - speed) < 0.001;
   }
   // Puts a player in view at the place in the speech, in place of the one in view: it plays on if
@@ -575,10 +584,16 @@ function wire(group) {
     status.textContent = speed === 1 ? "" : said("own");
     mark();
   }
-  group.addEventListener("change", function (event) {
-    var radio = event.target;
-    if (!radio || !radio.checked) return;
-    var speed = Number(radio.value), label = radio.parentNode.textContent.trim(), mine = ++job;
+  // The label of a speed's radio ("0.3×").
+  function labelOf(speed) {
+    for (var i = 0; i < radios.length; i++)
+      if (Number(radios[i].value) === speed) return radios[i].parentNode.textContent.trim();
+    return "";
+  }
+  // Chooses a speed: 1x, or the browser's own way where this section has fallen back, is the
+  // first player; another is its copy, shown at once when it's kept, and else made.
+  function choose(speed, label) {
+    var mine = ++job;
     function current() { return job === mine; }
     // Where the copy can't be made, this section slows the recording itself from now on.
     function failed() { if (current()) { fallen = true; first(speed); } }
@@ -586,6 +601,7 @@ function wire(group) {
     if (speed === 1 || fallen) first(speed);
     else if (kept[speed]) showCopy(speed, label);
     else {
+      making = mine;
       status.textContent = said("making", label);
       decode(sound, function (signal) {
         slow(signal, speed, current, function (address) {
@@ -594,9 +610,25 @@ function wire(group) {
         }, failed);
       }, failed);
     }
+  }
+  group.addEventListener("change", function (event) {
+    var radio = event.target;
+    if (!radio || !radio.checked) return;
+    choose(Number(radio.value), radio.parentNode.textContent.trim());
   });
   sound.addEventListener("ratechange", mark);
-  first(1); // The page starts at 1x, as a choice of it leaves the player.
+  // Played at the chosen speed the browser's own way, with no copy of it on the way: the copy is
+  // made, and takes its place when it's ready.
+  sound.addEventListener("play", function () {
+    if (shown === 1 && chosen !== 1 && !fallen && making !== job) choose(chosen, labelOf(chosen));
+  });
+  // The page starts at the group's speed, the browser's own way until a copy is made.
+  var start = Number(group.dataset.start) || 1;
+  chosen = start;
+  put(sound, 1);
+  pace(sound, start);
+  status.textContent = "";
+  mark();
   group.hidden = false;
 }
 Array.prototype.forEach.call(document.querySelectorAll("fieldset.speeds"), function (group) {

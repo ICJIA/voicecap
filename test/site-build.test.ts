@@ -3891,13 +3891,14 @@ describe("buildSite", () => {
       expect(index).toContain(`<code>${voice?.sha256}</code>`);
       // The report's own links are its page, which opens, and its Word copy, which downloads: the
       // voice page is never the page, though its name ends in .html as the page's does. It's linked
-      // from the report's tile to hear NVDA (from 0.22.0), and in the fold, and opens each time.
+      // from the report's tile to hear NVDA (from 0.22.0), its "Hear the audio transcripts" button,
+      // and in the fold, and opens each time.
       expect(page?.kind).toBe("page");
       expect(index).toContain(
         `<a class="action" href="${page?.href}">Open the report<span class="sr"> of ${VOICE_FOLDER}, `,
       );
       expect(index).toContain(`<a class="action" href="${word?.href}" download>`);
-      expect(index.match(new RegExp(`href="${voice?.href}"`, "g"))).toHaveLength(2);
+      expect(index.match(new RegExp(`href="${voice?.href}"`, "g"))).toHaveLength(3);
       expect(index).toContain(`<a class="glance-tile listen" href="${voice?.href}">`);
       expect(index).not.toContain(`href="${voice?.href}" download`);
     });
@@ -4056,7 +4057,13 @@ describe("buildSite", () => {
       expect(index).toContain(
         `<a class="action" href="${VOICE_FOLDER}/${VOICE_STEM}.html">Open the report`,
       );
-      expect(index).not.toContain(`<a class="action" href="${VOICE_FOLDER}/${VOICE_PAGE}"`);
+      // The voice page is never opened as the report: its one button is "Hear the audio transcripts".
+      expect(index).not.toContain(
+        `<a class="action" href="${VOICE_FOLDER}/${VOICE_PAGE}">Open the report`,
+      );
+      expect(index).toContain(
+        `<a class="action" href="${VOICE_FOLDER}/${VOICE_PAGE}">Hear the audio transcripts`,
+      );
     });
   });
 
