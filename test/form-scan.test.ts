@@ -76,6 +76,15 @@ const PAGES: Record<string, string> = {
       <label><input id="r1" type="radio" name="c" required> Red</label>
       <label><input id="r2" type="radio" name="c"> Blue</label></fieldset><button>Go</button></form>`,
   "/empty": `${HEAD}<form method="post"><input aria-label="Name"><button>Go</button></form>`,
+  "/images": `${HEAD}
+    <form action="/ok" method="post"><input aria-label="A"><input type="image" src="data:," alt="Go" formaction="mailto:x@example.org"></form>
+    <form id="o" action="/ok" method="post"><input aria-label="B"></form>
+    <input type="image" form="o" src="data:," alt="Go" formaction="mailto:x@example.org">
+    <form action="/ok" method="post"><input aria-label="C"><input type="image" src="data:," alt="Go" formaction="mailto:x@example.org" style="display:none"><button>Real</button></form>
+    <form action="/ok" method="post"><input aria-label="D"><input type="image" src="data:," alt="Go" formaction="mailto:x@example.org" disabled><button>Real</button></form>
+    <form action="/ok" method="post"><input aria-label="E"><input type="image" src="data:," alt="Go"></form>
+    <form id="p" action="/ok" method="post"><input aria-label="F"></form>
+    <input type="image" form="p" src="data:," alt="Go">`,
   "/extra": `${HEAD}
     <form action="/ok" method="post"><input aria-label="A"><button formaction="mailto:a@b.gov">Mail</button></form>
     <form method="dialog"><input aria-label="B"><button>Close</button></form>
@@ -163,6 +172,20 @@ describe.skipIf(!haveChromium)("scanForms", () => {
   it("leaves a form whose button sends by mailto:, a dialog form, and one inside <search>", async () => {
     const forms = await (await open("/extra")).scanForms();
     expect(forms.map((form) => form.kind)).toEqual(["not-web", "no-submit", "search", "test"]);
+  });
+
+  it("treats an image button as a submit control, and reads every one's formaction", async () => {
+    const forms = await (await open("/images")).scanForms();
+    // Not-web: an image button, one outside the form (form="o"), a hidden one, a disabled one.
+    // Test: an image button as the only submit control, and one outside the form (form="p").
+    expect(forms.map((form) => form.kind)).toEqual([
+      "not-web",
+      "not-web",
+      "not-web",
+      "not-web",
+      "test",
+      "test",
+    ]);
   });
 
   it("isn't changed by a page that redefines the built-ins, or names a field after a form's property", async () => {

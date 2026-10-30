@@ -55,10 +55,20 @@ const SCAN = `(() => {
     if (tag !== "input" && tag !== "select" && tag !== "textarea") return false;
     return !NOT_FIELDS.test(element.type) && !element.disabled && visible(element);
   };
-  const isSubmit = (element) =>
-    (element.localName === "button" || element.localName === "input") &&
-    (element.type === "submit" || element.type === "image") &&
-    !element.disabled && visible(element);
+  // The form a button or input belongs to: one inside it, or one elsewhere that names it by form="id".
+  const formOf = (element) =>
+    Object.getOwnPropertyDescriptor(
+      element.localName === "button" ? HTMLButtonElement.prototype : HTMLInputElement.prototype,
+      "form",
+    ).get.call(element);
+  // Every submit control of a form, an image button too, hidden or disabled or not: the one list
+  // that decides whether the form can be pressed, and where it sends. (form.elements leaves out
+  // image buttons.)
+  const submitsOf = (form) =>
+    Array.from(document.querySelectorAll("button, input")).filter(
+      (element) => (element.type === "submit" || element.type === "image") && formOf(element) === form,
+    );
+  const canPress = (element) => !element.disabled && visible(element);
   // A radio group is one stop for Tab, so one field.
   const fieldsOf = (controls) => {
     const seen = new Set();
@@ -82,8 +92,8 @@ const SCAN = `(() => {
   };
 
   // A submit button's formaction replaces the form's action for that button; a non-web one wins.
-  const actionOf = (form, controls) => {
-    for (const control of controls.filter(isSubmit)) {
+  const actionOf = (form, submits) => {
+    for (const control of submits) {
       const formaction = getAttribute(control, "formaction");
       if (!formaction) continue;
       try {
@@ -101,21 +111,21 @@ const SCAN = `(() => {
     const controls = Array.from(own(form, "elements"));
     const fields = fieldsOf(controls);
     if (!visible(form) && fields.length === 0) continue;
-    entries.push({ form, controls, fields });
+    entries.push({ form, controls, fields, submits: submitsOf(form) });
   }
   const loose = Array.from(document.querySelectorAll("input, select, textarea")).filter((element) => !element.form);
   const looseFields = fieldsOf(loose);
-  if (looseFields.length > 0) entries.push({ form: null, controls: loose, fields: looseFields });
+  if (looseFields.length > 0) entries.push({ form: null, controls: loose, fields: looseFields, submits: [] });
 
-  const raws = entries.map(({ form, controls, fields }, index) => ({
+  const raws = entries.map(({ form, controls, fields, submits }, index) => ({
     index,
     frame: null,
     formless: form === null,
-    action: form === null ? document.URL : actionOf(form, controls),
+    action: form === null ? document.URL : actionOf(form, submits),
     actionSelf: form === null || !getAttribute(form, "action"),
     method: form === null ? "get" : String(own(form, "method")),
     searchRole: form !== null && form.closest('[role="search"], search') !== null,
-    submit: form !== null && controls.some(isSubmit),
+    submit: form !== null && submits.some(canPress),
     fields: fields.map((element, at) => ({
       index: at,
       name: null,
