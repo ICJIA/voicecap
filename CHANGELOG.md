@@ -11,7 +11,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ### Fixed
 
-- **The Chrome session tests no longer fail when a load runs long on a slow Windows runner.** A Chrome just started on Windows CI can take more than 15 seconds to load even a local page, which failed one screenshot test and then another. On Windows, those tests now give the load one more try; the limit itself is unchanged.
+- **The Chrome session tests no longer fail when a load runs long on a slow Windows runner.** A Chrome just started on Windows CI can take more than 15 seconds to load even a local page, which failed one test after another. On Windows, those tests now give the load one more try; the limit itself is unchanged.
 
 ## [0.24.0] - 2026-10-28
 

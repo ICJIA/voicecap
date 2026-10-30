@@ -69,17 +69,17 @@ async function screenshotOf(session: ChromeSession): Promise<Uint8Array> {
 }
 
 /**
- * The fixture's home page, given one more try on Windows when the first load runs past its limit. A
- * Chrome just started there can take more than 15 seconds to load even a local page on a slow runner
- * (Windows CI has, on two tests in a row of one file); these tests are of what comes after the load.
- * Everywhere else, a load that runs out of time fails the test.
+ * A page, the fixture's home page unless another is named, given one more try on Windows when the
+ * first load runs past its limit. A Chrome just started there can take more than 15 seconds to load
+ * even a local page on a slow runner (Windows CI has, on three tests of this file); these tests are
+ * of what comes after the load. Everywhere else, a load that runs out of time fails the test.
  */
-async function loadOf(session: ChromeSession): Promise<LoadResult> {
+async function loadOf(session: ChromeSession, url: string = server.url): Promise<LoadResult> {
   try {
-    return await session.load(server.url, 15_000);
+    return await session.load(url, 15_000);
   } catch (error) {
     if (process.platform !== "win32" || !(error instanceof errors.TimeoutError)) throw error;
-    return session.load(server.url, 15_000);
+    return session.load(url, 15_000);
   }
 }
 
@@ -129,17 +129,15 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
 
   it("follows redirects to the final URL", async () => {
     const session = await launch();
-    const result = await session.load(new URL("flawed", server.url).href, 15_000);
+    const result = await loadOf(session, new URL("flawed", server.url).href);
     expect(result.finalUrl).toBe(new URL("flawed/", server.url).href);
     expect(result.status).toBe(200);
   });
 
   it("reports HTTP errors and responses that aren't HTML", async () => {
     const session = await launch();
-    expect((await session.load(new URL("no-such-page/", server.url).href, 15_000)).status).toBe(
-      404,
-    );
-    expect((await session.load(new URL("feed/", server.url).href, 15_000)).contentType).toMatch(
+    expect((await loadOf(session, new URL("no-such-page/", server.url).href)).status).toBe(404);
+    expect((await loadOf(session, new URL("feed/", server.url).href)).contentType).toMatch(
       /^application\/rss\+xml/,
     );
   });
@@ -217,7 +215,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     /** The address `pageCanonical` reads from the page at `where` on the local server. */
     async function read(where: string): Promise<string | null> {
       const session = await launch();
-      await session.load(new URL(where, served.url).href, 15_000);
+      await loadOf(session, new URL(where, served.url).href);
       return session.pageCanonical();
     }
 
@@ -283,7 +281,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     it("takes only what shows in the window of a page that's taller", async () => {
       const session = await launch();
       const tall = `<!doctype html><title>tall</title><body style="margin:0"><div style="height:6000px">Tall</div>`;
-      await session.load(`data:text/html,${encodeURIComponent(tall)}`, 15_000);
+      await loadOf(session, `data:text/html,${encodeURIComponent(tall)}`);
       const viewport = await viewportOf(session);
       expect(viewport.height).toBeLessThan(3000);
       expectHalf(await screenshotOf(session), viewport);
@@ -293,7 +291,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     it("takes the part of the page that's in view", async () => {
       const session = await launch();
       const bands = `<!doctype html><title>bands</title><body style="margin:0"><div style="height:2000px;background:#d00"></div><div style="height:2000px;background:#00d"></div><div style="height:2000px;background:#0a0"></div>`;
-      await session.load(`data:text/html,${encodeURIComponent(bands)}`, 15_000);
+      await loadOf(session, `data:text/html,${encodeURIComponent(bands)}`);
       const colorAtTop = async (jpeg: Uint8Array) =>
         session["page"].evaluate(async (base64) => {
           const image = new Image();
@@ -396,7 +394,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     /** A new browser with the page at `url` loaded, and how long axe's check of it took. */
     async function check(url: string) {
       const session = await launch();
-      await session.load(url, 15_000);
+      await loadOf(session, url);
       const began = performance.now();
       const capture = await axeCheckOf(session, url);
       return { session, capture, tookMs: performance.now() - began };
@@ -446,7 +444,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     it("moves no focus, scrolls nothing, and adds nothing to the page", async () => {
       const url = new URL("/tall/", served.url).href;
       const session = await launch();
-      await session.load(url, 15_000);
+      await loadOf(session, url);
       await session.pressTab();
       await session.pressTab();
       await session["page"].evaluate(() => {
@@ -541,7 +539,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
   it("counts a blur that leaves the page without focus", async () => {
     const session = await launch();
     const page = `<title>blur</title><a href="#a">link</a><script>setTimeout(() => { document.hasFocus = () => false; dispatchEvent(new FocusEvent("blur")); }, 800);</script>`;
-    await session.load(`data:text/html,${encodeURIComponent(page)}`, 15_000);
+    await loadOf(session, `data:text/html,${encodeURIComponent(page)}`);
     await delay(1400);
     expect(await session.focusState()).toEqual({ focused: false, losses: 1 });
   });
@@ -549,7 +547,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
   it("doesn't count a blur while the page still has focus", async () => {
     const session = await launch();
     const page = `<title>blur</title><a href="#a">link</a><script>setTimeout(() => dispatchEvent(new FocusEvent("blur")), 800);</script>`;
-    await session.load(`data:text/html,${encodeURIComponent(page)}`, 15_000);
+    await loadOf(session, `data:text/html,${encodeURIComponent(page)}`);
     await session.pressTab(); // headless Chrome reports focus once something in the page has it
     await delay(1400);
     expect(await session.focusState()).toEqual({ focused: true, losses: 0 });
@@ -558,7 +556,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
   it("doesn't count focus moving into a frame as the window losing focus", async () => {
     const session = await launch();
     const page = `<title>frames</title><a href="#a">before</a><iframe srcdoc="<a href='#b'>inside</a>"></iframe><a href="#c">after</a>`;
-    await session.load(`data:text/html,${encodeURIComponent(page)}`, 15_000);
+    await loadOf(session, `data:text/html,${encodeURIComponent(page)}`);
     await session.pressTab();
     await session.pressTab(); // into the frame
     expect(await session.focusState()).toEqual({ focused: true, losses: 0 });
@@ -568,7 +566,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
 
   it("doesn't count focus moving into a frame from another site, in its own process", async () => {
     const session = await launch();
-    await session.load(new URL("frames/", server.url).href, 15_000);
+    await loadOf(session, new URL("frames/", server.url).href);
     await session.waitUntilReady({ readySelector: null, settleMs: 0, networkIdleTimeoutMs: 5_000 });
     // Before the frames, into the same-site frame, into the other site's, after the frames.
     for (let tab = 1; tab <= 4; tab++) {
