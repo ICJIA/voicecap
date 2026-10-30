@@ -19,7 +19,25 @@ Three releases, from the Mac at the owner's word, after a reader of the website 
 - **0.24.0, the voice page is one to follow along with.** Each page's section has its screenshot, player, and speeds on the left, and its read, headings, and Tab transcripts on the right, in a box that scrolls on its own; nothing on the page leaves it while a recording plays. As it plays, the line NVDA is saying is outlined in yellow (each line's span from its pass's JSON, placed by the recording's stretch for that pass; checked against the sound of real recordings). The page's check now covers its transcripts and screenshots too.
 - **The website builds with 0.24.0**, and sfs, dvfr, and r3 were shared again with it (sfs entry 9, dvfr 5, r3 7): the same runs and results, no new audio. A voice page is written when a site is shared, so a site shows a new voice page only once it's shared again.
 
-**Next, on the PC:**
+## Next, on the PC: the forms trial, then i2i with its recording (written 2026-10-30)
+
+0.24.1 is released, and the website builds with it. The forms pass is designed and planned (`docs/superpowers/specs/2026-10-30-forms-pass-design.md`, `docs/superpowers/plans/2026-10-30-forms-pass.md`), on the branch `forms-pass`. The owner's decisions: nothing a form sends ever leaves the browser, submission is assumed to work, the test is whether a form is accessible through NVDA and axe, and each form gets a definitive banner ("This form works with NVDA"), which is what the manager is looking for. It will be built with subagents, once the trial below is back.
+
+**Each of these starts real NVDA, and only the owner starts it.** Keep hands off the keyboard and mouse while it runs.
+
+1. **Get the branch:** `git fetch`, `git checkout forms-pass`, `git pull`, `pnpm install`.
+2. **Run the trial:** `pnpm forms:trial`. It takes about 3 minutes, on two local pages, and nothing leaves the PC. It writes what NVDA said to `docs/forms-trial-notes.md`.
+3. **Commit that file and push:** `git add docs/forms-trial-notes.md`, `git commit -m "Record the forms trial"`, `git push`. The answers decide how Tasks 1 to 9 are built.
+4. **Read the new i2i with NVDA, with its recording:** in the transcripts home, `git pull`, then, with the released voicecap, on Windows 11:
+
+   ```
+   npx @icjia/voicecap@latest --site https://v3--i2i.netlify.app --pages page-lists/v3--i2i.netlify.app.csv
+   ```
+
+   32 pages, about an hour. Say yes when it asks whether you heard NVDA.
+5. **Share and publish it:** `npx @icjia/voicecap@latest share --site https://v3--i2i.netlify.app`, then `git add -A`, commit, and push in the transcripts home. The site's card then says "Hear NVDA". To make the README's screenshots show the recording, `pnpm readme:screenshots` needs a run kept in `fixture/i2i-v3-run` that has one: leave that for the Mac, or a later day.
+
+**Earlier list, 2026-10-28:**
 
 1. **Read v3--i2i.netlify.app again with NVDA, and share it with 0.24.0 or later.** Its runs are all from 2026-10-06, before voicecap recorded NVDA's voice (0.18.0), so it has never had a recording, and its card says "No recording". The owner's manager wants an audio transcript of the site in progress now; it will be read again once it's i2i.illinois.gov. Only with the owner's OK, as every real run.
 2. **The forms phase, a request of 2026-10-28, not started.** The owner's manager wants each site's forms tested with NVDA: voicecap should give pages with forms special emphasis, try the submit button, and read what keeps a form from being sent (a missing required field, say). It's a new pass in the driver, so design it first, with the owner (a brainstorm, then a spec and a plan), before any code. Questions to raise: never sending real data (press submit with the form empty only? stop on a success?), forms that send email or write records, CAPTCHAs, forms in several steps, how the report shows a form's result, and whether the recording covers the new pass.

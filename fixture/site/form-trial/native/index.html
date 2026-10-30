@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Form trial</title>
+  </head>
+  <body>
+    <main>
+      <h1>Form trial</h1>
+      <div id="errors" role="alert"></div>
+      <form id="trial" action="/form-trial/sent/" method="post">
+        <p><label for="name">Your name</label> <input id="name" name="name" required /></p>
+        <p><label for="email">Email</label> <input id="email" name="email" type="email" required /></p>
+        <fieldset>
+          <legend>Contact by</legend>
+          <label><input type="radio" name="contact" value="phone" required /> Phone</label>
+          <label><input type="radio" name="contact" value="mail" /> Mail</label>
+        </fieldset>
+        <p>
+          <label for="topic">Topic</label>
+          <select id="topic" name="topic" required>
+            <option value="">Choose one</option>
+            <option>Grants</option>
+            <option>Research</option>
+          </select>
+        </p>
+        <p><label><input id="agree" name="agree" type="checkbox" required /> I agree</label></p>
+        <p><button type="submit">Send</button></p>
+      </form>
+    </main>
+    <script>
+      // Chrome's own bubble stops an empty form; this stops a complete one going anywhere.
+      document.getElementById("trial").addEventListener("submit", (event) => {
+        event.preventDefault();
+        document.getElementById("errors").textContent = "Ready to send.";
+      });
+    </script>
+  </body>
+</html>

@@ -56,6 +56,7 @@
     "fixture:reviews": "tsx scripts/fixture-reviews.ts",
     "fixture:capture": "tsx scripts/capture-fixture.ts --write",
     "test:nvda": "tsx scripts/capture-fixture.ts",
+    "forms:trial": "tsx scripts/forms-trial.ts",
     "share:fixture": "tsx scripts/share-fixture.ts",
     "site:fixture": "tsx scripts/site-fixture.ts",
     "readme:screenshots": "tsx scripts/readme-screenshots.ts",
