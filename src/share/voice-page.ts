@@ -8,8 +8,8 @@
  *
  * The recording is evidence. The person's review is made from the transcripts, by reading what NVDA
  * said (NVDA speaks too fast to follow), so the page says so, and plays each recording at a speed a
- * person can follow: 1×, 0.75×, 0.5×, and 0.3×. 1× is the recording as recorded. A slower speed is
- * a copy that voicecap's own stretcher (./voice-stretch.ts) makes in the reader's browser, from the
+ * person can follow: it starts at 0.3×, with 1×, 0.75×, and 0.5× a click away. 1× is the recording
+ * as recorded. A slower speed is a copy that voicecap's own stretcher (./voice-stretch.ts) makes in the reader's browser, from the
  * recording the page holds, with the pitch kept, which a second player plays in the first one's
  * place. Where the browser can't make one, the page slows the recording with the browser's own
  * stretcher instead (`playbackRate`, and `preservesPitch` set on, never left to the browser's
@@ -22,11 +22,12 @@
  * the footer; and last the page's one script: the shareable page's own (SHARE_SCRIPT, for the
  * theme), then the fingerprint check's (CHECK_SCRIPT), then this page's (VOICE_SCRIPT).
  *
- * A page's section is its number and name, the run its recording is from when that isn't the latest,
- * and then either its player (an audio element with `controls` and `preload="none"`, named for the
- * page, which loads nothing until it's played), its speed choice, and what is said of its file (its
- * length, the sound lost by the recorder when it lost any, and its size and SHA-256), or the words
- * that say why it has no player (see `voiceOf`).
+ * A page's section is its number and name, and the run its recording is from when that isn't the
+ * latest. Then come, on one side, its screenshot and either its player (an audio element with
+ * `controls` and `preload="none"`, named for the page, which loads nothing until it's played), its
+ * speed choice, and what is said of its file (its length, the sound lost by the recorder when it
+ * lost any, and its size and SHA-256), or the words that say why it has no player (see `voiceOf`);
+ * and, on the other, its transcripts, to read along (see `followAlong`).
  *
  * Which recording a page's section plays is the one its card speaks for: the run whose transcripts
  * the card shows, else, for a page never transcribed, its latest failure's, and no other run's
@@ -37,11 +38,10 @@
  * which are exactly the runs its cards draw on. The recordings come in by run and slug, as the
  * loader holds them (`<run>/<slug>`), only when a file is as its record has it.
  *
- * The recording is audio alone, so its text alternative is one step away (WCAG 1.2.1): each section
- * with a page whose transcripts the shareable page has links to them, at the id of their fold there
- * (`transcriptAnchor`), and the footer links to the shareable page by name. Both links are relative,
- * to the file beside this one, so they work in the folder, in the two files of an email opened side
- * by side, and on the website, where a share's files are published in one folder.
+ * The recording is audio alone, so its text alternative is beside it (WCAG 1.2.1): each section
+ * with transcripts shows them, and the footer links to the shareable page by name. The link is
+ * relative, to the file beside this one, so it works in the folder, in the two files of an email
+ * opened side by side, and on the website, where a share's files are published in one folder.
  *
  * What the model or a record supplies goes through `esc`, a reason included: the recorder's own
  * words in a reason are text, with the home folder already replaced when the run recorded it. No

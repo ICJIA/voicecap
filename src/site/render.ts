@@ -19,14 +19,14 @@
  * the page; and last, the script. What the model, a record, or the CHANGELOG supplies goes through
  * `esc`, and so does the fixed text (./text.ts), which is plain words.
  *
- * A site leads with what a reader came for: its name, with a link to the site itself, then its
- * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
- * page and to download its Word copy; and, when its share has the report for AI tools, as Markdown
- * and as JSON, a line under them that links both. Its earlier reports are a line each under it, and
- * every report's files, with their sizes and fingerprints, are in a fold, closed, for whoever
- * checks a copy: a share's voice page (from 0.18.0), which plays NVDA's recordings, is one of them,
- * listed as NVDA's voice, and is no part of a report's card or line, which are of its page, its
- * Word copy, and, on the card, its report for AI tools. Each view's heading and each site's name
+ * A site is a card of its own, and leads with what a reader came for: its name, with a link to the
+ * site itself, then its current report, with its verdict as a pill, a bar of the pages NVDA read,
+ * and the day NVDA read the site; tiles to its pages, its voice page, and its whole page; a link to
+ * download its Word copy; and, when its share has the report for AI tools, as Markdown and as JSON,
+ * a line that links both. Its earlier reports are a line each under it, and every report's files,
+ * with their sizes and fingerprints, are in a fold, closed, for whoever checks a copy: a share's
+ * voice page (from 0.18.0), which plays NVDA's recordings, is one of them, listed as NVDA's voice.
+ * Each view's heading and each site's name
  * has a picture before it, and the views of the sites and of every report by date say beside their
  * headings how many they hold (from 0.13.1).
  *
