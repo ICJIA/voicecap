@@ -27,7 +27,7 @@ const NATURAL_END: Record<PassName, StopReason> = {
   read: "end-reached",
   headings: "no-next-heading",
   tab: "left-document",
-  forms: "end-reached",
+  forms: "forms-done",
 };
 
 /**

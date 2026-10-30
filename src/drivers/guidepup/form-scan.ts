@@ -180,7 +180,10 @@ const SCAN = `(() => {
     const present = entry !== undefined &&
       (entry.form !== null ? entry.form.isConnected : entry.fields.some((field) => field.isConnected));
     const now = world.voicecapChanges;
-    const read = { invalid: [], messages: [], liveChanged: now.live, present, bubble: null };
+    const read = {
+      focusedField: null, focusedSubmit: false, invalid: [], messages: [],
+      liveChanged: now.live, present, bubble: null,
+    };
     const added = now.added;
     now.live = false;
     if (!present) return read;
@@ -212,13 +215,17 @@ const SCAN = `(() => {
     read.messages = Array.from(messages);
 
     const focus = document.activeElement;
-    const ours = (focus) =>
-      entry.fields.includes(focus) ||
-      (focus.type === "radio" && focus.name !== "" &&
-        entry.fields.some((field) => field.type === "radio" && field.name === focus.name && field.form === focus.form));
-    if (focus && ours(focus) && focus.willValidate && !focus.validity.valid) {
-      read.bubble = focus.validationMessage || null;
+    const fieldAt = (focus) => {
+      const at = entry.fields.indexOf(focus);
+      if (at !== -1 || focus.type !== "radio" || focus.name === "") return at;
+      return entry.fields.findIndex((field) => field.type === "radio" && field.name === focus.name && field.form === focus.form);
+    };
+    const at = focus ? fieldAt(focus) : -1;
+    if (at !== -1) {
+      read.focusedField = at;
+      if (focus.willValidate && !focus.validity.valid) read.bubble = focus.validationMessage || null;
     }
+    read.focusedSubmit = entry.submits.includes(focus);
     return read;
   };
 
@@ -286,6 +293,8 @@ export async function readFormState(
   form: number,
 ): Promise<FormStateRead> {
   const gone: FormStateRead = {
+    focusedField: null,
+    focusedSubmit: false,
     invalid: [],
     messages: [],
     liveChanged: false,

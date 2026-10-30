@@ -260,6 +260,7 @@ describe("replaying a read pass that stopped at the repeat limit", () => {
     endConfirmations: 1,
     noNextHeading: /^no next heading$/i,
     stepTimeoutMs: 1000,
+    forms: { settleMs: 0, values: {} },
   };
 
   const folders: string[] = [];

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { stepCapOf } from "../config/defaults.js";
+import { formsSettingsOf, stepCapOf } from "../config/defaults.js";
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { VoicecapConfig } from "../config/schema.js";
 import {
@@ -777,6 +777,7 @@ async function transcribePages(
     endConfirmations: config.read.endConfirmations,
     noNextHeading: new RegExp(config.phrasing.noNextHeading, "i"),
     stepTimeoutMs: config.timeouts.stepMs,
+    forms: formsSettingsOf(config),
   });
 
   for (const [index, page] of todo.entries()) {

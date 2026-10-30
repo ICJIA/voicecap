@@ -4,6 +4,7 @@
  * keystrokes; the core (src/passes/) decides when a pass stops, from what a driver returns.
  */
 import type { AxeSummary } from "../axe/results.js";
+import type { FieldValue, FormInfo, FormState } from "../forms/types.js";
 import type { NewRunEvent, VoiceStretch } from "../model.js";
 
 /**
@@ -118,6 +119,32 @@ export interface ScreenReaderDriver {
   focusInDocument(): Promise<boolean>;
   /** The focused element as the browser sees it; null when nothing is focused (the body). */
   focusedElement(): Promise<FocusedElement | null>;
+
+  // The forms pass's actions, which a driver has all of or none of (checkFormWithAxe aside). Without
+  // them its run's forms aren't tested, and the run says so. The core decides what to do next;
+  // `form` and `field` are places in what findForms gave.
+
+  /** Every form the page shows, sorted by what voicecap does with it. Moves no focus. */
+  findForms?(): Promise<FormInfo[]>;
+  /**
+   * Shut the guard, so nothing the page does from here reaches the network. Rejects when it can't
+   * be armed, or can't be confirmed, and the core then presses no key on the form.
+   */
+  armFormGuard?(): Promise<void>;
+  /** Move focus to one of the form's fields by script: the core asks only for its first. */
+  focusFormField?(form: number, field: number): Promise<Speech>;
+  /**
+   * Press Enter on the form's first enabled, visible submit control, with focus moved there by
+   * script. It keeps listening until the screen reader goes quiet and `settleMs` more has gone by,
+   * since many forms show their errors a moment later, and what's said by then is its answer.
+   */
+  pressSubmit?(form: number, settleMs: number): Promise<Speech>;
+  /** Put a value in the focused field by keys, never by script. */
+  fillField?(value: FieldValue): Promise<Speech>;
+  /** What the form shows now. Reading it clears `liveChanged`. */
+  formState?(form: number): Promise<FormState>;
+  /** Check the form as it stands with axe-core, limited to the form, as checkWithAxe does a page. */
+  checkFormWithAxe?(form: number): Promise<AxeCapture>;
 }
 
 export interface PageInfo {

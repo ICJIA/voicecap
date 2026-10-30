@@ -2914,6 +2914,7 @@ describe("stepsOf", () => {
       endConfirmations: 1,
       noNextHeading: /^no next heading$/i,
       stepTimeoutMs: 1000,
+      forms: { settleMs: 0, values: {} },
     });
     const body = bodyLines({ steps: result.steps, pass: "read" });
 

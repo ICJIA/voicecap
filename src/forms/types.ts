@@ -2,7 +2,7 @@
  * What the forms pass knows about a page's forms, shared by the browser's scan, the driver, and the
  * pass. A form is only ever pressed when its kind is "test".
  */
-import type { FocusedElement } from "../drivers/types.js";
+import type { AxeCapture, FocusedElement } from "../drivers/types.js";
 
 /**
  * - test: a form with a submit control; the pass presses it.
@@ -41,6 +41,10 @@ export interface FormInfo {
 
 export interface FormState {
   focused: FocusedElement | null;
+  /** Which of the form's fields has focus: its index, by a radio group's one index for any radio. */
+  focusedField: number | null;
+  /** Whether a submit control of the form has focus. */
+  focusedSubmit: boolean;
   /** The indexes of the fields the browser or the page calls invalid. */
   invalid: number[];
   /**
@@ -69,3 +73,25 @@ export interface FieldHeard {
 
 /** What goes into a field: typed text, the space bar (a check box or radio), or an arrow key (a list). */
 export type FieldValue = { kind: "text"; text: string } | { kind: "space" } | { kind: "arrow" };
+
+/**
+ * What came of a form: `completed`, a press that would have sent it; `stuck`, it never got there;
+ * `not-tested`, voicecap didn't try to finish it, as `reason` says. A form tested empty, for a password
+ * or a CAPTCHA, is `not-tested` with its press kept, since nothing says a person couldn't finish it.
+ */
+export type FormResult = "completed" | "stuck" | "not-tested";
+
+export interface FormOutcome {
+  form: FormInfo;
+  result: FormResult;
+  /** The field it stopped at, when it's one field's doing. */
+  stoppedAt: FormField | null;
+  /** Why it stopped short of completed; null for a form that's completed. */
+  reason: string | null;
+  /** Each press in turn: `axe` is null where the form's errors hadn't changed, so it wasn't checked. */
+  presses: { state: FormState; spoken: string; axe: AxeCapture | null }[];
+  /** What NVDA said at each field before any press. */
+  firstWalk: FieldHeard[];
+  /** The same after the last press that didn't end it; empty when no walk followed a press. */
+  lastWalk: FieldHeard[];
+}

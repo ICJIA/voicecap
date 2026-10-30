@@ -48,6 +48,8 @@ export type StopReason =
   | "no-next-heading"
   /** tab: focus moved out of the page, into browser UI */
   | "left-document"
+  /** forms: every form found has been taken */
+  | "forms-done"
   /** safety net: the same speech too many times in a row */
   | "repeat-limit"
   | "step-cap"

@@ -51,6 +51,14 @@ const PAGES: Record<string, string> = {
       Object.defineProperty(HTMLElement.prototype, "checkVisibility", { value: () => false });
     </script>
     <form action="/real" method="post"><input name="action" aria-label="Field" required><input name="elements"><button>Go</button></form>`,
+  "/focus": `${HEAD}
+    <form action="/x" method="post">
+      <input name="a" aria-label="Alpha">
+      <label><input type="radio" name="r" value="a"> A</label>
+      <label><input type="radio" name="r" value="b"> B</label>
+      <a id="help" href="#help">What's this?</a>
+      <button id="go">Send</button>
+    </form>`,
   "/state": `${HEAD}
     <div role="alert">Cookie notice</div>
     <form id="f" action="/x" method="post">
@@ -220,6 +228,27 @@ describe.skipIf(!haveChromium)("readFormState", () => {
     expect(state.heldRequests).toBe(0);
     expect(state.bubble).toBeNull();
     expect(state.focused).toBeNull();
+  });
+
+  it("says which field has focus, a radio group's one index for any radio, and which is a submit", async () => {
+    const session = await open("/focus");
+    await session.scanForms();
+    const page = pageOf(session);
+    expect((await session.readFormState(0)).focusedField).toBeNull();
+    await page.focus('[name="a"]');
+    expect(await session.readFormState(0)).toMatchObject({ focusedField: 0, focusedSubmit: false });
+    await page.focus('[value="b"]');
+    expect((await session.readFormState(0)).focusedField).toBe(1);
+    await page.focus("#help");
+    expect(await session.readFormState(0)).toMatchObject({
+      focusedField: null,
+      focusedSubmit: false,
+    });
+    await page.focus("#go");
+    expect(await session.readFormState(0)).toMatchObject({
+      focusedField: null,
+      focusedSubmit: true,
+    });
   });
 
   it("shows a hint both before and after, and a new error only after", async () => {

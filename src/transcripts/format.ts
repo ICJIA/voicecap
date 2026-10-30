@@ -17,7 +17,7 @@ export const MAIN_COMMAND: Record<PassName, DriverCommand> = {
   read: "nextLine",
   headings: "nextHeading",
   tab: "nextFocusable",
-  forms: "focusField",
+  forms: "pressSubmit",
 };
 
 const COMMAND_LABEL: Record<DriverCommand, string> = {
@@ -35,6 +35,7 @@ const STOP_REASON_TEXT: Record<StopReason, string> = {
   "end-reached": "end reached",
   "no-next-heading": "no next heading",
   "left-document": "left the document",
+  "forms-done": "forms done",
   "repeat-limit": "repeat limit",
   "step-cap": "step cap",
   timeout: "timeout",

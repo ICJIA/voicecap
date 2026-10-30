@@ -1,7 +1,9 @@
 import type { FocusedElement, ScreenReaderDriver } from "../drivers/types.js";
+import type { FormOutcome } from "../forms/types.js";
 import type { DriverCommand, FailureCause, PassName, StepRecord, StopReason } from "../model.js";
 import { causeOf, redactAccount } from "../run/failure.js";
 import { errorMessage, programOf } from "../util/errors.js";
+import { type FormPassOptions, formsPass } from "./forms.js";
 import { headingsPass } from "./headings.js";
 import { readPass } from "./read.js";
 import { InterruptedError, StepRecorder, StepTimeoutError } from "./steps.js";
@@ -13,6 +15,7 @@ export interface PassSettings {
   endConfirmations: number;
   noNextHeading: RegExp;
   stepTimeoutMs: number;
+  forms: Pick<FormPassOptions, "settleMs" | "values">;
 }
 
 /** What a failed pass, or the opening of a page for one, says about why it failed. */
@@ -46,6 +49,8 @@ export interface PassResult {
   /** Set when the pass stopped with "timeout" or "error": what went wrong, and in which step. */
   failure?: PassFailure;
   initialFocus?: FocusedElement | null;
+  /** The forms pass only: what came of each form. */
+  forms?: FormOutcome[];
 }
 
 /**
@@ -66,14 +71,17 @@ export async function runPass(
   let stopReason: StopReason;
   let failure: PassFailure | undefined;
   let initialFocus: FocusedElement | null | undefined;
+  let forms: FormOutcome[] = [];
   try {
     if (pass === "read") {
       stopReason = await readPass(driver, recorder, settings);
     } else if (pass === "headings") {
       stopReason = await headingsPass(driver, recorder, settings);
     } else if (pass === "forms") {
-      // Named so --passes forms and a config's passes are legal; the pass itself comes later.
-      throw new Error("The forms pass can't run yet: this version of voicecap doesn't take it.");
+      const outcome = await formsPass(driver, recorder, { cap: settings.cap, ...settings.forms });
+      stopReason = outcome.stopReason;
+      forms = outcome.forms;
+      warnings.push(...outcome.warnings);
     } else {
       const outcome = await tabPass(driver, recorder, settings);
       stopReason = outcome.stopReason;
@@ -97,6 +105,7 @@ export async function runPass(
     errors,
     ...(failure ? { failure } : {}),
     ...(pass === "tab" ? { initialFocus: initialFocus ?? null } : {}),
+    ...(pass === "forms" ? { forms } : {}),
   };
 }
 

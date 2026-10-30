@@ -35,7 +35,7 @@ describe("forms as a pass name", () => {
   it("is a pass voicecap knows, after the three it has always had", () => {
     expect(PASS_NAMES).toEqual(["read", "headings", "tab", "forms"]);
     expect(DEFAULT_PASS_NAMES).toEqual(["read", "headings", "tab"]);
-    expect(MAIN_COMMAND.forms).toBe("focusField");
+    expect(MAIN_COMMAND.forms).toBe("pressSubmit");
   });
 
   it("stays out of the defaults, so a config that doesn't ask for it is the config it was", () => {
@@ -145,7 +145,7 @@ describe("a run that takes the forms pass", () => {
     expect(result.run.settings.stepCaps).toEqual({ read: 7, headings: 7, tab: 7, forms: 7 });
   });
 
-  it("can't run the pass yet, and says so", async () => {
+  it("ends at once with a driver that can't test forms, and says so", async () => {
     const driver = new ScriptedDriver(sitePages());
     await driver.openPage(sitePages()[0]!.url);
     const result = await runPass("forms", driver, {
@@ -154,10 +154,11 @@ describe("a run that takes the forms pass", () => {
       endConfirmations: 1,
       noNextHeading: /^no next heading$/i,
       stepTimeoutMs: 1000,
+      forms: { settleMs: 0, values: {} },
     });
-    expect(result.stopReason).toBe("error");
+    expect(result.stopReason).toBe("forms-done");
     expect(result.steps).toEqual([]);
-    expect(result.errors[0]).toContain("The forms pass can't run yet");
+    expect(result.warnings).toEqual(["this run's driver doesn't test forms"]);
   });
 });
 

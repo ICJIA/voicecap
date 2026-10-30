@@ -123,6 +123,7 @@ const STOP_REASONS = Object.keys({
   "end-reached": true,
   "no-next-heading": true,
   "left-document": true,
+  "forms-done": true,
   "repeat-limit": true,
   "step-cap": true,
   timeout: true,
