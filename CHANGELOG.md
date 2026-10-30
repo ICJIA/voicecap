@@ -9,6 +9,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 - **The README is shorter, and matches voicecap as it is.** It no longer says VoiceOver audits are on the way, it describes the voice page and the website's site cards as 0.23.0, 0.23.1, and 0.24.0 left them, and it gives the right step cap and says that a page another window interrupts is tried again. Topics that were explained several times are now explained once, and the full programmatic API and the rules of the check of NVDA's log moved to `docs/api.md` and `docs/nvda-log-check.md`.
 - **The website no longer says VoiceOver is coming.** The trust page says a Mac version may come later if it's needed, and Technical details leaves it out.
 
+### Fixed
+
+- **The Chrome session tests no longer fail when a load runs long on a slow Windows runner.** A Chrome just started on Windows CI can take more than 15 seconds to load even a local page, which failed one screenshot test and then another. On Windows, those tests now give the load one more try; the limit itself is unchanged.
+
 ## [0.24.0] - 2026-10-28
 
 The voice page shows each page's screenshot and transcripts beside its recording, and outlines in yellow the line NVDA is saying as it plays, so an auditor can follow along without leaving the page.

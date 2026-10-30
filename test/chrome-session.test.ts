@@ -13,7 +13,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { AXE_LIMIT_MS, AXE_TAGS, type KeptAxeResults } from "../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { startDemoServer, type DemoServer } from "../src/demo/server.js";
-import { axeCheckOf } from "../src/drivers/guidepup-nvda.js";
+import { axeCheckOf, type LoadResult } from "../src/drivers/guidepup-nvda.js";
 import {
   chromeArgs,
   ChromeSession,
@@ -69,6 +69,21 @@ async function screenshotOf(session: ChromeSession): Promise<Uint8Array> {
 }
 
 /**
+ * The fixture's home page, given one more try on Windows when the first load runs past its limit. A
+ * Chrome just started there can take more than 15 seconds to load even a local page on a slow runner
+ * (Windows CI has, on two tests in a row of one file); these tests are of what comes after the load.
+ * Everywhere else, a load that runs out of time fails the test.
+ */
+async function loadOf(session: ChromeSession): Promise<LoadResult> {
+  try {
+    return await session.load(server.url, 15_000);
+  } catch (error) {
+    if (process.platform !== "win32" || !(error instanceof errors.TimeoutError)) throw error;
+    return session.load(server.url, 15_000);
+  }
+}
+
+/**
  * A local server that drops each connection as it comes, without a word. It holds its port until
  * it's closed, so no other test's server can take it meanwhile.
  */
@@ -105,7 +120,7 @@ async function servingPages(
 describe.skipIf(!haveChromium)("a Chrome session", () => {
   it("loads a page and reports where it ended up, its status, and its content type", async () => {
     const session = await launch();
-    expect(await session.load(server.url, 15_000)).toEqual({
+    expect(await loadOf(session)).toEqual({
       finalUrl: server.url,
       status: 200,
       contentType: "text/html; charset=utf-8",
@@ -164,7 +179,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
 
   it("sets the page's title and restores it", async () => {
     const session = await launch();
-    await session.load(server.url, 15_000);
+    await loadOf(session);
     const restore = await session.setTitle("voicecap check k3m9x2");
     expect(await session.pageTitle()).toBe("voicecap check k3m9x2");
     await restore();
@@ -235,7 +250,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
       expect(await read("/plain/")).toBeNull();
       // The fixture site's own home page has no such tag either.
       const session = await launch();
-      await session.load(server.url, 15_000);
+      await loadOf(session);
       expect(await session.pageCanonical()).toBeNull();
     });
   });
@@ -260,7 +275,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
 
     it("takes a screenshot at half the page's size", async () => {
       const session = await launch();
-      await session.load(server.url, 15_000);
+      await loadOf(session);
       expectHalf(await screenshotOf(session), await viewportOf(session));
     });
 
@@ -302,7 +317,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     // laptop at 150%, a Retina screen) half the size takes less than a scale of one half.
     it("takes it at half the page's size on a scaled display too", async () => {
       const session = await launch(["--force-device-scale-factor=2"]);
-      await session.load(server.url, 15_000);
+      await loadOf(session);
       expect(await session["page"].evaluate(() => window.devicePixelRatio)).toBe(2);
       expectHalf(await screenshotOf(session), await viewportOf(session));
     });
@@ -312,7 +327,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     it("takes it at half the page's size, whatever the page's script says its pixel ratio is", async () => {
       for (const scale of [1, 2]) {
         const session = await launch([`--force-device-scale-factor=${scale}`]);
-        await session.load(server.url, 15_000);
+        await loadOf(session);
         const viewport = await viewportOf(session);
         for (const said of [0.0001, 1000, scale === 1 ? 2 : 1]) {
           await session["page"].evaluate((value) => {
@@ -493,7 +508,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
 
   it("starts with nothing focused, and its first Tab reaches the skip link", async () => {
     const session = await launch();
-    await session.load(server.url, 15_000);
+    await loadOf(session);
     expect(await session.focusedElement()).toBeNull();
     await session.pressTab();
     expect(await session.focusedElement()).toEqual({
@@ -507,7 +522,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
 
   it("describes a focused form field inside main", async () => {
     const session = await launch();
-    await session.load(server.url, 15_000);
+    await loadOf(session);
     // Skip link, site name, then the four navigation links, then the search field.
     for (let i = 0; i < 7; i++) await session.pressTab();
     expect(await session.focusedElement()).toEqual({
@@ -565,7 +580,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
 
   it("doesn't count focus moving between elements of the page", async () => {
     const session = await launch();
-    await session.load(server.url, 15_000);
+    await loadOf(session);
     await session.pressTab();
     await session.pressTab();
     expect((await session.focusState()).losses).toBe(0);
@@ -573,7 +588,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
 
   it("waits for the ready selector, and says which one never appeared", async () => {
     const session = await launch();
-    await session.load(server.url, 15_000);
+    await loadOf(session);
     await session.waitUntilReady({
       ...DEFAULT_CONFIG.readiness,
       readySelector: "main h1",
@@ -591,7 +606,7 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
 
   it("says the browser closed, with a code, when a call finds it gone", async () => {
     const session = await launch();
-    await session.load(server.url, 15_000);
+    await loadOf(session);
     await session.close();
     const reading = session.focusState();
     await expect(reading).rejects.toBeInstanceOf(EnvironmentError);
@@ -692,7 +707,7 @@ describe.skipIf(!haveChromium)(
           },
         });
         sessions.push(session);
-        expect((await session.load(server.url, 15_000)).status).toBe(200);
+        expect((await loadOf(session)).status).toBe(200);
         expect(starts).toBe(2);
         expect(notices).toEqual([
           "Chromium handed over to a new copy of itself as it started, as it does to finish installing an update. voicecap closed that copy and is starting Chromium again.",
