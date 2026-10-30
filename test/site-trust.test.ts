@@ -926,7 +926,7 @@ describe("renderTrustPage", () => {
     expect(textsOf(limits, "p")[0]).toBe("the limits");
     expect(pointsOf(limits)).toEqual([
       { words: "It doesn't decide what's accessible: a person does, from what NVDA said." },
-      { words: "It uses NVDA only, for now. VoiceOver on a Mac comes later." },
+      { words: "It uses NVDA only. A Mac version, with VoiceOver, may come later if it's needed." },
       { words: "A transcript shows what NVDA said, not what every screen reader would say." },
       {
         words:

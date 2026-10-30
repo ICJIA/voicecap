@@ -328,7 +328,7 @@ export const TRUST_TEXT = {
     heading: "What it doesn't do.",
     items: [
       "It doesn't decide what's accessible: a person does, from what NVDA said.",
-      "It uses NVDA only, for now. VoiceOver on a Mac comes later.",
+      "It uses NVDA only. A Mac version, with VoiceOver, may come later if it's needed.",
       "A transcript shows what NVDA said, not what every screen reader would say.",
       "Automated checkers such as axe find what code can find; a person's review finds the rest.",
     ],

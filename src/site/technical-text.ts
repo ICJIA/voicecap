@@ -220,7 +220,7 @@ export const TECHNICAL_TEXT = {
           { code: "voicecap verify" },
           " work on any computer, and hearing a page again with ",
           { code: "voicecap review --replay" },
-          " needs Windows or a Mac. VoiceOver runs on a Mac come later.",
+          " needs Windows or a Mac.",
         ],
       ] satisfies Sentence[],
     },
@@ -783,7 +783,6 @@ export const TECHNICAL_TEXT = {
         [
           `A page that talks without stopping can time out: voicecap tries it ${plural(DEFAULT_CONFIG.pageAttempts, "time")} in all, then records it as failed.`,
         ],
-        ["VoiceOver runs on a Mac come later."],
       ] satisfies Sentence[],
     },
     verify: {

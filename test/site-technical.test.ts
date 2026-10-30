@@ -902,13 +902,12 @@ describe("renderTechnical", () => {
       "While a page is open, its browser's debugging port can be reached by other people signed in to the same computer at the same time.",
     );
 
-    // Guidepup and its setup do VoiceOver's part on a Mac, too, so what comes later is VoiceOver's
-    // runs, as the limits say, and not VoiceOver on a Mac.
+    // Guidepup and its setup do VoiceOver's part on a Mac, too, for the Mac's checks. A Mac version
+    // isn't planned for now, so the page promises no VoiceOver runs.
     const tools = Object.fromEntries(TECHNICAL_TEXT.toolchain.map(({ tool, job }) => [tool, job]));
     expect(tools.Guidepup).toContain("VoiceOver");
     expect(tools["@guidepup/setup"]).toContain("VoiceOver");
-    expect(part("what-voicecap-does")).toContain("VoiceOver runs on a Mac come later.");
-    expect(limits).toContain("VoiceOver runs on a Mac come later.");
+    expect(text).not.toContain("VoiceOver runs on a Mac come later");
     expect(text).not.toContain("VoiceOver on a Mac comes later");
   });
 
