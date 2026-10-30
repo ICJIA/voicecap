@@ -1,14 +1,30 @@
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import dgram from "node:dgram";
-import { createServer, type Server, type ServerResponse } from "node:http";
+import { createServer, request as httpRequest, type Server, type ServerResponse } from "node:http";
+import { createServer as createTlsServer } from "node:https";
 import net, { type AddressInfo, type Socket } from "node:net";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { chromium, type Browser, type Page } from "playwright";
+import { chromium, type Page } from "playwright";
+import { generate } from "selfsigned";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { launchChrome, type ChromeSession } from "../src/drivers/guidepup/chrome.js";
+import {
+  formGateArgs,
+  launchChrome,
+  type ChromeSession,
+  type LaunchChromeOptions,
+} from "../src/drivers/guidepup/chrome.js";
+import {
+  isLoopback,
+  listenForUdp,
+  openFormGate,
+  tunnelTarget,
+  type FormGate,
+} from "../src/drivers/guidepup/form-gate.js";
 
 // Real Chromium (Playwright's build, headless) against a local server that counts every request.
 // The guard is what keeps a form's data on the computer, so nothing here is faked but the failures
@@ -54,6 +70,19 @@ const OPEN_TRANSPORT = (url: string): string => `
     transport.ready.catch(() => {});
     transport.closed.catch(() => {});
   }`;
+
+/** A self-signed certificate for 127.0.0.1, made in memory when the test runs and kept nowhere. */
+const makeTls = async (): Promise<{ key: string; cert: string }> => {
+  const pems = await generate([{ name: "commonName", value: "127.0.0.1" }], {
+    keyType: "ec",
+    algorithm: "sha256",
+    extensions: [
+      { name: "basicConstraints", cA: true, critical: true },
+      { name: "subjectAltName", altNames: [{ type: 7, ip: "127.0.0.1" }] },
+    ],
+  });
+  return { key: pems.private, cert: pems.cert };
+};
 
 /** A one-pixel PNG. */
 const PIXEL = Buffer.from(
@@ -167,13 +196,29 @@ const sentBy = (kind: string, otherOrigin: string): string => {
       );
     case "a font at a new address":
       return button(`new FontFace("New", "url(/new.woff2?email=typed)").load().catch(() => {})`);
-    case "a worker's script with a query":
-      return button(`new Worker("/worker.js?email=typed")`);
     case "a worker's imported script":
       return `${button(`worker.postMessage("/new.js?email=typed")`)}<script>const worker = new Worker("/importer.js");</script>`;
-    case "a page with its files":
-      return `${HEAD}<link rel="stylesheet" href="/style.css"><style>@font-face { font-family: Known; src: url(/known.woff2); }</style>
-        <p style="font-family: Known">Text</p><img src="/pic.png" alt=""><script src="/late.js"></script>`;
+    case "a known image's address with what was typed":
+      return `${button(`new Image().src = "/pic.png?email=typed"`)}<img src="/pic.png" alt="">`;
+    case "a known image's cookie":
+      return `${button(`document.cookie = "email=typed"; new Image().src = "/pic.png"`)}<img src="/pic.png" alt="">`;
+    case "a known image's referrer":
+      return `${button(`history.replaceState(null, "", "?email=typed"); new Image().src = "/pic.png"`)}<img src="/pic.png" alt="">`;
+    case "a speculation rule's prefetch":
+    case "a speculation rule's prerender": {
+      const rule = kind.endsWith("prefetch") ? "prefetch" : "prerender";
+      return button(
+        `const rules = document.createElement("script"); rules.type = "speculationrules";
+         rules.textContent = JSON.stringify({ ${rule}: [{ urls: ["/sent?a=secret"] }] });
+         document.head.append(rules)`,
+      );
+    }
+    case "a preconnect":
+      return button(
+        `document.head.append(Object.assign(document.createElement("link"), { rel: "preconnect", href: "${otherOrigin}" }))`,
+      );
+    case "a nested worker's address":
+      return `${button(`worker.postMessage("send")`)}<script>const worker = new Worker("/nester.js");</script>`;
     case "a websocket opened before the guard":
       return `${button(`socket.send("secret")`)}<script>
         const socket = new WebSocket(location.origin.replace("http", "ws") + "/socket");
@@ -184,6 +229,12 @@ const sentBy = (kind: string, otherOrigin: string): string => {
   }
 };
 
+/** A page's words when a socket inside a tunnel is open. */
+const TUNNELLED = `${HEAD}<input id="go" oninput="socket.send(this.value)"><script>
+  const socket = new WebSocket(location.origin.replace("http", "ws") + "/socket");
+  window.ready = new Promise((resolve) => { socket.onopen = resolve; });
+</script>`;
+
 /** Enough of a WebSocket server to count a handshake, and each message a socket sends. */
 function acceptSocket(request: { headers: Record<string, unknown> }, socket: Socket): void {
   const accept = createHash("sha1")
@@ -192,6 +243,17 @@ function acceptSocket(request: { headers: Record<string, unknown> }, socket: Soc
   socket.write(
     `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`,
   );
+}
+
+/** Takes WebSockets on a server, adding what they do to what it's seen. */
+function countSockets(server: Server, seen: string[], sockets: Set<Socket>): void {
+  server.on("upgrade", (request, socket) => {
+    seen.push("(socket)");
+    sockets.add(socket as Socket);
+    socket.on("error", () => {});
+    socket.on("data", () => seen.push("(socket message)"));
+    acceptSocket(request, socket as Socket);
+  });
 }
 
 async function countingServer(kindOf: () => string, csp = ""): Promise<Counter> {
@@ -215,22 +277,21 @@ async function countingServer(kindOf: () => string, csp = ""): Promise<Counter> 
       "/style.css": ["text/css", "body { color: #111; }"],
       "/late.js": ["text/javascript", "window.lateRan = true;"],
       "/pic.png": ["image/png", ""],
-      "/late-worker.js": [
+      "/nester.js": [
         "text/javascript",
-        `fetch("/late-worker-sent", { method: "POST", body: "secret" });`,
+        `self.onmessage = () => new Worker("/nested.js?email=typed");`,
       ],
-      "/late-sw.js": [
+      "/transport-nester.js": [
         "text/javascript",
-        `fetch("/late-sw-sent", { method: "POST", body: "secret" });`,
+        `self.onmessage = (event) => {
+          const source = ${"`"}\${OPEN} ;${"`"};
+          new Worker(URL.createObjectURL(new Blob([source.replace("URL", JSON.stringify(event.data))])));
+        };`,
       ],
       "/importer.js": ["text/javascript", `self.onmessage = (event) => importScripts(event.data);`],
       "/transport-worker.js": [
         "text/javascript",
         `self.onmessage = (event) => { ${OPEN_TRANSPORT("event.data")} };`,
-      ],
-      "/transport-top.js": [
-        "text/javascript",
-        `${OPEN_TRANSPORT("`https://127.0.0.1:${location.search.slice(1)}/`")}`,
       ],
       "/transport-sw.js": [
         "text/javascript",
@@ -282,13 +343,8 @@ async function countingServer(kindOf: () => string, csp = ""): Promise<Counter> 
     response.writeHead(200, headers);
     response.end(url.pathname === "/pic.png" ? PIXEL : (html ?? answer?.[1] ?? "ok"));
   });
-  server.on("upgrade", (request, socket) => {
-    seen.push("(socket)");
-    sockets.add(socket as Socket);
-    socket.on("error", () => {});
-    socket.on("data", () => seen.push("(socket message)"));
-    acceptSocket(request, socket as Socket);
-  });
+  server.on("connection", () => seen.push("(connection)"));
+  countSockets(server, seen, sockets);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
   origins = { url: `http://127.0.0.1:${port}/`, otherOrigin: `http://localhost:${port}` };
@@ -315,23 +371,155 @@ async function countingServer(kindOf: () => string, csp = ""): Promise<Counter> 
 /** The session's own page: the tests press what a person would, as the forms pass will. */
 const pageOf = (session: ChromeSession): Page => (session as unknown as { page: Page }).page;
 
+/** What a proxy client gets for a request through the gate: its status, or null if hung up on. */
+function throughGate(gate: FormGate, target: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const request = httpRequest({ host: "127.0.0.1", port: gate.port, path: target }, (answer) => {
+      answer.resume();
+      resolve(answer.statusCode ?? null);
+    });
+    request.on("error", () => resolve(null));
+    request.end();
+  });
+}
+
+describe("a form gate", () => {
+  let gate: FormGate;
+  let server: Counter;
+
+  beforeEach(async () => {
+    gate = await openFormGate();
+    server = await countingServer(() => "fetch");
+    server.mark();
+  });
+  afterEach(async () => {
+    await gate.close();
+    await server.close();
+  });
+
+  it("serves only this computer", () => {
+    expect(["127.0.0.1", "::1", "::ffff:127.0.0.1"].every(isLoopback)).toBe(true);
+    expect(["192.168.1.5", "10.0.0.1", "::ffff:10.0.0.1", undefined].some(isLoopback)).toBe(false);
+  });
+
+  it("forwards plain HTTP, and says what it's served", async () => {
+    await expect(throughGate(gate, `${server.url}anything`)).resolves.toBe(200);
+    expect(server.paths()).toContain("/anything");
+    expect(gate.hasServed("127.0.0.1")).toBe(true);
+    await expect(gate.refuses()).resolves.toBe(false);
+  });
+
+  it("refuses everything once shut, and for good", async () => {
+    gate.shut();
+    gate.shut();
+    await expect(throughGate(gate, `${server.url}anything`)).resolves.toBeNull();
+    await expect(gate.refuses()).resolves.toBe(true);
+    await delay(STRAGGLER_MS);
+    expect(server.reaches()).toBe(0);
+  });
+
+  it("listens for UDP on 127.0.0.1 only, and hears a datagram", async () => {
+    const listener = await listenForUdp();
+    const sender = dgram.createSocket("udp4");
+    sender.send("hello", listener.port, listener.address);
+    await vi.waitFor(() => expect(listener.heard()).toBe(1));
+    sender.close();
+    await listener.close();
+    expect(listener.address).toBe("127.0.0.1");
+  });
+
+  it("reads a tunnel's port, port 80 among them", () => {
+    const target = (url: string) => tunnelTarget({ url });
+    expect(target("example.gov:80")).toEqual({ hostname: "example.gov", port: 80 });
+    expect(target("example.gov:443")).toEqual({ hostname: "example.gov", port: 443 });
+    expect(target("[::1]:80")).toEqual({ hostname: "[::1]", port: 80 });
+    expect(target("example.gov")).toBeNull();
+    expect(target("example.gov:0")).toBeNull();
+    expect(target("example.gov:70000")).toBeNull();
+  });
+
+  it("answers a tunnel to port 80 while it's open, and refuses it once shut", async () => {
+    const ask = () =>
+      new Promise<string | null>((resolve) => {
+        const tunnel = net.connect(gate.port, "127.0.0.1");
+        tunnel.on("error", () => {});
+        tunnel.write("CONNECT 127.0.0.1:80 HTTP/1.1\r\n\r\n");
+        tunnel.once("data", (data) => {
+          tunnel.destroy();
+          resolve(data.toString());
+        });
+        tunnel.once("close", () => resolve(null));
+      });
+    await expect(ask()).resolves.toMatch(/^HTTP\/1\.1 (200|502)/);
+    gate.shut();
+    await expect(ask()).resolves.toBeNull();
+  });
+
+  it("cuts a request already under way", async () => {
+    const answered = throughGate(gate, `${server.url}slow`);
+    await vi.waitFor(() => expect(server.paths()).toContain("/slow"));
+    gate.shut();
+    await expect(answered).resolves.toBeNull();
+  });
+
+  it("cuts an open tunnel, in both directions", async () => {
+    const tunnel = net.connect(gate.port, "127.0.0.1");
+    const port = new URL(server.url).port;
+    tunnel.on("error", () => {});
+    tunnel.write(`CONNECT 127.0.0.1:${port} HTTP/1.1\r\n\r\n`);
+    await new Promise((resolve) => tunnel.once("data", resolve));
+    const closed = new Promise((resolve) => tunnel.once("close", resolve));
+    gate.shut();
+    await closed;
+    await delay(STRAGGLER_MS);
+    expect(server.paths()).not.toContain("(socket message)");
+  });
+});
+
 describe.skipIf(!haveChromium)("the form guard", () => {
   let kind = "";
   let server: Counter;
+  let gate: FormGate;
   let session: ChromeSession;
 
-  async function start(csp = ""): Promise<void> {
+  async function start(
+    csp = "",
+    spawnBrowser?: LaunchChromeOptions["spawnBrowser"],
+  ): Promise<void> {
     server = await countingServer(() => kind, csp);
+    gate = await openFormGate();
     session = await launchChrome({
       browser: { channel: "chromium", fallbackToChromium: false },
       env: process.env,
-      extraArgs: HEADLESS,
+      extraArgs: [...HEADLESS, "--ignore-certificate-errors"],
+      formGate: gate,
+      ...(spawnBrowser ? { spawnBrowser } : {}),
     });
   }
 
+  /** A launch whose profile sets another WebRTC policy. */
+  const withPolicy =
+    (policy: string): NonNullable<LaunchChromeOptions["spawnBrowser"]> =>
+    (file, args) => {
+      const profile = args.find((arg) => arg.startsWith("--user-data-dir="))?.split("=")[1] ?? "";
+      mkdirSync(path.join(profile, "Default"), { recursive: true });
+      writeFileSync(
+        path.join(profile, "Default", "Preferences"),
+        JSON.stringify({ webrtc: { ip_handling_policy: policy } }),
+      );
+      return spawn(file, args, { stdio: "ignore" });
+    };
+
+  /** A launch whose profile has lost the preference that turns direct UDP off. */
+  const withoutPreference: LaunchChromeOptions["spawnBrowser"] = (file, args) => {
+    const profile = args.find((arg) => arg.startsWith("--user-data-dir="))?.split("=")[1] ?? "";
+    rmSync(path.join(profile, "Default", "Preferences"), { force: true });
+    return spawn(file, args, { stdio: "ignore" });
+  };
+
   /** The page's load, its setup, and its last quiet moment: what reaches the server after is sent. */
-  async function open(path = ""): Promise<Page> {
-    await session.load(`${server.url}${path}`, 15_000);
+  async function open(url = server.url): Promise<Page> {
+    await session.load(url, 15_000);
     const page = pageOf(session);
     await page.evaluate("window.ready");
     await delay(STRAGGLER_MS);
@@ -341,14 +529,13 @@ describe.skipIf(!haveChromium)("the form guard", () => {
 
   /** Press #go by the keyboard, in the page or its frame, or type in it. */
   async function press(page: Page): Promise<void> {
-    const inFrame =
-      kind.startsWith("cross-origin frame") || kind.startsWith("a cross-origin frame");
+    const inFrame = kind.includes("cross-origin frame");
     const target = inFrame ? page.frameLocator("iframe").locator("#go") : page.locator("#go");
     await target.focus();
     await page.keyboard.press(kind.includes("input") ? "a" : "Enter");
   }
 
-  /** Waits for the guard to hold something, then gives anything that got past it time to arrive. */
+  /** Waits for the route to hold something, then gives anything that got past time to arrive. */
   async function settled(): Promise<void> {
     await vi.waitFor(
       () => {
@@ -359,12 +546,12 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     await delay(STRAGGLER_MS);
   }
 
-  async function armAndTrigger(): Promise<void> {
+  async function armAndPress(): Promise<Page> {
     await start();
     const page = await open();
     await session.armFormGuard();
     await press(page);
-    await settled();
+    return page;
   }
 
   afterEach(async () => {
@@ -372,6 +559,7 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     await server?.close();
   });
 
+  // What the route sees: nothing arrives, and it's counted.
   it.each([
     "post form",
     "get form",
@@ -392,177 +580,168 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     "a keepalive fetch",
     "an event stream",
     "a worker's fetch",
-    "a shared worker's fetch",
-    "a worker's websocket",
-    "a websocket made from a constructor kept before the guard",
-    "a cross-origin frame's websocket",
     "a pixel with what was typed in its address",
     "a new stylesheet",
     "a dynamic script with a query",
     "a font at a new address",
     "a worker's imported script",
-    "a websocket opened before the guard",
-    "an input handler's send on a websocket opened before the guard",
-    "cross-origin frame's websocket opened before the guard",
-    "a worker's websocket opened before the guard",
+    "a known image's address with what was typed",
+    "a known image's cookie",
+    "a known image's referrer",
+    "a worker's websocket",
+    "a websocket made from a constructor kept before the guard",
+    "a cross-origin frame's websocket",
   ])("lets nothing out: %s", async (name) => {
     kind = name;
-    await armAndTrigger();
+    await armAndPress();
+    await settled();
     expect(server.paths()).toEqual([]);
     expect(server.reaches()).toBe(0);
     expect(session.heldRequests()).toBeGreaterThan(0);
   });
 
-  // Stopped, and not counted: no page sees a service worker's socket, so the count is low, never high.
-  it("lets nothing out: a service worker's websocket opened before the guard", async () => {
-    kind = "a service worker's websocket opened before the guard";
-    await start();
-    const page = await open();
-    await session.armFormGuard();
-    await press(page);
-    await delay(STRAGGLER_MS * 2);
+  // What only the wall stops: nothing arrives, and nothing in the browser sees it to count.
+  it.each([
+    "a shared worker's fetch",
+    "a speculation rule's prefetch",
+    "a speculation rule's prerender",
+    "a preconnect",
+    "a nested worker's address",
+    "a websocket opened before the guard",
+    "an input handler's send on a websocket opened before the guard",
+    "cross-origin frame's websocket opened before the guard",
+    "a worker's websocket opened before the guard",
+    "a service worker's websocket opened before the guard",
+  ])("lets nothing out, past the route: %s", async (name) => {
+    kind = name;
+    await armAndPress();
+    await delay(STRAGGLER_MS * 3);
     expect(server.paths()).toEqual([]);
   });
 
-  it("holds what a request in flight as it arms goes on to send", async () => {
+  it("cuts what a request in flight as it arms would have gone on to send", async () => {
     kind = "a request in flight as the guard arms";
     await start();
     await open();
     await session.armFormGuard();
     server.answerSlow();
-    await settled();
-    expect(server.paths()).toEqual([]);
-    expect(session.heldRequests()).toBeGreaterThan(0);
-  });
-
-  it("is offline for real: an open socket stays silent when the page can't be told it's online", async () => {
-    kind = "an input handler's send on a websocket opened before the guard";
-    await start();
-    const page = await open();
-    const cdp = (session as unknown as { cdp: { send: (...args: unknown[]) => Promise<unknown> } })
-      .cdp;
-    const send = cdp.send.bind(cdp);
-    vi.spyOn(cdp, "send").mockImplementation((method, ...rest) =>
-      method === "Network.overrideNetworkState"
-        ? Promise.reject(new Error("no override"))
-        : send(method, ...rest),
-    );
-    await session.armFormGuard();
-    await press(page);
-    await settled();
+    await delay(STRAGGLER_MS * 2);
     expect(server.paths()).toEqual([]);
   });
 
-  it("still lets a stylesheet, an image, and a script the page already fetched load again", async () => {
-    kind = "a page with its files";
-    await start();
-    const page = await open();
-    await session.armFormGuard();
-    const loaded = await page.evaluate(`Promise.all([
-      new Promise((resolve) => {
-        const image = new Image();
-        image.onload = () => resolve("image loaded");
-        image.onerror = () => resolve("image failed");
-        image.src = "/pic.png";
-      }),
-      new Promise((resolve) => {
-        const sheet = document.createElement("link");
-        sheet.rel = "stylesheet";
-        sheet.onload = () => resolve("sheet loaded");
-        sheet.onerror = () => resolve("sheet failed");
-        sheet.href = "/style.css";
-        document.head.append(sheet);
-      }),
-      new Promise((resolve) => {
-        window.lateRan = false;
-        const script = document.createElement("script");
-        script.onload = script.onerror = () => resolve(window.lateRan);
-        script.src = "/late.js";
-        document.head.append(script);
-      }),
-    ])`);
-    expect(loaded).toEqual(["image loaded", "sheet loaded", true]);
-    expect(server.paths()).toEqual(expect.arrayContaining(["/late.js", "/style.css"]));
-    expect(session.heldRequests()).toBe(0);
-  });
-
-  it("holds a known address asked for another way: a fetch of a file it let in", async () => {
-    kind = "a page with its files";
+  it("keeps a file the page already fetched from loading again, as it holds everything", async () => {
+    kind = "a known image's cookie";
     await start();
     const page = await open();
     await session.armFormGuard();
     await page.evaluate(`fetch("/pic.png").catch(() => {})`);
     await settled();
     expect(server.paths()).toEqual([]);
-    expect(session.heldRequests()).toBe(1);
   });
 
-  it("starts no new worker, whatever its address", async () => {
-    kind = "fetch";
-    await start();
-    const page = await open();
-    await session.armFormGuard();
-    const made = await page.evaluate(`(() => {
-      try { new Worker("/worker.js?email=typed"); return "made"; } catch { return "refused"; }
-    })()`);
-    await delay(STRAGGLER_MS * 2);
-    expect(made).toBe("refused");
-    expect(server.paths()).toEqual([]);
+  describe("as the session closes", () => {
+    it.each([
+      [
+        "a pagehide beacon",
+        `addEventListener("pagehide", () => navigator.sendBeacon("/sent", "secret"))`,
+      ],
+      [
+        "a pagehide keepalive fetch",
+        `addEventListener("pagehide", () => fetch("/sent", { method: "POST", body: "secret", keepalive: true }))`,
+      ],
+      ["a fetchLater", `fetchLater("/sent", { method: "POST", body: "secret" })`],
+    ])("lets nothing out: %s", async (_name, script) => {
+      kind = "fetch";
+      await start();
+      const page = await open();
+      await session.armFormGuard();
+      await page.evaluate(script);
+      await session.close();
+      await delay(STRAGGLER_MS);
+      expect(server.paths()).toEqual([]);
+    });
+
+    it("stays shut until the browser has gone, and is closed after", async () => {
+      kind = "fetch";
+      await start();
+      await open();
+      const shut = vi.spyOn(gate, "shut");
+      const close = vi.spyOn(gate, "close");
+      const killed = new Promise<void>((resolve) =>
+        (
+          session as unknown as { child: { once(event: "exit", then: () => void): void } }
+        ).child.once("exit", () => {
+          expect(shut).toHaveBeenCalled();
+          expect(close).not.toHaveBeenCalled();
+          resolve();
+        }),
+      );
+      await session.close();
+      await killed;
+      expect(close).toHaveBeenCalled();
+    });
+
+    it("shuts the gate when a session is left behind", async () => {
+      kind = "fetch";
+      await start();
+      await open();
+      session.abandon();
+      await expect(gate.refuses()).resolves.toBe(true);
+    });
   });
 
-  it("lets no shared worker's address out", async () => {
-    kind = "fetch";
-    await start();
-    const page = await open();
-    await session.armFormGuard();
-    const made = await page.evaluate(`(() => {
-      try { new SharedWorker("/late-worker.js?email=typed"); return "made"; } catch { return "refused"; }
-    })()`);
-    await delay(STRAGGLER_MS * 2);
-    expect(made).toBe("refused");
-    expect(server.paths()).toEqual([]);
+  describe("through a tunnel", () => {
+    let seen: string[];
+    let tls: Server;
+    let tlsUrl: string;
+    const sockets = new Set<Socket>();
+
+    beforeEach(async () => {
+      seen = [];
+      sockets.clear();
+      tls = createTlsServer(await makeTls(), (request, response) => {
+        request.resume();
+        seen.push(request.url ?? "");
+        response.writeHead(200, { "Content-Type": "text/html" });
+        response.end(request.url === "/" ? TUNNELLED : "ok");
+      });
+      countSockets(tls, seen, sockets);
+      await new Promise<void>((resolve) => tls.listen(0, "127.0.0.1", resolve));
+      tlsUrl = `https://127.0.0.1:${(tls.address() as AddressInfo).port}/`;
+      kind = "fetch";
+      await start();
+    });
+    afterEach(async () => {
+      for (const socket of sockets) socket.destroy();
+      tls.closeAllConnections();
+      await new Promise<void>((resolve) => tls.close(() => resolve()));
+    });
+
+    it("loads an https page through the gate, by CONNECT", async () => {
+      const result = await session.load(tlsUrl, 15_000);
+      expect(result.status).toBe(200);
+      expect(seen).toContain("/");
+      expect(gate.hasServed("127.0.0.1")).toBe(true);
+    });
+
+    it("cuts a tunnel and the socket in it, both opened before it's armed", async () => {
+      const page = await open(tlsUrl);
+      expect(seen).toContain("(socket)");
+      const before = seen.length;
+      const [socket] = sockets;
+      const cut = new Promise((resolve) => socket?.once("close", resolve));
+      await session.armFormGuard();
+      await cut;
+      kind = "input";
+      await press(page);
+      await delay(STRAGGLER_MS);
+      await page.evaluate(`fetch("/after").catch(() => {})`);
+      await delay(STRAGGLER_MS);
+      expect(seen.slice(before)).toEqual([]);
+    });
   });
 
-  it("lets no shared worker's address out through a constructor kept before the guard", async () => {
-    kind = "fetch";
-    await start();
-    const page = await open();
-    await page.evaluate(`window.Kept = SharedWorker`);
-    await session.armFormGuard();
-    await page.evaluate(`new Kept("/late-worker.js?email=typed"), 1`).catch(() => "refused");
-    await delay(STRAGGLER_MS * 2);
-    expect(server.paths()).toEqual([]);
-  });
-
-  it("lets no service worker's address out", async () => {
-    kind = "fetch";
-    await start();
-    const page = await open();
-    await session.armFormGuard();
-    const result = await page.evaluate(
-      `navigator.serviceWorker.register("/late-sw.js?email=typed").then(() => "made", () => "refused")`,
-    );
-    await delay(STRAGGLER_MS * 2);
-    expect(result).toBe("refused");
-    expect(server.paths()).toEqual([]);
-  });
-
-  it("lets no shared or service worker's address out from a frame made after it's armed", async () => {
-    kind = "fetch";
-    await start();
-    const page = await open();
-    await session.armFormGuard();
-    await page.evaluate(`(() => {
-      const frame = document.createElement("iframe");
-      document.body.append(frame);
-      try { new frame.contentWindow.SharedWorker("/late-worker.js?email=typed"); } catch {}
-      frame.contentWindow.navigator.serviceWorker.register("/late-sw.js?email=typed").catch(() => {});
-    })()`);
-    await delay(STRAGGLER_MS * 2);
-    expect(server.paths()).toEqual([]);
-  });
-
-  describe("what no route sees", () => {
+  describe("past TCP and HTTP", () => {
     let packets = 0;
     let connections = 0;
     let udp: dgram.Socket;
@@ -593,31 +772,26 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     });
 
     const peerConnection = (realm: string, ice: string) => `(async () => {
-      const Connection = ${realm}.RTCPeerConnection ?? ${realm}.webkitRTCPeerConnection;
-      if (!Connection) return;
-      const peer = new Connection({ iceServers: [${ice}] });
+      const peer = new ${realm}.RTCPeerConnection({ iceServers: [${ice}] });
       peer.createDataChannel("sent");
       await peer.setLocalDescription(await peer.createOffer());
       window.peer = peer;
     })()`;
+    const stun = () => `{ urls: "stun:127.0.0.1:${udpPort}" }`;
+    const turnTcp = () =>
+      `{ urls: "turn:127.0.0.1:${tcpPort}?transport=tcp", username: "secret", credential: "x" }`;
     const transportUrl = () => `https://127.0.0.1:${udpPort}/`;
 
-    it("takes WebRTC away, over UDP and TCP, from the page's start", async () => {
+    it("stops WebRTC, over UDP and TCP, in the page", async () => {
       const page = await open();
       await session.armFormGuard();
-      await page.evaluate(peerConnection("window", `{ urls: "stun:127.0.0.1:${udpPort}" }`));
-      await page.evaluate(
-        peerConnection(
-          "window",
-          `{ urls: "turn:127.0.0.1:${tcpPort}?transport=tcp", username: "secret", credential: "x" }`,
-        ),
-      );
-      await delay(STRAGGLER_MS * 2);
-      await expect(page.evaluate("typeof RTCPeerConnection")).resolves.toBe("undefined");
+      await page.evaluate(peerConnection("window", stun()));
+      await page.evaluate(peerConnection("window", turnTcp()));
+      await delay(STRAGGLER_MS * 3);
       expect([packets, connections]).toEqual([0, 0]);
     });
 
-    it("takes WebRTC away from a frame made after it's armed", async () => {
+    it("stops WebRTC over TCP in a frame made after it's armed", async () => {
       const page = await open();
       await session.armFormGuard();
       await page.evaluate(`(() => {
@@ -625,25 +799,45 @@ describe.skipIf(!haveChromium)("the form guard", () => {
         document.body.append(frame);
         window.frameWindow = frame.contentWindow;
       })()`);
-      await page.evaluate(
-        peerConnection("window.frameWindow", `{ urls: "stun:127.0.0.1:${udpPort}" }`),
-      );
-      await delay(STRAGGLER_MS * 2);
-      expect(packets).toBe(0);
+      await expect(page.evaluate("typeof frameWindow.RTCPeerConnection")).resolves.toBe("function");
+      await page.evaluate(peerConnection("window.frameWindow", turnTcp()));
+      await delay(STRAGGLER_MS * 3);
+      expect(connections).toBe(0);
     });
 
-    it("takes WebTransport away from the page", async () => {
+    it("stops WebTransport in the page", async () => {
       const page = await open();
       await session.armFormGuard();
       await page.evaluate(OPEN_TRANSPORT(`"${transportUrl()}"`));
       await delay(STRAGGLER_MS * 2);
-      await expect(page.evaluate("typeof WebTransport")).resolves.toBe("undefined");
       expect(packets).toBe(0);
     });
 
-    it("takes WebTransport away from a worker", async () => {
+    it("keeps WebTransport off a browser behind a gate, even before it's armed", async () => {
+      const page = await open();
+      await page.evaluate(OPEN_TRANSPORT(`"${transportUrl()}"`));
+      await delay(STRAGGLER_MS * 2);
+      expect(packets).toBe(0);
+    });
+
+    it("stops WebTransport in a worker, and in a service worker", async () => {
       const page = await open();
       await page.evaluate(`window.worker = new Worker("/transport-worker.js")`);
+      await page.evaluate(`navigator.serviceWorker.register("/transport-sw.js").then(() => new Promise((resolve) => {
+        if (navigator.serviceWorker.controller) resolve();
+        navigator.serviceWorker.addEventListener("controllerchange", resolve);
+      }))`);
+      await delay(STRAGGLER_MS);
+      await session.armFormGuard();
+      await page.evaluate(`worker.postMessage("${transportUrl()}");
+        navigator.serviceWorker.controller.postMessage("${transportUrl()}")`);
+      await delay(STRAGGLER_MS * 2);
+      expect(packets).toBe(0);
+    });
+
+    it("stops a nested worker's WebTransport", async () => {
+      const page = await open();
+      await page.evaluate(`window.worker = new Worker("/transport-nester.js")`);
       await delay(STRAGGLER_MS);
       await session.armFormGuard();
       await page.evaluate(`worker.postMessage("${transportUrl()}")`);
@@ -651,54 +845,43 @@ describe.skipIf(!haveChromium)("the form guard", () => {
       expect(packets).toBe(0);
     });
 
-    it("takes WebTransport away from a service worker", async () => {
+    it("stops new Worker.prototype.constructor(blob) and its WebTransport", async () => {
       const page = await open();
-      await page.evaluate(`navigator.serviceWorker.register("/transport-sw.js").then(() => new Promise((resolve) => {
-        if (navigator.serviceWorker.controller) resolve();
-        navigator.serviceWorker.addEventListener("controllerchange", resolve);
-      }))`);
-      await delay(STRAGGLER_MS);
       await session.armFormGuard();
-      await page.evaluate(`navigator.serviceWorker.controller.postMessage("${transportUrl()}")`);
+      const source = JSON.stringify(OPEN_TRANSPORT(`"${transportUrl()}"`));
+      await page.evaluate(`new Worker.prototype.constructor(URL.createObjectURL(new Blob([${source}])))
+        .postMessage("go")`);
       await delay(STRAGGLER_MS * 2);
       expect(packets).toBe(0);
-    });
-
-    it("refuses a new worker at an address the page already fetched", async () => {
-      const page = await open();
-      await page.evaluate(`window.first = new Worker("/worker.js")`);
-      await delay(STRAGGLER_MS);
-      server.mark();
-      await session.armFormGuard();
-      await expect(page.evaluate(`new Worker("/worker.js")`)).rejects.toThrow(/guard/);
-      await delay(STRAGGLER_MS);
-      expect(server.paths()).toEqual([]);
-    });
-
-    it("gets ahead of a blob worker, which no route sees", async () => {
-      const page = await open();
-      await session.armFormGuard();
-      const source = OPEN_TRANSPORT(`"${transportUrl()}"`);
-      await expect(
-        page.evaluate(`new Worker(URL.createObjectURL(new Blob([${JSON.stringify(source)}])))`),
-      ).rejects.toThrow(/guard/);
-      await delay(STRAGGLER_MS * 2);
-      expect(packets).toBe(0);
-    });
-
-    it("rejects when a page has WebTransport back", async () => {
-      const page = await open();
-      await page.evaluate(`window.WebTransport = function () {}`);
-      await expect(session.armFormGuard()).rejects.toThrow(/guard/);
     });
   });
 
-  it("still tells the page it's online", async () => {
+  it("stays shut whatever a page's script does", async () => {
     kind = "fetch";
     await start();
     const page = await open();
     await session.armFormGuard();
-    await expect(page.evaluate("navigator.onLine")).resolves.toBe(true);
+    await page.evaluate(`(async () => {
+      for (let i = 0; i < 20; i += 1) {
+        fetch("/again?" + i).catch(() => {});
+        navigator.sendBeacon("/again", "secret");
+        new WebSocket(location.origin.replace("http", "ws") + "/socket").onerror = () => {};
+        new Image().src = "/again.png?" + i;
+        new Worker(URL.createObjectURL(new Blob(['fetch("/again")'])));
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    })()`);
+    await delay(STRAGGLER_MS);
+    await expect(gate.refuses()).resolves.toBe(true);
+    expect(server.paths()).toEqual([]);
+  });
+
+  it("leaves the page where it is when a form's post is held", async () => {
+    kind = "post form";
+    const page = await armAndPress();
+    await settled();
+    expect(page.url()).toBe(server.url);
+    await expect(page.locator("#go").count()).resolves.toBe(1);
   });
 
   it("counts what the page sends, and not its own confirmation", async () => {
@@ -710,25 +893,12 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     expect(server.reaches()).toBe(0);
   });
 
-  it("leaves the page where it is when a form's post is held, so what it shows can be read", async () => {
-    kind = "post form";
-    await start();
-    const page = await open();
-    await session.armFormGuard();
-    await press(page);
-    await settled();
-    expect(page.url()).toBe(server.url);
-    await expect(page.locator("#go").count()).resolves.toBe(1);
-  });
-
-  it("closes a new window at once, and the session's page stays", async () => {
+  it("closes a new window, and the session's page stays", async () => {
     kind = "window.open";
-    await start();
-    const page = await open();
-    await session.armFormGuard();
-    await press(page);
+    const page = await armAndPress();
     await settled();
-    await vi.waitFor(() => expect(page.context().pages()).toEqual([page]));
+    await vi.waitFor(() => expect(page.context().pages()).toEqual([page]), { timeout: 10_000 });
+    expect(session.strayWindows()).toBe(0);
   });
 
   it("confirms on a page whose Content Security Policy forbids any connection", async () => {
@@ -767,6 +937,119 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     expect(server.reaches()).toBe(0);
   });
 
+  describe("direct UDP", () => {
+    const udpMessage = /direct UDP/;
+
+    it("arms with the preference in place", async () => {
+      kind = "fetch";
+      await start();
+      await open();
+      await expect(session.armFormGuard()).resolves.toBeUndefined();
+    });
+
+    it("rejects, and presses nothing, when the preference is gone", async () => {
+      kind = "post form";
+      await start("", withoutPreference);
+      await open();
+      await expect(session.armFormGuard()).rejects.toThrow(udpMessage);
+      expect(server.reaches()).toBe(0);
+    });
+
+    it("rejects when a page's script fakes a browser with no candidates", async () => {
+      kind = "fetch";
+      await start("", withoutPreference);
+      const page = await open();
+      await page.evaluate(`(() => {
+        const nothing = function () {
+          return {
+            createDataChannel() {},
+            createOffer: async () => ({}),
+            setLocalDescription: async function () {
+              this.iceGatheringState = "complete";
+            },
+            close() {},
+            iceGatheringState: "complete",
+            addEventListener() {},
+          };
+        };
+        window.RTCPeerConnection = nothing;
+        RTCPeerConnection.prototype.createOffer = async () => ({});
+      })()`);
+      await expect(session.armFormGuard()).rejects.toThrow(udpMessage);
+    });
+
+    it("rejects when a page's Content Security Policy would hide the candidates", async () => {
+      kind = "fetch";
+      await start("webrtc 'block'", withoutPreference);
+      await open();
+      await expect(session.armFormGuard()).rejects.toThrow(udpMessage);
+    });
+
+    it("arms on a page whose Content Security Policy blocks WebRTC, with the preference in place", async () => {
+      kind = "fetch";
+      await start("webrtc 'block'");
+      await open();
+      await expect(session.armFormGuard()).resolves.toBeUndefined();
+    });
+
+    it.each([
+      "default",
+      "default_public_and_private_interfaces",
+      "default_public_interface_only",
+      "not_a_policy",
+    ])("rejects on the policy %s, under which UDP really does go out", async (policy) => {
+      kind = "fetch";
+      await start("", withPolicy(policy));
+      const page = await open();
+      const control = await listenForUdp();
+      try {
+        await page.evaluate(`(async () => {
+          const peer = new RTCPeerConnection({
+            iceServers: [{ urls: "stun:${control.address}:${control.port}" }],
+          });
+          peer.createDataChannel("sent");
+          await peer.setLocalDescription(await peer.createOffer());
+          window.peer = peer;
+        })()`);
+        await vi.waitFor(() => expect(control.heard()).toBeGreaterThan(0), { timeout: 5_000 });
+      } finally {
+        await control.close();
+      }
+      await expect(session.armFormGuard()).rejects.toThrow(/direct UDP/);
+    });
+
+    it("rejects when the listener heard something, even if gathering says all's well", async () => {
+      kind = "fetch";
+      await start("", withPolicy("default_public_interface_only"));
+      await open();
+      const cdp = (
+        session as unknown as { cdp: { send: (...args: unknown[]) => Promise<unknown> } }
+      ).cdp;
+      const send = cdp.send.bind(cdp);
+      vi.spyOn(cdp, "send").mockImplementation(async (method, ...rest) => {
+        const answer = await send(method, ...rest);
+        return method === "Runtime.callFunctionOn" ? { result: { value: "none" } } : answer;
+      });
+      await expect(session.armFormGuard()).rejects.toThrow(/direct UDP/);
+    });
+
+    it("rejects when the check can't finish", async () => {
+      kind = "fetch";
+      await start();
+      await open();
+      const cdp = (
+        session as unknown as { cdp: { send: (...args: unknown[]) => Promise<unknown> } }
+      ).cdp;
+      const send = cdp.send.bind(cdp);
+      vi.spyOn(cdp, "send").mockImplementation((method, ...rest) =>
+        method === "Runtime.callFunctionOn"
+          ? Promise.resolve({ result: { value: "unfinished" } })
+          : send(method, ...rest),
+      );
+      await expect(session.armFormGuard()).rejects.toThrow(/direct UDP/);
+    });
+  });
+
   describe("when it can't be confirmed", () => {
     beforeEach(async () => {
       kind = "post form";
@@ -781,10 +1064,23 @@ describe.skipIf(!haveChromium)("the form guard", () => {
       expect(server.reaches()).toBe(0);
     });
 
-    it("rejects when the route can't be set", async () => {
+    it("rejects when the route can't be set, and the gate stays shut", async () => {
       const page = await open();
       vi.spyOn(page.context(), "route").mockRejectedValue(new Error("no route"));
       await expect(session.armFormGuard()).rejects.toThrow(/no route/);
+      await expect(gate.refuses()).resolves.toBe(true);
+    });
+
+    it("rejects when the gate still answers", async () => {
+      await open();
+      vi.spyOn(gate, "refuses").mockResolvedValue(false);
+      await expect(session.armFormGuard()).rejects.toThrow(/still answers/);
+    });
+
+    it("rejects when the page didn't come through the gate", async () => {
+      await open();
+      vi.spyOn(gate, "hasServed").mockReturnValue(false);
+      await expect(session.armFormGuard()).rejects.toThrow(/didn't load through/);
     });
 
     it("rejects when DevTools won't bypass the service workers", async () => {
@@ -802,27 +1098,14 @@ describe.skipIf(!haveChromium)("the form guard", () => {
       await expect(page.locator("#go").count()).resolves.toBe(1);
     });
 
-    it("rejects when the browser won't go offline", async () => {
-      const page = await open();
-      vi.spyOn(page.context(), "setOffline").mockRejectedValue(new Error("no offline"));
-      await expect(session.armFormGuard()).rejects.toThrow(/no offline/);
-    });
-
-    it("rejects when a shared worker is still running", async () => {
+    it("rejects rather than hang when a step never answers", async () => {
       await open();
-      const browser = (session as unknown as { browser: Browser }).browser;
-      const real = browser.newBrowserCDPSession.bind(browser);
-      vi.spyOn(browser, "newBrowserCDPSession").mockImplementation(async () => {
-        const cdp = await real();
-        const send = cdp.send.bind(cdp) as (...args: unknown[]) => Promise<unknown>;
-        vi.spyOn(cdp, "send").mockImplementation(((method: string, ...rest: unknown[]) =>
-          method === "Target.getTargets"
-            ? Promise.resolve({ targetInfos: [{ type: "shared_worker" }] })
-            : send(method, ...rest)) as never);
-        return cdp;
-      });
-      await expect(session.armFormGuard()).rejects.toThrow(/shared worker/);
-    });
+      const cdp = (
+        session as unknown as { cdp: { send: (...args: unknown[]) => Promise<unknown> } }
+      ).cdp;
+      vi.spyOn(cdp, "send").mockImplementation(() => new Promise(() => {}));
+      await expect(session.armFormGuard()).rejects.toThrow(/within/);
+    }, 25_000);
 
     it("stays rejected when it's asked again, rather than seeming armed", async () => {
       const page = await open();
@@ -830,5 +1113,44 @@ describe.skipIf(!haveChromium)("the form guard", () => {
       await expect(session.armFormGuard()).rejects.toThrow(/no route/);
       await expect(session.armFormGuard()).rejects.toThrow(/no route/);
     });
+  });
+});
+
+describe.skipIf(!haveChromium)("a browser with no form gate", () => {
+  it("has no proxy switches, keeps WebRTC, and can't be armed", async () => {
+    const seen: string[][] = [];
+    const server = await countingServer(() => "fetch");
+    const session = await launchChrome({
+      browser: { channel: "chromium", fallbackToChromium: false },
+      env: process.env,
+      extraArgs: HEADLESS,
+      spawnBrowser: (file, args) => {
+        seen.push(args);
+        return spawn(file, args, { stdio: "ignore" });
+      },
+    });
+    try {
+      await session.load(server.url, 15_000);
+      const page = pageOf(session);
+      const apis = "[typeof RTCPeerConnection, typeof WebTransport, typeof Worker].join()";
+      await expect(page.evaluate(apis)).resolves.toBe("function,function,function");
+      for (const name of ["proxy", "host-resolver", "quic", "webrtc"]) {
+        expect(seen.flat().filter((arg) => arg.includes(name))).toEqual([]);
+      }
+      await expect(session.armFormGuard()).rejects.toThrow(/no form gate/);
+    } finally {
+      await session.close();
+      await server.close();
+    }
+  });
+
+  it("gets the switches only from a gate", () => {
+    expect(formGateArgs({ port: 4321 })).toEqual([
+      "--proxy-server=http://127.0.0.1:4321",
+      "--proxy-bypass-list=<-loopback>",
+      "--disable-quic",
+      "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+      "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
+    ]);
   });
 });
