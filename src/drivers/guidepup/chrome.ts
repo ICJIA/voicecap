@@ -21,6 +21,7 @@ import {
   type CDPSession,
   type Page,
   type Response,
+  type Route,
 } from "playwright";
 
 import { AXE_TAGS } from "../../axe/results.js";
@@ -421,6 +422,15 @@ const RUN_AXE = `function (tags) {
   }).then((results) => JSON.stringify(results));
 }`;
 
+/** The only kinds of request the guard lets out, and only by GET. */
+const GUARD_ALLOWS = new Set(["image", "stylesheet", "font", "script"]);
+
+/**
+ * The guard's confirmation asks for this. ".invalid" is a name that never resolves, so if the guard
+ * isn't there, the request reaches no one.
+ */
+const GUARD_PROBE = "https://voicecap-form-guard.invalid/";
+
 /**
  * What Playwright says when the network won't take a navigation: the first line reads "page.goto:
  * net::ERR_NAME_NOT_RESOLVED at https://example.gov/", and a call log follows.
@@ -448,6 +458,10 @@ export class ChromeSession implements BrowserSession {
   private closing: Promise<void> | null = null;
   /** Whether the page crashed (Chrome's "Aw, Snap!"). A crashed page isn't closed. */
   private crashed = false;
+  /** The guard's arming: once begun, it's never begun again, and a failure stays a failure. */
+  private guarding: Promise<void> | null = null;
+  private guardProbeSeen = false;
+  private held = 0;
 
   constructor(
     executable: BrowserExecutable,
@@ -463,6 +477,11 @@ export class ChromeSession implements BrowserSession {
     this.version = browser.version();
     page.on("crash", () => {
       this.crashed = true;
+    });
+    // Watched from the start: a socket the page opened on load still has its say once it's armed.
+    page.on("websocket", (socket) => {
+      this.holdSocket();
+      socket.on("framesent", () => this.holdSocket());
     });
   }
 
@@ -711,6 +730,112 @@ export class ChromeSession implements BrowserSession {
         await this.cdp.send("Runtime.releaseObject", { objectId }).catch(() => {});
       }
     });
+  }
+
+  /**
+   * Keep whatever the page sends in the browser, from now until it closes. There's no way to turn
+   * this off. Rejects unless the guard is armed and has seen its own request held, and the caller
+   * then mustn't touch the form. It's armed once the page has loaded, so it has to stop what's
+   * already running there as well as what comes next:
+   * - The browser goes offline, for the page, its frames, and its workers. That's the one thing
+   *   that stops a WebSocket: Playwright's routeWebSocket only wraps the constructor of documents
+   *   loaded after it, and DevTools' blocking and interception don't see sockets at all. The page
+   *   is still told it's online, so it doesn't say otherwise to NVDA. A socket that's already open
+   *   stays open, and what's sent on it goes nowhere.
+   * - The route sees every other request, from frames, new windows, and service workers too. What
+   *   it allows it fetches itself, since the browser can't.
+   * - A shared worker answers to no page, so neither of those reaches it. Each is closed, and a new
+   *   one is held at its first line until it is.
+   *
+   * Still outside it: WebRTC and WebTransport, which no route sees, and what a page puts in the
+   * address of an image, a style sheet, a font, or a script, which are allowed.
+   */
+  armFormGuard(): Promise<void> {
+    this.guarding ??= this.onPage(() => this.armGuard());
+    return this.guarding;
+  }
+
+  /**
+   * How many of the page's requests the guard has stopped, each message on a socket and each
+   * shared worker closed among them. The guard's confirmation isn't one. It's every request, so a
+   * page that polls adds to it with no one pressing anything. A message on a service worker's
+   * socket is stopped without being counted: no page sees that socket.
+   */
+  heldRequests(): number {
+    return this.held;
+  }
+
+  private holdSocket(): void {
+    if (this.guarding) this.held += 1;
+  }
+
+  private async armGuard(): Promise<void> {
+    const context = this.page.context();
+    await this.cdp.send("Network.setBypassServiceWorker", { bypass: true });
+    const browserCdp = await this.browser.newBrowserCDPSession();
+    browserCdp.on("Target.attachedToTarget", ({ targetInfo }) => {
+      this.held += 1;
+      void browserCdp.send("Target.closeTarget", { targetId: targetInfo.targetId }).catch(() => {});
+    });
+    await browserCdp.send("Target.setAutoAttach", {
+      autoAttach: true,
+      waitForDebuggerOnStart: true,
+      flatten: true,
+      filter: [{ type: "shared_worker" }],
+    });
+    context.on("page", (page) => {
+      if (page !== this.page) void page.close().catch(() => {});
+    });
+    await context.route("**/*", (route) => this.guardRequest(route));
+    await context.routeWebSocket(/.*/, (socket) => {
+      this.holdSocket();
+      void socket.close().catch(() => {});
+    });
+    await context.setOffline(true);
+    // Only what the page is told, on top of the real thing above: if this fails, or a browser is
+    // too old to know it, everything is still held, and the page just hears that it's offline.
+    await this.cdp
+      .send("Network.overrideNetworkState", {
+        offline: false,
+        latency: 0,
+        downloadThroughput: -1,
+        uploadThroughput: -1,
+      })
+      .catch(() => {});
+    await this.confirmGuard(browserCdp);
+  }
+
+  private async guardRequest(route: Route): Promise<void> {
+    const request = route.request();
+    if (request.url() === GUARD_PROBE) {
+      this.guardProbeSeen = true;
+    } else if (request.method() === "GET" && GUARD_ALLOWS.has(request.resourceType())) {
+      try {
+        await route.fulfill({ response: await route.fetch() });
+      } catch {
+        await route.abort("failed").catch(() => {});
+      }
+      return;
+    } else {
+      this.held += 1;
+    }
+    // "aborted", which a navigation takes as called off: the page stays where it was to be read.
+    await route.abort("aborted").catch(() => {});
+  }
+
+  /**
+   * The page is sent to the guard's own address, which the route has to stop. It's a navigation and
+   * not a fetch because a page's Content Security Policy can forbid a fetch, from any world.
+   */
+  private async confirmGuard(browserCdp: CDPSession): Promise<void> {
+    const { targetInfos } = await browserCdp.send("Target.getTargets");
+    if (targetInfos.some((target) => target.type === "shared_worker")) {
+      throw new Error("The form guard couldn't be confirmed: a shared worker is still running.");
+    }
+    const { errorText } = await this.cdp.send("Page.navigate", { url: GUARD_PROBE });
+    if (!this.guardProbeSeen || errorText !== "net::ERR_ABORTED") {
+      throw new Error("The form guard couldn't be confirmed: its own request wasn't held.");
+    }
   }
 
   /**
