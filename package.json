@@ -68,7 +68,7 @@
     "commander": "15.0.0",
     "csv-parse": "7.0.3",
     "diff": "9.0.0",
-    "docx": "9.8.1",
+    "docx": "9.13.0",
     "fast-xml-parser": "5.11.2",
     "jiti": "2.7.0",
     "jsonc-parser": "3.3.1",
