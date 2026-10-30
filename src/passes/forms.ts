@@ -128,8 +128,12 @@ function readPress(baseline: FormState, before: FormState, state: FormState) {
   const newMessages = state.messages.filter((message) => !baseline.messages.includes(message));
   const wouldSend = state.heldRequests > before.heldRequests;
   return {
-    // The page may be reacting to the guard, so what shows after a held request isn't an error.
-    completed: wouldSend && newInvalid.length === 0,
+    // A request alone proves nothing: a click beacon goes out on a press Chrome blocked. So nothing
+    // may be left invalid, whether it was so before the press or not, and no bubble may be showing.
+    completed: wouldSend && state.invalid.length === 0 && state.bubble === null,
+    // The page may be reacting to the guard, so a message after a held request isn't an error.
+    showedError:
+      newInvalid.length > 0 || state.bubble !== null || (newMessages.length > 0 && !wouldSend),
     // pressSubmit leaves focus on the submit control: a field that has it was moved to by the page.
     changed:
       wouldSend ||
@@ -158,7 +162,7 @@ function nextToFill(form: FormInfo, state: FormState, filled: Set<number>): Form
  * again. Each round fills a field no round has, so a form takes at most its fields + 1 presses.
  *
  * `FormState.messages` is the text showing now and `heldRequests` only counts up, so messages and
- * invalid fields are compared with the state before the first press, and a held request with the
+ * invalid fields are new against the state before the first press, and a held request with the
  * state just before that press, since a page can send one as a field is typed in. The driver's
  * errors and a timeout end the pass: only the guard's own refusal is an answer about the form.
  */
@@ -170,12 +174,22 @@ export async function formPass(
 ): Promise<FormOutcome> {
   const presses: FormOutcome["presses"] = [];
   let firstWalk: FieldHeard[] = [];
+  let errorWalk: FieldHeard[] | null = null;
   let lastWalk: FieldHeard[] = [];
   const end = (
     result: FormResult,
     reason: string | null,
     stoppedAt: FormField | null = null,
-  ): FormOutcome => ({ form, result, stoppedAt, reason, presses, firstWalk, lastWalk });
+  ): FormOutcome => ({
+    form,
+    result,
+    stoppedAt,
+    reason,
+    presses,
+    firstWalk,
+    errorWalk: errorWalk ?? [],
+    lastWalk,
+  });
 
   if (!testsForms(driver)) return end("not-tested", NO_FORM_DRIVER);
   const notPressed = whyNotPressed(form);
@@ -228,6 +242,7 @@ export async function formPass(
     }
 
     lastWalk = await walk(driver, recorder, form, options.cap);
+    if (press.showedError) errorWalk ??= lastWalk;
     if (emptyOnly !== null) return end("not-tested", emptyOnly);
     if (outOfSteps()) return end("stuck", "the pass ran out of steps");
     const next = nextToFill(form, state, filled);

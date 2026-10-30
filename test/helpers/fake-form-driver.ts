@@ -40,6 +40,10 @@ export interface FakeForm {
   sendsOnFill?: boolean;
   /** A click beacon, or anything else that a press sends whether or not the form goes through. */
   sendsOnPress?: boolean;
+  /** A native form that blocks a press with no bubble: its fields are `:invalid`, and nothing shows. */
+  noBubble?: boolean;
+  /** Chrome's message showing whatever the fields say, as `bubble` can with no field invalid. */
+  strayBubble?: string;
   /** Text the page shows on being told its request failed. */
   afterHeld?: string;
   /** What checkFormWithAxe gives. */
@@ -127,11 +131,14 @@ export class FakeFormDriver extends ScriptedDriver {
     this.focus = "submit";
     this.bubble = null;
     this.live = false;
-    if (this.form.sendsOnPress) this.held += 1;
+    if (this.form.sendsOnPress) {
+      this.held += 1;
+      if (this.form.afterHeld !== undefined) this.show(this.form.afterHeld);
+    }
     const empty = this.emptyFields();
     switch (this.form.validates ?? "native") {
       case "native":
-        if (empty[0] === undefined) break;
+        if (empty[0] === undefined || this.form.noBubble) break;
         this.focus = empty[0];
         this.bubble = "Please fill out this field.";
         break;
@@ -188,7 +195,9 @@ export class FakeFormDriver extends ScriptedDriver {
       invalid: native ? this.emptyFields() : this.marked,
       messages: [...(this.form.hints ?? []), ...this.shown],
       // Chrome's message for the field that's focused, for as long as it stays invalid.
-      bubble: typeof this.focus === "number" && !this.filled.has(this.focus) ? this.bubble : null,
+      bubble:
+        this.form.strayBubble ??
+        (typeof this.focus === "number" && !this.filled.has(this.focus) ? this.bubble : null),
     });
   }
 

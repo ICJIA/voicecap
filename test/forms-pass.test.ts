@@ -159,6 +159,98 @@ describe("what a press means", () => {
   });
 });
 
+describe("what counts as completed", () => {
+  it("isn't a click beacon on a press Chrome blocked, with the form still empty", async () => {
+    const { outcome } = await pass({
+      fields: [{ name: "Date of birth", takes: false }],
+      sendsOnPress: true,
+    });
+    expect(outcome.presses[0]?.state.heldRequests).toBe(1);
+    expect(outcome.presses[0]?.state.bubble).not.toBeNull();
+    expect(outcome.result).toBe("stuck");
+    expect(outcome.stoppedAt?.name).toBe("Date of birth");
+  });
+
+  it("isn't a beacon on an empty native form, which is filled until it really sends", async () => {
+    const { driver, outcome } = await pass({ fields: THREE, sendsOnPress: true });
+    expect(outcome.result).toBe("completed");
+    expect(driver.fills).toHaveLength(3);
+    expect(outcome.presses).toHaveLength(4);
+  });
+
+  it("isn't a press that sends with an invalid field left, and no bubble", async () => {
+    const { outcome } = await pass({
+      fields: [{ name: "Name" }, { name: "Date of birth", takes: false }],
+      noBubble: true,
+      sendsOnPress: true,
+    });
+    expect(outcome.result).toBe("stuck");
+    expect(outcome.stoppedAt?.name).toBe("Date of birth");
+    expect(outcome.presses.at(-1)?.state.invalid).toEqual([1]);
+    expect(outcome.presses).toHaveLength(3);
+  });
+
+  it("isn't a press that sends with Chrome's bubble showing", async () => {
+    const { outcome } = await pass({
+      fields: [{ name: "Note", required: false }],
+      strayBubble: "Please fill out this field.",
+    });
+    expect(outcome.presses[0]?.state).toMatchObject({ invalid: [], heldRequests: 1 });
+    expect(outcome.result).toBe("stuck");
+  });
+
+  it("is a fully filled form that sends", async () => {
+    const { outcome } = await pass({ fields: THREE });
+    expect(outcome.result).toBe("completed");
+    expect(outcome.presses.at(-1)?.state).toMatchObject({ invalid: [], bubble: null });
+  });
+});
+
+describe("the walk after the first error", () => {
+  it("is kept apart from the last walk", async () => {
+    const { outcome } = await pass({ fields: THREE, validates: "aria" });
+    expect(outcome.errorWalk.map((heard) => heard.field)).toEqual([0, 1, 2]);
+    expect(outcome.errorWalk).not.toBe(outcome.lastWalk);
+    expect(outcome.errorWalk).not.toBe(outcome.firstWalk);
+  });
+
+  it("is the walk after the first press, not a later one", async () => {
+    const driver = new FakeFormDriver({ fields: THREE });
+    let spokenOnWalk = 0;
+    const speak = driver.nextFocusable.bind(driver);
+    driver.nextFocusable = async () => `${await speak()} #${++spokenOnWalk}`;
+    const outcome = await formPass(driver, new StepRecorder(1000, undefined), driver.info, options);
+    // Tab 1 and 2 were the first walk's, and Tab 3 (the submit) too; the error walk's are next.
+    expect(outcome.firstWalk[1]?.spoken).toContain("#1");
+    expect(outcome.errorWalk[1]?.spoken).toContain("#4");
+    expect(outcome.lastWalk[1]?.spoken).not.toBe(outcome.errorWalk[1]?.spoken);
+  });
+
+  it("is kept for a form tested empty", async () => {
+    const { outcome } = await pass({ fields: THREE, sensitive: true });
+    expect(outcome.errorWalk).toEqual(outcome.lastWalk);
+    expect(outcome.errorWalk).toHaveLength(3);
+  });
+
+  it("is empty when no press showed an error", async () => {
+    const quiet = await pass({ fields: THREE, validates: "nothing" });
+    expect(quiet.outcome.errorWalk).toEqual([]);
+    const sent = await pass({ fields: [{ name: "Note", required: false }] });
+    expect(sent.outcome.errorWalk).toEqual([]);
+  });
+
+  it("isn't taken from a message that showed only after a request was held", async () => {
+    const { outcome } = await pass({
+      fields: [{ name: "Date", takes: false }],
+      noBubble: true,
+      sendsOnPress: true,
+      afterHeld: "Network error, try again",
+    });
+    expect(outcome.presses[0]?.state.messages).toContain("Network error, try again");
+    expect(outcome.errorWalk).toEqual([]);
+  });
+});
+
 describe("a form that can't be completed", () => {
   it("names a field that won't take its value", async () => {
     const { driver, outcome } = await pass({

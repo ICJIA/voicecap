@@ -75,9 +75,10 @@ export interface FieldHeard {
 export type FieldValue = { kind: "text"; text: string } | { kind: "space" } | { kind: "arrow" };
 
 /**
- * What came of a form: `completed`, a press that would have sent it; `stuck`, it never got there;
- * `not-tested`, voicecap didn't try to finish it, as `reason` says. A form tested empty, for a password
- * or a CAPTCHA, is `not-tested` with its press kept, since nothing says a person couldn't finish it.
+ * What came of a form: `completed`, a press that held a request with no field invalid and no bubble
+ * showing; `stuck`, it never got there; `not-tested`, voicecap didn't try to finish it, as `reason`
+ * says. A form tested empty, for a password or a CAPTCHA, is `not-tested` with its press kept, since
+ * nothing says a person couldn't finish it.
  */
 export type FormResult = "completed" | "stuck" | "not-tested";
 
@@ -92,6 +93,8 @@ export interface FormOutcome {
   presses: { state: FormState; spoken: string; axe: AxeCapture | null }[];
   /** What NVDA said at each field before any press. */
   firstWalk: FieldHeard[];
+  /** The same after the first press that showed an error; empty when none did. */
+  errorWalk: FieldHeard[];
   /** The same after the last press that didn't end it; empty when no walk followed a press. */
   lastWalk: FieldHeard[];
 }
