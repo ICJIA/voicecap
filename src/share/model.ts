@@ -27,7 +27,9 @@
  * walkthrough files, and a problem's record keep the address voicecap read.
  */
 import {
+  DEFAULT_PASS_NAMES,
   PASS_NAMES,
+  type DefaultPassName,
   type FileHash,
   type PageSource,
   type PassName,
@@ -614,7 +616,7 @@ function heardOf(
   const home = homeOf(pages);
   const shown = home?.shown;
   if (!home || !shown) return null;
-  const passes = PASS_NAMES.flatMap((pass) => {
+  const passes = DEFAULT_PASS_NAMES.flatMap((pass) => {
     if (transcripts.txt(shown.run.id, shown.page.slug, pass) === null) return [];
     const steps = transcripts.steps(shown.run.id, shown.page.slug, pass) ?? [];
     const lines = steps
@@ -627,7 +629,7 @@ function heardOf(
 }
 
 /** How each pass goes through a page, with the key NVDA's users press for it. */
-const WAYS: Record<PassName, string> = {
+const WAYS: Record<DefaultPassName, string> = {
   read: "line by line (Down Arrow)",
   headings: "heading by heading (H)",
   tab: "control by control (Tab)",
@@ -661,7 +663,7 @@ function coverageOf(
  * has fewer, and the line says so rather than claim them for it.
  */
 function passesOf(standing: Standing, latest: RunJson): string {
-  const passes = PASS_NAMES.filter((pass) => latest.settings.passes.includes(pass));
+  const passes = DEFAULT_PASS_NAMES.filter((pass) => latest.settings.passes.includes(pass));
   const fewer = standing.pages.filter(
     ({ shown }) =>
       shown !== null &&

@@ -13,7 +13,7 @@ import type {
   PageRecord,
   PageSource,
   PageStatus,
-  PassName,
+  DefaultPassName,
   ReviewEntry,
   ReviewStatus,
   RunJson,
@@ -69,8 +69,8 @@ export interface SyntheticPage {
   /** Default "done". Only done pages get transcripts. */
   status?: PageStatus;
   /** Body lines per pass. Default: a short transcript for every pass of the run. */
-  lines?: Partial<Record<PassName, string[]>>;
-  stopReasons?: Partial<Record<PassName, StopReason>>;
+  lines?: Partial<Record<DefaultPassName, string[]>>;
+  stopReasons?: Partial<Record<DefaultPassName, StopReason>>;
   flags?: FlagResult[];
   errors?: string[];
   skip?: SkippedRecord;
@@ -85,7 +85,7 @@ export interface SyntheticRun {
   status?: "incomplete" | "completed";
   replayed?: boolean;
   source?: PageSource;
-  passes?: PassName[];
+  passes?: DefaultPassName[];
   pages: SyntheticPage[];
   skipped?: SkippedRecord[];
   environment?: Partial<EnvironmentRecord>;
@@ -99,13 +99,13 @@ export interface SyntheticRun {
   sealed?: boolean;
 }
 
-const DEFAULT_STOP: Record<PassName, StopReason> = {
+const DEFAULT_STOP: Record<DefaultPassName, StopReason> = {
   read: "end-reached",
   headings: "no-next-heading",
   tab: "left-document",
 };
 
-export function defaultLines(pagePath: string): Record<PassName, string[]> {
+export function defaultLines(pagePath: string): Record<DefaultPassName, string[]> {
   return {
     read: [
       `banner landmark, link, Skip to main content`,

@@ -22,7 +22,7 @@ import path from "node:path";
 
 import { resolveConfig } from "../src/config/load.js";
 import { createGuidepupNvdaDriver } from "../src/drivers/guidepup-nvda.js";
-import type { PassName, RunJson, TranscriptJson } from "../src/model.js";
+import type { DefaultPassName, PassName, RunJson, TranscriptJson } from "../src/model.js";
 import { InterruptedError, withTimeout } from "../src/passes/steps.js";
 import { runAudit } from "../src/run/audit.js";
 import { readRunJson } from "../src/run/store.js";
@@ -34,7 +34,7 @@ import { FIXTURE_HOST, FIXTURE_PORT, startFixtureServer } from "./serve-fixture.
 import { comparableStep, readSpeechViewer, speechViewerLines } from "./speech-viewer.js";
 
 const SITE = `http://${FIXTURE_HOST}:${FIXTURE_PORT}`;
-const EXPECTED_STOP: Record<PassName, string> = {
+const EXPECTED_STOP: Record<DefaultPassName, string> = {
   read: "end-reached",
   headings: "no-next-heading",
   tab: "left-document",

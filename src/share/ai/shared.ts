@@ -21,7 +21,8 @@
  * said, and are never cut.
  */
 import type { AppendixFile, PageCard } from "../model.js";
-import { AI_TEXT, HOW_TEXT, ownWords } from "../text.js";
+import { AI_TEXT, ownWords } from "../text.js";
+import { wayOf } from "../way.js";
 import { fromRun, sentence } from "../words.js";
 
 /** One step of a pass: its place in it, the key pressed, and what NVDA said, word for word. */
@@ -65,7 +66,7 @@ export function stepsOf(file: Pick<AppendixFile, "pass" | "text" | "lines">): St
     const last = at === lines.length - 1 && label === LAST_LABEL ? keyOfLabel(label) : undefined;
     const key = first ?? last;
     if (first === undefined) setUp = false;
-    if (key === undefined) return { n: at + 1, key: HOW_TEXT.ways[file.pass].key, said: line };
+    if (key === undefined) return { n: at + 1, key: wayOf(file.pass).key, said: line };
     if (first !== undefined) used.add(label);
     return { n: at + 1, key, said: line.slice(`[${label}] `.length) };
   });

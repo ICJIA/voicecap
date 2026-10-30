@@ -445,7 +445,12 @@ function stretches(mask: boolean[], value: boolean): [number, number][] {
 // What the section and the summary say.
 
 /** The word for each pass in a sentence. */
-const PASS_WORDS: Record<PassName, string> = { read: "read", headings: "headings", tab: "Tab" };
+const PASS_WORDS: Record<PassName, string> = {
+  read: "read",
+  headings: "headings",
+  tab: "Tab",
+  forms: "forms",
+};
 
 /** "the read pass", "the read and Tab passes", "the read, headings, and Tab passes". */
 function passList(passes: PassName[]): string {

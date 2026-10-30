@@ -34,6 +34,7 @@ import {
   TOP_TEXT,
   WHEN_TO_RUN,
 } from "../text.js";
+import { wayOf } from "../way.js";
 import { verdictOf } from "../verdict.js";
 import {
   glanceNumbersOf,
@@ -316,7 +317,7 @@ function heard(sample: ShareModel["heard"]): string {
     return `<div class="heard"><h3>${esc(HOW_TEXT.heard)}</h3>${notRecorded(HOW_TEXT.noSample)}</div>`;
   }
   const lanes = sample.passes.map(({ pass, lines }) => {
-    const { key, words } = HOW_TEXT.ways[pass];
+    const { key, words } = wayOf(pass);
     const said = lines.map(
       ({ text, took }) =>
         `<li><span>${esc(heardFirstLine(text))}</span><span class="t">${esc(took)}</span></li>`,

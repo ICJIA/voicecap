@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import type { PassName, ReviewsFile } from "../src/model.js";
+import type { DefaultPassName, PassName, ReviewsFile } from "../src/model.js";
 import { runPass } from "../src/passes/index.js";
 import {
   escapeSentence,
@@ -188,11 +188,11 @@ function isEscaped(words: string): boolean {
 const unescaped = (words: string): string => words.replace(/\\([!-/:-@[-`{-~])/g, "$1");
 
 /** What a pass's key is called, as a transcript's lines say it. */
-const KEY: Record<PassName, string> = { read: "Down Arrow", headings: "H", tab: "Tab" };
+const KEY: Record<DefaultPassName, string> = { read: "Down Arrow", headings: "H", tab: "Tab" };
 
 /** A transcript's lines as the file numbers them: a step on each line, with its key. */
 const numberedSteps = (pass: PassName, body: string[]): string[] =>
-  body.map((said, at) => `${at + 1}. ${KEY[pass]}: ${said}`);
+  body.map((said, at) => `${at + 1}. ${KEY[pass as DefaultPassName]}: ${said}`);
 
 /** The blocks that are transcripts: each sits under its heading, "Read transcript of /about/, …". */
 const transcriptsIn = (markdown: string): Fence[] =>

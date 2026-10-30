@@ -11,7 +11,7 @@ import { plural } from "../report/html.js";
 import { quoteArg, urlArg } from "../util/command-line.js";
 import type { AttentionCard, AttentionKind, AttentionPlace } from "./attention.js";
 import { count } from "./format.js";
-import { HOW_TEXT } from "./text.js";
+import { wayOf } from "./way.js";
 
 /**
  * Everything one card says, in the order it says it. Plain text, never markup: the page and the
@@ -490,7 +490,7 @@ export function attentionWords(card: AttentionCard): AttentionWords {
       .filter((place) => recorded || place.said.length > 0)
       .map((place) => ({
         lead: leadOf(card, place),
-        quotes: place.said.map(({ pass, line }) => ({ pass: HOW_TEXT.ways[pass].key, line })),
+        quotes: place.said.map(({ pass, line }) => ({ pass: wayOf(pass).key, line })),
         unavailable: !recorded ? null : place.pages.length > 1 ? UNAVAILABLE.many : UNAVAILABLE.one,
       })),
     cause,

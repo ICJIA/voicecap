@@ -27,6 +27,7 @@ import {
   WHEN_TO_RUN,
   WORD_TEXT,
 } from "../text.js";
+import { wayOf } from "../way.js";
 import { verdictOf } from "../verdict.js";
 import {
   glanceNumbersOf,
@@ -275,7 +276,7 @@ function stepsTable(): Block {
 function heardBlocks(sample: ShareModel["heard"]): Block[] {
   if (sample === null) return [heading(2, HOW_TEXT.heard), para(HOW_TEXT.noSample)];
   const head = sample.passes.map(({ pass }) => {
-    const { key, words } = HOW_TEXT.ways[pass];
+    const { key, words } = wayOf(pass);
     return `${key}, ${words}`;
   });
   const longest = Math.max(...sample.passes.map(({ lines }) => lines.length));

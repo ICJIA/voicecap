@@ -19,7 +19,7 @@
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
  * sped up, so nothing here calls it "automated"; the word appears only for other tools.
  */
-import { VOICE_FILE, type PassName, type SessionRecord } from "../model.js";
+import { VOICE_FILE, type DefaultPassName, type PassName, type SessionRecord } from "../model.js";
 import { plural } from "../report/html.js";
 import type { OnlyInOnePage } from "./changes.js";
 import { count, seconds, sizeLine } from "./format.js";
@@ -151,7 +151,7 @@ export const HOW_TEXT = {
     read: { key: "Down Arrow", words: "line by line" },
     headings: { key: "H", words: "heading by heading" },
     tab: { key: "Tab", words: "control by control" },
-  } satisfies Record<PassName, { key: string; words: string }>,
+  } satisfies Record<DefaultPassName, { key: string; words: string }>,
   /**
    * Under the sample: what its words are, and what each time is. It names where the transcripts
    * are by their section's name, not by "above" or "below", which a change in the sections' order
@@ -241,18 +241,25 @@ export const WHEN_TO_RUN: {
 };
 
 /** What a pass is called as a heading. */
-export const PASS_TITLE: Record<PassName, string> = {
+export const PASS_TITLE: Record<DefaultPassName, string> = {
   read: "Read",
   headings: "Headings",
   tab: "Tab",
 };
 
 /** What a pass is called in a sentence. */
-export const PASS_WORDS: Record<PassName, string> = {
+export const PASS_WORDS: Record<DefaultPassName, string> = {
   read: "read",
   headings: "headings",
   tab: "Tab",
 };
+
+/** What any pass is called as a heading. The forms pass has no words of its own yet: its name. */
+export const passTitle = (pass: PassName): string =>
+  pass === "forms" ? "Forms" : PASS_TITLE[pass];
+
+/** What any pass is called in a sentence. The forms pass has no words of its own yet: its name. */
+export const passWords = (pass: PassName): string => (pass === "forms" ? pass : PASS_WORDS[pass]);
 
 /**
  * "Every page": its heading, what a card says of each pass and of the page's flags, the labels of
@@ -521,7 +528,7 @@ export const CHANGES_TEXT = {
   rows: { same: "Same", removed: "Removed", added: "Added", collapsed: "…" },
   /** Said of a pass that sounds different but whose transcript can't be read here. */
   unreadable: (pass: PassName): string =>
-    `The ${PASS_WORDS[pass]} pass sounds different, but its transcript couldn't be read here.`,
+    `The ${passWords(pass)} pass sounds different, but its transcript couldn't be read here.`,
 };
 
 /** Where an error voicecap didn't expect is reported, which a copy links to. */
@@ -840,7 +847,7 @@ export const NVDA_LOG_TEXT = {
   },
   /** Where a line that differs is, before its words: "/about/, Read pass, step 12". */
   where: (page: string, pass: PassName, step: number): string =>
-    `${page}, ${PASS_TITLE[pass]} pass, step ${step}`,
+    `${page}, ${passTitle(pass)} pass, step ${step}`,
   /** Said when both lists are empty, always beside the three tiles. */
   same: "Every line agrees.",
   /** Said in its place when some steps weren't checked: it speaks only for the lines that were. */

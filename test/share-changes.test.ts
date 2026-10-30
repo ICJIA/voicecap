@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { PASS_NAMES, type FlagResult, type PassName, type RunJson } from "../src/model.js";
+import { DEFAULT_PASS_NAMES, type FlagResult, type PassName, type RunJson } from "../src/model.js";
 import { pageSlug } from "../src/pages/slug.js";
 import { canonicalKey } from "../src/pages/url.js";
 import { environmentDifferences } from "../src/report/compare.js";
@@ -32,7 +32,7 @@ function transcripts() {
     run(spec: ShareRunSpec): RunJson {
       const run = shareRun(spec);
       run.pages.forEach((page, index) => {
-        for (const pass of PASS_NAMES) {
+        for (const pass of DEFAULT_PASS_NAMES) {
           const body = spec.pages[index]?.passes?.[pass];
           if (body !== undefined) lines.set(linesKey(run.id, page.slug, pass), body);
         }
@@ -120,7 +120,7 @@ describe("changesOf: the demo runs of 29 September 2026", () => {
 
     expect(readInBoth).toHaveLength(5);
     for (const page of readInBoth) {
-      for (const pass of PASS_NAMES) {
+      for (const pass of DEFAULT_PASS_NAMES) {
         const then = demoBody(before.id, page.slug, pass);
         expect(then, `${page.slug} ${pass}, run 1315`).not.toBeNull();
         expect(demoBody(after.id, page.slug, pass), `${page.slug} ${pass}`).toEqual(then);
@@ -740,7 +740,7 @@ describe("changesOf: runs that read different passes", () => {
   const allThenRead = (before: SharePageSpec[], after: SharePageSpec[]) => {
     const t = transcripts();
     return changesOf(
-      t.run({ id: "r1", createdAt: BEFORE, passes: [...PASS_NAMES], pages: before }),
+      t.run({ id: "r1", createdAt: BEFORE, passes: [...DEFAULT_PASS_NAMES], pages: before }),
       t.run({ id: "r2", createdAt: AFTER, passes: ["read"], pages: after }),
       t.body,
       pageName,
@@ -1050,7 +1050,7 @@ describe("changesOf: runs that read different passes", () => {
     const later = t.run({
       id: "r2",
       createdAt: AFTER,
-      passes: [...PASS_NAMES],
+      passes: [...DEFAULT_PASS_NAMES],
       pages: [
         {
           path: "/",
@@ -1091,7 +1091,7 @@ describe("changesOf: runs that read different passes", () => {
     const later = t.run({
       id: "r2",
       createdAt: AFTER,
-      passes: [...PASS_NAMES],
+      passes: [...DEFAULT_PASS_NAMES],
       pages: [
         {
           path: "/",

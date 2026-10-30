@@ -78,8 +78,8 @@ import {
   GLANCE_TEXT,
   ownWords,
   PAGES_TEXT,
-  PASS_TITLE,
-  PASS_WORDS,
+  passTitle,
+  passWords,
   PROBLEMS_TEXT,
   SUMMARY_TEXT,
   TOP_TEXT,
@@ -417,7 +417,7 @@ function attentionBlocks(model: ShareModel, pages: Pages): Block[] {
  * (`stepsOf`). A transcript with no lines says so.
  */
 function transcriptBlocks(file: AppendixFile, path: string): Block[] {
-  const title = `${PASS_TITLE[file.pass]} ${APPENDIX_TEXT.transcriptOf} ${path}, ${lineCount(file.lines)}`;
+  const title = `${passTitle(file.pass)} ${APPENDIX_TEXT.transcriptOf} ${path}, ${lineCount(file.lines)}`;
   return [
     heading(5, title),
     lineOf(fileFingerprint(file)),
@@ -430,7 +430,7 @@ function transcriptBlocks(file: AppendixFile, path: string): Block[] {
 /** A transcript the run recorded but that couldn't be read here, said in its place. */
 function unreadableBlocks(pass: PassName, path: string): Block[] {
   return [
-    heading(5, `${PASS_TITLE[pass]} ${APPENDIX_TEXT.transcriptOf} ${path}`),
+    heading(5, `${passTitle(pass)} ${APPENDIX_TEXT.transcriptOf} ${path}`),
     paragraph(sentence(APPENDIX_TEXT.unreadable)),
   ];
 }
@@ -470,7 +470,7 @@ function flagLines(card: PageCard): string[] {
   return [
     item(`${PAGES_TEXT.flagsRaised}:`),
     ...card.flags.map((flag) => {
-      const pass = flag.pass === undefined ? "" : ` (${PASS_WORDS[flag.pass]} pass)`;
+      const pass = flag.pass === undefined ? "" : ` (${passWords(flag.pass)} pass)`;
       return `  - ${inlineCode(flag.rule)}${pass}: ${markdownInline(flag.message)}`;
     }),
     ...recorded,

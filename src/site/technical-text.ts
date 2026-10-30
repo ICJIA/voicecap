@@ -6,7 +6,7 @@
  *
  * Every number about voicecap in these words is taken, and none is typed here, but six that the
  * test of the page holds to where they come from (see below):
- * - from voicecap's own code, which this module imports: its passes (PASS_NAMES), its built-in flag
+ * - from voicecap's own code, which this module imports: its passes (DEFAULT_PASS_NAMES), its built-in flag
  *   rules (BUILT_IN_RULES) and their thresholds, its defaults (DEFAULT_CONFIG), the exit codes of
  *   `voicecap verify` (ExitCode), what a silent step is written as (NO_SPEECH), the name of the
  *   file a page's recording is kept in (VOICE_FILE), and the speeds the voice page plays at
@@ -42,7 +42,13 @@
  */
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { BUILT_IN_RULES, type BuiltInRule } from "../flags/evaluate.js";
-import { PASS_NAMES, type PassName, type StopReason, VOICE_FILE } from "../model.js";
+import {
+  DEFAULT_PASS_NAMES,
+  type DefaultPassName,
+  type PassName,
+  type StopReason,
+  VOICE_FILE,
+} from "../model.js";
 import { plural } from "../report/html.js";
 import { count, names } from "../share/format.js";
 import { HOW_TEXT, MAC_HASH, POWERSHELL_HASH, VOICE_TEXT } from "../share/text.js";
@@ -124,7 +130,7 @@ const STOP_REASONS = Object.keys({
 } satisfies Record<StopReason, true>);
 
 /** How many ways NVDA goes through a page: one for each pass, in words. */
-const WAYS = inWords(PASS_NAMES.length);
+const WAYS = inWords(DEFAULT_PASS_NAMES.length);
 
 /**
  * The speeds a share's voice page plays a recording at, as its own words give them: "1×, 0.75×, 0.5×,
@@ -261,7 +267,7 @@ export const TECHNICAL_TEXT = {
             ["A new Chrome, with a new profile, opens the page, and its screenshot is taken."],
             ["The window comes to the front, and NVDA confirms it."],
             [
-              `NVDA reads the page ${names(PASS_NAMES.map((pass) => HOW_TEXT.ways[pass].words))}, and every word is saved.`,
+              `NVDA reads the page ${names(DEFAULT_PASS_NAMES.map((pass) => HOW_TEXT.ways[pass].words))}, and every word is saved.`,
             ],
           ],
         },
@@ -359,7 +365,7 @@ export const TECHNICAL_TEXT = {
             "Nothing focused. The first Tab goes to the browser itself, so a skip link isn't passed over, and the rest go through NVDA",
           end: "Focus leaves the page, which the browser reports, not NVDA's words",
         },
-      } satisfies Record<PassName, { start: string; end: string }>,
+      } satisfies Record<DefaultPassName, { start: string; end: string }>,
       stops: [
         "Every pass also stops at its step cap, or at its repeat limit, and records why it stopped. The reasons are ",
         ...codes(STOP_REASONS),
@@ -435,7 +441,7 @@ export const TECHNICAL_TEXT = {
                     {
                       name: "pages/<page>/",
                       words: [
-                        ...codes(PASS_NAMES.map((pass) => `${pass}.txt`)),
+                        ...codes(DEFAULT_PASS_NAMES.map((pass) => `${pass}.txt`)),
                         ", each with its ",
                         { code: ".json" },
                         " of every step (the key, the words, and their timing), ",

@@ -71,6 +71,9 @@ export async function runPass(
       stopReason = await readPass(driver, recorder, settings);
     } else if (pass === "headings") {
       stopReason = await headingsPass(driver, recorder, settings);
+    } else if (pass === "forms") {
+      // Named so --passes forms and a config's passes are legal; the pass itself comes later.
+      throw new Error("The forms pass can't run yet: this version of voicecap doesn't take it.");
     } else {
       const outcome = await tabPass(driver, recorder, settings);
       stopReason = outcome.stopReason;

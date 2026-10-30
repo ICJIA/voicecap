@@ -19,7 +19,7 @@ import {
   type PagePasses,
 } from "../flags/evaluate.js";
 import { graphicName, insideOf, partOf, speechItems } from "../flags/speech.js";
-import { PASS_NAMES, type FlagResult, type PassName } from "../model.js";
+import { DEFAULT_PASS_NAMES, type FlagResult, type PassName } from "../model.js";
 import { normalizeSpeech } from "../passes/steps.js";
 import type { PageCard } from "./cards.js";
 import { names } from "./format.js";
@@ -454,7 +454,7 @@ function placesOf(hits: Hit[], slugOf: (index: number) => string): AttentionPlac
   return [...parts].map(([part, here]) => ({
     part,
     inside: here.find(({ at }) => at.inside !== null)?.at.inside ?? null,
-    said: PASS_NAMES.flatMap((pass) => {
+    said: DEFAULT_PASS_NAMES.flatMap((pass) => {
       const said = here.find(({ at }) => at.said?.pass === pass)?.at.said;
       return said ? [said] : [];
     }),

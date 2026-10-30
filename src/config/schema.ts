@@ -198,7 +198,28 @@ export const configSchema = z.strictObject({
   }),
   /** Passes run when --passes isn't given. */
   passes: z.array(passName).min(1),
-  stepCaps: z.strictObject({ read: positiveInt, headings: positiveInt, tab: positiveInt }),
+  stepCaps: z.strictObject({
+    read: positiveInt,
+    headings: positiveInt,
+    tab: positiveInt,
+    /** Left out unless set: FORMS_DEFAULTS has the cap the forms pass takes then. */
+    forms: positiveInt.optional(),
+  }),
+  /**
+   * The forms pass, which runs only when `passes` or --passes names it. Left out unless set (the
+   * config's SHA-256 is that of what it holds): FORMS_DEFAULTS has what the pass takes for the rest.
+   */
+  forms: z
+    .strictObject({
+      /** How long to wait after a field is focused or filled, in ms, before reading what was said. */
+      settleMs: nonNegativeInt,
+      /** The most forms the pass takes on one page. */
+      maxPerPage: positiveInt,
+      /** Values to fill fields with, by the field's name, such as { "Email": "someone@example.com" }. */
+      values: z.record(z.string(), z.string()),
+    })
+    .partial()
+    .optional(),
   read: z.strictObject({
     /** Extra Down Arrows to confirm the end of the page (0 = the plain rule). */
     endConfirmations: nonNegativeInt,

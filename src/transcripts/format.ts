@@ -17,6 +17,7 @@ export const MAIN_COMMAND: Record<PassName, DriverCommand> = {
   read: "nextLine",
   headings: "nextHeading",
   tab: "nextFocusable",
+  forms: "focusField",
 };
 
 const COMMAND_LABEL: Record<DriverCommand, string> = {
@@ -25,6 +26,9 @@ const COMMAND_LABEL: Record<DriverCommand, string> = {
   nextLine: "next line",
   nextHeading: "next heading",
   nextFocusable: "tab",
+  focusField: "focus field",
+  pressSubmit: "press submit",
+  fillField: "fill field",
 };
 
 const STOP_REASON_TEXT: Record<StopReason, string> = {

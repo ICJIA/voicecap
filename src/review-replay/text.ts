@@ -18,10 +18,20 @@ import type { PassName } from "../model.js";
 import { plural } from "../report/html.js";
 
 /** How each transcript is named at its head: "Read transcript, 33 lines:". */
-const PASS_TITLES: Record<PassName, string> = { read: "Read", headings: "Headings", tab: "Tab" };
+const PASS_TITLES: Record<PassName, string> = {
+  read: "Read",
+  headings: "Headings",
+  tab: "Tab",
+  forms: "Forms",
+};
 
 /** How each transcript is named in a sentence: "No lines in the Tab transcript." */
-const PASS_NOUNS: Record<PassName, string> = { read: "read", headings: "headings", tab: "Tab" };
+const PASS_NOUNS: Record<PassName, string> = {
+  read: "read",
+  headings: "headings",
+  tab: "Tab",
+  forms: "forms",
+};
 
 export const REPLAY_TEXT = {
   /** The line that names a page before it plays: "Page 3 of 7: /biographies/ (2 flags)". */

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { stepCapOf } from "../config/defaults.js";
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { VoicecapConfig } from "../config/schema.js";
 import {
@@ -25,6 +26,7 @@ import {
   type RunJson,
   type RunSettings,
   type SessionRecord,
+  type StepCaps,
 } from "../model.js";
 import { chooseCanonicalRoot, isNearbyHost, normalizeCanonical } from "../pages/canonical.js";
 import { compilePattern } from "../pages/filter.js";
@@ -287,9 +289,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
     driver: selection.name,
     replayFrom: selection.replayLabel,
     capture: config.capture,
-    stepCaps: maxSteps
-      ? { read: maxSteps, headings: maxSteps, tab: maxSteps }
-      : { ...config.stepCaps },
+    stepCaps: stepCapsOf(config, passes, maxSteps),
     nvdaSettings: config.nvdaSettings,
     browser: config.browser,
     readiness: { ...config.readiness },
@@ -454,6 +454,25 @@ function requireSite(options: RunAuditOptions): string {
     );
   }
   return options.site;
+}
+
+/**
+ * The step caps a run records: the three every run has, and `forms` only for a run that takes the
+ * forms pass, so the settings of a run without it (and their hash, which lets it resume) are what
+ * they were before the pass existed. --max-steps sets every cap it records.
+ */
+function stepCapsOf(
+  config: VoicecapConfig,
+  passes: readonly PassName[],
+  maxSteps: number | null,
+): StepCaps {
+  const cap = (pass: PassName): number => maxSteps ?? stepCapOf(config, pass);
+  return {
+    read: cap("read"),
+    headings: cap("headings"),
+    tab: cap("tab"),
+    ...(passes.includes("forms") ? { forms: cap("forms") } : {}),
+  };
 }
 
 /**
@@ -753,7 +772,7 @@ async function transcribePages(
   // Whether the person has been told that NVDA's voice isn't being recorded: once a session.
   let toldOfVoice = false;
   const passSettings = (pass: PassName): PassSettings => ({
-    cap: run.settings.stepCaps[pass],
+    cap: run.settings.stepCaps[pass] ?? stepCapOf(config, pass),
     repeatLimit: config.repeatLimit,
     endConfirmations: config.read.endConfirmations,
     noNextHeading: new RegExp(config.phrasing.noNextHeading, "i"),

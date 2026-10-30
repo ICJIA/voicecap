@@ -7,10 +7,40 @@ import type { CaptureMode, EnvironmentInfo, FocusedElement } from "./drivers/typ
 
 export type { CaptureMode };
 
-export const PASS_NAMES = ["read", "headings", "tab"] as const;
+/**
+ * Every pass voicecap can take. `forms` is opt-in (--passes forms, or `passes` in the config): the
+ * runs, files, and words that existed before it have only the first three, so anything that shows a
+ * reader "the passes" as a list of three, or counts on a page having all of them, goes by
+ * DEFAULT_PASS_NAMES, and anything that looks for what was saved goes by this list.
+ */
+export const PASS_NAMES = ["read", "headings", "tab", "forms"] as const;
 export type PassName = (typeof PASS_NAMES)[number];
 
-export type DriverCommand = "toTop" | "toBottom" | "nextLine" | "nextHeading" | "nextFocusable";
+/** The three passes a run takes unless it's asked for others: every run before `forms` took these. */
+export const DEFAULT_PASS_NAMES = [
+  "read",
+  "headings",
+  "tab",
+] as const satisfies readonly PassName[];
+
+export type DriverCommand =
+  | "toTop"
+  | "toBottom"
+  | "nextLine"
+  | "nextHeading"
+  | "nextFocusable"
+  | "focusField"
+  | "pressSubmit"
+  | "fillField";
+
+export type DefaultPassName = (typeof DEFAULT_PASS_NAMES)[number];
+
+/**
+ * The most steps each pass may take. `forms` is there only for a run that has the forms pass: the
+ * settings of every run before it have three, and a run's settings hash (what lets it resume) is
+ * taken over them as they are.
+ */
+export type StepCaps = Record<DefaultPassName, number> & { forms?: number };
 
 export type StopReason =
   /** read: the last line was spoken, then repeated (NVDA has no end-of-document message) */
@@ -152,7 +182,7 @@ export interface RunSettings {
   driver: string;
   replayFrom: string | null;
   capture: CaptureMode;
-  stepCaps: Record<PassName, number>;
+  stepCaps: StepCaps;
   nvdaSettings: Record<string, unknown>;
   browser: { channel: string; fallbackToChromium: boolean };
   /**

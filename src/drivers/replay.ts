@@ -47,7 +47,7 @@ export class ReplayDriver implements ScreenReaderDriver {
   private loaded = false;
 
   private current: Recording | null = null;
-  private readonly cursor: Record<PassName, number> = { read: 0, headings: 0, tab: 0 };
+  private readonly cursor: Record<PassName, number> = { read: 0, headings: 0, tab: 0, forms: 0 };
   private currentLine = "";
   private focus: { inDocument: boolean; focused: FocusedElement | null } = {
     inDocument: true,

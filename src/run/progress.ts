@@ -1,4 +1,4 @@
-import type { PassName, StopReason } from "../model.js";
+import { PASS_NAMES, type PassName, type StopReason } from "../model.js";
 import { stopReasonText } from "../transcripts/format.js";
 import { formatDuration } from "../util/time.js";
 
@@ -27,6 +27,7 @@ const NATURAL_END: Record<PassName, StopReason> = {
   read: "end-reached",
   headings: "no-next-heading",
   tab: "left-document",
+  forms: "end-reached",
 };
 
 /**
@@ -53,7 +54,7 @@ export function progressLine(info: ProgressInfo): string {
 
 function describePasses(passes: Partial<Record<PassName, PassProgress>>): string {
   const described: string[] = [];
-  for (const pass of ["read", "headings", "tab"] as const) {
+  for (const pass of PASS_NAMES) {
     const progress = passes[pass];
     if (!progress) continue;
     const natural = progress.stopReason === NATURAL_END[pass];

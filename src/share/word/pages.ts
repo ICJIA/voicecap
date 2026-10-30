@@ -42,7 +42,7 @@ import { jpegOfAddress } from "../cards.js";
 import { count } from "../format.js";
 import type { Inline, Line } from "../line.js";
 import type { AppendixFile, NoLongerListed, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, PASS_TITLE, VOICE_TEXT, WORD_TEXT } from "../text.js";
+import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, passTitle, VOICE_TEXT, WORD_TEXT } from "../text.js";
 import {
   axeFingerprint,
   capturedOf,
@@ -321,7 +321,7 @@ function axeBlocks({ axe }: PageCard): Block[] {
  * words in each heading too, hidden from sight; Word can't hide words, so here they are in view.
  */
 function transcriptHeading(pass: PassName, path: string, lines: number | null): Block {
-  const title = `${PASS_TITLE[pass]} ${APPENDIX_TEXT.transcriptOf} ${path}`;
+  const title = `${passTitle(pass)} ${APPENDIX_TEXT.transcriptOf} ${path}`;
   return heading(3, lines === null ? title : `${title}, ${lineCount(lines)}`);
 }
 

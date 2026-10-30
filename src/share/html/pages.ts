@@ -39,7 +39,7 @@ import {
   type AxeViewRule,
 } from "../axe-view.js";
 import type { AppendixFile, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, PASS_TITLE, VOICE_TEXT } from "../text.js";
+import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, passTitle, VOICE_TEXT } from "../text.js";
 import {
   axeFingerprint,
   capturedOf,
@@ -450,7 +450,7 @@ function axeFold(card: PageCard): string {
  */
 function transcriptHeading(pass: PassName, path: string, sub = ""): string {
   const after = sub === "" ? "" : ` <span class="sub">${sub}</span>`;
-  return `<h4>${esc(PASS_TITLE[pass])} <span class="sr">${esc(APPENDIX_TEXT.transcriptOf)} ${esc(path)}</span>${after}</h4>`;
+  return `<h4>${esc(passTitle(pass))} <span class="sr">${esc(APPENDIX_TEXT.transcriptOf)} ${esc(path)}</span>${after}</h4>`;
 }
 
 /**
@@ -469,7 +469,7 @@ function transcriptHeading(pass: PassName, path: string, sub = ""): string {
  * `<pre>`'s text is the file's, as the fingerprint check reads it.
  */
 function transcriptOf(file: AppendixFile, path: string, boxed: boolean, at: number | null): string {
-  const title = PASS_TITLE[file.pass];
+  const title = passTitle(file.pass);
   const lead = file.text.startsWith("\n") ? "\n" : "";
   const timing = at === null ? undefined : file.timing;
   const body =

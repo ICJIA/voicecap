@@ -17,7 +17,7 @@ import { esc } from "../../report/html.js";
 import type { Changes, DiffLine, OnlyInOnePage, PageChange, PassChange } from "../changes.js";
 import { pagePath, pageTitle } from "../format.js";
 import type { ShareModel } from "../model.js";
-import { CHANGES_TEXT, PASS_WORDS } from "../text.js";
+import { CHANGES_TEXT, passWords } from "../text.js";
 import {
   changedRules,
   changesGist,
@@ -125,7 +125,7 @@ function rowOf(line: DiffLine): string {
  * the table and its box, so none is the same as the same pass's on another page.
  */
 function passBlock({ pass, removed, added, lines }: PassChange, address: string): string {
-  const word = PASS_WORDS[pass];
+  const word = passWords(pass);
   const caption = `Changes in the ${word} pass on ${address}`;
   const head = `<h3 class="logh">${esc(passHeading(pass))} <span class="sr">${esc(onPage(address))}</span> <span class="sub">${esc(sizesOf(removed, added))}</span></h3>`;
   const columns = CHANGES_TEXT.head.map((words) => `<th scope="col">${esc(words)}</th>`);

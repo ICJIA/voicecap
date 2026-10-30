@@ -21,7 +21,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { RECORDER_SCRIPT } from "../src/drivers/guidepup/voice-recorder.js";
 import { BUILT_IN_RULES } from "../src/flags/evaluate.js";
-import { AXE_FILE, PASS_NAMES, SCREENSHOT_FILE, VOICE_FILE } from "../src/model.js";
+import { AXE_FILE, DEFAULT_PASS_NAMES, SCREENSHOT_FILE, VOICE_FILE } from "../src/model.js";
 import { NVDA_LOG_FOLDER } from "../src/run/events.js";
 import { count, names } from "../src/share/format.js";
 import { VOICE_TEXT } from "../src/share/text.js";
@@ -313,7 +313,7 @@ describe("renderTechnical", () => {
   it("takes the passes, the rules, the defaults, and the shares kept from the code", () => {
     // The passes: a row each, in their order, with the key a person presses for each.
     const passes = bodyOf(tableOf(html, "passes"));
-    expect(passes.map(([pass]) => pass)).toEqual([...PASS_NAMES]);
+    expect(passes.map(([pass]) => pass)).toEqual([...DEFAULT_PASS_NAMES]);
     expect(passes.map(([, key]) => key)).toEqual(["Down Arrow", "H", "Tab"]);
     expect(headingsOf(html).find(({ id }) => id === "the-passes")?.words).toBe(
       "NVDA's three passes",
@@ -336,7 +336,7 @@ describe("renderTechnical", () => {
     // The defaults: each setting with voicecap's own value.
     const { stepCaps, timeouts } = DEFAULT_CONFIG;
     expect(bodyOf(tableOf(html, "defaults")).map(([setting, value]) => [setting, value])).toEqual([
-      ...PASS_NAMES.map((pass) => [`stepCaps.${pass}`, count(stepCaps[pass])]),
+      ...DEFAULT_PASS_NAMES.map((pass) => [`stepCaps.${pass}`, count(stepCaps[pass])]),
       ["repeatLimit", count(DEFAULT_CONFIG.repeatLimit)],
       ["timeouts.stepMs", `${timeouts.stepMs / 1000} seconds`],
       ["timeouts.pageMs", `${timeouts.pageMs / 60_000} minutes`],

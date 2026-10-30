@@ -2,7 +2,7 @@
  * The website's Technical details page, `technical-details.html`, as a pure function of what it's
  * given: how voicecap works, for auditors and developers, in the shape of the audit tool's
  * technical page. Its words are ./technical-text.ts's. What voicecap's code holds, the page takes
- * from the code, so it can't fall behind it: its passes (PASS_NAMES), its built-in flag rules and
+ * from the code, so it can't fall behind it: its passes (DEFAULT_PASS_NAMES), its built-in flag rules and
  * how many there are (BUILT_IN_RULES), and its defaults (DEFAULT_CONFIG). What the build knows comes
  * in its input: the version and the day it was released, what its release recorded of its tests,
  * how many shares a site keeps (KEPT_PER_SITE, which ./build.ts passes, so this module needn't
@@ -46,7 +46,7 @@
  */
 import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { BUILT_IN_RULES } from "../flags/evaluate.js";
-import { PASS_NAMES } from "../model.js";
+import { DEFAULT_PASS_NAMES } from "../model.js";
 import { esc } from "../report/html.js";
 import { count } from "../share/format.js";
 import { HOW_TEXT } from "../share/text.js";
@@ -267,7 +267,7 @@ function passes(): string {
       "passes",
       words.id,
       words.columns,
-      PASS_NAMES.map((pass) => [
+      DEFAULT_PASS_NAMES.map((pass) => [
         code(pass),
         esc(HOW_TEXT.ways[pass].key),
         esc(words.passes[pass].start),
@@ -280,7 +280,7 @@ function passes(): string {
     subheading(defaults.heading, defaults.id),
     paragraph(defaults.lead),
     table("defaults", defaults.id, defaults.columns, [
-      ...PASS_NAMES.map((pass) =>
+      ...DEFAULT_PASS_NAMES.map((pass) =>
         setting(`stepCaps.${pass}`, count(stepCaps[pass]), defaults.stepCap(pass)),
       ),
       setting("repeatLimit", count(repeatLimit), defaults.repeatLimit),
