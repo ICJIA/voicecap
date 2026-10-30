@@ -215,7 +215,7 @@ export const configSchema = z.strictObject({
       settleMs: nonNegativeInt,
       /** The most forms the pass takes on one page. */
       maxPerPage: positiveInt,
-      /** Values to fill fields with, by the field's name, such as { "Email": "someone@example.com" }. */
+      /** Values to fill fields with, by input type, such as { "email": "someone@example.com" }; "text" is for any other typed field. */
       values: z.record(z.string(), z.string()),
     })
     .partial()

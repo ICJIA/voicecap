@@ -8,9 +8,13 @@ import type { VoicecapConfig } from "./schema.js";
  */
 export const FORMS_DEFAULTS = {
   stepCap: 500,
-  settleMs: 500,
-  maxPerPage: 20,
-  values: {} as Record<string, string>,
+  settleMs: 3000,
+  maxPerPage: 5,
+  /** By input type; `text` is for any other typed field. A check box, radio, or list needs none. */
+  values: { text: "voicecap test", email: "test@example.com", tel: "555-555-5555" } as Record<
+    string,
+    string
+  >,
 };
 
 /** The forms pass's settings as the config has them, with FORMS_DEFAULTS for each it leaves out. */

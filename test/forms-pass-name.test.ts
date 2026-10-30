@@ -46,7 +46,11 @@ describe("forms as a pass name", () => {
     expect(config.passes).toEqual(["read", "headings", "tab"]);
     expect(config).not.toHaveProperty("forms");
     expect(stepCapOf(config, "forms")).toBe(500);
-    expect(formsSettingsOf(config)).toEqual({ settleMs: 500, maxPerPage: 20, values: {} });
+    expect(formsSettingsOf(config)).toEqual({
+      settleMs: 3000,
+      maxPerPage: 5,
+      values: { text: "voicecap test", email: "test@example.com", tel: "555-555-5555" },
+    });
   });
 
   it("is accepted by a config's passes, and its settings by the config", () => {
@@ -59,7 +63,7 @@ describe("forms as a pass name", () => {
     expect(stepCapOf(config, "forms")).toBe(40);
     expect(stepCapOf(config, "read")).toBe(1500);
     expect(formsSettingsOf(config)).toEqual({
-      settleMs: 500,
+      settleMs: 3000,
       maxPerPage: 3,
       values: { Email: "someone@example.com" },
     });
