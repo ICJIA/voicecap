@@ -43,7 +43,12 @@ export interface FormState {
   focused: FocusedElement | null;
   /** The indexes of the fields the browser or the page calls invalid. */
   invalid: number[];
-  /** Text that is new in the form since the last read, in an alert or live region, or named by an invalid field's `aria-describedby` or `aria-errormessage`. */
+  /**
+   * The message text showing now: the form's alerts and live regions, a page's alerts and status
+   * messages, what an invalid field's `aria-describedby` or `aria-errormessage` names, and text
+   * added to the form since the scan. A hint that was there before any press is in it too, so a
+   * caller compares it with the read before the first press.
+   */
   messages: string[];
   /** Whether a live region's text changed since the last read. */
   liveChanged: boolean;

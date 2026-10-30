@@ -751,9 +751,9 @@ export class ChromeSession implements BrowserSession {
   }
 
   /**
-   * What the form the last scan numbered `form` shows now: focus, invalid fields, new messages,
-   * and the focused field's own validation message. A form that is gone, or was never found, is
-   * `present: false`. What changed is counted from the scan or the last read.
+   * What the form the last scan numbered `form` shows now: focus, invalid fields, the message text
+   * showing, and the focused field's own validation message. A form that is gone, or was never
+   * found, is `present: false`. A live region's change is counted from the scan or the last read.
    */
   readFormState(form: number): Promise<FormState> {
     return this.onPage(async () => {

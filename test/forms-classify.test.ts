@@ -50,6 +50,8 @@ describe("classifyForm", () => {
   });
 
   it("tests a lone field that posts, or a GET with more than one field", () => {
+    expect(classifyForm(form({ fields: [field(0, "text")] }))).toBe("test");
+    expect(classifyForm(form({ fields: [field(0, "search")] }))).toBe("test");
     expect(classifyForm(form({ fields: [field(0, "email")] }))).toBe("test");
     expect(classifyForm(form({ method: "get", fields: [field(0, "email")] }))).toBe("test");
     expect(classifyForm(form({ method: "get" }))).toBe("test");
@@ -84,10 +86,16 @@ describe("classifyForm", () => {
     expect(classifyForm(form({ action: "http://example.gov/send" }))).toBe("test");
   });
 
-  it("counts an empty action as the page's own", () => {
-    expect(classifyForm(form({ action: "https://example.gov/page", actionSelf: true }))).toBe(
-      "test",
-    );
+  it("lets not-web win over no-submit, and no-submit over search", () => {
+    const mail = "mailto:office@example.gov";
+    expect(classifyForm(form({ action: mail, submit: false }))).toBe("not-web");
+    expect(classifyForm(form({ action: mail, formless: true }))).toBe("not-web");
+    expect(classifyForm(form({ action: mail, searchRole: true }))).toBe("not-web");
+    expect(classifyForm(form({ searchRole: true, submit: false }))).toBe("no-submit");
+  });
+
+  it("doesn't press a dialog form", () => {
+    expect(classifyForm(form({ method: "dialog" }))).toBe("no-submit");
   });
 
   it("doesn't test fields with no form, or a form with no submit control", () => {
@@ -97,20 +105,31 @@ describe("classifyForm", () => {
 });
 
 describe("formSignature", () => {
-  it("is the same for one form on two pages, and differs for two forms", () => {
+  it("is the same for one form on two pages", () => {
     const here = form({ action: "https://example.gov/join?from=home", index: 2 });
     const there = form({ action: "https://example.gov/join?from=news", index: 5 });
     expect(formSignature(here)).toBe(formSignature(there));
-    expect(formSignature(form({ fields: [field(0, "email")] }))).not.toBe(formSignature(form()));
-    expect(formSignature(form({ action: "https://example.gov/other" }))).not.toBe(
-      formSignature(form()),
-    );
-    expect(formSignature(form({ frame: "forms.gle", fields: [] }))).not.toBe(formSignature(form()));
   });
 
-  it("is the same for a form that sends to its own page, whichever page", () => {
+  it("differs for two forms: in fields, type, name, method, action, formless, or frame", () => {
+    const base = formSignature(form());
+    const other = (extra: Partial<RawForm>) => formSignature(form(extra));
+    expect(other({ fields: [field(0, "email")] })).not.toBe(base);
+    expect(other({ fields: [field(0, "tel"), field(1, "text")] })).not.toBe(base);
+    expect(
+      other({ fields: [field(0, "email", { attribute: "mail" }), field(1, "text")] }),
+    ).not.toBe(base);
+    expect(other({ method: "get" })).not.toBe(base);
+    expect(other({ action: "https://example.gov/other" })).not.toBe(base);
+    expect(other({ formless: true })).not.toBe(base);
+    expect(other({ frame: "forms.gle", fields: [] })).not.toBe(base);
+  });
+
+  it("is the same for a form that sends to its own page, whichever page, and not for one that names it", () => {
     const a = form({ action: "https://example.gov/a", actionSelf: true });
     const b = form({ action: "https://example.gov/b", actionSelf: true });
     expect(formSignature(a)).toBe(formSignature(b));
+    const named = form({ action: "https://example.gov/a" });
+    expect(formSignature(named)).not.toBe(formSignature(a));
   });
 });

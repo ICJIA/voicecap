@@ -37,7 +37,8 @@ export interface RawForm {
 export function classifyForm(raw: RawForm): FormKind {
   if (raw.frame !== null) return "other-site";
   if (!/^https?:/i.test(raw.action)) return "not-web";
-  if (raw.formless || !raw.submit) return "no-submit";
+  // A dialog form closes a dialog and sends nothing.
+  if (raw.formless || !raw.submit || raw.method === "dialog") return "no-submit";
   if (raw.searchRole) return "search";
   const [only] = raw.fields;
   if (

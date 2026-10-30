@@ -52,20 +52,35 @@ const PAGES: Record<string, string> = {
     </script>
     <form action="/real" method="post"><input name="action" aria-label="Field" required><input name="elements"><button>Go</button></form>`,
   "/state": `${HEAD}
+    <div role="alert">Cookie notice</div>
     <form id="f" action="/x" method="post">
       <input name="a" aria-label="Alpha" required>
       <input name="b" aria-label="Beta" aria-describedby="why" aria-invalid="true">
       <input type="email" name="c" aria-label="Gamma" value="not-an-email">
+      <input name="d" aria-label="Delta" aria-invalid="true" aria-errormessage="err">
+      <div id="inlive" role="alert"></div>
       <button>Go</button>
     </form>
     <p id="why">Beta must be longer.</p>
-    <div id="live" aria-live="polite"></div>
+    <p id="err">Delta is wrong.</p>
+    <div id="live" aria-live="polite">Elsewhere</div>
     <script>
       document.getElementById("f").addEventListener("submit", (e) => e.preventDefault());
-      window.addMessage = () => { document.getElementById("live").textContent = "Saved"; };
+      window.addError = () => { document.getElementById("inlive").textContent = "Name is required"; };
+      window.addElsewhere = () => { document.getElementById("live").textContent = "Moved"; };
       window.addText = () => { const p = document.createElement("p"); p.textContent = "Check the form"; document.getElementById("f").append(p); };
       window.removeForm = () => document.getElementById("f").remove();
     </script>`,
+  "/radios": `${HEAD}
+    <form action="/x" method="post"><fieldset><legend>Colour</legend>
+      <label><input id="r1" type="radio" name="c" required> Red</label>
+      <label><input id="r2" type="radio" name="c"> Blue</label></fieldset><button>Go</button></form>`,
+  "/empty": `${HEAD}<form method="post"><input aria-label="Name"><button>Go</button></form>`,
+  "/extra": `${HEAD}
+    <form action="/ok" method="post"><input aria-label="A"><button formaction="mailto:a@b.gov">Mail</button></form>
+    <form method="dialog"><input aria-label="B"><button>Close</button></form>
+    <search><form action="/s" method="post"><input aria-label="Q"><input aria-label="R"><button>Go</button></form></search>
+    <form action="/ok" method="post"><input aria-label="A"><button formaction="/other">Go</button></form>`,
 };
 
 const pageOf = (session: ChromeSession): Page => (session as unknown as { page: Page }).page;
@@ -140,32 +155,62 @@ describe.skipIf(!haveChromium)("scanForms", () => {
     expect(forms.map((form) => form.index)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
+  it("counts an empty action as the page's own", async () => {
+    const forms = await (await open("/empty")).scanForms();
+    expect(forms.map((form) => form.kind)).toEqual(["test"]);
+  });
+
+  it("leaves a form whose button sends by mailto:, a dialog form, and one inside <search>", async () => {
+    const forms = await (await open("/extra")).scanForms();
+    expect(forms.map((form) => form.kind)).toEqual(["not-web", "no-submit", "search", "test"]);
+  });
+
   it("isn't changed by a page that redefines the built-ins, or names a field after a form's property", async () => {
     const forms = await (await open("/hostile")).scanForms();
     expect(forms.map((form) => form.kind)).toEqual(["test"]);
     expect(forms[0]?.fields.map((field) => field.required)).toEqual([true, false]);
   });
 
-  it("moves no focus and changes nothing in the page", async () => {
+  it("moves no focus, clicks nothing, and changes nothing in the page", async () => {
     const session = await open("/one");
+    await pageOf(session).focus("#n");
     const before = await session.focusedElement();
+    const html = await pageOf(session).content();
+    expect(before?.name).toBe("Your name");
     await session.scanForms();
     expect(await session.focusedElement()).toEqual(before);
+    expect(await pageOf(session).content()).toBe(html);
   });
 });
 
 describe.skipIf(!haveChromium)("readFormState", () => {
-  it("lists the invalid fields, the messages, and Chrome's bubble", async () => {
+  it("lists the invalid fields, the messages showing, and Chrome's bubble", async () => {
     const session = await open("/state");
     await session.scanForms();
     const state = await session.readFormState(0);
     expect(state.present).toBe(true);
-    expect(state.invalid).toEqual([0, 1, 2]);
-    expect(state.messages).toEqual(["Beta must be longer."]);
+    expect(state.invalid).toEqual([0, 1, 2, 3]);
+    // Beta's aria-describedby, Delta's aria-errormessage, and the page's alert; not the live
+    // region outside the form.
+    expect(state.messages).toEqual(["Beta must be longer.", "Delta is wrong.", "Cookie notice"]);
     expect(state.liveChanged).toBe(false);
     expect(state.heldRequests).toBe(0);
     expect(state.bubble).toBeNull();
     expect(state.focused).toBeNull();
+  });
+
+  it("shows a hint both before and after, and a new error only after", async () => {
+    const session = await open("/state");
+    await session.scanForms();
+    const before = await session.readFormState(0);
+    await pageOf(session).evaluate("addError()");
+    const after = await session.readFormState(0);
+    for (const hint of ["Beta must be longer.", "Delta is wrong.", "Cookie notice"]) {
+      expect(before.messages).toContain(hint);
+      expect(after.messages).toContain(hint);
+    }
+    expect(before.messages).not.toContain("Name is required");
+    expect(after.messages).toContain("Name is required");
   });
 
   it("reads the focused field's own validation message", async () => {
@@ -177,18 +222,24 @@ describe.skipIf(!haveChromium)("readFormState", () => {
     expect(state.bubble).toMatch(/fill (in|out) this field/i);
   });
 
-  it("sees a live region change, and new text in the form, once", async () => {
+  it("gives the bubble whichever radio of a group has focus", async () => {
+    const session = await open("/radios");
+    await session.scanForms();
+    await pageOf(session).focus("#r2");
+    expect((await session.readFormState(0)).bubble).toMatch(/select one of these options/i);
+  });
+
+  it("counts a live region's change once, and keeps the text added to the form", async () => {
     const session = await open("/state");
     await session.scanForms();
-    await pageOf(session).evaluate("addMessage()");
-    const live = await session.readFormState(0);
-    expect(live.liveChanged).toBe(true);
-    expect(live.messages).toContain("Saved");
+    await pageOf(session).evaluate("addElsewhere()");
+    const elsewhere = await session.readFormState(0);
+    expect(elsewhere.liveChanged).toBe(true);
+    expect(elsewhere.messages).not.toContain("Moved");
+    expect((await session.readFormState(0)).liveChanged).toBe(false);
     await pageOf(session).evaluate("addText()");
-    const added = await session.readFormState(0);
-    expect(added.liveChanged).toBe(false);
-    expect(added.messages).toContain("Check the form");
-    expect((await session.readFormState(0)).messages).not.toContain("Check the form");
+    expect((await session.readFormState(0)).messages).toContain("Check the form");
+    expect((await session.readFormState(0)).messages).toContain("Check the form");
   });
 
   it("says the form is gone when it's removed, and when there is no such form", async () => {
