@@ -30,7 +30,9 @@ import { EnvironmentError, errorMessage } from "../../util/errors.js";
 import { formatDuration } from "../../util/time.js";
 import type { BrowserSession, FocusState, LoadResult } from "../guidepup-nvda.js";
 import { BROWSER_WINDOW, type FocusedElement } from "../types.js";
+import type { FormInfo, FormState } from "../../forms/types.js";
 import { listenForUdp, type FormGate } from "./form-gate.js";
+import { readFormState, scanForms } from "./form-scan.js";
 import { envValue, PROFILE_PREFIX } from "./paths.js";
 import { closeBrowsersUsing } from "./windows.js";
 
@@ -536,6 +538,8 @@ export class ChromeSession implements BrowserSession {
   private guarding: Promise<void> | null = null;
   private guardProbeSeen = false;
   private held = 0;
+  /** The isolated world the last scan held its forms in; null before one. */
+  private formsWorld: number | null = null;
   private unclosedWindows = 0;
 
   constructor(
@@ -729,6 +733,32 @@ export class ChromeSession implements BrowserSession {
       const json: unknown = ran.result.value;
       if (typeof json !== "string") throw new Error("axe's results didn't come back");
       return JSON.parse(json) as unknown;
+    });
+  }
+
+  /**
+   * The page's forms, sorted (see classifyForm), as the browser shows them now. It goes through the
+   * DevTools connection, in an isolated world of voicecap's own on the page's main frame, and moves
+   * no focus and clicks nothing. A scan starts the world that readFormState asks.
+   */
+  scanForms(): Promise<FormInfo[]> {
+    return this.onPage(async () => {
+      const { frameTree } = await this.cdp.send("Page.getFrameTree");
+      const scanned = await scanForms(this.cdp, frameTree.frame.id);
+      this.formsWorld = scanned.contextId;
+      return scanned.forms;
+    });
+  }
+
+  /**
+   * What the form the last scan numbered `form` shows now: focus, invalid fields, new messages,
+   * and the focused field's own validation message. A form that is gone, or was never found, is
+   * `present: false`. What changed is counted from the scan or the last read.
+   */
+  readFormState(form: number): Promise<FormState> {
+    return this.onPage(async () => {
+      const read = await readFormState(this.cdp, this.formsWorld, form);
+      return { ...read, focused: await this.focusedElement(), heldRequests: this.heldRequests() };
     });
   }
 

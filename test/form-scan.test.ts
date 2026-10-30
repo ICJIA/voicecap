@@ -1,0 +1,201 @@
+import { existsSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+
+import { chromium, type Page } from "playwright";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+
+import { launchChrome, type ChromeSession } from "../src/drivers/guidepup/chrome.js";
+import type { FormInfo } from "../src/forms/types.js";
+
+// Real Chromium (Playwright's build, headless), one page at a time from a local server.
+const haveChromium = existsSync(chromium.executablePath());
+const HEADLESS = ["--headless=new", ...(process.platform === "linux" ? ["--no-sandbox"] : [])];
+
+const HEAD = `<!doctype html><title>Page</title><link rel="icon" href="data:,">`;
+const SIGN_UP = `<form action="/join" method="post"><label>Email <input type="email" name="email" required></label><button>Join</button></form>`;
+
+const PAGES: Record<string, string> = {
+  "/one": `${HEAD}
+    <p>Main</p>
+    <form id="contact" action="/contact" method="post">
+      <label for="n">Your name</label><input id="n" name="n" required>
+      <input type="text" name="aria" aria-label="Nickname" aria-required="true">
+      <input type="text" name="plain" placeholder="Anything">
+      <fieldset><legend>Colour</legend>
+        <label><input type="radio" name="c" value="r" required> Red</label>
+        <label><input type="radio" name="c" value="b"> Blue</label>
+      </fieldset>
+      <select name="s" aria-label="Pick"><option>a</option><option>b</option></select>
+      <textarea name="t" aria-label="Message"></textarea>
+      <input type="hidden" name="h"><input type="text" name="gone" aria-label="Gone" style="display:none">
+      <input type="submit" value="Send">
+    </form>
+    ${SIGN_UP}`,
+  "/two": `${HEAD}<h1>Other page</h1>${SIGN_UP}`,
+  "/kinds": `${HEAD}
+    <form role="search" action="/s"><input type="search" aria-label="Find"><button>Go</button></form>
+    <form action="/s" method="get"><input type="text" aria-label="Q"><button>Go</button></form>
+    <form action="mailto:office@example.gov"><input aria-label="Say"><button>Mail</button></form>
+    <form action="/nothing"><input aria-label="No button"></form>
+    <form action="/login" method="post"><input aria-label="User"><input type="password" aria-label="Password" autocomplete="current-password"><button>In</button></form>
+    <form action="/card" method="post"><input aria-label="Card" autocomplete="cc-number"><button>Pay</button></form>
+    <form action="/c" method="post"><input aria-label="Say"><div class="g-recaptcha"></div><button>Go</button></form>
+    <form action="/hidden" method="post" style="display:none"><input aria-label="Hid"><button>Go</button></form>
+    <iframe src="https://docs.google.com/forms/d/e/1/viewform" width="10" height="10"></iframe>
+    <input type="text" aria-label="Loose field"><div role="button">Not a submit</div>`,
+  "/hostile": `${HEAD}
+    <script>
+      Element.prototype.getAttribute = () => "lies";
+      window.MutationObserver = undefined;
+      Object.defineProperty(HTMLElement.prototype, "checkVisibility", { value: () => false });
+    </script>
+    <form action="/real" method="post"><input name="action" aria-label="Field" required><input name="elements"><button>Go</button></form>`,
+  "/state": `${HEAD}
+    <form id="f" action="/x" method="post">
+      <input name="a" aria-label="Alpha" required>
+      <input name="b" aria-label="Beta" aria-describedby="why" aria-invalid="true">
+      <input type="email" name="c" aria-label="Gamma" value="not-an-email">
+      <button>Go</button>
+    </form>
+    <p id="why">Beta must be longer.</p>
+    <div id="live" aria-live="polite"></div>
+    <script>
+      document.getElementById("f").addEventListener("submit", (e) => e.preventDefault());
+      window.addMessage = () => { document.getElementById("live").textContent = "Saved"; };
+      window.addText = () => { const p = document.createElement("p"); p.textContent = "Check the form"; document.getElementById("f").append(p); };
+      window.removeForm = () => document.getElementById("f").remove();
+    </script>`,
+};
+
+const pageOf = (session: ChromeSession): Page => (session as unknown as { page: Page }).page;
+
+let server: Server;
+let origin = "";
+const sessions: ChromeSession[] = [];
+
+beforeAll(async () => {
+  server = createServer((request, response) => {
+    const page = PAGES[request.url ?? ""];
+    response.writeHead(page ? 200 : 404, { "content-type": "text/html" });
+    response.end(page ?? "");
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+});
+afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
+afterEach(async () => {
+  for (const session of sessions.splice(0)) await session.close();
+});
+
+async function open(path: string): Promise<ChromeSession> {
+  const session = await launchChrome({
+    browser: { channel: "chromium", fallbackToChromium: false },
+    env: process.env,
+    extraArgs: HEADLESS,
+  });
+  sessions.push(session);
+  await session.load(`${origin}${path}`, 15_000);
+  return session;
+}
+
+describe.skipIf(!haveChromium)("scanForms", () => {
+  it("finds a form's fields, in tab order, with their names and what's required", async () => {
+    const forms = await (await open("/one")).scanForms();
+    expect(forms.map((form) => form.kind)).toEqual(["test", "test"]);
+    expect(forms[0]?.fields).toEqual([
+      { index: 0, name: "Your name", type: "text", required: true },
+      { index: 1, name: "Nickname", type: "text", required: true },
+      { index: 2, name: "Anything", type: "text", required: false },
+      { index: 3, name: "Red", type: "radio", required: true },
+      { index: 4, name: "Pick", type: "select-one", required: false },
+      { index: 5, name: "Message", type: "textarea", required: false },
+    ]);
+    expect(forms[1]?.fields).toEqual([{ index: 0, name: "Email", type: "email", required: true }]);
+  });
+
+  it("gives one form on two pages one signature, and two forms two", async () => {
+    const one = await (await open("/one")).scanForms();
+    const two = await (await open("/two")).scanForms();
+    expect(two).toHaveLength(1);
+    expect(two[0]?.signature).toBe(one[1]?.signature);
+    expect(one[0]?.signature).not.toBe(one[1]?.signature);
+  });
+
+  it("sorts each row of the table, and the others stay in the page's order", async () => {
+    const session = await open("/kinds");
+    const forms = await session.scanForms();
+    const summary = (form: FormInfo) => [form.kind, form.site, form.sensitive, form.captcha];
+    expect(forms.map(summary)).toEqual([
+      ["search", null, false, false],
+      ["search", null, false, false],
+      ["not-web", null, false, false],
+      ["no-submit", null, false, false],
+      ["test", null, true, false],
+      ["test", null, true, false],
+      ["test", null, false, true],
+      ["no-submit", null, false, false],
+      ["other-site", "docs.google.com", false, false],
+    ]);
+    expect(forms.map((form) => form.index)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("isn't changed by a page that redefines the built-ins, or names a field after a form's property", async () => {
+    const forms = await (await open("/hostile")).scanForms();
+    expect(forms.map((form) => form.kind)).toEqual(["test"]);
+    expect(forms[0]?.fields.map((field) => field.required)).toEqual([true, false]);
+  });
+
+  it("moves no focus and changes nothing in the page", async () => {
+    const session = await open("/one");
+    const before = await session.focusedElement();
+    await session.scanForms();
+    expect(await session.focusedElement()).toEqual(before);
+  });
+});
+
+describe.skipIf(!haveChromium)("readFormState", () => {
+  it("lists the invalid fields, the messages, and Chrome's bubble", async () => {
+    const session = await open("/state");
+    await session.scanForms();
+    const state = await session.readFormState(0);
+    expect(state.present).toBe(true);
+    expect(state.invalid).toEqual([0, 1, 2]);
+    expect(state.messages).toEqual(["Beta must be longer."]);
+    expect(state.liveChanged).toBe(false);
+    expect(state.heldRequests).toBe(0);
+    expect(state.bubble).toBeNull();
+    expect(state.focused).toBeNull();
+  });
+
+  it("reads the focused field's own validation message", async () => {
+    const session = await open("/state");
+    await session.scanForms();
+    await session.pressTab();
+    const state = await session.readFormState(0);
+    expect(state.focused?.name).toBe("Alpha");
+    expect(state.bubble).toMatch(/fill (in|out) this field/i);
+  });
+
+  it("sees a live region change, and new text in the form, once", async () => {
+    const session = await open("/state");
+    await session.scanForms();
+    await pageOf(session).evaluate("addMessage()");
+    const live = await session.readFormState(0);
+    expect(live.liveChanged).toBe(true);
+    expect(live.messages).toContain("Saved");
+    await pageOf(session).evaluate("addText()");
+    const added = await session.readFormState(0);
+    expect(added.liveChanged).toBe(false);
+    expect(added.messages).toContain("Check the form");
+    expect((await session.readFormState(0)).messages).not.toContain("Check the form");
+  });
+
+  it("says the form is gone when it's removed, and when there is no such form", async () => {
+    const session = await open("/state");
+    await session.scanForms();
+    await pageOf(session).evaluate("removeForm()");
+    expect((await session.readFormState(0)).present).toBe(false);
+    expect((await session.readFormState(9)).present).toBe(false);
+  });
+});
