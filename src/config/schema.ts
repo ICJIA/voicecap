@@ -211,7 +211,7 @@ export const configSchema = z.strictObject({
    */
   forms: z
     .strictObject({
-      /** How long to wait after a field is focused or filled, in ms, before reading what was said. */
+      /** How long to keep listening after a press, in ms, once the screen reader has gone quiet. */
       settleMs: nonNegativeInt,
       /** The most forms the pass takes on one page. */
       maxPerPage: positiveInt,

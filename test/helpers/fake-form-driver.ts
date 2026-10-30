@@ -11,6 +11,8 @@ export interface FakeField {
   takes?: boolean;
   /** False for a field Tab passes over. */
   tabbable?: boolean;
+  /** Its tabIndex, 0 by default. Below 0, Tab passes over it too. */
+  tabIndex?: number;
 }
 
 /** How the fake form behaves when pressed, by the rule a real page would have. */
@@ -21,6 +23,12 @@ export interface FakeForm {
   captcha?: boolean;
   /** Why armFormGuard rejects; it doesn't when this is left out. */
   armError?: string;
+  /** armFormGuard never answers, as a hung gate wouldn't. */
+  armHangs?: boolean;
+  /** The submit control has a negative tabindex: Tab goes past it, out of the page. */
+  submitUntabbable?: boolean;
+  /** After this many Tabs in all, the next leaves the page. */
+  tabsUntilOut?: number;
   /**
    * What a press does:
    * - "native" (the default): Chrome's checks. An empty required field is `:invalid` from the load,
@@ -32,6 +40,10 @@ export interface FakeForm {
   validates?: "native" | "aria" | "message" | "nothing";
   /** A press empties every field, after it has been checked. */
   resets?: boolean;
+  /** The page's script refuses the form whatever is in it, and sends nothing. */
+  neverSends?: boolean;
+  /** Errors show as focus leaves a field, by the rule of `validates: "aria"`. */
+  onBlur?: boolean;
   /** The form's in the page for this many presses. */
   goneAfter?: number;
   /** Text showing from the load, before any press. */
@@ -60,6 +72,7 @@ export class FakeFormDriver extends ScriptedDriver {
   /** A field's index, "submit", "out" (past the form), or null before anything is focused. */
   private focus: number | "submit" | "out" | null = null;
   private held = 0;
+  private tabs = 0;
   private presses = 0;
   private marked: number[] = [];
   private shown: string[] = [];
@@ -73,12 +86,14 @@ export class FakeFormDriver extends ScriptedDriver {
       signature: "fake",
       kind: form.kind ?? "test",
       site: form.kind === "other-site" ? "docs.google.com" : null,
-      fields: form.fields.map(({ name, type, required }, index): FormField => ({
+      fields: form.fields.map(({ name, type, required, tabIndex }, index): FormField => ({
         index,
         name,
         type: type ?? "text",
         required: required ?? true,
+        tabIndex: tabIndex ?? 0,
       })),
+      submitName: "Send",
       sensitive: form.sensitive ?? false,
       captcha: form.captcha ?? false,
     };
@@ -91,6 +106,7 @@ export class FakeFormDriver extends ScriptedDriver {
 
   armFormGuard(): Promise<void> {
     this.made.push("armFormGuard");
+    if (this.form.armHangs) return new Promise(() => {});
     return this.form.armError === undefined
       ? Promise.resolve()
       : Promise.reject(new Error(this.form.armError));
@@ -105,12 +121,15 @@ export class FakeFormDriver extends ScriptedDriver {
   override nextFocusable(): Promise<Speech> {
     this.made.push("nextFocusable");
     const stops = this.form.fields.flatMap((field, index) =>
-      field.tabbable === false ? [] : [index],
+      field.tabbable === false || (field.tabIndex ?? 0) < 0 ? [] : [index],
     );
+    this.tabs += 1;
+    if (this.form.onBlur) this.markEmpty();
     const at = typeof this.focus === "number" ? stops.indexOf(this.focus) : -1;
     const next = stops[at + 1];
-    if (this.focus === "submit" || this.focus === "out") this.focus = "out";
-    else if (next === undefined) this.focus = "submit";
+    const leaves = this.form.tabsUntilOut !== undefined && this.tabs > this.form.tabsUntilOut;
+    if (leaves || this.focus === "submit" || this.focus === "out") this.focus = "out";
+    else if (next === undefined) this.focus = this.form.submitUntabbable ? "out" : "submit";
     else this.focus = next;
     if (typeof this.focus === "number") return Promise.resolve(this.speechAt(this.focus));
     return Promise.resolve(this.focus === "submit" ? "Send, button" : "");
@@ -125,6 +144,8 @@ export class FakeFormDriver extends ScriptedDriver {
   }
 
   pressSubmit(form: number, settleMs: number): Promise<Speech> {
+    // The driver presses what has focus: a press from anywhere else is the pass's mistake.
+    if (this.focus !== "submit") throw new Error("pressSubmit with focus off the submit control");
     this.made.push(`pressSubmit ${form}`);
     this.settles.push(settleMs);
     this.presses += 1;
@@ -143,8 +164,7 @@ export class FakeFormDriver extends ScriptedDriver {
         this.bubble = "Please fill out this field.";
         break;
       case "aria":
-        this.marked = empty;
-        if (empty.length > 0) this.show("Fix the fields marked");
+        this.markEmpty();
         break;
       case "message":
         if (empty.length > 0) this.show("Please complete the form");
@@ -152,7 +172,9 @@ export class FakeFormDriver extends ScriptedDriver {
       case "nothing":
         return Promise.resolve("");
     }
-    if (empty.length === 0 && (this.form.validates ?? "native") !== "nothing") {
+    if (this.form.neverSends) {
+      this.show("Please complete the form");
+    } else if (empty.length === 0 && (this.form.validates ?? "native") !== "nothing") {
       this.held += 1;
       if (this.form.afterHeld !== undefined) this.show(this.form.afterHeld);
     }
@@ -180,6 +202,7 @@ export class FakeFormDriver extends ScriptedDriver {
       focusedField: null,
       focusedSubmit: false,
       invalid: [],
+      emptyRequired: [],
       messages: [],
       liveChanged: live,
       heldRequests: this.held,
@@ -193,6 +216,7 @@ export class FakeFormDriver extends ScriptedDriver {
       focusedField: typeof this.focus === "number" ? this.focus : null,
       focusedSubmit: this.focus === "submit",
       invalid: native ? this.emptyFields() : this.marked,
+      emptyRequired: this.emptyFields(),
       messages: [...(this.form.hints ?? []), ...this.shown],
       // Chrome's message for the field that's focused, for as long as it stays invalid.
       bubble:
@@ -217,8 +241,14 @@ export class FakeFormDriver extends ScriptedDriver {
     );
   }
 
+  private markEmpty(): void {
+    this.marked = this.emptyFields();
+    if (this.marked.length > 0) this.show("Fix the fields marked");
+  }
+
   private show(text: string): void {
-    if (!this.shown.includes(text)) this.shown.push(text);
+    if (this.shown.includes(text)) return;
+    this.shown.push(text);
     this.live = true;
   }
 

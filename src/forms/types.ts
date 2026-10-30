@@ -22,6 +22,8 @@ export interface FormField {
   type: string;
   /** The `required` attribute, `aria-required="true"`, or a radio or check box required by its group. */
   required: boolean;
+  /** Its tabIndex: below 0, Tab never reaches it. A radio group's is its most reachable radio's. */
+  tabIndex: number;
 }
 
 export interface FormInfo {
@@ -33,6 +35,8 @@ export interface FormInfo {
   /** The site that holds a form in another site's frame; otherwise null. */
   site: string | null;
   fields: FormField[];
+  /** What the first submit control that can be pressed calls itself; null when it has no words. */
+  submitName: string | null;
   /** A password or a card number: the pass never fills it. */
   sensitive: boolean;
   /** A CAPTCHA, which stops voicecap there. */
@@ -47,6 +51,11 @@ export interface FormState {
   focusedSubmit: boolean;
   /** The indexes of the fields the browser or the page calls invalid. */
   invalid: number[];
+  /**
+   * The indexes of the required fields with no value or no choice: a radio group with nothing
+   * chosen and an unchecked check box among them. A page's script can leave these out of `invalid`.
+   */
+  emptyRequired: number[];
   /**
    * The message text showing now: the form's alerts and live regions, a page's alerts and status
    * messages, what an invalid field's `aria-describedby` or `aria-errormessage` names, and text
@@ -75,10 +84,11 @@ export interface FieldHeard {
 export type FieldValue = { kind: "text"; text: string } | { kind: "space" } | { kind: "arrow" };
 
 /**
- * What came of a form: `completed`, a press that held a request with no field invalid and no bubble
- * showing; `stuck`, it never got there; `not-tested`, voicecap didn't try to finish it, as `reason`
- * says. A form tested empty, for a password or a CAPTCHA, is `not-tested` with its press kept, since
- * nothing says a person couldn't finish it.
+ * What came of a form: `completed`, a press that held a request with no field invalid or required
+ * and empty, and no bubble showing; `stuck`, the keyboard couldn't get it there; `not-tested`,
+ * voicecap can't say, as `reason` does. A form tested empty, for a password or a CAPTCHA, is
+ * `not-tested` with its press kept, and so is one that ran out of steps or needs a value voicecap
+ * hasn't got: nothing says a person couldn't finish those.
  */
 export type FormResult = "completed" | "stuck" | "not-tested";
 

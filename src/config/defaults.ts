@@ -10,11 +10,19 @@ export const FORMS_DEFAULTS = {
   stepCap: 500,
   settleMs: 3000,
   maxPerPage: 5,
-  /** By input type; `text` is for any other typed field. A check box, radio, or list needs none. */
-  values: { text: "voicecap test", email: "test@example.com", tel: "555-555-5555" } as Record<
-    string,
-    string
-  >,
+  /**
+   * By input type, as the keys are typed; `text` is for any other typed field. A check box, radio, or
+   * list needs none. `date` is a US date: month, day, year. Types with no value here and no way to
+   * type one, such as `file`, need a config's, and a form that requires one without it isn't tested.
+   */
+  values: {
+    text: "voicecap test",
+    email: "test@example.com",
+    tel: "555-555-5555",
+    number: "1",
+    url: "https://example.org",
+    date: "01012026",
+  } as Record<string, string>,
 };
 
 /** The forms pass's settings as the config has them, with FORMS_DEFAULTS for each it leaves out. */

@@ -12,7 +12,7 @@ import type {
 import type { StopReason } from "../model.js";
 import { redactAccount } from "../run/failure.js";
 import { errorMessage } from "../util/errors.js";
-import { InterruptedError, StepTimeoutError, type StepRecorder } from "./steps.js";
+import { InterruptedError, type StepRecorder } from "./steps.js";
 
 export interface FormPassOptions {
   cap: number;
@@ -49,6 +49,11 @@ function testsForms(driver: ScreenReaderDriver): driver is FormDriver {
 
 const NO_FORM_DRIVER = "this run's driver doesn't test forms";
 
+/** Why a form stopped at a field the keyboard can't get to: `form-field-unreachable`'s evidence. */
+export const UNREACHABLE = "Tab never reached it";
+
+const OUT_OF_STEPS = "the pass ran out of steps on this form";
+
 /** Tab stops a walk allows beyond the fields: links and buttons among them, such as a "What's this?". */
 const WALK_SPARE_TABS = 10;
 
@@ -77,36 +82,61 @@ function whyLeftEmpty(form: FormInfo): string | null {
   return null;
 }
 
-/** What the keyboard puts in a field. A value a config's table leaves out takes the default. */
+/** Input types the keyboard can't be given a value for, unless a config's table has one. */
+const NO_VALUE_TYPES = new Set([
+  "file",
+  "color",
+  "range",
+  "time",
+  "month",
+  "week",
+  "datetime-local",
+]);
+
+/**
+ * What the keyboard puts in a field, or null for a type voicecap has no value for. A value a config's
+ * table leaves out takes the default.
+ */
 export function fieldValueOf(
   field: FormField,
   settings: Pick<FormPassOptions, "values">,
-): FieldValue {
+): FieldValue | null {
   if (field.type === "checkbox" || field.type === "radio") return { kind: "space" };
   if (field.type === "select-one" || field.type === "select-multiple") return { kind: "arrow" };
-  const key = field.type === "email" || field.type === "tel" ? field.type : "text";
-  return { kind: "text", text: (settings.values[key] ?? FORMS_DEFAULTS.values[key]) as string };
+  const own = settings.values[field.type] ?? FORMS_DEFAULTS.values[field.type];
+  if (own !== undefined) return { kind: "text", text: own };
+  if (NO_VALUE_TYPES.has(field.type)) return null;
+  return { kind: "text", text: (settings.values.text ?? FORMS_DEFAULTS.values.text) as string };
+}
+
+/** How one walk goes. */
+interface WalkPlan {
+  /** Where it ends: a field, the submit control, or, left out, the submit once all are heard. */
+  stopAt?: number | "submit";
+  /** Tab on from where focus is, rather than enter the form at its first field. */
+  fromHere?: boolean;
 }
 
 /**
- * Focus the form's first field, by script, and Tab on from it, keeping what NVDA says at each of the
- * form's fields. Ends at `stopAt`, a field, with focus on it. Otherwise it ends at the submit control
- * once every field has been heard, or when focus leaves the page, the form goes, it has used its
- * spare tabs, or the pass is out of steps. A submit control that comes before a field doesn't end it.
+ * Keep what NVDA says at each of the form's fields as focus moves through it: Tab, from the first
+ * field, which script moves focus to, or from where focus is. Ends with focus on `plan.stopAt`.
+ * Otherwise it ends when focus leaves the page, the form goes, it has used its spare tabs, or the
+ * form's steps run out. A submit control that comes before a field doesn't end a walk that's hearing
+ * the form. The fields it returns are those it found focus on, so one at `stopAt` is really there.
  */
 async function walk(
   driver: FormDriver,
   recorder: StepRecorder,
   form: FormInfo,
-  cap: number,
-  stopAt?: number,
+  stepLimit: number,
+  { stopAt, fromHere = false }: WalkPlan = {},
 ): Promise<FieldHeard[]> {
   const heard: FieldHeard[] = [];
   const focusCheck = async () => ({ inDocument: await driver.focusInDocument() });
   for (let stop = 0; stop <= form.fields.length + WALK_SPARE_TABS; stop++) {
-    if (recorder.count >= cap) break;
+    if (recorder.count >= stepLimit) break;
     const step =
-      stop === 0
+      stop === 0 && !fromHere
         ? await recorder.step("focusField", () => driver.focusFormField(form.index, 0), focusCheck)
         : await recorder.step("nextFocusable", () => driver.nextFocusable(), focusCheck);
     if (step.inDocument === false) break;
@@ -117,7 +147,8 @@ async function walk(
       heard.push({ field: field.index, spoken: step.spoken, required: field.required });
     }
     if (field && field.index === stopAt) break;
-    if (state.focusedSubmit && heard.length === form.fields.length) break;
+    if (state.focusedSubmit && stopAt === "submit") break;
+    if (state.focusedSubmit && stopAt === undefined && heard.length === form.fields.length) break;
   }
   return heard;
 }
@@ -128,9 +159,13 @@ function readPress(baseline: FormState, before: FormState, state: FormState) {
   const newMessages = state.messages.filter((message) => !baseline.messages.includes(message));
   const wouldSend = state.heldRequests > before.heldRequests;
   return {
-    // A request alone proves nothing: a click beacon goes out on a press Chrome blocked. So nothing
-    // may be left invalid, whether it was so before the press or not, and no bubble may be showing.
-    completed: wouldSend && state.invalid.length === 0 && state.bubble === null,
+    // A request alone proves nothing: a click beacon goes out on a press that was blocked, by Chrome
+    // or the page's script. So nothing may be left invalid or empty, and no bubble may be showing.
+    completed:
+      wouldSend &&
+      state.invalid.length === 0 &&
+      state.emptyRequired.length === 0 &&
+      state.bubble === null,
     // The page may be reacting to the guard, so a message after a held request isn't an error.
     showedError:
       newInvalid.length > 0 || state.bubble !== null || (newMessages.length > 0 && !wouldSend),
@@ -145,26 +180,34 @@ function readPress(baseline: FormState, before: FormState, state: FormState) {
   };
 }
 
-/**
- * The next field to fill: the first invalid one not filled yet, or, when the page marks none, the
- * first required one. A filled field that's still invalid doesn't take a turn again, and the press
- * after it could be a reset as easily as a refusal, so the form goes on and answers for it at the end.
- */
-function nextToFill(form: FormInfo, state: FormState, filled: Set<number>): FormField | undefined {
-  const invalid = state.invalid.flatMap((index) => form.fields[index] ?? []);
-  const blocking = invalid.length > 0 ? invalid : form.fields.filter((field) => field.required);
-  return blocking.find((field) => !filled.has(field.index));
+/** The fields keeping the form back, as far as the page says: its invalid ones, then the empty. */
+function blocking(form: FormInfo, state: FormState): FormField[] {
+  return [...state.invalid, ...state.emptyRequired].flatMap((index) => form.fields[index] ?? []);
+}
+
+/** How a field reads in a sentence. */
+function nameOf(field: FormField): string {
+  return field.name ?? `field ${field.index + 1}`;
 }
 
 /**
  * Test one form, on a page that's open with the form's guard not armed yet. Arm the guard, then hear
  * the form, press it, look at the page, hear it again, fill the field that's blocking, and go round
- * again. Each round fills a field no round has, so a form takes at most its fields + 1 presses.
+ * again. Each round fills a field no round has, so a form takes at most its fields + 1 presses. A
+ * filled field that's still blocking doesn't take a turn again: the press after it could be a reset
+ * as easily as a refusal, so the form goes on and answers for it at the end.
+ *
+ * Script moves focus only to enter the form at its first field. The keyboard does the rest, so every
+ * press is from the submit control Tab reached, and every fill is in a field a walk found focus on.
+ * What voicecap can't speak for, it calls `not-tested`, not `stuck`, since a false red is as bad as a
+ * false green: a form tested empty, one that runs out of `options.cap` steps, which are this form's
+ * own, and one that needs a value voicecap hasn't got.
  *
  * `FormState.messages` is the text showing now and `heldRequests` only counts up, so messages and
- * invalid fields are new against the state before the first press, and a held request with the
- * state just before that press, since a page can send one as a field is typed in. The driver's
- * errors and a timeout end the pass: only the guard's own refusal is an answer about the form.
+ * invalid fields are new against the state before the first walk, as a page can show errors when Tab
+ * leaves a field, and a held request is against the state just before its press, as a page can send
+ * one while a field is typed in. A guard that refuses or never answers is an answer about the form;
+ * any other driver error, or a timeout, ends the pass.
  */
 export async function formPass(
   driver: ScreenReaderDriver,
@@ -197,32 +240,47 @@ export async function formPass(
   try {
     await recorder.query("arming the form guard", () => driver.armFormGuard());
   } catch (error) {
-    if (error instanceof InterruptedError || error instanceof StepTimeoutError) throw error;
+    if (error instanceof InterruptedError) throw error;
     const reason = redactAccount(errorMessage(error));
     return end("not-tested", `the guard couldn't be armed, so nothing was pressed: ${reason}`);
   }
 
+  const stepLimit = recorder.count + options.cap;
+  const outOfSteps = () => recorder.count >= stepLimit;
   const readState = () => recorder.query("form state", () => driver.formState(form.index));
-  const firstInvalid = (state: FormState) => form.fields[state.invalid[0] ?? -1] ?? null;
-  const outOfSteps = () => recorder.count >= options.cap;
   const emptyOnly = whyLeftEmpty(form);
+  // Script can enter the form at the first field, but no one with a keyboard can.
+  const barred = form.fields.find(
+    (field) => field.tabIndex < 0 && (field.required || field.index === 0),
+  );
+  const settleMs = Math.min(options.settleMs, recorder.stepTimeoutMs / 2);
   const filled = new Set<number>();
   let lastErrors: string | null = null;
 
-  firstWalk = await walk(driver, recorder, form, options.cap);
   const baseline = await readState();
+  firstWalk = await walk(driver, recorder, form, stepLimit);
   for (;;) {
-    if (outOfSteps()) return end("stuck", "the pass ran out of steps");
-    const before = await readState();
+    if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
+    let before = await readState();
+    if (before.present && !before.focusedSubmit) {
+      const fromHere = presses.length > 0;
+      await walk(driver, recorder, form, stepLimit, { stopAt: "submit", fromHere });
+      if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
+      before = await readState();
+    }
     if (!before.present) return end("stuck", "the form left the page");
+    if (!before.focusedSubmit) {
+      const submit = form.submitName === null ? "" : `, "${form.submitName}"`;
+      return end("stuck", `Tab never reached the submit control${submit}`);
+    }
     const { spoken } = await recorder.step("pressSubmit", () =>
-      driver.pressSubmit(form.index, options.settleMs),
+      driver.pressSubmit(form.index, settleMs),
     );
     const state = await readState();
 
     const errors = JSON.stringify([state.invalid, state.messages]);
     let axe: AxeCapture | null = null;
-    if (driver.checkFormWithAxe && errors !== lastErrors) {
+    if (state.present && driver.checkFormWithAxe && errors !== lastErrors) {
       axe = await recorder.query("checking the form with axe", () =>
         driver.checkFormWithAxe!(form.index),
       );
@@ -230,61 +288,77 @@ export async function formPass(
     lastErrors = errors;
     presses.push({ state, spoken, axe });
 
-    if (!state.present) return end("stuck", "the form left the page after the press");
-    const press = readPress(baseline, before, state);
-    if (press.completed) return end("completed", null);
+    if (!state.present) {
+      if (emptyOnly !== null) return end("not-tested", emptyOnly);
+      return end("stuck", "the form left the page after the press");
+    }
     // A check still under way holds the page up, so no key goes into it.
     if (axe && "leftRunning" in axe) {
       return end("not-tested", "axe was still running in the page, so voicecap pressed no more");
     }
-    if (!press.changed && emptyOnly === null) {
-      return end("stuck", "pressing submit changed nothing", firstInvalid(state));
+    const press = readPress(baseline, before, state);
+    const finishes = emptyOnly === null && barred === undefined;
+    if (finishes && press.completed) return end("completed", null);
+    if (finishes && !press.changed) {
+      const stoppedAt = form.fields[state.invalid[0] ?? -1] ?? null;
+      return end("stuck", "pressing submit changed nothing", stoppedAt);
     }
 
-    lastWalk = await walk(driver, recorder, form, options.cap);
+    lastWalk = await walk(driver, recorder, form, stepLimit);
     if (press.showedError) errorWalk ??= lastWalk;
     if (emptyOnly !== null) return end("not-tested", emptyOnly);
-    if (outOfSteps()) return end("stuck", "the pass ran out of steps");
-    const next = nextToFill(form, state, filled);
+    if (barred !== undefined) return end("stuck", UNREACHABLE, barred);
+    if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
+    const blockers = blocking(form, state);
+    const next = blockers.find((field) => !filled.has(field.index));
     if (next === undefined) {
-      const stoppedAt = firstInvalid(state);
+      const [stoppedAt = null] = blockers;
       return end(
         "stuck",
         stoppedAt
-          ? "it was filled by keyboard, and the form still calls it invalid"
+          ? "it was filled by keyboard, and the form didn't take it"
           : "every required field was filled, and the form still wouldn't send",
         stoppedAt,
       );
     }
     if (!lastWalk.some((entry) => entry.field === next.index)) {
-      return end("stuck", "Tab never reached it", next);
+      return end("stuck", UNREACHABLE, next);
     }
-    await walk(driver, recorder, form, options.cap, next.index);
-    if (outOfSteps()) return end("stuck", "the pass ran out of steps");
-    await recorder.step("fillField", () => driver.fillField(fieldValueOf(next, options)));
+    const value = fieldValueOf(next, options);
+    if (value === null) {
+      return end(
+        "not-tested",
+        `voicecap has no value for ${nameOf(next)}, a ${next.type} field`,
+        next,
+      );
+    }
+    const reached = await walk(driver, recorder, form, stepLimit, { stopAt: next.index });
+    if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
+    if (!reached.some((entry) => entry.field === next.index)) {
+      return end("stuck", UNREACHABLE, next);
+    }
+    await recorder.step("fillField", () => driver.fillField(value));
     filled.add(next.index);
   }
 }
 
 /**
  * Test the forms on the page that's open, in the order the driver found them. A driver that can't
- * find forms is no failure of the page: the pass ends there, and says so.
+ * test forms is no failure of the page: its forms aren't tested, and the pass says so.
  */
 export async function formsPass(
   driver: ScreenReaderDriver,
   recorder: StepRecorder,
   options: FormPassOptions,
 ): Promise<FormsPassOutcome> {
+  const warnings = testsForms(driver) ? [] : [NO_FORM_DRIVER];
   const find = driver.findForms?.bind(driver);
-  if (find === undefined || !testsForms(driver)) {
+  if (find === undefined)
     return { stopReason: "forms-done", forms: [], warnings: [NO_FORM_DRIVER] };
-  }
   const outcomes: FormOutcome[] = [];
   for (const form of await recorder.query("finding forms", find)) {
     outcomes.push(await formPass(driver, recorder, form, options));
-    if (recorder.count >= options.cap) {
-      return { stopReason: "step-cap", forms: outcomes, warnings: [] };
-    }
   }
-  return { stopReason: "forms-done", forms: outcomes, warnings: [] };
+  const capped = outcomes.some((outcome) => outcome.reason === OUT_OF_STEPS);
+  return { stopReason: capped ? "step-cap" : "forms-done", forms: outcomes, warnings };
 }

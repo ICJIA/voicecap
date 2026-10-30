@@ -131,11 +131,11 @@ export interface ScreenReaderDriver {
    * be armed, or can't be confirmed, and the core then presses no key on the form.
    */
   armFormGuard?(): Promise<void>;
-  /** Move focus to one of the form's fields by script: the core asks only for its first. */
+  /** Move focus to one of the form's fields by script: the core asks only for its first, to enter it. */
   focusFormField?(form: number, field: number): Promise<Speech>;
   /**
-   * Press Enter on the form's first enabled, visible submit control, with focus moved there by
-   * script. It keeps listening until the screen reader goes quiet and `settleMs` more has gone by,
+   * Press Enter on the submit control that has focus, where Tab has put it: the core asks for this
+   * only then, and a driver moves no focus for it. It keeps listening until the screen reader goes quiet and `settleMs` more has gone by,
    * since many forms show their errors a moment later, and what's said by then is its answer.
    */
   pressSubmit?(form: number, settleMs: number): Promise<Speech>;

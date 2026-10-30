@@ -76,7 +76,7 @@ export class StepRecorder {
   private underway: { n: number; command: DriverCommand } | null = null;
 
   constructor(
-    private readonly stepTimeoutMs: number,
+    readonly stepTimeoutMs: number,
     private readonly signal: AbortSignal | undefined,
     private readonly clock: () => number = () => performance.now(),
   ) {

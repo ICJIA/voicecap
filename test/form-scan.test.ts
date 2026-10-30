@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { chromium, type Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { FORMS_DEFAULTS } from "../src/config/defaults.js";
 import { launchChrome, type ChromeSession } from "../src/drivers/guidepup/chrome.js";
 import type { FormInfo } from "../src/forms/types.js";
 
@@ -59,6 +60,33 @@ const PAGES: Record<string, string> = {
       <a id="help" href="#help">What's this?</a>
       <button id="go">Send</button>
     </form>`,
+  "/required": `${HEAD}
+    <form action="/x" method="post">
+      <input name="t" aria-label="Text" required>
+      <label><input type="radio" name="r" value="one" required> One</label>
+      <label><input type="radio" name="r" value="two"> Two</label>
+      <label><input type="checkbox" name="b" required> Agree</label>
+      <select name="l" aria-label="List" required><option value=""></option><option>one</option></select>
+      <input name="o" aria-label="Optional">
+      <button>Send</button>
+    </form>`,
+  "/typed": `${HEAD}
+    <form action="/x" method="post">
+      <input type="number" name="number" aria-label="Count" required>
+      <input type="url" name="url" aria-label="Site" required>
+      <input type="date" name="date" aria-label="Day" required>
+      <button>Send</button>
+    </form>`,
+  "/tab": `${HEAD}
+    <form action="/x" method="post">
+      <input name="a" aria-label="Alpha">
+      <input name="b" aria-label="Beta" tabindex="-1">
+      <label><input type="radio" name="r" tabindex="-1"> A</label>
+      <label><input type="radio" name="r" tabindex="0" checked> B</label>
+      <button disabled>Off</button>
+      <button aria-label="Send it">Go</button>
+    </form>
+    <form action="/y" method="post"><input name="c" aria-label="Gamma"><input type="submit" value="Save"></form>`,
   "/state": `${HEAD}
     <div role="alert">Cookie notice</div>
     <form id="f" action="/x" method="post">
@@ -136,14 +164,16 @@ describe.skipIf(!haveChromium)("scanForms", () => {
     const forms = await (await open("/one")).scanForms();
     expect(forms.map((form) => form.kind)).toEqual(["test", "test"]);
     expect(forms[0]?.fields).toEqual([
-      { index: 0, name: "Your name", type: "text", required: true },
-      { index: 1, name: "Nickname", type: "text", required: true },
-      { index: 2, name: "Anything", type: "text", required: false },
-      { index: 3, name: "Red", type: "radio", required: true },
-      { index: 4, name: "Pick", type: "select-one", required: false },
-      { index: 5, name: "Message", type: "textarea", required: false },
+      { index: 0, name: "Your name", type: "text", required: true, tabIndex: 0 },
+      { index: 1, name: "Nickname", type: "text", required: true, tabIndex: 0 },
+      { index: 2, name: "Anything", type: "text", required: false, tabIndex: 0 },
+      { index: 3, name: "Red", type: "radio", required: true, tabIndex: 0 },
+      { index: 4, name: "Pick", type: "select-one", required: false, tabIndex: 0 },
+      { index: 5, name: "Message", type: "textarea", required: false, tabIndex: 0 },
     ]);
-    expect(forms[1]?.fields).toEqual([{ index: 0, name: "Email", type: "email", required: true }]);
+    expect(forms[1]?.fields).toEqual([
+      { index: 0, name: "Email", type: "email", required: true, tabIndex: 0 },
+    ]);
   });
 
   it("gives one form on two pages one signature, and two forms two", async () => {
@@ -214,6 +244,15 @@ describe.skipIf(!haveChromium)("scanForms", () => {
   });
 });
 
+describe.skipIf(!haveChromium)("scanForms, for Tab", () => {
+  it("gives each field's tabIndex, a radio group's its most reachable, and the submit's name", async () => {
+    const [form, other] = await (await open("/tab")).scanForms();
+    expect(form?.fields.map((field) => field.tabIndex)).toEqual([0, -1, 0]);
+    expect(form?.submitName).toBe("Send it");
+    expect(other?.submitName).toBe("Save");
+  });
+});
+
 describe.skipIf(!haveChromium)("readFormState", () => {
   it("lists the invalid fields, the messages showing, and Chrome's bubble", async () => {
     const session = await open("/state");
@@ -228,6 +267,33 @@ describe.skipIf(!haveChromium)("readFormState", () => {
     expect(state.heldRequests).toBe(0);
     expect(state.bubble).toBeNull();
     expect(state.focused).toBeNull();
+  });
+
+  it("lists the required fields with no value or no choice, and only those", async () => {
+    const session = await open("/required");
+    await session.scanForms();
+    const page = pageOf(session);
+    // Empty: text, a radio group with nothing chosen, an unchecked box, a list on its blank option.
+    expect((await session.readFormState(0)).emptyRequired).toEqual([0, 1, 2, 3]);
+    await page.fill('[name="t"]', "x");
+    await page.check('[name="b"]');
+    await page.check('[value="two"]');
+    expect((await session.readFormState(0)).emptyRequired).toEqual([3]);
+    await page.selectOption('[name="l"]', "one");
+    expect((await session.readFormState(0)).emptyRequired).toEqual([]);
+  });
+
+  it("takes each default value the keyboard types, in real Chromium", async () => {
+    const session = await open("/typed");
+    await session.scanForms();
+    const page = pageOf(session);
+    for (const name of ["number", "url", "date"]) {
+      await page.focus(`[name="${name}"]`);
+      await page.keyboard.type(FORMS_DEFAULTS.values[name] ?? "");
+    }
+    expect((await session.readFormState(0)).emptyRequired).toEqual([]);
+    expect((await session.readFormState(0)).invalid).toEqual([]);
+    expect(await page.inputValue('[name="date"]')).toBe("2026-01-01");
   });
 
   it("says which field has focus, a radio group's one index for any radio, and which is a submit", async () => {

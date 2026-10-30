@@ -29,6 +29,8 @@ export interface RawForm {
   searchRole: boolean;
   /** A submit button or image button that is visible and enabled. */
   submit: boolean;
+  /** What the first of those calls itself: its label, its text, or its value. Empty for none. */
+  submitName: string;
   fields: RawField[];
   captcha: boolean;
 }
@@ -85,7 +87,14 @@ export function describeForm(raw: RawForm): FormInfo {
     signature: formSignature(raw),
     kind: classifyForm(raw),
     site: raw.frame,
-    fields: raw.fields.map(({ index, name, type, required }) => ({ index, name, type, required })),
+    fields: raw.fields.map(({ index, name, type, required, tabIndex }) => ({
+      index,
+      name,
+      type,
+      required,
+      tabIndex,
+    })),
+    submitName: raw.submitName === "" ? null : raw.submitName,
     sensitive: raw.fields.some(isSensitive),
     captcha: raw.captcha,
   };

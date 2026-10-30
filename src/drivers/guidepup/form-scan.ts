@@ -80,6 +80,17 @@ const SCAN = `(() => {
       return true;
     });
   };
+  const groupOf = (element, controls) =>
+    element.type === "radio" && element.name
+      ? controls.filter((other) => other.type === "radio" && other.name === element.name)
+      : [element];
+  // A group of radios is reached by whichever of them Tab may stop at.
+  const tabIndexOf = (element, controls) =>
+    Math.max(...groupOf(element, controls).map((member) => member.tabIndex));
+  const isEmpty = (element, controls) =>
+    element.type === "radio" || element.type === "checkbox"
+      ? !groupOf(element, controls).some((member) => member.checked)
+      : element.value === "";
   const requiredBy = (element, controls) => {
     if (element.required || getAttribute(element, "aria-required") === "true") return true;
     if (element.type !== "radio" && element.type !== "checkbox") return false;
@@ -90,6 +101,12 @@ const SCAN = `(() => {
     const around = element.closest('[role="group"], [role="radiogroup"], fieldset');
     return around !== null && getAttribute(around, "aria-required") === "true";
   };
+
+  const submitNameOf = (control) =>
+    control
+      ? text(getAttribute(control, "aria-label") ||
+          (control.localName === "button" ? control.textContent : control.value || control.alt))
+      : "";
 
   // A submit button's formaction replaces the form's action for that button; a non-web one wins.
   const actionOf = (form, submits) => {
@@ -126,11 +143,13 @@ const SCAN = `(() => {
     method: form === null ? "get" : String(own(form, "method")),
     searchRole: form !== null && form.closest('[role="search"], search') !== null,
     submit: form !== null && submits.some(canPress),
+    submitName: submitNameOf(submits.find(canPress)),
     fields: fields.map((element, at) => ({
       index: at,
       name: null,
       type: element.type,
       required: requiredBy(element, controls),
+      tabIndex: tabIndexOf(element, controls),
       autocomplete: getAttribute(element, "autocomplete") || "",
       attribute: getAttribute(element, "name") || "",
     })),
@@ -151,7 +170,7 @@ const SCAN = `(() => {
     hosts.add(address.host);
     raws.push({
       index: raws.length, frame: address.host, formless: false, action: "", actionSelf: true,
-      method: "get", searchRole: false, submit: false, fields: [], captcha: false,
+      method: "get", searchRole: false, submit: false, submitName: "", fields: [], captcha: false,
     });
   }
 
@@ -181,7 +200,7 @@ const SCAN = `(() => {
       (entry.form !== null ? entry.form.isConnected : entry.fields.some((field) => field.isConnected));
     const now = world.voicecapChanges;
     const read = {
-      focusedField: null, focusedSubmit: false, invalid: [], messages: [],
+      focusedField: null, focusedSubmit: false, invalid: [], emptyRequired: [], messages: [],
       liveChanged: now.live, present, bubble: null,
     };
     const added = now.added;
@@ -195,6 +214,9 @@ const SCAN = `(() => {
       if (shown) messages.add(shown);
     };
     entry.fields.forEach((field, at) => {
+      if (field.isConnected && requiredBy(field, entry.controls) && isEmpty(field, entry.controls)) {
+        read.emptyRequired.push(at);
+      }
       if (field.isConnected && (field.matches(":invalid") || getAttribute(field, "aria-invalid") === "true")) {
         read.invalid.push(at);
         const names = (getAttribute(field, "aria-describedby") || "") + " " + (getAttribute(field, "aria-errormessage") || "");
@@ -296,6 +318,7 @@ export async function readFormState(
     focusedField: null,
     focusedSubmit: false,
     invalid: [],
+    emptyRequired: [],
     messages: [],
     liveChanged: false,
     present: false,

@@ -49,7 +49,14 @@ describe("forms as a pass name", () => {
     expect(formsSettingsOf(config)).toEqual({
       settleMs: 3000,
       maxPerPage: 5,
-      values: { text: "voicecap test", email: "test@example.com", tel: "555-555-5555" },
+      values: {
+        text: "voicecap test",
+        email: "test@example.com",
+        tel: "555-555-5555",
+        number: "1",
+        url: "https://example.org",
+        date: "01012026",
+      },
     });
   });
 
