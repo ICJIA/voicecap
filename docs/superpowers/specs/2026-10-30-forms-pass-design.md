@@ -30,11 +30,12 @@ Also out: testing whether a form's submission works, which voicecap assumes it d
 
 ## The guard
 
-Everything the pass does to a form happens behind a guard in the driver, armed before the pass's first key and left on until the page is closed, since some pages save or check a field as it's typed in. Once armed, the browser may fetch only images, style sheets, fonts, and scripts, by GET. Everything else is aborted: any navigation of the main frame or of a frame, whatever its method, any `fetch` or XHR, any request that isn't a GET or HEAD, beacons, and WebSockets.
+Everything the pass does to a form happens behind a guard in the driver, armed before the pass's first key and left on until the page is closed, since some pages save or check a field as it's typed in. Once armed, the browser may fetch only an image, style sheet, font, or script by GET at an exact address the page had already fetched before arming, since a new address can carry what was typed, as a tracking pixel's does. Everything else is aborted: any navigation of the main frame or of a frame, whatever its method, any `fetch` or XHR, any request that isn't a GET or HEAD, beacons, and WebSockets.
 
 - **It fails closed.** If the guard can't be armed, or can't confirm it's armed, voicecap doesn't press. The form is recorded as not tested, with the reason.
 - **GET forms are held too.** A GET form usually searches, but it can also unsubscribe or confirm.
 - **A real-Chromium test proves it,** in CI, on all three systems: a local server counts what reaches it while each kind of form is submitted, and the count has to stay at zero.
+- **It also takes WebRTC, WebTransport, and new workers away,** on a load for this pass only, since each can carry data past the browser's own request handling. One limit remains: a worker that opens WebTransport in its first line while the page loads keeps that session. It would take a page that deliberately passes typed values to such a worker, and the values are fake.
 - **There's no option to turn it off.** A later phase could add one for a staging site, but only as a deliberate decision of its own.
 
 So voicecap sees only what the page does in the browser, and that's all it's asked to see: it assumes the form's submission works. "Would have sent" means the form passed everything the browser checks, and it's reported as a good result. Errors only a server would give are out of scope. A page that reacts to the aborted request with its own "network error" message may show words the site never normally shows, so a message that appears only after a request is held isn't treated as a form error.
