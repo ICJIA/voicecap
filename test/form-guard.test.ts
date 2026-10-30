@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
+import dgram from "node:dgram";
 import { createServer, type Server, type ServerResponse } from "node:http";
-import type { AddressInfo, Socket } from "node:net";
+import net, { type AddressInfo, type Socket } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { chromium, type Browser, type Page } from "playwright";
@@ -45,6 +46,14 @@ const SERVICE_WORKER = `self.addEventListener("install", () => self.skipWaiting(
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 self.addEventListener("message", () => { fetch("/sw-sent", { method: "POST", body: "secret" }); });
 self.addEventListener("fetch", (event) => event.respondWith(fetch(event.request)));`;
+
+/** Opens a WebTransport session, if the realm has them, and quietly lets it fail. */
+const OPEN_TRANSPORT = (url: string): string => `
+  if (self.WebTransport) {
+    const transport = new WebTransport(${url});
+    transport.ready.catch(() => {});
+    transport.closed.catch(() => {});
+  }`;
 
 /** A one-pixel PNG. */
 const PIXEL = Buffer.from(
@@ -146,6 +155,25 @@ const sentBy = (kind: string, otherOrigin: string): string => {
       return `${HEAD}<script>
         fetch("/slow").finally(() => fetch("/sent", { method: "POST", body: "secret" }));
       </script>`;
+    case "a pixel with what was typed in its address":
+      return button(`new Image().src = "/pixel.gif?email=typed"`);
+    case "a new stylesheet":
+      return button(
+        `document.head.append(Object.assign(document.createElement("link"), { rel: "stylesheet", href: "/new.css" }))`,
+      );
+    case "a dynamic script with a query":
+      return button(
+        `document.head.append(Object.assign(document.createElement("script"), { src: "/new.js?email=typed" }))`,
+      );
+    case "a font at a new address":
+      return button(`new FontFace("New", "url(/new.woff2?email=typed)").load().catch(() => {})`);
+    case "a worker's script with a query":
+      return button(`new Worker("/worker.js?email=typed")`);
+    case "a worker's imported script":
+      return `${button(`worker.postMessage("/new.js?email=typed")`)}<script>const worker = new Worker("/importer.js");</script>`;
+    case "a page with its files":
+      return `${HEAD}<link rel="stylesheet" href="/style.css"><style>@font-face { font-family: Known; src: url(/known.woff2); }</style>
+        <p style="font-family: Known">Text</p><img src="/pic.png" alt=""><script src="/late.js"></script>`;
     case "a websocket opened before the guard":
       return `${button(`socket.send("secret")`)}<script>
         const socket = new WebSocket(location.origin.replace("http", "ws") + "/socket");
@@ -195,6 +223,21 @@ async function countingServer(kindOf: () => string, csp = ""): Promise<Counter> 
         "text/javascript",
         `fetch("/late-sw-sent", { method: "POST", body: "secret" });`,
       ],
+      "/importer.js": ["text/javascript", `self.onmessage = (event) => importScripts(event.data);`],
+      "/transport-worker.js": [
+        "text/javascript",
+        `self.onmessage = (event) => { ${OPEN_TRANSPORT("event.data")} };`,
+      ],
+      "/transport-top.js": [
+        "text/javascript",
+        `${OPEN_TRANSPORT("`https://127.0.0.1:${location.search.slice(1)}/`")}`,
+      ],
+      "/transport-sw.js": [
+        "text/javascript",
+        `self.addEventListener("install", () => self.skipWaiting());
+        self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+        self.addEventListener("message", (event) => { ${OPEN_TRANSPORT("event.data")} });`,
+      ],
       "/worker-open.js": [
         "text/javascript",
         `const socket = new WebSocket(location.origin.replace("http", "ws") + "/socket");
@@ -233,6 +276,7 @@ async function countingServer(kindOf: () => string, csp = ""): Promise<Counter> 
     const headers: Record<string, string> = {
       "Content-Type": html === undefined ? (answer?.[0] ?? "text/plain") : "text/html",
       "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "no-store",
       ...(csp && html !== undefined ? { "Content-Security-Policy": csp } : {}),
     };
     response.writeHead(200, headers);
@@ -352,6 +396,11 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     "a worker's websocket",
     "a websocket made from a constructor kept before the guard",
     "a cross-origin frame's websocket",
+    "a pixel with what was typed in its address",
+    "a new stylesheet",
+    "a dynamic script with a query",
+    "a font at a new address",
+    "a worker's imported script",
     "a websocket opened before the guard",
     "an input handler's send on a websocket opened before the guard",
     "cross-origin frame's websocket opened before the guard",
@@ -404,8 +453,8 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     expect(server.paths()).toEqual([]);
   });
 
-  it("still lets a stylesheet, an image, a font, and a script load", async () => {
-    kind = "fetch";
+  it("still lets a stylesheet, an image, and a script the page already fetched load again", async () => {
+    kind = "a page with its files";
     await start();
     const page = await open();
     await session.armFormGuard();
@@ -424,39 +473,224 @@ describe.skipIf(!haveChromium)("the form guard", () => {
         sheet.href = "/style.css";
         document.head.append(sheet);
       }),
-      new FontFace("Asked", "url(/font.woff2)").load().catch(() => "font asked for"),
       new Promise((resolve) => {
+        window.lateRan = false;
         const script = document.createElement("script");
         script.onload = script.onerror = () => resolve(window.lateRan);
         script.src = "/late.js";
         document.head.append(script);
       }),
     ])`);
-    // The font isn't a real one: what counts is that it reached the server, below.
-    expect(loaded).toEqual(["image loaded", "sheet loaded", "font asked for", true]);
-    expect(server.paths().sort()).toEqual(["/font.woff2", "/late.js", "/pic.png", "/style.css"]);
+    expect(loaded).toEqual(["image loaded", "sheet loaded", true]);
+    expect(server.paths()).toEqual(expect.arrayContaining(["/late.js", "/style.css"]));
     expect(session.heldRequests()).toBe(0);
   });
 
-  it("stops a shared worker started once it's armed, before its first line", async () => {
-    kind = "fetch";
+  it("holds a known address asked for another way: a fetch of a file it let in", async () => {
+    kind = "a page with its files";
     await start();
     const page = await open();
     await session.armFormGuard();
-    await page.evaluate(`window.late = new SharedWorker("/late-worker.js")`);
+    await page.evaluate(`fetch("/pic.png").catch(() => {})`);
     await settled();
-    expect(server.paths().filter((path) => path !== "/late-worker.js")).toEqual([]);
-    expect(session.heldRequests()).toBeGreaterThan(0);
+    expect(server.paths()).toEqual([]);
+    expect(session.heldRequests()).toBe(1);
   });
 
-  it("stops a service worker registered once it's armed", async () => {
+  it("starts no new worker, whatever its address", async () => {
     kind = "fetch";
     await start();
     const page = await open();
     await session.armFormGuard();
-    await page.evaluate(`navigator.serviceWorker.register("/late-sw.js").catch(() => {})`);
+    const made = await page.evaluate(`(() => {
+      try { new Worker("/worker.js?email=typed"); return "made"; } catch { return "refused"; }
+    })()`);
     await delay(STRAGGLER_MS * 2);
-    expect(server.paths().filter((path) => path !== "/late-sw.js")).toEqual([]);
+    expect(made).toBe("refused");
+    expect(server.paths()).toEqual([]);
+  });
+
+  it("lets no shared worker's address out", async () => {
+    kind = "fetch";
+    await start();
+    const page = await open();
+    await session.armFormGuard();
+    const made = await page.evaluate(`(() => {
+      try { new SharedWorker("/late-worker.js?email=typed"); return "made"; } catch { return "refused"; }
+    })()`);
+    await delay(STRAGGLER_MS * 2);
+    expect(made).toBe("refused");
+    expect(server.paths()).toEqual([]);
+  });
+
+  it("lets no shared worker's address out through a constructor kept before the guard", async () => {
+    kind = "fetch";
+    await start();
+    const page = await open();
+    await page.evaluate(`window.Kept = SharedWorker`);
+    await session.armFormGuard();
+    await page.evaluate(`new Kept("/late-worker.js?email=typed"), 1`).catch(() => "refused");
+    await delay(STRAGGLER_MS * 2);
+    expect(server.paths()).toEqual([]);
+  });
+
+  it("lets no service worker's address out", async () => {
+    kind = "fetch";
+    await start();
+    const page = await open();
+    await session.armFormGuard();
+    const result = await page.evaluate(
+      `navigator.serviceWorker.register("/late-sw.js?email=typed").then(() => "made", () => "refused")`,
+    );
+    await delay(STRAGGLER_MS * 2);
+    expect(result).toBe("refused");
+    expect(server.paths()).toEqual([]);
+  });
+
+  it("lets no shared or service worker's address out from a frame made after it's armed", async () => {
+    kind = "fetch";
+    await start();
+    const page = await open();
+    await session.armFormGuard();
+    await page.evaluate(`(() => {
+      const frame = document.createElement("iframe");
+      document.body.append(frame);
+      try { new frame.contentWindow.SharedWorker("/late-worker.js?email=typed"); } catch {}
+      frame.contentWindow.navigator.serviceWorker.register("/late-sw.js?email=typed").catch(() => {});
+    })()`);
+    await delay(STRAGGLER_MS * 2);
+    expect(server.paths()).toEqual([]);
+  });
+
+  describe("what no route sees", () => {
+    let packets = 0;
+    let connections = 0;
+    let udp: dgram.Socket;
+    let tcp: net.Server;
+    let udpPort = 0;
+    let tcpPort = 0;
+
+    beforeEach(async () => {
+      packets = 0;
+      connections = 0;
+      udp = dgram.createSocket("udp4");
+      udp.on("message", () => (packets += 1));
+      await new Promise<void>((resolve) => udp.bind(0, "127.0.0.1", resolve));
+      udpPort = udp.address().port;
+      tcp = net.createServer((socket) => {
+        connections += 1;
+        socket.on("error", () => {});
+      });
+      await new Promise<void>((resolve) => tcp.listen(0, "127.0.0.1", resolve));
+      tcpPort = (tcp.address() as AddressInfo).port;
+      kind = "fetch";
+      await start();
+    });
+
+    afterEach(async () => {
+      udp.close();
+      await new Promise<void>((resolve) => tcp.close(() => resolve()));
+    });
+
+    const peerConnection = (realm: string, ice: string) => `(async () => {
+      const Connection = ${realm}.RTCPeerConnection ?? ${realm}.webkitRTCPeerConnection;
+      if (!Connection) return;
+      const peer = new Connection({ iceServers: [${ice}] });
+      peer.createDataChannel("sent");
+      await peer.setLocalDescription(await peer.createOffer());
+      window.peer = peer;
+    })()`;
+    const transportUrl = () => `https://127.0.0.1:${udpPort}/`;
+
+    it("takes WebRTC away, over UDP and TCP, from the page's start", async () => {
+      const page = await open();
+      await session.armFormGuard();
+      await page.evaluate(peerConnection("window", `{ urls: "stun:127.0.0.1:${udpPort}" }`));
+      await page.evaluate(
+        peerConnection(
+          "window",
+          `{ urls: "turn:127.0.0.1:${tcpPort}?transport=tcp", username: "secret", credential: "x" }`,
+        ),
+      );
+      await delay(STRAGGLER_MS * 2);
+      await expect(page.evaluate("typeof RTCPeerConnection")).resolves.toBe("undefined");
+      expect([packets, connections]).toEqual([0, 0]);
+    });
+
+    it("takes WebRTC away from a frame made after it's armed", async () => {
+      const page = await open();
+      await session.armFormGuard();
+      await page.evaluate(`(() => {
+        const frame = document.createElement("iframe");
+        document.body.append(frame);
+        window.frameWindow = frame.contentWindow;
+      })()`);
+      await page.evaluate(
+        peerConnection("window.frameWindow", `{ urls: "stun:127.0.0.1:${udpPort}" }`),
+      );
+      await delay(STRAGGLER_MS * 2);
+      expect(packets).toBe(0);
+    });
+
+    it("takes WebTransport away from the page", async () => {
+      const page = await open();
+      await session.armFormGuard();
+      await page.evaluate(OPEN_TRANSPORT(`"${transportUrl()}"`));
+      await delay(STRAGGLER_MS * 2);
+      await expect(page.evaluate("typeof WebTransport")).resolves.toBe("undefined");
+      expect(packets).toBe(0);
+    });
+
+    it("takes WebTransport away from a worker", async () => {
+      const page = await open();
+      await page.evaluate(`window.worker = new Worker("/transport-worker.js")`);
+      await delay(STRAGGLER_MS);
+      await session.armFormGuard();
+      await page.evaluate(`worker.postMessage("${transportUrl()}")`);
+      await delay(STRAGGLER_MS * 2);
+      expect(packets).toBe(0);
+    });
+
+    it("takes WebTransport away from a service worker", async () => {
+      const page = await open();
+      await page.evaluate(`navigator.serviceWorker.register("/transport-sw.js").then(() => new Promise((resolve) => {
+        if (navigator.serviceWorker.controller) resolve();
+        navigator.serviceWorker.addEventListener("controllerchange", resolve);
+      }))`);
+      await delay(STRAGGLER_MS);
+      await session.armFormGuard();
+      await page.evaluate(`navigator.serviceWorker.controller.postMessage("${transportUrl()}")`);
+      await delay(STRAGGLER_MS * 2);
+      expect(packets).toBe(0);
+    });
+
+    it("refuses a new worker at an address the page already fetched", async () => {
+      const page = await open();
+      await page.evaluate(`window.first = new Worker("/worker.js")`);
+      await delay(STRAGGLER_MS);
+      server.mark();
+      await session.armFormGuard();
+      await expect(page.evaluate(`new Worker("/worker.js")`)).rejects.toThrow(/guard/);
+      await delay(STRAGGLER_MS);
+      expect(server.paths()).toEqual([]);
+    });
+
+    it("gets ahead of a blob worker, which no route sees", async () => {
+      const page = await open();
+      await session.armFormGuard();
+      const source = OPEN_TRANSPORT(`"${transportUrl()}"`);
+      await expect(
+        page.evaluate(`new Worker(URL.createObjectURL(new Blob([${JSON.stringify(source)}])))`),
+      ).rejects.toThrow(/guard/);
+      await delay(STRAGGLER_MS * 2);
+      expect(packets).toBe(0);
+    });
+
+    it("rejects when a page has WebTransport back", async () => {
+      const page = await open();
+      await page.evaluate(`window.WebTransport = function () {}`);
+      await expect(session.armFormGuard()).rejects.toThrow(/guard/);
+    });
   });
 
   it("still tells the page it's online", async () => {

@@ -20,8 +20,10 @@ import {
   type Browser,
   type CDPSession,
   type Page,
+  type Request,
   type Response,
   type Route,
+  type Worker,
 } from "playwright";
 
 import { AXE_TAGS } from "../../axe/results.js";
@@ -245,7 +247,12 @@ async function launchOnce(
     // that answers with a download mustn't put files in the user's Downloads folder.
     const browserCdp = await browser.newBrowserCDPSession();
     await browserCdp.send("Browser.setDownloadBehavior", { behavior: "deny" });
+    await context.addInitScript(GUARD_SETUP);
     const page = context.pages()[0] ?? (await context.newPage());
+    const dropWebTransport = (worker: Worker) =>
+      void worker.evaluate(NO_WEBTRANSPORT).catch(() => {});
+    page.on("worker", dropWebTransport);
+    context.on("serviceworker", dropWebTransport);
     const cdp = await context.newCDPSession(page);
     if (signal?.aborted) throw new Error("the launch was called off");
     return new ChromeSession(executable, child, profileDir, browser, page, cdp);
@@ -422,8 +429,62 @@ const RUN_AXE = `function (tags) {
   }).then((results) => JSON.stringify(results));
 }`;
 
-/** The only kinds of request the guard lets out, and only by GET. */
+/**
+ * The only kinds of request the guard lets out, and only by GET, and only at an address the page
+ * had already fetched before it was armed: a new address could carry what was typed.
+ */
 const GUARD_ALLOWS = new Set(["image", "stylesheet", "font", "script"]);
+
+/**
+ * What the page says when it's armed. The setup below looks for this, in each frame's own window.
+ */
+const GUARD_ON = `Object.defineProperty(window, "__voicecapFormGuard", { value: true })`;
+
+/**
+ * Run in every document before its own scripts, in every session: a page can't keep a reference to
+ * what's gone, and nothing about the forms pass is known when a page loads.
+ * - WebRTC and WebTransport go. Neither is seen by a route, offline doesn't stop TURN over TCP or
+ *   WebTransport, and no browser switch was found that does.
+ * - Workers of every kind stay until the guard is armed, then no new one starts. The browser
+ *   fetches a shared or service worker's script past the route, so its address could carry data,
+ *   and a new worker, from a file or a blob, could reach WebTransport in its first line, before
+ *   anything could take that away. Workers already running keep going, without WebTransport.
+ */
+const GUARD_SETUP = `(() => {
+  delete window.RTCPeerConnection;
+  delete window.webkitRTCPeerConnection;
+  delete window.WebTransport;
+  const armed = () => window.__voicecapFormGuard === true;
+  for (const name of ["Worker", "SharedWorker"]) {
+    if (!window[name]) continue;
+    window[name] = new Proxy(window[name], {
+      construct(target, args, newTarget) {
+        if (armed()) throw new DOMException("voicecap's form guard held this", "SecurityError");
+        return Reflect.construct(target, args, newTarget);
+      },
+    });
+  }
+  const container = window.ServiceWorkerContainer && window.ServiceWorkerContainer.prototype;
+  if (container) {
+    const register = container.register;
+    container.register = function (...args) {
+      if (armed()) return Promise.reject(new DOMException("voicecap's form guard held this", "SecurityError"));
+      return register.apply(this, args);
+    };
+  }
+})()`;
+
+/** In a worker, which no init script reaches: true once WebTransport is gone. */
+const NO_WEBTRANSPORT = `delete self.WebTransport, typeof self.WebTransport === "undefined"`;
+
+/** In a frame: true if the setup ran there and the guard is on. */
+const FRAME_GUARDED = `window.__voicecapFormGuard === true &&
+  typeof RTCPeerConnection === "undefined" &&
+  typeof webkitRTCPeerConnection === "undefined" &&
+  typeof WebTransport === "undefined"`;
+
+/** How long the guard's check of each frame and worker gets. */
+const GUARD_CHECK_MS = 5_000;
 
 /**
  * The guard's confirmation asks for this. ".invalid" is a name that never resolves, so if the guard
@@ -462,6 +523,8 @@ export class ChromeSession implements BrowserSession {
   private guarding: Promise<void> | null = null;
   private guardProbeSeen = false;
   private held = 0;
+  /** What the page fetched before the guard was armed: the only addresses it lets out after. */
+  private readonly fetched = new Set<string>();
 
   constructor(
     executable: BrowserExecutable,
@@ -477,6 +540,9 @@ export class ChromeSession implements BrowserSession {
     this.version = browser.version();
     page.on("crash", () => {
       this.crashed = true;
+    });
+    page.on("request", (request) => {
+      if (!this.guarding && isGuardAllowed(request)) this.fetched.add(request.url());
     });
     // Watched from the start: a socket the page opened on load still has its say once it's armed.
     page.on("websocket", (socket) => {
@@ -743,12 +809,14 @@ export class ChromeSession implements BrowserSession {
    *   is still told it's online, so it doesn't say otherwise to NVDA. A socket that's already open
    *   stays open, and what's sent on it goes nowhere.
    * - The route sees every other request, from frames, new windows, and service workers too. What
-   *   it allows it fetches itself, since the browser can't.
+   *   it allows, an address the page already fetched, it fetches itself, since the browser can't.
    * - A shared worker answers to no page, so neither of those reaches it. Each is closed, and a new
    *   one is held at its first line until it is.
+   * - No new worker of any kind starts: see GUARD_SETUP.
+   * - WebRTC and WebTransport are already gone: see GUARD_SETUP.
    *
-   * Still outside it: WebRTC and WebTransport, which no route sees, and what a page puts in the
-   * address of an image, a style sheet, a font, or a script, which are allowed.
+   * Still outside it: a worker that opens WebTransport in its first line as the page loads, before
+   * it can be taken away. That session outlives the arming, and what's sent on it gets out.
    */
   armFormGuard(): Promise<void> {
     this.guarding ??= this.onPage(() => this.armGuard());
@@ -802,6 +870,8 @@ export class ChromeSession implements BrowserSession {
         uploadThroughput: -1,
       })
       .catch(() => {});
+    await context.addInitScript(GUARD_ON);
+    await Promise.all(this.page.frames().map((frame) => frame.evaluate(GUARD_ON)));
     await this.confirmGuard(browserCdp);
   }
 
@@ -809,7 +879,7 @@ export class ChromeSession implements BrowserSession {
     const request = route.request();
     if (request.url() === GUARD_PROBE) {
       this.guardProbeSeen = true;
-    } else if (request.method() === "GET" && GUARD_ALLOWS.has(request.resourceType())) {
+    } else if (isGuardAllowed(request) && this.fetched.has(request.url())) {
       try {
         await route.fulfill({ response: await route.fetch() });
       } catch {
@@ -831,6 +901,23 @@ export class ChromeSession implements BrowserSession {
     const { targetInfos } = await browserCdp.send("Target.getTargets");
     if (targetInfos.some((target) => target.type === "shared_worker")) {
       throw new Error("The form guard couldn't be confirmed: a shared worker is still running.");
+    }
+    const context = this.page.context();
+    const checks = [
+      ...this.page.frames().map((frame) => frame.evaluate<boolean>(FRAME_GUARDED)),
+      ...[...this.page.workers(), ...context.serviceWorkers()].map((worker) =>
+        worker.evaluate<boolean>(NO_WEBTRANSPORT),
+      ),
+    ];
+    const results = await withinLimit(
+      Promise.all(checks),
+      GUARD_CHECK_MS,
+      "The form guard couldn't be confirmed: a frame or a worker didn't answer.",
+    );
+    if (results.includes(false)) {
+      throw new Error(
+        "The form guard couldn't be confirmed: WebRTC or WebTransport is still there.",
+      );
     }
     const { errorText } = await this.cdp.send("Page.navigate", { url: GUARD_PROBE });
     if (!this.guardProbeSeen || errorText !== "net::ERR_ABORTED") {
@@ -903,6 +990,10 @@ export class ChromeSession implements BrowserSession {
     );
     await removeProfile(this.profileDir);
   }
+}
+
+function isGuardAllowed(request: Request): boolean {
+  return request.method() === "GET" && GUARD_ALLOWS.has(request.resourceType());
 }
 
 function axString(value: AxValue | undefined): string | null {
