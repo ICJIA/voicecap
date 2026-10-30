@@ -3,7 +3,8 @@ import type { FormOutcome } from "../forms/types.js";
 import type { DriverCommand, FailureCause, PassName, StepRecord, StopReason } from "../model.js";
 import { causeOf, redactAccount } from "../run/failure.js";
 import { errorMessage, programOf } from "../util/errors.js";
-import { type FormPassOptions, formsPass } from "./forms.js";
+import { FORMS_DEFAULTS } from "../config/defaults.js";
+import { type FormPassOptions, type FormsPage, formsPass } from "./forms.js";
 import { headingsPass } from "./headings.js";
 import { readPass } from "./read.js";
 import { InterruptedError, StepRecorder, StepTimeoutError } from "./steps.js";
@@ -15,7 +16,7 @@ export interface PassSettings {
   endConfirmations: number;
   noNextHeading: RegExp;
   stepTimeoutMs: number;
-  forms: Pick<FormPassOptions, "settleMs" | "values">;
+  forms: Pick<FormPassOptions, "settleMs" | "values"> & { maxPerPage?: number };
 }
 
 /** What a failed pass, or the opening of a page for one, says about why it failed. */
@@ -49,14 +50,23 @@ export interface PassResult {
   /** Set when the pass stopped with "timeout" or "error": what went wrong, and in which step. */
   failure?: PassFailure;
   initialFocus?: FocusedElement | null;
-  /** The forms pass only: what came of each form. */
+  /** The forms pass only: what came of each form, those before a failure among them. */
   forms?: FormOutcome[];
 }
+
+/** For a forms pass with no run around it: the page that's open is all there is. */
+const OPEN_PAGE_ONLY: FormsPage = {
+  opened: true,
+  open: () => Promise.reject(new Error("This forms pass has no way to load the page again.")),
+  path: "",
+  tested: {},
+};
 
 /**
  * Run one pass on the page the driver has open. Timeouts and driver errors end the pass with
  * stop reason "timeout" or "error" and keep the steps recorded so far, and the failure says why;
- * an interruption (Ctrl+C) propagates so the page stays pending.
+ * an interruption (Ctrl+C) propagates so the page stays pending. `page` is the forms pass's own
+ * way to load the page for each form, and what the run has tested.
  */
 export async function runPass(
   pass: PassName,
@@ -64,6 +74,7 @@ export async function runPass(
   settings: PassSettings,
   signal?: AbortSignal,
   clock?: () => number,
+  page: FormsPage = OPEN_PAGE_ONLY,
 ): Promise<PassResult> {
   const recorder = new StepRecorder(settings.stepTimeoutMs, signal, clock);
   const warnings: string[] = [];
@@ -71,16 +82,17 @@ export async function runPass(
   let stopReason: StopReason;
   let failure: PassFailure | undefined;
   let initialFocus: FocusedElement | null | undefined;
-  let forms: FormOutcome[] = [];
+  const forms: FormOutcome[] = [];
   try {
     if (pass === "read") {
       stopReason = await readPass(driver, recorder, settings);
     } else if (pass === "headings") {
       stopReason = await headingsPass(driver, recorder, settings);
     } else if (pass === "forms") {
-      const outcome = await formsPass(driver, recorder, { cap: settings.cap, ...settings.forms });
+      const { maxPerPage = FORMS_DEFAULTS.maxPerPage, ...each } = settings.forms;
+      const plan = { cap: settings.cap, ...each, maxPerPage };
+      const outcome = await formsPass(driver, recorder, plan, page, forms);
       stopReason = outcome.stopReason;
-      forms = outcome.forms;
       warnings.push(...outcome.warnings);
     } else {
       const outcome = await tabPass(driver, recorder, settings);

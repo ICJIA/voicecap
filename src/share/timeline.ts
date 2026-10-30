@@ -185,6 +185,8 @@ function restartReasonOf(reason: unknown, said: EventWords): string | null {
     }
     case "failed-page":
       return restartReasons.failedPage;
+    case "forms-failed":
+      return restartReasons.formsFailed;
     case "retry": {
       const attempt = positive(fields.attempt);
       const of = positive(fields.of);

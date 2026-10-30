@@ -55,7 +55,9 @@ export type GestureOf = (command: DriverCommand) => string | null;
  *   or a key is left over among the pass's keys, which order couldn't place, as when a key no step
  *   pressed comes among them or NVDA logged one twice; or NVDA's log has nothing where they place
  *   the pass's first Tab, which has no key of its own (see checkAgainstLog and lineUp in
- *   ./log-check.ts).
+ *   ./log-check.ts);
+ * - `forms`: a forms pass, whose Enter and Space NVDA's cleaned log doesn't keep, with what NVDA said
+ *   after them, as a person presses those keys as they type (see src/drivers/guidepup/nvda-log.ts).
  */
 export type WhyNotChecked =
   | "none"
@@ -67,7 +69,8 @@ export type WhyNotChecked =
   | "times"
   | "unread"
   | "placed"
-  | "unaligned";
+  | "unaligned"
+  | "forms";
 
 /**
  * Whether a run's record lists a file: its `files` has an entry of that path. A copy the event log
@@ -300,12 +303,13 @@ function added(checks: LogCheck[], redact: (text: string) => string): LogCheck |
  * steps is checked once, with its own copy and its own failed attempts, when it has a copy with
  * speech in it and the run kept all that NVDA said for each step; otherwise its steps are counted,
  * with why (WhyNotChecked), and never listed. So are the steps of a pass its copy can't be paired
- * with for certain (`unaligned`).
+ * with for certain (`unaligned`), and of a forms pass (`forms`), whose keys the copy doesn't hold.
  */
 export function checkRunAgainstLog(input: RunLogInput): RunLogCheck {
   const { run } = input;
   const { sessions, kept } = sessionsOf(input.events.filter((event) => isEventTime(event.at)));
   const read = new Map<number, PassSteps[]>();
+  const formSteps = new Map<number, number>();
   let unread = 0;
   let placed = 0;
   const order = passesOf(run);
@@ -320,6 +324,8 @@ export function checkRunAgainstLog(input: RunLogInput): RunLogCheck {
         unread += typeof summary.steps === "number" ? summary.steps : 0;
       } else if (attempt === undefined) {
         placed += steps.length;
+      } else if (pass === "forms") {
+        formSteps.set(attempt.session, (formSteps.get(attempt.session) ?? 0) + steps.length);
       } else {
         const list = read.get(attempt.session) ?? [];
         list.push({
@@ -339,6 +345,9 @@ export function checkRunAgainstLog(input: RunLogInput): RunLogCheck {
   const checks: LogCheck[] = [];
   const notChecked: NotChecked[] = [];
   for (const [place, session] of sessions.entries()) {
+    const forms = formSteps.get(place) ?? 0;
+    if (forms > 0)
+      notChecked.push({ steps: forms, from: session.from, why: "forms", detail: null });
     const steps = read.get(place) ?? [];
     const count = steps.reduce((sum, pass) => sum + pass.steps.length, 0);
     if (count === 0) continue;

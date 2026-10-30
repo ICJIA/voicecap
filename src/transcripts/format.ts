@@ -29,6 +29,8 @@ const COMMAND_LABEL: Record<DriverCommand, string> = {
   focusField: "focus field",
   pressSubmit: "press submit",
   fillField: "fill field",
+  pressSpace: "press space",
+  pressArrow: "press down arrow",
 };
 
 const STOP_REASON_TEXT: Record<StopReason, string> = {

@@ -31,7 +31,12 @@ export type DriverCommand =
   | "nextFocusable"
   | "focusField"
   | "pressSubmit"
-  | "fillField";
+  /** Text typed into a field, a key for each character. */
+  | "fillField"
+  /** Space on a check box or radio button. */
+  | "pressSpace"
+  /** Down Arrow on a list. */
+  | "pressArrow";
 
 export type DefaultPassName = (typeof DEFAULT_PASS_NAMES)[number];
 
@@ -549,6 +554,8 @@ export type RestartReason =
   | { kind: "every"; pages: number }
   /** A page failed, and the screen reader or the browser may be the reason. */
   | { kind: "failed-page" }
+  /** The forms pass stopped on a problem, and the page was read all the same. */
+  | { kind: "forms-failed" }
   /**
    * To try a page again. `attempt` is the number of the attempt about to start, counted as the
    * page's record counts its attempts, and `of` is the number of the last attempt voicecap will
@@ -620,6 +627,9 @@ export type NewRunEvent =
  */
 export type RunEvent = NewRunEvent & { at: string };
 
+/** Each tested form's signature (FormInfo.signature), and the path of the page it was tested on. */
+export type FormSignatures = Record<string, string>;
+
 export interface RunJson {
   schemaVersion: 1;
   id: string;
@@ -647,6 +657,11 @@ export interface RunJson {
   /** Base run of the --compare this run was made with, recorded at completion. */
   compareTo: string | null;
   sessions: SessionRecord[];
+  /**
+   * The forms the run has tested, in any session, and on which page: a form is tested once, and later
+   * pages say where. Absent until a form has been pressed, and in every run without the forms pass.
+   */
+  formSignatures?: FormSignatures;
   /** Every skipped URL: before the run (off-origin, extension) and on load (response, redirect). */
   skipped: SkippedRecord[];
   pages: PageRecord[];

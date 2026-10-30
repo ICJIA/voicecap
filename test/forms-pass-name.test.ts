@@ -4,7 +4,12 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_CONFIG, formsSettingsOf, stepCapOf } from "../src/config/defaults.js";
+import {
+  DEFAULT_CONFIG,
+  FORMS_DEFAULTS,
+  formsSettingsOf,
+  stepCapOf,
+} from "../src/config/defaults.js";
 import { resolveConfig } from "../src/config/load.js";
 import { DEFAULT_PASS_NAMES, PASS_NAMES, type RunJson, type RunSettings } from "../src/model.js";
 import { runPass } from "../src/passes/index.js";
@@ -72,7 +77,7 @@ describe("forms as a pass name", () => {
     expect(formsSettingsOf(config)).toEqual({
       settleMs: 3000,
       maxPerPage: 3,
-      values: { Email: "someone@example.com" },
+      values: { ...FORMS_DEFAULTS.values, Email: "someone@example.com" },
     });
   });
 

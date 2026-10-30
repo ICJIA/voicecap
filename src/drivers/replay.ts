@@ -98,6 +98,7 @@ export class ReplayDriver implements ScreenReaderDriver {
     this.cursor.read = 0;
     this.cursor.headings = 0;
     this.cursor.tab = 0;
+    this.cursor.forms = 0;
     this.currentLine = "";
 
     const recording = this.recordings.get(key);

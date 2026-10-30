@@ -94,7 +94,9 @@
  *   the passes, while a browser opens or is raised (which minimizes it for a moment), the window
  *   behind it is in front, and NVDA reads it aloud: Visual Studio Code's terminal, in the r3 run of
  *   2026-10-10. A window that comes and goes between two of a pass's steps, which no check sees,
- *   can still be heard.
+ *   can still be heard. * - Each form of the forms pass gets a fresh browser of its own, behind a form gate that goes with
+ *   it (openPage's formGuard); no other load has one. Its keys go through NVDA with the same checks
+ *   of the foreground, and the same stretch of the recording, as any step's.
  */
 import { randomInt } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
@@ -105,6 +107,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { AXE_LIMIT_MS, axeErrorReason, axeScript, keptAxeResults } from "../axe/results.js";
 import type { VoicecapConfig } from "../config/schema.js";
+import type { FieldValue, FormInfo, FormState } from "../forms/types.js";
 import type { VoiceStretch } from "../model.js";
 import { isHtmlContentType } from "../pages/url.js";
 import { redactHome, redactTemp } from "../run/failure.js";
@@ -114,6 +117,7 @@ import { acquireLockFile, isStale, readLockHolder } from "../util/lock-file.js";
 import type { Logger } from "../util/log.js";
 import { formatDuration } from "../util/time.js";
 import { launchChrome, LimitReachedError, withinLimit } from "./guidepup/chrome.js";
+import { openFormGate } from "./guidepup/form-gate.js";
 import { loadGuidepupNvda } from "./guidepup/nvda.js";
 import {
   beganWithSession,
@@ -161,6 +165,7 @@ import {
   type EnvironmentInfo,
   type EventRecorder,
   type FocusedElement,
+  type OpenPageOptions,
   type PageInfo,
   type PageScreenshot,
   type ScreenReaderDriver,
@@ -177,7 +182,11 @@ export type NvdaKey =
   | "nextHeading" // H
   | "tab" // Tab
   | "toTop" // Ctrl+Home
-  | "toBottom"; // Ctrl+End
+  | "toBottom" // Ctrl+End
+  | "toggleFocusMode"; // NVDA+Space
+
+/** The keys a form takes, by Guidepup's names for them: Task 0's trial found they reach its fields. */
+export type FormKey = "Enter" | "Space" | "ArrowDown";
 
 /** The part of NVDA (through Guidepup) the driver uses. */
 export interface NvdaControl {
@@ -189,6 +198,10 @@ export interface NvdaControl {
   forceQuit(): void;
   /** Press a key through NVDA; returns everything NVDA said in response ("" with capture: false). */
   press(key: NvdaKey, options?: { capture?: boolean }): Promise<Speech>;
+  /** Press a key the page is to have, through NVDA, with the same capture as `press`. */
+  pressKey(key: FormKey): Promise<Speech>;
+  /** Type text through NVDA, a key for each character; returns all that NVDA said to them. */
+  type(text: string): Promise<Speech>;
   /** Run an action that isn't an NVDA command and return what NVDA said in response. */
   speechDuring(action: () => Promise<void>): Promise<Speech>;
   /** NVDA's settings, by section, from the running session's configuration. */
@@ -236,9 +249,10 @@ export interface BrowserSession {
    * axe-core's results for the page as it is now, as axe gives them. `script`, axe-core's own, runs
    * through the browser's DevTools connection in an isolated world of its own on the page's main
    * frame, so nothing is added to the page's own world, and the page's scripts can't reach it. It
-   * never brings the window forward or presses a key, and it has no time limit of its own.
+   * never brings the window forward or presses a key, and it has no time limit of its own. With a
+   * `selector`, it checks only what that names.
    */
-  runAxe(script: string): Promise<unknown>;
+  runAxe(script: string, selector?: string): Promise<unknown>;
   /** Set the page's title (the window title follows it); returns a function that restores it. */
   setTitle(title: string): Promise<() => Promise<void>>;
   /**
@@ -252,6 +266,16 @@ export interface BrowserSession {
   raise(): Promise<void>;
   /** Press Tab in the page directly, not through NVDA. */
   pressTab(): Promise<void>;
+  /** Shut the session's form gate, and confirm it; rejects unless it's shut. */
+  armFormGuard(): Promise<void>;
+  /** The page's forms, sorted. Moves no focus. A scan starts what the three below ask. */
+  scanForms(): Promise<FormInfo[]>;
+  /** What the form the last scan numbered `form` shows now. */
+  readFormState(form: number): Promise<FormState>;
+  /** Move focus by script to a field of that form. */
+  focusFormField(form: number, field: number): Promise<void>;
+  /** A CSS selector for that form, or null when it's gone. */
+  formSelector(form: number): Promise<string | null>;
   focusedElement(): Promise<FocusedElement | null>;
   close(): Promise<void>;
   /** Kill the browser at once (synchronously), for when the process is exiting. */
@@ -271,8 +295,11 @@ export interface GuidepupDriverDeps {
   loadNvda: () => Promise<NvdaControl>;
   install: GuidepupInstall;
   installed: () => boolean;
-  /** Launch a browser; aborting the signal kills one that's still starting. */
-  launchBrowser: (signal: AbortSignal) => Promise<BrowserSession>;
+  /**
+   * Launch a browser; aborting the signal kills one that's still starting. A `guarded` one reaches
+   * the network only through a form gate of its own, which goes with it.
+   */
+  launchBrowser: (signal: AbortSignal, guarded: boolean) => Promise<BrowserSession>;
   /** Process ids of running NVDA copies (any NVDA, not just Guidepup's). */
   runningNvda: () => Promise<number[]>;
   /**
@@ -363,12 +390,13 @@ export function createGuidepupNvdaDriver(
     loadNvda: () => loadGuidepupNvda(install),
     install,
     installed: () => existsSync(install.nvdaExe),
-    launchBrowser: (signal) =>
+    launchBrowser: async (signal, guarded) =>
       launchChrome({
         browser: options.config.browser,
         env: process.env,
         signal,
         onRelaunch: (notice) => driver.relaunched(notice),
+        ...(guarded ? { formGate: await openFormGate() } : {}),
       }),
     runningNvda: () => listProcesses("nvda.exe"),
     screenReaderPid: async () => startedNvda(await nvdaProcesses(), install.nvdaExe),
@@ -406,6 +434,11 @@ const STOP_TIMEOUT_MS = 15_000;
 const TITLE_SETTLE_MS = 150;
 /** Time for Windows to close a program Escape was sent to, before the browser is raised again. */
 const CLOSE_SETTLE_MS = 300;
+/**
+ * What a press keeps of its step's time, for winding up after the settle: Guidepup silences NVDA for
+ * at least 250 ms, waits a second for NVDA to go quiet, and the page's focus is read.
+ */
+const PRESS_WIND_UP_MS = 2_500;
 /** Settings sections always recorded (empty when all their values are NVDA's defaults). */
 const SETTINGS_SECTIONS = ["speech", "documentFormatting", "virtualBuffers", "keyboard"];
 /** Further sections that affect speech, recorded when present. */
@@ -477,6 +510,8 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   private settings: Record<string, unknown> = {};
   private browser: { name: string; version: string } | null = null;
   private firstTab = true;
+  /** Whether script, not Tab, last moved focus in the page (see fillField). */
+  private focusedByScript = false;
   private inDocument = true;
   private exitHooked = false;
   /** NVDA commands sent and not yet finished. */
@@ -835,14 +870,15 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     return notes;
   }
 
-  async openPage(url: string): Promise<PageInfo> {
+  async openPage(url: string, options: OpenPageOptions = {}): Promise<PageInfo> {
     const { generation, nvda } = this.started();
     // The pass before this one is over: its stretch of the recording ends with its last step,
     // before a browser opens or comes forward (see keepUntilNow).
     this.stopKeeping();
-    const session = await this.freshSession(generation);
+    const session = await this.freshSession(generation, options.formGuard === true);
     const page: Current = { generation, nvda, session };
     this.firstTab = true;
+    this.focusedByScript = false;
     this.inDocument = true;
     this.pageUrl = url;
     // No time limit of the driver's own: the core's open timeout restarts and retries.
@@ -938,6 +974,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     const before = await session.focusState();
     this.checkLive(page.generation);
     if (!before.focused) throw await this.foregroundLost(page);
+    this.focusedByScript = false;
     let speech: Speech;
     if (this.firstTab) {
       this.firstTab = false;
@@ -972,6 +1009,85 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     return this.onPage().session.focusedElement();
   }
 
+  findForms(): Promise<FormInfo[]> {
+    return this.onPage().session.scanForms();
+  }
+
+  armFormGuard(): Promise<void> {
+    return this.onPage().session.armFormGuard();
+  }
+
+  formState(form: number): Promise<FormState> {
+    return this.onPage().session.readFormState(form);
+  }
+
+  /**
+   * The check with axe of the form as it stands, as checkWithAxe does a page, limited to the form. It
+   * has AXE_LIMIT_MS, and one left running says so, for the pass to press no more.
+   */
+  async checkFormWithAxe(form: number): Promise<AxeCapture> {
+    const { session } = this.onPage();
+    const selector = await session.formSelector(form);
+    if (selector === null) return { error: "the form wasn't in the page" };
+    return axeCheckOf(session, this.pageUrl, selector);
+  }
+
+  /** Move focus into the form by script: Tab goes on from here, through NVDA. */
+  async focusFormField(form: number, field: number): Promise<Speech> {
+    const page = this.onPage();
+    const speech = await this.keyed(page, () =>
+      page.nvda.speechDuring(() => page.session.focusFormField(form, field)),
+    );
+    this.firstTab = false;
+    this.inDocument = true;
+    this.focusedByScript = true;
+    return speech;
+  }
+
+  /**
+   * Press Enter on what has focus, through NVDA, and keep listening for the settle time, within the
+   * step's time: errors can come a moment after NVDA's first words. The second listen is Guidepup's
+   * own capture, which silences NVDA as it begins, so words that begin just then can be lost.
+   */
+  async pressSubmit(_form: number, settleMs: number): Promise<Speech> {
+    const page = this.onPage();
+    const began = this.deps.now().getTime();
+    const said = await this.keyed(page, () => page.nvda.pressKey("Enter"));
+    const spent = this.deps.now().getTime() - began;
+    const room = this.options.config.timeouts.stepMs - spent - PRESS_WIND_UP_MS;
+    const settle = Math.min(settleMs, room);
+    if (settle <= 0) return said;
+    const later = await this.keyed(page, () =>
+      page.nvda.speechDuring(() => this.deps.sleep(settle)),
+    );
+    return [said, later].filter((speech) => speech.trim() !== "").join(". ");
+  }
+
+  /**
+   * Put a value in the focused field by keys. On the PC's trial, Tab put NVDA in focus mode at every
+   * field, and keys in browse mode are NVDA's own commands, so a field script focused is put in focus
+   * mode first, whichever mode NVDA is in: Escape leaves focus mode, and in browse mode goes to the
+   * page, and NVDA+Space then enters it. NVDA stays there for the load, which is the form's alone.
+   */
+  async fillField(value: FieldValue): Promise<Speech> {
+    const page = this.onPage();
+    if (this.focusedByScript) {
+      await this.press(page, "exitFocusMode", { capture: false });
+      await this.press(page, "toggleFocusMode", { capture: false });
+      this.focusedByScript = false;
+    }
+    return this.keyed(page, () => {
+      switch (value.kind) {
+        case "text":
+          return page.nvda.type(value.text);
+        case "space":
+          return page.nvda.pressKey("Space");
+        case "arrow":
+          return page.nvda.pressKey("ArrowDown");
+      }
+    });
+  }
+
   private async step(key: NvdaKey): Promise<Speech> {
     return this.press(this.onPage(), key);
   }
@@ -981,17 +1097,23 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * focus at any moment during it (its speech may include another window's). A step that ends with
    * the page still in focus is the latest end of the pass's stretch of the recording.
    */
-  private async press(
+  private press(page: Current, key: NvdaKey, options?: { capture?: boolean }): Promise<Speech> {
+    // Only speech that was captured says anything about NVDA and Windows.
+    const captured = options?.capture !== false;
+    return this.keyed(page, () => page.nvda.press(key, options), captured);
+  }
+
+  /** Send a command as `press` sends a key: only while the page has focus, and checked after. */
+  private async keyed(
     page: Current,
-    key: NvdaKey,
-    options?: { capture?: boolean },
+    send: () => Promise<Speech>,
+    captured = true,
   ): Promise<Speech> {
     const before = await page.session.focusState();
     this.checkLive(page.generation);
     if (!before.focused) throw await this.foregroundLost(page);
-    const said = await this.command(() => page.nvda.press(key, options));
-    // Only speech that was captured says anything about NVDA and Windows.
-    const speech = options?.capture === false ? said : await this.heard(page, said);
+    const said = await this.command(send);
+    const speech = captured ? await this.heard(page, said) : said;
     const after = await page.session.focusState();
     this.checkLive(page.generation);
     if (!after.focused || lostFocusBetween(before, after)) {
@@ -1251,15 +1373,16 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * The browser for the next load. The browser launched at start serves the first load; after
    * that each load gets a new one. The new one launches before the old one closes, so Windows
    * hands the foreground from the old window to the new one. Closing the old one ends what it still
-   * had under way, with its page: a check with axe that ran out of time (see axeCheckOf) included.
+   * had under way, with its page: a check with axe that ran out of time (see axeCheckOf) included. A
+   * `guarded` load always gets a new one, as the one launched at start has no gate.
    */
-  private async freshSession(generation: number): Promise<BrowserSession> {
-    if (this.session && !this.sessionUsed) {
+  private async freshSession(generation: number, guarded: boolean): Promise<BrowserSession> {
+    if (this.session && !this.sessionUsed && !guarded) {
       this.sessionUsed = true;
       return this.session;
     }
     const previous = this.session;
-    const next = await this.launchBrowser();
+    const next = await this.launchBrowser(guarded);
     if (generation !== this.generation) {
       await this.closeBrowser(next);
       throw stopped();
@@ -1275,9 +1398,9 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * Launch a browser, kept track of until it has closed. Every browser must be the one recorded
    * at the first start: each page gets a new browser, and browsers update themselves.
    */
-  private launchBrowser(): Promise<BrowserSession> {
+  private launchBrowser(guarded = false): Promise<BrowserSession> {
     return this.track(
-      this.deps.launchBrowser(this.launches.signal).then(async (session) => {
+      this.deps.launchBrowser(this.launches.signal, guarded).then(async (session) => {
         this.browsers.set(session, null);
         this.syncExitHook();
         this.events.record({ type: "browser-launched", pid: session.pid ?? null });
@@ -1807,12 +1930,17 @@ async function removeFile(file: string): Promise<void> {
  * in the page (`leftRunning`): the core opens the page again before any key, and the fresh browser
  * that load gets (`freshSession`) closes this one, which ends the check. Neither a check that fails
  * nor one that runs out of time fails the page: axe's results are evidence beside the transcripts,
- * not part of them. Only a browser that's gone fails it, as it would any step.
+ * not part of them. Only a browser that's gone fails it, as it would any step. With a `selector`,
+ * axe checks only what it names: a form.
  */
-export async function axeCheckOf(session: BrowserSession, url: string): Promise<AxeCapture> {
+export async function axeCheckOf(
+  session: BrowserSession,
+  url: string,
+  selector?: string,
+): Promise<AxeCapture> {
   try {
     const raw = await withinLimit(
-      session.runAxe(await axeScript()),
+      session.runAxe(await axeScript(), selector),
       AXE_LIMIT_MS,
       `timed out after ${formatDuration(AXE_LIMIT_MS)}`,
     );

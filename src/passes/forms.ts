@@ -9,7 +9,7 @@ import type {
   FormResult,
   FormState,
 } from "../forms/types.js";
-import type { StopReason } from "../model.js";
+import type { DriverCommand, FormSignatures, StopReason } from "../model.js";
 import { redactAccount } from "../run/failure.js";
 import { errorMessage } from "../util/errors.js";
 import { InterruptedError, type StepRecorder } from "./steps.js";
@@ -22,9 +22,20 @@ export interface FormPassOptions {
   values: Record<string, string>;
 }
 
+/** What the pass needs of a page and its run. */
+export interface FormsPage {
+  /** Whether the load for the pass is open already: the page's first load, when it's the first pass. */
+  opened: boolean;
+  /** Load the page afresh, with a guard not armed yet: each form tested gets a load of its own. */
+  open(): Promise<void>;
+  /** The page's path, for "tested on /x". */
+  path: string;
+  /** The forms earlier pages tested. */
+  tested: Readonly<FormSignatures>;
+}
+
 export interface FormsPassOutcome {
   stopReason: StopReason;
-  forms: FormOutcome[];
   warnings: string[];
 }
 
@@ -53,6 +64,8 @@ const NO_FORM_DRIVER = "this run's driver doesn't test forms";
 export const UNREACHABLE = "Tab never reached it";
 
 const OUT_OF_STEPS = "the pass ran out of steps on this form";
+
+const STOPPED = "a problem stopped the pass before it finished this form";
 
 /** Tab stops a walk allows beyond the fields: links and buttons among them, such as a "What's this?". */
 const WALK_SPARE_TABS = 10;
@@ -108,6 +121,13 @@ export function fieldValueOf(
   if (NO_VALUE_TYPES.has(field.type)) return null;
   return { kind: "text", text: (settings.values.text ?? FORMS_DEFAULTS.values.text) as string };
 }
+
+/** The step a fill records: typed text, or the one key it presses. */
+const FILL_COMMANDS = {
+  text: "fillField",
+  space: "pressSpace",
+  arrow: "pressArrow",
+} as const satisfies Record<FieldValue["kind"], DriverCommand>;
 
 /** How one walk goes. */
 interface WalkPlan {
@@ -253,9 +273,12 @@ export async function formPass(
   const barred = form.fields.find(
     (field) => field.tabIndex < 0 && (field.required || field.index === 0),
   );
-  const settleMs = Math.min(options.settleMs, recorder.stepTimeoutMs / 2);
+  const settleMs = Math.floor(Math.min(options.settleMs, recorder.stepTimeoutMs / 2));
   const filled = new Set<number>();
   let lastErrors: string | null = null;
+  // What ends a form that's only tested empty, when it can't be pressed: nothing says a person couldn't.
+  const cantGoOn = (result: FormResult, reason: string) =>
+    end(emptyOnly === null ? result : "not-tested", emptyOnly ?? reason);
 
   const baseline = await readState();
   firstWalk = await walk(driver, recorder, form, stepLimit);
@@ -268,10 +291,10 @@ export async function formPass(
       if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
       before = await readState();
     }
-    if (!before.present) return end("stuck", "the form left the page");
+    if (!before.present) return cantGoOn("stuck", "the form left the page");
     if (!before.focusedSubmit) {
       const submit = form.submitName === null ? "" : `, "${form.submitName}"`;
-      return end("stuck", `Tab never reached the submit control${submit}`);
+      return cantGoOn("stuck", `Tab never reached the submit control${submit}`);
     }
     const { spoken } = await recorder.step("pressSubmit", () =>
       driver.pressSubmit(form.index, settleMs),
@@ -289,8 +312,7 @@ export async function formPass(
     presses.push({ state, spoken, axe });
 
     if (!state.present) {
-      if (emptyOnly !== null) return end("not-tested", emptyOnly);
-      return end("stuck", "the form left the page after the press");
+      return cantGoOn("stuck", "the form left the page after the press");
     }
     // A check still under way holds the page up, so no key goes into it.
     if (axe && "leftRunning" in axe) {
@@ -337,28 +359,99 @@ export async function formPass(
     if (!reached.some((entry) => entry.field === next.index)) {
       return end("stuck", UNREACHABLE, next);
     }
-    await recorder.step("fillField", () => driver.fillField(value));
+    await recorder.step(FILL_COMMANDS[value.kind], () => driver.fillField(value));
     filled.add(next.index);
   }
 }
 
+/** A form the pass leaves, and why, with nothing done to the page. */
+function left(form: FormInfo, reason: string): FormOutcome {
+  return {
+    form,
+    result: "not-tested",
+    stoppedAt: null,
+    reason,
+    presses: [],
+    firstWalk: [],
+    errorWalk: [],
+    lastWalk: [],
+  };
+}
+
 /**
- * Test the forms on the page that's open, in the order the driver found them. A driver that can't
- * test forms is no failure of the page: its forms aren't tested, and the pass says so.
+ * Test a page's forms, in the order the driver found them, each form on a load of its own, as arming
+ * a guard takes that load for good. A form that gets no press needs no load. A form the run has
+ * tested isn't pressed again, and says where; a page tests `maxPerPage` forms, and says how many it
+ * left, so a page takes at most `options.cap` × `maxPerPage` steps. A driver that can't test forms is
+ * no failure of the page: its forms aren't tested, and the pass says so.
+ *
+ * What came of each form goes in `outcomes` as it's known, so an error that stops the pass keeps
+ * them all. It leaves the form it stopped at, and those after it, not tested, and goes on up. Ctrl+C
+ * goes on up with no outcome for the form it stopped.
  */
 export async function formsPass(
   driver: ScreenReaderDriver,
   recorder: StepRecorder,
-  options: FormPassOptions,
+  options: FormPassOptions & { maxPerPage: number },
+  page: FormsPage,
+  outcomes: FormOutcome[],
 ): Promise<FormsPassOutcome> {
   const warnings = testsForms(driver) ? [] : [NO_FORM_DRIVER];
   const find = driver.findForms?.bind(driver);
-  if (find === undefined)
-    return { stopReason: "forms-done", forms: [], warnings: [NO_FORM_DRIVER] };
-  const outcomes: FormOutcome[] = [];
-  for (const form of await recorder.query("finding forms", find)) {
-    outcomes.push(await formPass(driver, recorder, form, options));
+  if (find === undefined) return { stopReason: "forms-done", warnings: [NO_FORM_DRIVER] };
+  const finding = () => recorder.query("finding forms", find);
+  if (!page.opened) await page.open();
+  const found = await finding();
+  const tested = new Map(Object.entries(page.tested));
+  let pressed = 0;
+  let leftOver = 0;
+  // Whether the load that's open has yet to give a form its guard.
+  let unused = true;
+  let at = 0;
+  try {
+    for (; at < found.length; at++) {
+      const listed = found[at]!;
+      if (!testsForms(driver) || whyNotPressed(listed) !== null) {
+        outcomes.push(await formPass(driver, recorder, listed, options));
+        continue;
+      }
+      const where = tested.get(listed.signature);
+      if (where !== undefined) {
+        warnings.push(`A form on this page was tested on ${where}.`);
+        outcomes.push(left(listed, `tested on ${where}`));
+        continue;
+      }
+      if (pressed >= options.maxPerPage) {
+        leftOver += 1;
+        outcomes.push(left(listed, `the pass tests the first ${options.maxPerPage} on a page`));
+        continue;
+      }
+      pressed += 1;
+      let form: FormInfo | undefined = listed;
+      if (!unused) {
+        await page.open();
+        form = (await finding()).find((again) => again.signature === listed.signature);
+      }
+      if (form === undefined) {
+        outcomes.push(left(listed, "it wasn't on the page when it was loaded again"));
+        continue;
+      }
+      unused = false;
+      const outcome = await formPass(driver, recorder, form, options);
+      outcomes.push(outcome);
+      if (outcome.presses.length > 0) tested.set(form.signature, page.path);
+    }
+  } catch (error) {
+    if (!(error instanceof InterruptedError)) {
+      for (const form of found.slice(at)) outcomes.push(left(form, STOPPED));
+    }
+    throw error;
+  }
+  if (leftOver > 0) {
+    warnings.push(
+      `Tested the first ${options.maxPerPage} forms on this page, and left ${leftOver}.`,
+    );
   }
   const capped = outcomes.some((outcome) => outcome.reason === OUT_OF_STEPS);
-  return { stopReason: capped ? "step-cap" : "forms-done", forms: outcomes, warnings };
+  return { stopReason: capped ? "step-cap" : "forms-done", warnings };
 }

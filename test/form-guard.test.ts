@@ -893,6 +893,47 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     expect(server.reaches()).toBe(0);
   });
 
+  describe("what stands for a form going through", () => {
+    /** Runs `act` in the page, then gives the session's count of sends that stand for the form. */
+    async function sendsAfter(act: string): Promise<number> {
+      kind = "fetch";
+      await start();
+      const page = await open();
+      await session.armFormGuard();
+      await page.evaluate(act);
+      await settled();
+      return session.formSends();
+    }
+
+    it("counts a fetch, an XHR, and a navigation the guard holds", async () => {
+      expect(
+        await sendsAfter(`(() => {
+          fetch("/sent", { method: "POST", body: "secret" }).catch(() => {});
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/sent");
+          xhr.send("secret");
+          location.href = "/next";
+        })()`),
+      ).toBe(3);
+    });
+
+    it("doesn't count a beacon, a ping, or an image", async () => {
+      expect(
+        await sendsAfter(`(() => {
+          navigator.sendBeacon("/beacon", "x");
+          new Image().src = "/pixel.gif";
+          const link = document.createElement("a");
+          link.href = "#here";
+          link.ping = "/ping";
+          document.body.append(link);
+          link.click();
+        })()`),
+      ).toBe(0);
+      // The guard's own count has them, for its own use.
+      expect(session.heldRequests()).toBeGreaterThan(0);
+    });
+  });
+
   it("closes a new window, and the session's page stays", async () => {
     kind = "window.open";
     const page = await armAndPress();

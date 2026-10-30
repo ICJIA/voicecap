@@ -1,11 +1,13 @@
 import type {
   BrowserSession,
+  FormKey,
   LoadResult,
   NvdaControl,
   NvdaKey,
 } from "../../src/drivers/guidepup-nvda.js";
 import type { ForegroundWindow } from "../../src/drivers/guidepup/windows.js";
 import type { CaptureMode, FocusedElement, Speech } from "../../src/drivers/types.js";
+import type { FormInfo, FormState } from "../../src/forms/types.js";
 import { TINY_JPEG } from "./jpeg.js";
 import { rawAxe } from "./raw-axe.js";
 
@@ -122,6 +124,10 @@ export class FakeDesktop {
   readonly events: string[] = [];
   /** Sessions launched, newest last. */
   readonly sessions: FakeSession[] = [];
+  /** The forms each browser's page shows. */
+  forms: FormInfo[] = [];
+  /** Why the guard can't be armed; it can, unless this is set. */
+  guardError: Error | null = null;
   /** Runs before a key reaches the browser, to simulate something stealing the foreground. */
   beforeKey: ((key: string) => void) | null = null;
   /** Holds browser launches until opened. A launch that's held can be killed. */
@@ -428,7 +434,20 @@ export class FakeNvda implements NvdaControl {
     return command;
   }
 
-  private async run(key: NvdaKey, options: { capture?: boolean }): Promise<Speech> {
+  /** A key for the page, delivered by its name as Guidepup's press takes it ("key:Enter"). */
+  pressKey(key: FormKey): Promise<Speech> {
+    return this.run(key, {});
+  }
+
+  /** Text typed into the page: one delivery for all of it ("key:type voicecap test"). */
+  type(text: string): Promise<Speech> {
+    return this.run(`type ${text}`, {});
+  }
+
+  private async run(
+    key: NvdaKey | FormKey | `type ${string}`,
+    options: { capture?: boolean },
+  ): Promise<Speech> {
     if (!this.started) throw new Error("NVDA is not running");
     if (this.crashed || this.desktop.locked) return "";
     // Guidepup silences NVDA before a captured command's key, waiting while something keeps
@@ -576,8 +595,8 @@ export class FakeSession implements BrowserSession {
    * axe's check of the page loaded last, with the script it was given to run there: asked before a
    * page has loaded, it fails. It never brings the window forward or presses a key.
    */
-  runAxe(script: string): Promise<unknown> {
-    this.desktop.events.push("axe");
+  runAxe(script: string, selector?: string): Promise<unknown> {
+    this.desktop.events.push(selector === undefined ? "axe" : `axe:${selector}`);
     this.axeScripts.push(script);
     const url = this.loaded.at(-1);
     if (url === undefined) return Promise.reject(new Error("No page has loaded yet."));
@@ -627,6 +646,48 @@ export class FakeSession implements BrowserSession {
       this.activated = true;
     }
     return Promise.resolve();
+  }
+
+  /** Whether the guard went on, for this browser. */
+  guarded = false;
+
+  armFormGuard(): Promise<void> {
+    this.desktop.events.push("guard:arm");
+    if (this.desktop.guardError !== null) return Promise.reject(this.desktop.guardError);
+    this.guarded = true;
+    return Promise.resolve();
+  }
+
+  scanForms(): Promise<FormInfo[]> {
+    this.desktop.events.push("forms:scan");
+    return Promise.resolve(this.desktop.forms);
+  }
+
+  readFormState(form: number): Promise<FormState> {
+    this.desktop.events.push(`forms:read:${form}`);
+    return Promise.resolve({
+      focused: null,
+      focusedField: null,
+      focusedSubmit: false,
+      invalid: [],
+      emptyRequired: [],
+      messages: [],
+      liveChanged: false,
+      heldRequests: 0,
+      present: true,
+      bubble: null,
+    });
+  }
+
+  /** Script moves focus to a field, and NVDA reads it, as for any change of focus. */
+  focusFormField(form: number, field: number): Promise<void> {
+    this.desktop.events.push(`forms:focus:${form}:${field}`);
+    this.lastSpoken = this.receive(`focus ${form} ${field}`);
+    return Promise.resolve();
+  }
+
+  formSelector(form: number): Promise<string | null> {
+    return Promise.resolve(`form:nth-of-type(${form + 1})`);
   }
 
   pressTab(): Promise<void> {

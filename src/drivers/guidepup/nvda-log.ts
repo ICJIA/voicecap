@@ -18,6 +18,12 @@
  * for it, and what NVDA says for it follows the key before it. A page's tab pass has one more Tab
  * step than the log has `tab` keys: the demo run in fixture/nvda-io-run has 41 Tab steps and 34
  * `tab` keys, over seven pages.
+ *
+ * The forms pass's Enter, Space, and typed keys aren't kept, though they're voicecap's. Each is also
+ * a key a person presses as they type, which can't be told from voicecap's, and NVDA may say the
+ * word they typed after Enter or Space, which would then be kept with it. So they count as any other
+ * key, and what NVDA says after them is dropped, which is why a forms pass isn't checked against
+ * this log (`forms` in src/share/run-log-check.ts).
  */
 import { splitLines } from "../../manual/detect.js";
 import { splitLogEntries, type LogEntry } from "../../manual/nvda-log.js";
@@ -61,7 +67,8 @@ export function beganWithSession(raw: string, began: Date, now: Date): boolean {
  * The gestures the NVDA driver presses, as NVDA logs them after `kb(desktop):` or `kb(laptop):`: a
  * key for each command of a pass's steps, and NVDA+T and Escape, which the driver presses itself to
  * check the window, to leave focus mode, and to close Windows Search or the Start menu when one
- * comes in front of the browser. A test ties the list to the driver's key map.
+ * comes in front of the browser, and NVDA+Space, which puts NVDA in focus mode for a field script
+ * focused. A test ties the list to the driver's key map.
  */
 export const VOICECAP_GESTURES: readonly string[] = [
   "downArrow",
@@ -71,12 +78,15 @@ export const VOICECAP_GESTURES: readonly string[] = [
   "control+end",
   "NVDA+t",
   "escape",
+  "NVDA+space",
 ];
 
 /**
- * The gesture a step's command presses in NVDA, or null for a command with no key of its own. The
- * first `nextFocusable` step on a page is pressed in the browser, not NVDA, so the log has no key
- * for it (see the top of this file).
+ * The gesture a step's command presses in NVDA, or null for a command with no one key of its own:
+ * script moves focus for `focusField`, and `fillField` types a key for each character. The first
+ * `nextFocusable` step on a page is pressed in the browser, not NVDA, so the log has no key for it
+ * (see the top of this file). `enter` and `space` are named here, and VOICECAP_GESTURES leaves them
+ * out: the cleaned log doesn't keep them (see the top of this file too).
  */
 export function gestureOf(command: DriverCommand): string | null {
   switch (command) {
@@ -90,6 +100,12 @@ export function gestureOf(command: DriverCommand): string | null {
       return "control+home";
     case "toBottom":
       return "control+end";
+    case "pressSubmit":
+      return "enter";
+    case "pressSpace":
+      return "space";
+    case "pressArrow":
+      return "downArrow";
     default:
       return null;
   }

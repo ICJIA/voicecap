@@ -19,6 +19,7 @@ import {
   type EnvironmentRecord,
   type FailureKind,
   type FileHash,
+  type FormSignatures,
   type PageRecord,
   type PassName,
   type PassSummary,
@@ -37,7 +38,7 @@ import {
   type PassSettings,
 } from "../passes/index.js";
 import { InterruptedError, StepTimeoutError, withTimeout } from "../passes/steps.js";
-import { isHtmlContentType, sameOrigin } from "../pages/url.js";
+import { displayPath, isHtmlContentType, sameOrigin } from "../pages/url.js";
 import { fileHash, writeTranscript } from "../transcripts/write.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
 import { errorCode, errorMessage } from "../util/errors.js";
@@ -124,6 +125,11 @@ export interface PageOutcome {
    */
   voice?: VoiceRecord;
   skip?: SkippedRecord;
+  /**
+   * The forms pass stopped on a problem: the page stands, and the screen reader and browser should
+   * restart before the next page.
+   */
+  restartDriver?: true;
 }
 
 /** A failed attempt's record before it has a number, and says whether the session restarted. */
@@ -158,6 +164,10 @@ interface Loaded {
    * attempt ends, once the recording has been stopped and kept.
    */
   voice?: VoiceRecord;
+  /** The forms this attempt pressed: the run keeps them only if the attempt ends with the page read. */
+  formSignatures?: FormSignatures;
+  /** The forms pass stopped on a problem, which leaves the attempt done (see runAttempt). */
+  restartDriver?: true;
 }
 
 /** Why an attempt failed, and what the page's record keeps of it. */
@@ -239,6 +249,7 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     ...(result.axe !== undefined ? { axe: result.axe } : {}),
     ...(result.voice !== undefined ? { voice: result.voice } : {}),
     ...(result.kind === "skipped" ? { skip: result.skip } : {}),
+    ...(result.restartDriver ? { restartDriver: true as const } : {}),
   });
   for (let attempt = 1; ; attempt++) {
     const recording = await startVoice(ctx);
@@ -259,6 +270,9 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     const n = ctx.page.attempts;
     const page = ctx.page.url;
     if (result.kind === "done" || result.kind === "skipped") {
+      if (result.formSignatures) {
+        ctx.run.formSignatures = { ...ctx.run.formSignatures, ...result.formSignatures };
+      }
       ctx.events.record({ type: "page-finished", page, attempt: n, status: result.kind });
       return outcome(result, result.kind);
     }
@@ -318,11 +332,15 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
   const failedWith = (problem: Problem): { record: FailedAttempt } => ({
     record: { startedAt, endedAt: isoLocalMs(ctx.now()), ...problem },
   });
-  // Have the driver open the page for a pass, within the time a page has to open.
-  const open = (): Promise<PageInfo> =>
+  // Have the driver open the page for a pass, within the time a page has to open. Only the forms
+  // pass's loads have a guard.
+  const open = (pass: PassName): Promise<PageInfo> =>
     withTimeout(
       `Opening the page`,
-      () => session.driver.openPage(page.url),
+      () =>
+        pass === "forms"
+          ? session.driver.openPage(page.url, { formGuard: true })
+          : session.driver.openPage(page.url),
       ctx.openTimeoutMs,
       signal,
       "open-timeout",
@@ -348,15 +366,20 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
           `This load ended at ${info.finalUrl}; the page's first load ended at ${loaded.finalUrl ?? "?"}.`,
         ];
   try {
-    for (const [index, pass] of ctx.passes.entries()) {
-      let info: PageInfo;
-      try {
-        info = await open();
-      } catch (error) {
-        return notOpened(pass, error);
+    for (const [index, pass] of formsLast(ctx.passes).entries()) {
+      const warnings: string[] = [];
+      // After the page's first pass, the forms pass opens the page itself, for each form: a load that
+      // won't open is one of its problems, and no failure of the page.
+      const opensItself = pass === "forms" && index > 0;
+      let info: PageInfo = { ...NO_LOAD, finalUrl: loaded.finalUrl ?? page.url };
+      if (!opensItself) {
+        try {
+          info = await open(pass);
+        } catch (error) {
+          return notOpened(pass, error);
+        }
       }
 
-      const warnings: string[] = [];
       if (index === 0) {
         loaded.finalUrl = info.finalUrl;
         loaded.httpStatus = info.status;
@@ -415,18 +438,51 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         // the one the pass reads, and the page's record keeps the check's reason.
         if (checked !== undefined && "error" in checked && checked.leftRunning === true) {
           try {
-            info = await open();
+            info = await open(pass);
           } catch (error) {
             return notOpened(pass, error);
           }
           warnings.push(...elsewhere(info));
         }
-      } else {
+      } else if (!opensItself) {
         warnings.push(...elsewhere(info));
       }
 
-      const result = await runPass(pass, session.driver, ctx.passSettings(pass), signal, ctx.clock);
+      const reopen = async (): Promise<void> => {
+        info = await open(pass);
+        warnings.push(...elsewhere(info));
+      };
+      const path = displayPath(page.url);
+      const result = await runPass(
+        pass,
+        session.driver,
+        ctx.passSettings(pass),
+        signal,
+        ctx.clock,
+        {
+          opened: !opensItself,
+          open: reopen,
+          path,
+          tested: ctx.run.formSignatures ?? {},
+        },
+      );
       result.warnings.unshift(...warnings);
+      const pressed = (result.forms ?? []).filter((outcome) => outcome.presses.length > 0);
+      if (pressed.length > 0) {
+        loaded.formSignatures = Object.fromEntries(
+          pressed.map((outcome) => [outcome.form.signature, path]),
+        );
+      }
+      // A page with no forms has nothing to record, and that's no gap. A driver that can't look for
+      // forms says so in its transcript.
+      if (
+        pass === "forms" &&
+        result.forms?.length === 0 &&
+        !result.failure &&
+        session.driver.findForms !== undefined
+      ) {
+        continue;
+      }
       const written = await writeTranscript(dir, transcriptFor(ctx, pass, info, result));
       Object.assign(loaded.files, written.files);
       loaded.results[pass] = result;
@@ -438,8 +494,13 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         errors: result.errors,
         warnings: result.warnings,
       };
-      // A pass that stopped with "timeout" or "error" has said why, in its failure.
-      if (result.failure) {
+      // A form's problem stays out of the page: what the pass kept is kept, the passes before it are
+      // done, and it comes last, so none follows. The call it gave up on may still be under way, so
+      // the driver restarts before the next page.
+      if (result.failure && pass === "forms") {
+        loaded.restartDriver = true;
+      } else if (result.failure) {
+        // A pass that stopped with "timeout" or "error" has said why, in its failure.
         return {
           ...loaded,
           kind: "retry",
@@ -454,6 +515,21 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** The page info of a pass that has no load of its own yet. */
+const NO_LOAD = { status: null, contentType: null, title: null, canonical: null };
+
+/**
+ * The passes in the order they're read: as given, with forms last. It presses and types in a page,
+ * and a problem there mustn't reach another pass, and a run's log check pairs its other passes' keys
+ * in order, which a forms pass's Tabs among them would confuse.
+ */
+function formsLast(passes: readonly PassName[]): PassName[] {
+  return [
+    ...passes.filter((pass) => pass !== "forms"),
+    ...passes.filter((pass) => pass === "forms"),
+  ];
 }
 
 /**

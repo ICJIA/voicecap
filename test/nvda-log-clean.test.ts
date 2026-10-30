@@ -611,6 +611,7 @@ const GESTURE_OF_KEY: Record<NvdaKey, string> = {
   tab: "tab",
   toTop: "control+home",
   toBottom: "control+end",
+  toggleFocusMode: "NVDA+space",
 };
 
 /** A key command of the fake Guidepup below: the gesture it names, or the keys that make it. */
@@ -632,6 +633,7 @@ function fakeGuidepup(): typeof GuidepupModule {
         moveToNext: key("downArrow"),
         moveToNextHeading: key("h"),
         readNextFocusableItem: key("tab"),
+        toggleBetweenBrowseAndFocusMode: key("NVDA+space"),
         // Keys the driver doesn't use: a key map that took one by mistake would name another
         // gesture.
         moveToPrevious: key("upArrow"),
@@ -676,6 +678,40 @@ describe("voicecap's gestures", () => {
       "control+end",
     ]);
     for (const command of steps) expect(VOICECAP_GESTURES).toContain(gestureOf(command));
+  });
+
+  it("name the keys of the forms pass's steps, which the cleaned log doesn't keep", () => {
+    expect(gestureOf("pressSubmit")).toBe("enter");
+    expect(gestureOf("pressSpace")).toBe("space");
+    // The same key as a line of the read pass, and kept as that is.
+    expect(gestureOf("pressArrow")).toBe("downArrow");
+    // Enter and Space are also what a person presses as they type, and NVDA may say the word then.
+    expect(VOICECAP_GESTURES).not.toContain("enter");
+    expect(VOICECAP_GESTURES).not.toContain("space");
+  });
+
+  it("have no one key for a typed value, or for script moving focus", () => {
+    expect(gestureOf("fillField")).toBeNull();
+    expect(gestureOf("focusField")).toBeNull();
+  });
+
+  it("keep neither a person's Enter or Space, nor what NVDA says after them", () => {
+    const log = [
+      "IO - inputCore.InputManager.executeGesture (09:00:00.100) - MainThread (1):",
+      "Input: kb(desktop):space",
+      "IO - speech.speech.speak (09:00:00.200) - MainThread (1):",
+      "Speaking ['hunter2']",
+      "IO - inputCore.InputManager.executeGesture (09:00:01.100) - MainThread (1):",
+      "Input: kb(desktop):enter",
+      "IO - speech.speech.speak (09:00:01.200) - MainThread (1):",
+      "Speaking ['correcthorse']",
+      "",
+    ].join("\n");
+    const cleaned = cleanNvdaLog(log, { home: "C:\\Users\\pat", platform: "win32" });
+    expect(cleaned).not.toContain("hunter2");
+    expect(cleaned).not.toContain("correcthorse");
+    expect(cleaned).not.toContain("kb(desktop):space");
+    expect(cleaned).not.toContain("kb(desktop):enter");
   });
 
   it("have no key for any other command", () => {

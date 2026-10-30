@@ -59,6 +59,8 @@ function restartWords(reason: RestartReason): string {
       return `every ${reason.pages} pages`;
     case "failed-page":
       return "after a failed page";
+    case "forms-failed":
+      return "after a problem in the forms pass";
     case "retry":
       return `retrying ${reason.page}: attempt ${reason.attempt} of ${reason.of}`;
   }

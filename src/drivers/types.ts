@@ -76,7 +76,7 @@ export interface ScreenReaderDriver {
    * A driver that takes screenshots takes one of an HTML page once it has loaded, before the screen
    * reader moves into it, and gives it in the PageInfo.
    */
-  openPage(url: string): Promise<PageInfo>;
+  openPage(url: string, options?: OpenPageOptions): Promise<PageInfo>;
 
   /**
    * Check the page that's open with axe-core, an automated checker, and give what voicecap keeps of
@@ -135,8 +135,9 @@ export interface ScreenReaderDriver {
   focusFormField?(form: number, field: number): Promise<Speech>;
   /**
    * Press Enter on the submit control that has focus, where Tab has put it: the core asks for this
-   * only then, and a driver moves no focus for it. It keeps listening until the screen reader goes quiet and `settleMs` more has gone by,
-   * since many forms show their errors a moment later, and what's said by then is its answer.
+   * only then, and a driver moves no focus for it. It keeps listening until the screen reader goes
+   * quiet and `settleMs` more has gone by, since many forms show their errors a moment later, and
+   * what's said by then is its answer. A press with little of its step's time left settles for less.
    */
   pressSubmit?(form: number, settleMs: number): Promise<Speech>;
   /** Put a value in the focused field by keys, never by script. */
@@ -145,6 +146,14 @@ export interface ScreenReaderDriver {
   formState?(form: number): Promise<FormState>;
   /** Check the form as it stands with axe-core, limited to the form, as checkWithAxe does a page. */
   checkFormWithAxe?(form: number): Promise<AxeCapture>;
+}
+
+export interface OpenPageOptions {
+  /**
+   * A load for the forms pass: the page loads in a browser whose only way to the network is a guard
+   * that armFormGuard can shut. Only these loads have one, and a guard goes on once a load.
+   */
+  formGuard?: boolean;
 }
 
 export interface PageInfo {

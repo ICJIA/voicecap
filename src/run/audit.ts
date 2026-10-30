@@ -853,6 +853,10 @@ async function transcribePages(
       }
     } else if (outcome.status === "done") {
       consecutiveFailures = 0;
+      if (outcome.restartDriver && index < todo.length - 1) {
+        await driverSession.restart({ kind: "forms-failed" }, signal);
+        sinceRestart = 0;
+      }
     }
   }
   return "completed";

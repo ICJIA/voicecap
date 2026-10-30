@@ -276,6 +276,22 @@ describe("what counts as completed", () => {
   });
 });
 
+describe("the keys a fill records", () => {
+  it("names each by what it presses, as the driver's log does", async () => {
+    const { recorder } = await pass({
+      fields: [
+        { name: "Name" },
+        { name: "Agree", type: "checkbox" },
+        { name: "Topic", type: "select-one" },
+      ],
+    });
+    const fills = recorder.steps
+      .map((step) => step.command)
+      .filter((c) => c.startsWith("fill") || c === "pressSpace" || c === "pressArrow");
+    expect(fills).toEqual(["fillField", "pressSpace", "pressArrow"]);
+  });
+});
+
 describe("the walk after the first error", () => {
   it("is kept apart from the last walk", async () => {
     const { outcome } = await pass({ fields: THREE, validates: "aria" });
@@ -512,6 +528,15 @@ describe("forms the pass doesn't press", () => {
     },
   );
 
+  it.each([
+    ["CAPTCHA", { captcha: true }],
+    ["password", { sensitive: true }],
+  ])("keeps a %s form not tested when Tab can't finish its walk", async (_kind, form) => {
+    const { driver, outcome } = await pass({ fields: THREE, submitUntabbable: true, ...form });
+    expect(outcome.result).toBe("not-tested");
+    expect(driver.count("pressSubmit")).toBe(0);
+  });
+
   it("keeps a tested-empty form not tested when its form goes after the press", async () => {
     const { outcome } = await pass({ fields: THREE, captcha: true, goneAfter: 1 });
     expect(outcome.result).toBe("not-tested");
@@ -658,6 +683,16 @@ describe("runPass", () => {
     await runPass("forms", driver, {
       ...settings,
       stepTimeoutMs: 1000,
+      forms: { settleMs: 60_000, values: {} },
+    });
+    expect(driver.settles).toEqual([500]);
+  });
+
+  it("gives the driver a settle time in whole milliseconds", async () => {
+    const driver = new FakeFormDriver({ fields: [{ name: "Note", required: false }] });
+    await runPass("forms", driver, {
+      ...settings,
+      stepTimeoutMs: 1001,
       forms: { settleMs: 60_000, values: {} },
     });
     expect(driver.settles).toEqual([500]);

@@ -65,7 +65,10 @@ export interface FormState {
   messages: string[];
   /** Whether a live region's text changed since the last read. */
   liveChanged: boolean;
-  /** How many requests the guard has held: the session's count, not the page's. */
+  /**
+   * How many sends stand for the form going through, on this load: its `submit` event firing and left
+   * uncancelled, or a held navigation, fetch, or XHR. A ping, a beacon, or an image is no such send.
+   */
   heldRequests: number;
   /** Whether the form is still in the page. */
   present: boolean;

@@ -1229,7 +1229,7 @@ describe("a check with axe's DevTools commands", () => {
         method: "Runtime.callFunctionOn",
         params: {
           functionDeclaration: expect.stringMatching(
-            /axe\.run\(document, \{[\s\S]*runOnly: \{ type: "tag", values: tags \},[\s\S]*resultTypes: \["violations", "incomplete"\],[\s\S]*JSON\.stringify/,
+            /axe\.run\(selector === undefined \? document : \{ include: \[selector\] \}, \{[\s\S]*runOnly: \{ type: "tag", values: tags \},[\s\S]*resultTypes: \["violations", "incomplete"\],[\s\S]*JSON\.stringify/,
           ) as unknown,
           executionContextId: 7,
           arguments: [{ value: [...AXE_TAGS] }],

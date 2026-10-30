@@ -28,7 +28,7 @@ import net from "node:net";
 import type * as GuidepupModule from "@guidepup/guidepup";
 
 import { EnvironmentError } from "../../util/errors.js";
-import type { NvdaControl, NvdaKey } from "../guidepup-nvda.js";
+import type { FormKey, NvdaControl, NvdaKey } from "../guidepup-nvda.js";
 import type { CaptureMode, Speech } from "../types.js";
 import type { GuidepupInstall } from "./paths.js";
 
@@ -73,6 +73,7 @@ export class GuidepupNvda implements NvdaControl {
       tab: keys.readNextFocusableItem,
       toTop: { keyCode: [WindowsKeyCodes.Home], modifiers: [WindowsModifiers.Control] },
       toBottom: { keyCode: [WindowsKeyCodes.End], modifiers: [WindowsModifiers.Control] },
+      toggleFocusMode: keys.toggleBetweenBrowseAndFocusMode,
     };
   }
 
@@ -118,6 +119,27 @@ export class GuidepupNvda implements NvdaControl {
     const spoken = await nvda.lastSpokenPhrase();
     await nvda.clearSpokenPhraseLog();
     return spoken;
+  }
+
+  async pressKey(key: FormKey): Promise<Speech> {
+    const { nvda } = this.lib;
+    const began = this.clock();
+    await nvda.press(key);
+    this.checkCaptured(began);
+    const spoken = await nvda.lastSpokenPhrase();
+    await nvda.clearSpokenPhraseLog();
+    return spoken;
+  }
+
+  /** Guidepup types each character as a command of its own, so its log has one phrase for each. */
+  async type(text: string): Promise<Speech> {
+    const { nvda } = this.lib;
+    const began = this.clock();
+    await nvda.type(text);
+    this.checkCaptured(began);
+    const spoken = await nvda.spokenPhraseLog();
+    await nvda.clearSpokenPhraseLog();
+    return spoken.filter((phrase) => phrase !== "").join(". ");
   }
 
   async speechDuring(action: () => Promise<void>): Promise<Speech> {

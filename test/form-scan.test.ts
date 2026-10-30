@@ -6,6 +6,7 @@ import { chromium, type Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { FORMS_DEFAULTS } from "../src/config/defaults.js";
+import { axeScript } from "../src/axe/results.js";
 import { launchChrome, type ChromeSession } from "../src/drivers/guidepup/chrome.js";
 import type { FormInfo } from "../src/forms/types.js";
 
@@ -15,6 +16,10 @@ const HEADLESS = ["--headless=new", ...(process.platform === "linux" ? ["--no-sa
 
 const HEAD = `<!doctype html><title>Page</title><link rel="icon" href="data:,">`;
 const SIGN_UP = `<form action="/join" method="post"><label>Email <input type="email" name="email" required></label><button>Join</button></form>`;
+
+const SENDING = `<!doctype html><title>t</title><link rel="icon" href="data:,"><main>
+  <form id="a"><input name="x" aria-label="X"><button>Go</button></form>
+  <form id="b"><input name="y" aria-label="Y"><button>Go</button></form></main>`;
 
 const PAGES: Record<string, string> = {
   "/one": `${HEAD}
@@ -121,6 +126,11 @@ const PAGES: Record<string, string> = {
     <form action="/ok" method="post"><input aria-label="E"><input type="image" src="data:," alt="Go"></form>
     <form id="p" action="/ok" method="post"><input aria-label="F"></form>
     <input type="image" form="p" src="data:," alt="Go">`,
+  "/sending": SENDING,
+  "/sending-to-frame": `${SENDING}<iframe name="held" hidden></iframe>`,
+  "/clobbered": `${HEAD}<div><p>x</p>
+    <form><input name="parentElement" aria-label="a"><button>Go</button></form></div>
+    <div><form><input name="localName" aria-label="b"><img src="data:,"><button>Go</button></form></div>`,
   "/extra": `${HEAD}
     <form action="/ok" method="post"><input aria-label="A"><button formaction="mailto:a@b.gov">Mail</button></form>
     <form method="dialog"><input aria-label="B"><button>Close</button></form>
@@ -250,6 +260,61 @@ describe.skipIf(!haveChromium)("scanForms, for Tab", () => {
     expect(form?.fields.map((field) => field.tabIndex)).toEqual([0, -1, 0]);
     expect(form?.submitName).toBe("Send it");
     expect(other?.submitName).toBe("Save");
+  });
+});
+
+describe.skipIf(!haveChromium)("a form under test", () => {
+  const submit = (session: ChromeSession, form: number) =>
+    pageOf(session).evaluate(`document.forms[${form}].requestSubmit()`);
+
+  it("doesn't count a submit the page's script cancelled, as nothing went", async () => {
+    const session = await open("/sending");
+    await session.scanForms();
+    await pageOf(session).evaluate(
+      `document.forms[0].addEventListener("submit", (event) => event.preventDefault())`,
+    );
+    await submit(session, 0);
+    expect((await session.readFormState(0)).heldRequests).toBe(0);
+  });
+
+  it("counts a submit that goes on, with the form still showing", async () => {
+    const session = await open("/sending-to-frame");
+    await session.scanForms();
+    await pageOf(session).evaluate(`document.forms[0].target = "held"`);
+    await submit(session, 0);
+    expect((await session.readFormState(0)).heldRequests).toBe(1);
+    expect((await session.readFormState(1)).heldRequests).toBe(0);
+  });
+
+  it("moves focus to a field by script", async () => {
+    const session = await open("/sending");
+    await session.scanForms();
+    await session.focusFormField(1, 0);
+    expect(await session.readFormState(1)).toMatchObject({ focusedField: 0 });
+  });
+
+  it("names a form so axe can check it alone, whatever its fields are called", async () => {
+    const session = await open("/clobbered");
+    await session.scanForms();
+    const selector = await session.formSelector(1);
+    expect(selector).not.toBeNull();
+    const found = await pageOf(session).evaluate(
+      `document.querySelector(${JSON.stringify(selector)}) === document.forms[1]`,
+    );
+    expect(found).toBe(true);
+    const raw = (await session.runAxe(await axeScript(), selector!)) as {
+      violations: { id: string; nodes: { target: string[] }[] }[];
+    };
+    const targets = raw.violations.flatMap((rule) => rule.nodes.flatMap((node) => node.target));
+    expect(targets.length).toBeGreaterThan(0);
+    expect(targets.every((target) => String(target).includes("img"))).toBe(true);
+  });
+
+  it("gives no selector for a form that's gone", async () => {
+    const session = await open("/sending");
+    await session.scanForms();
+    await pageOf(session).evaluate(`document.forms[0].remove()`);
+    expect(await session.formSelector(0)).toBeNull();
   });
 });
 

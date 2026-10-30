@@ -32,7 +32,7 @@ import type { BrowserSession, FocusState, LoadResult } from "../guidepup-nvda.js
 import { BROWSER_WINDOW, type FocusedElement } from "../types.js";
 import type { FormInfo, FormState } from "../../forms/types.js";
 import { listenForUdp, type FormGate } from "./form-gate.js";
-import { readFormState, scanForms } from "./form-scan.js";
+import { focusFormField, formSelector, readFormState, scanForms } from "./form-scan.js";
 import { envValue, PROFILE_PREFIX } from "./paths.js";
 import { closeBrowsersUsing } from "./windows.js";
 
@@ -459,11 +459,11 @@ const AXE_WORLD = "voicecap-axe";
 
 /**
  * Called in axe's world once axe-core's script has run there: axe checks the page's document with
- * the rules of `tags`. Its results come back as JSON made with that world's own JSON, which the
+ * the rules of `tags`, or the part of it `selector` names. Its results come back as JSON made with that world's own JSON, which the
  * page's scripts can't reach. As one string, they come back whole, however deeply they nest.
  */
-const RUN_AXE = `function (tags) {
-  return axe.run(document, {
+const RUN_AXE = `function (tags, selector) {
+  return axe.run(selector === undefined ? document : { include: [selector] }, {
     runOnly: { type: "tag", values: tags },
     resultTypes: ["violations", "incomplete"],
   }).then((results) => JSON.stringify(results));
@@ -474,6 +474,9 @@ const RUN_AXE = `function (tags) {
  * isn't there, the request reaches no one.
  */
 const GUARD_PROBE = "https://voicecap-form-guard.invalid/";
+
+/** The kinds of held request that stand for a form going through: not "ping", a beacon's kind. */
+const SEND_TYPES = new Set(["document", "fetch", "xhr"]);
 
 /** The isolated world the guard gathers ICE candidates in, apart from the page's own scripts. */
 const GUARD_WORLD = "voicecap-form-guard";
@@ -538,6 +541,7 @@ export class ChromeSession implements BrowserSession {
   private guarding: Promise<void> | null = null;
   private guardProbeSeen = false;
   private held = 0;
+  private sends = 0;
   /** The isolated world the last scan held its forms in; null before one. */
   private formsWorld: number | null = null;
   private unclosedWindows = 0;
@@ -707,9 +711,10 @@ export class ChromeSession implements BrowserSession {
    * only counts. axe reads the page: it moves no focus, scrolls nothing, and adds no element.
    *
    * A script that throws, and an axe whose promise is rejected, fail with what axe's world said.
-   * There's no time limit here: the driver gives axe its own.
+   * There's no time limit here: the driver gives axe its own. With a `selector`, axe checks only
+   * what it names, which is how a form is checked (formSelector).
    */
-  runAxe(script: string): Promise<unknown> {
+  runAxe(script: string, selector?: string): Promise<unknown> {
     return this.onPage(async () => {
       const { frameTree } = await this.cdp.send("Page.getFrameTree");
       const { executionContextId } = await this.cdp.send("Page.createIsolatedWorld", {
@@ -725,7 +730,10 @@ export class ChromeSession implements BrowserSession {
       const ran = await this.cdp.send("Runtime.callFunctionOn", {
         functionDeclaration: RUN_AXE,
         executionContextId,
-        arguments: [{ value: [...AXE_TAGS] }],
+        arguments: [
+          { value: [...AXE_TAGS] },
+          ...(selector === undefined ? [] : [{ value: selector }]),
+        ],
         awaitPromise: true,
         returnByValue: true,
       });
@@ -758,8 +766,20 @@ export class ChromeSession implements BrowserSession {
   readFormState(form: number): Promise<FormState> {
     return this.onPage(async () => {
       const read = await readFormState(this.cdp, this.formsWorld, form);
-      return { ...read, focused: await this.focusedElement(), heldRequests: this.heldRequests() };
+      const { submitted, ...state } = read;
+      const focused = await this.focusedElement();
+      return { ...state, focused, heldRequests: submitted + this.sends };
     });
+  }
+
+  /** Move focus by script to a field of the form the last scan numbered `form`. */
+  focusFormField(form: number, field: number): Promise<void> {
+    return this.onPage(() => focusFormField(this.cdp, this.formsWorld, form, field));
+  }
+
+  /** A CSS selector for the form the last scan numbered `form`, or null when it's gone. */
+  formSelector(form: number): Promise<string | null> {
+    return this.onPage(() => formSelector(this.cdp, this.formsWorld, form));
   }
 
   async setTitle(title: string): Promise<() => Promise<void>> {
@@ -868,6 +888,15 @@ export class ChromeSession implements BrowserSession {
     return this.held;
   }
 
+  /**
+   * How many of the requests held stand for a form going through: a navigation, a fetch, or an XHR.
+   * A ping or a beacon goes out whether or not the form did, so it isn't one, and heldRequests is
+   * for the guard's own use.
+   */
+  formSends(): number {
+    return this.sends;
+  }
+
   /** How many windows a page opened that the guard tried to close and couldn't. */
   strayWindows(): number {
     return this.unclosedWindows;
@@ -897,7 +926,10 @@ export class ChromeSession implements BrowserSession {
 
   private async holdRequest(route: Route): Promise<void> {
     if (route.request().url() === GUARD_PROBE) this.guardProbeSeen = true;
-    else this.held += 1;
+    else {
+      this.held += 1;
+      if (SEND_TYPES.has(route.request().resourceType())) this.sends += 1;
+    }
     // "aborted", which a navigation takes as called off: the page stays where it was to be read.
     await route.abort("aborted").catch(() => {});
   }

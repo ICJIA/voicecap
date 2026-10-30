@@ -11,6 +11,7 @@ import { AXE_LIMIT_MS, axeScript, keptAxeResults } from "../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import {
+  ANOTHER_WINDOW,
   createGuidepupNvdaDriver,
   GuidepupNvdaDriver,
   type GuidepupDriverDeps,
@@ -260,7 +261,8 @@ function setup(options: Setup = {}) {
       nvdaExe: `${cacheDir}\\nvda\\all\\0.2.1-2026.2\\extracted\\nvda.exe`,
     },
     installed: () => options.installed ?? true,
-    launchBrowser: async (signal) => {
+    launchBrowser: async (signal, guarded) => {
+      desktop.events.push(guarded ? "browser:launch-guarded" : "browser:launch-plain");
       if (desktop.launchGate) {
         const launched = desktop.launchGate.wait();
         if (desktop.launchesOutliveKill) {
@@ -880,6 +882,220 @@ describe("steps", () => {
     const step = driver.nextLine();
     await expect(step).rejects.toBeInstanceOf(ForegroundError);
     await expect(step).rejects.toMatchObject({ failure: "foreground" });
+  });
+});
+
+describe("the forms pass's load", () => {
+  const launches = (desktop: FakeDesktop) =>
+    desktop.events.filter((event) => event.startsWith("browser:launch-"));
+
+  it("gives a load for the pass a browser of its own, behind a gate, and no other load one", async () => {
+    const { driver, desktop } = setup();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    await driver.openPage(URL_HOME, { formGuard: true });
+    await driver.openPage(URL_HOME, { formGuard: true });
+    await driver.openPage(URL_HOME);
+    expect(launches(desktop)).toEqual([
+      "browser:launch-plain",
+      "browser:launch-guarded",
+      "browser:launch-guarded",
+      "browser:launch-plain",
+    ]);
+  });
+
+  it("doesn't use the browser launched at the start, which has no gate", async () => {
+    const { driver, desktop } = setup();
+    await driver.start();
+    await driver.openPage(URL_HOME, { formGuard: true });
+    expect(launches(desktop)).toEqual(["browser:launch-plain", "browser:launch-guarded"]);
+    expect(desktop.sessions[0]?.closed).toBe(true);
+    expect(desktop.sessions[0]?.loaded).toEqual([]);
+    expect(desktop.sessions[1]?.loaded).toEqual([URL_HOME]);
+  });
+
+  it("gives the session's forms, guard, and state", async () => {
+    const { driver, desktop } = setup();
+    await driver.start();
+    await driver.openPage(URL_HOME, { formGuard: true });
+    expect(await driver.findForms()).toEqual([]);
+    await driver.armFormGuard();
+    expect(desktop.session.guarded).toBe(true);
+    expect((await driver.formState(2)).present).toBe(true);
+    expect(desktop.events).toContain("forms:read:2");
+  });
+
+  it("rejects when the guard can't be armed", async () => {
+    const { driver, desktop } = setup();
+    await driver.start();
+    await driver.openPage(URL_HOME, { formGuard: true });
+    desktop.guardError = new Error("The form gate still answers.");
+    await expect(driver.armFormGuard()).rejects.toThrow("still answers");
+  });
+
+  it("checks the form alone with axe, within axe's limit", async () => {
+    const { driver, desktop } = setup();
+    await driver.start();
+    await driver.openPage(URL_HOME, { formGuard: true });
+    const capture = await driver.checkFormWithAxe(1);
+    expect(capture).toHaveProperty("json");
+    expect(desktop.events).toContain("axe:form:nth-of-type(2)");
+  });
+});
+
+describe("the keys of a form", () => {
+  /** A driver on a page of the forms pass, focus put on the form's first field by script. */
+  async function onForm(options: Setup = {}) {
+    const made = setup(options);
+    await made.driver.start();
+    await made.driver.openPage(URL_HOME, { formGuard: true });
+    made.desktop.speech = (key) => `said after ${key}`;
+    return made;
+  }
+
+  const keysAfter = (desktop: FakeDesktop, event: string) =>
+    desktop.events.slice(desktop.events.indexOf(event)).filter((e) => e.startsWith("key:"));
+
+  it("moves focus by script, and gives what NVDA said of it", async () => {
+    const { driver } = await onForm();
+    expect(await driver.focusFormField(0, 0)).toBe("said after focus 0 0");
+  });
+
+  it("sends the next Tab through NVDA, as focus is already in the form", async () => {
+    const { driver, desktop } = await onForm();
+    await driver.focusFormField(0, 0);
+    await driver.nextFocusable();
+    expect(desktop.session.chromeTabs).toBe(0);
+    expect(desktop.events).toContain("key:tab");
+  });
+
+  it("types text, presses Space, and presses Down Arrow, through NVDA", async () => {
+    const { driver, desktop } = await onForm();
+    await driver.focusFormField(0, 0);
+    await driver.nextFocusable();
+    expect(await driver.fillField({ kind: "text", text: "voicecap test" })).toBe(
+      "said after type voicecap test",
+    );
+    await driver.fillField({ kind: "space" });
+    await driver.fillField({ kind: "arrow" });
+    expect(keysAfter(desktop, "key:tab")).toEqual([
+      "key:tab",
+      "key:type voicecap test",
+      "key:Space",
+      "key:ArrowDown",
+    ]);
+  });
+
+  // NVDA leaves focus mode on Escape and goes into it on NVDA+Space, whichever mode it was in, so
+  // the first field gets its keys in the mode Tab found every other field in, on the PC's trial.
+  it("puts NVDA in focus mode before keys for a field script focused, and for no other", async () => {
+    const { driver, desktop } = await onForm();
+    await driver.focusFormField(0, 0);
+    await driver.fillField({ kind: "text", text: "v" });
+    expect(keysAfter(desktop, "forms:focus:0:0")).toEqual([
+      "key:exitFocusMode",
+      "key:toggleFocusMode",
+      "key:type v",
+    ]);
+    desktop.events.length = 0;
+    await driver.nextFocusable();
+    await driver.fillField({ kind: "space" });
+    expect(desktop.events.filter((e) => e.startsWith("key:"))).toEqual(["key:tab", "key:Space"]);
+  });
+
+  it("presses Enter through NVDA, and listens on for the settle time", async () => {
+    const { driver, desktop, deps } = await onForm();
+    deps.now = () => new Date(0);
+    const waits: number[] = [];
+    deps.sleep = (ms) => {
+      waits.push(ms);
+      desktop.session.lastSpoken = "Please fill out this field.";
+      return Promise.resolve();
+    };
+    expect(await driver.pressSubmit(0, 700)).toBe("said after Enter. Please fill out this field.");
+    expect(waits).toEqual([700]);
+    expect(desktop.events).toContain("key:Enter");
+  });
+
+  it("keeps the settle and the wait for quiet inside the step's time", async () => {
+    const { driver, deps, desktop } = await onForm({
+      config: { timeouts: { ...DEFAULT_CONFIG.timeouts, stepMs: 30_000 } },
+    });
+    // The press itself took 26 seconds, with NVDA talking: 4 are left, less the time to wind up.
+    const moments = [0, 26_000, 26_000];
+    deps.now = () => new Date(moments.shift() ?? 26_000);
+    const waits: number[] = [];
+    deps.sleep = (ms) => {
+      waits.push(ms);
+      return Promise.resolve();
+    };
+    desktop.speech = () => "said";
+    await driver.pressSubmit(0, 3000);
+    expect(waits).toHaveLength(1);
+    expect(waits[0]).toBeLessThan(3000);
+    expect(waits[0]).toBeGreaterThan(0);
+  });
+
+  it("doesn't wait at all when the press has used the step's time", async () => {
+    const { driver, deps } = await onForm({
+      config: { timeouts: { ...DEFAULT_CONFIG.timeouts, stepMs: 3000 } },
+    });
+    const moments = [0, 2900];
+    deps.now = () => new Date(moments.shift() ?? 2900);
+    const waits: number[] = [];
+    deps.sleep = (ms) => {
+      waits.push(ms);
+      return Promise.resolve();
+    };
+    await driver.pressSubmit(0, 3000);
+    expect(waits).toEqual([]);
+  });
+
+  it("sends no key when another window has the foreground", async () => {
+    const { driver, desktop } = await onForm();
+    desktop.front = "other";
+    await expect(driver.pressSubmit(0, 0)).rejects.toBeInstanceOf(ForegroundError);
+    await expect(driver.fillField({ kind: "space" })).rejects.toBeInstanceOf(ForegroundError);
+    await expect(driver.focusFormField(0, 0)).rejects.toBeInstanceOf(ForegroundError);
+    expect(desktop.strayKeys).toEqual([]);
+  });
+
+  it("discards a key during which another window took the foreground", async () => {
+    const { driver, desktop } = await onForm();
+    desktop.speech = () => {
+      desktop.front = "other";
+      return "Inbox - Outlook, window";
+    };
+    await expect(driver.fillField({ kind: "space" })).rejects.toBeInstanceOf(ForegroundError);
+  });
+
+  it("keeps a form's steps in the pass's stretch of the recording", async () => {
+    const { driver, desktop } = onDesktopTime();
+    await driver.start();
+    const began = desktop.clockMs;
+    const recording = await driver.recordVoice();
+    await driver.openPage(URL_HOME, { formGuard: true });
+    await driver.focusFormField(0, 0);
+    await driver.nextFocusable();
+    await driver.fillField({ kind: "text", text: "v" });
+    await driver.pressSubmit(0, 0);
+    const ended = desktop.clockMs;
+    const capture = await recording.stop();
+    expect("stretches" in capture ? capture.stretches.at(-1)?.endMs : null).toBe(ended - began);
+  });
+
+  it("marks the recording when a key loses the foreground, so a window's speech isn't kept", async () => {
+    const { driver, desktop } = onDesktopTime();
+    await driver.start();
+    const recording = await driver.recordVoice();
+    await driver.openPage(URL_HOME, { formGuard: true });
+    desktop.speech = () => {
+      desktop.front = "other";
+      return "Inbox - Outlook, window";
+    };
+    await expect(driver.fillField({ kind: "space" })).rejects.toBeInstanceOf(ForegroundError);
+    desktop.front = "browser";
+    expect(await recording.stop()).toEqual({ error: ANOTHER_WINDOW });
   });
 });
 
@@ -2068,7 +2284,7 @@ describe("reporting to the run's event log", () => {
     const { driver, deps, recorder } = recording();
     const launch = deps.launchBrowser;
     deps.launchBrowser = async (signal) => {
-      const session = await launch(signal);
+      const session = await launch(signal, false);
       Object.defineProperty(session, "pid", { value: undefined });
       return session;
     };
@@ -2355,7 +2571,7 @@ describe("the program that took the foreground", () => {
     const { driver, desktop, deps, recorder } = recording();
     const launch = deps.launchBrowser;
     deps.launchBrowser = async (signal) => {
-      const session = await launch(signal);
+      const session = await launch(signal, false);
       Object.defineProperty(session, "pid", { value: undefined });
       return session;
     };

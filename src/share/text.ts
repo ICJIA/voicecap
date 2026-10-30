@@ -887,6 +887,7 @@ export const NVDA_LOG_TEXT = {
     unread: "the transcripts' steps couldn't be read here",
     placed: "the event log doesn't show when the pages were read",
     unaligned: "the keys in NVDA's log couldn't be paired with the steps for certain",
+    forms: "NVDA's cleaned log leaves out a form's Enter and Space, and what NVDA said after them",
   } satisfies Record<Exclude<WhyNotChecked, "reason">, string>,
   /**
    * Some steps that weren't checked, with when the NVDA session they were read in started, as the
@@ -1151,6 +1152,7 @@ export const EVENT_TEXT = {
     every: (pages: number): string =>
       pages === 1 ? "after every page" : `after every ${pages} pages`,
     failedPage: "after a failed page",
+    formsFailed: "after a problem in the forms pass",
     retry: (name: string, attempt: number, of: number): string =>
       `to try ${name} again (attempt ${attempt} of ${of})`,
   },

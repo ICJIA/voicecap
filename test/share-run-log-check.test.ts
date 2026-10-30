@@ -419,6 +419,29 @@ describe("checkRunAgainstLog", () => {
     });
   });
 
+  it("counts a forms pass's steps as not checked, with why, and checks the rest as they were", () => {
+    const kept = keptLogsRun();
+    const home = kept.run.pages.find((page) => page.passes.read !== undefined)!;
+    home.passes.forms = { ...home.passes.read!, steps: 3 };
+    const steps = (slug: string, pass: PassName): StepRecord[] | null =>
+      pass === "forms"
+        ? [1, 2, 3].map((n) => ({
+            n,
+            command: "pressSubmit",
+            spoken: "Please fill out this field.",
+            durationMs: 1000,
+            offsetMs: n * 1000,
+          }))
+        : kept.transcripts.steps(kept.run.id, slug, pass);
+
+    const without = checkOf();
+    const checked = checkOf(kept, { steps });
+    expect(checked.check).toEqual(without.check);
+    expect(checked.notChecked).toEqual([
+      { steps: 3, from: STARTED[0], why: "forms", detail: null },
+    ]);
+  });
+
   it("gives a failed attempt's window to the NVDA session it began in, and no other", () => {
     const kept = keptLogsRun();
     // A failed attempt at Contact, in the third session. Its time of day is when Home was read in

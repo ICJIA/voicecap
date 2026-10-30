@@ -297,3 +297,66 @@ describe("a start that fails for another reason", () => {
     expect(guidepup.stops()).toBe(0);
   });
 });
+
+describe("the keys a form takes", () => {
+  const install = { build: "0.2.1-2026.2", cacheDir: "C:\\guidepup", nvdaExe: "nvda.exe" };
+
+  /** Guidepup's NVDA as far as these keys go, on a clock that passes as a capture really takes. */
+  function adapter() {
+    const sent: string[] = [];
+    let phrases: string[] = [];
+    let now = 0;
+    const lib = {
+      nvda: {
+        version: "0.2.1-2026.2",
+        keyboardCommands: {},
+        press: (key: string) => {
+          sent.push(key);
+          now += 1000;
+          phrases.push(`${key} heard`);
+          return Promise.resolve();
+        },
+        type: (text: string) => {
+          sent.push(`type ${text}`);
+          for (const character of text) phrases.push(character);
+          now += 1000;
+          return Promise.resolve();
+        },
+        lastSpokenPhrase: () => Promise.resolve(phrases.at(-1) ?? ""),
+        spokenPhraseLog: () => Promise.resolve(phrases),
+        clearSpokenPhraseLog: () => {
+          phrases = [];
+          return Promise.resolve();
+        },
+      },
+      WindowsKeyCodes: {},
+      WindowsModifiers: {},
+    } as unknown as typeof GuidepupModule;
+    return { nvda: new GuidepupNvda(lib, install, () => now), sent };
+  }
+
+  it.each(["Enter", "Space", "ArrowDown"] as const)("presses %s through NVDA", async (key) => {
+    const { nvda, sent } = adapter();
+    expect(await nvda.pressKey(key)).toBe(`${key} heard`);
+    expect(sent).toEqual([key]);
+  });
+
+  it("types text through NVDA, and gives all it said, each character in turn", async () => {
+    const { nvda, sent } = adapter();
+    expect(await nvda.type("vc")).toBe("v. c");
+    expect(sent).toEqual(["type vc"]);
+  });
+
+  it("says when Guidepup has lost NVDA, as a press does", async () => {
+    const quick = new GuidepupNvda(
+      {
+        nvda: { version: "1", keyboardCommands: {}, type: () => Promise.resolve() },
+        WindowsKeyCodes: {},
+        WindowsModifiers: {},
+      } as never,
+      install,
+      () => 0,
+    );
+    await expect(quick.type("v")).rejects.toThrow(EnvironmentError);
+  });
+});

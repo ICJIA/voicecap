@@ -14,6 +14,8 @@ export const FORMS_DEFAULTS = {
    * By input type, as the keys are typed; `text` is for any other typed field. A check box, radio, or
    * list needs none. `date` is a US date: month, day, year. Types with no value here and no way to
    * type one, such as `file`, need a config's, and a form that requires one without it isn't tested.
+   * A date field takes its keys in the order of Chrome's locale, so `date` assumes en-US: a Chrome in
+   * another locale reads them another way, and a config can set its own.
    */
   values: {
     text: "voicecap test",
@@ -33,11 +35,14 @@ export function formsSettingsOf(
   return {
     settleMs: settleMs ?? FORMS_DEFAULTS.settleMs,
     maxPerPage: maxPerPage ?? FORMS_DEFAULTS.maxPerPage,
-    values: values ?? FORMS_DEFAULTS.values,
+    values: { ...FORMS_DEFAULTS.values, ...values },
   };
 }
 
-/** The most steps a pass may take, by the config: the forms pass has FORMS_DEFAULTS' where it sets none. */
+/**
+ * The most steps a pass may take, by the config: the forms pass has FORMS_DEFAULTS' where it sets
+ * none. For the forms pass that's each form's, so a page takes at most this times `forms.maxPerPage`.
+ */
 export function stepCapOf(config: VoicecapConfig, pass: PassName): number {
   return config.stepCaps[pass] ?? FORMS_DEFAULTS.stepCap;
 }

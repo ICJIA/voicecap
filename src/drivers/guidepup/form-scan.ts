@@ -175,7 +175,7 @@ const SCAN = `(() => {
   }
 
   // What the world remembers for the reads that follow: the forms, and what changed in the page.
-  const changes = world.voicecapChanges ?? { live: false, added: [], watching: false };
+  const changes = world.voicecapChanges ?? { live: false, added: [], watching: false, submits: [] };
   changes.live = false;
   changes.added = [];
   if (!changes.watching) {
@@ -190,6 +190,7 @@ const SCAN = `(() => {
       // Only the latest are kept, so a busy page can't grow the list without end.
       changes.added = changes.added.slice(-200);
     }).observe(document, { subtree: true, childList: true, characterData: true });
+    window.addEventListener("submit", (event) => changes.submits.push(event), true);
   }
   world.voicecapChanges = changes;
   world.voicecapForms = entries;
@@ -202,6 +203,10 @@ const SCAN = `(() => {
     const read = {
       focusedField: null, focusedSubmit: false, invalid: [], emptyRequired: [], messages: [],
       liveChanged: now.live, present, bubble: null,
+      // Read now, so a page's handler has had its say: a submit it cancelled sent nothing.
+      submitted: entry === undefined
+        ? 0
+        : now.submits.filter((event) => event.target === entry.form && !event.defaultPrevented).length,
     };
     const added = now.added;
     now.live = false;
@@ -251,6 +256,24 @@ const SCAN = `(() => {
     return read;
   };
 
+  // A path from the root by position, which names the form whatever its fields are called.
+  const up = Object.getOwnPropertyDescriptor(Node.prototype, "parentElement").get;
+  const tag = Object.getOwnPropertyDescriptor(Element.prototype, "localName").get;
+  const before = Object.getOwnPropertyDescriptor(Element.prototype, "previousElementSibling").get;
+  world.voicecapFormSelector = (form) => {
+    const element = world.voicecapForms[form]?.form;
+    if (!element || !element.isConnected) return null;
+    const steps = [];
+    for (let at = element; up.call(at) !== null; at = up.call(at)) {
+      let place = 1;
+      for (let other = before.call(at); other !== null; other = before.call(other)) {
+        if (tag.call(other) === tag.call(at)) place += 1;
+      }
+      steps.unshift(CSS.escape(tag.call(at)) + ":nth-of-type(" + place + ")");
+    }
+    return ":root > " + steps.join(" > ");
+  };
+
   const elements = entries.flatMap((entry) => entry.fields);
   return { json: JSON.stringify(raws), elements };
 })()`;
@@ -264,8 +287,11 @@ interface RemoteProperty {
   value?: { value?: unknown; objectId?: string };
 }
 
-/** The scan's answer, without the part the session adds. */
-export type FormStateRead = Omit<FormState, "focused" | "heldRequests">;
+/**
+ * The scan's answer, without the parts the session adds. `submitted` counts the form's `submit` events
+ * left uncancelled: the half of `heldRequests` only the page can see.
+ */
+export type FormStateRead = Omit<FormState, "focused" | "heldRequests"> & { submitted: number };
 
 /**
  * Every form the page shows, sorted. The world the forms are held in is made new each time, and its
@@ -323,6 +349,7 @@ export async function readFormState(
     liveChanged: false,
     present: false,
     bubble: null,
+    submitted: 0,
   };
   if (contextId === null) return gone;
   try {
@@ -337,6 +364,35 @@ export async function readFormState(
     // The world went with the page it was made for.
     return gone;
   }
+}
+
+/** Move focus to one of the form's fields, by script. A form that's gone moves nothing. */
+export async function focusFormField(
+  cdp: CDPSession,
+  contextId: number | null,
+  form: number,
+  field: number,
+): Promise<void> {
+  if (contextId === null) return;
+  await cdp.send("Runtime.evaluate", {
+    expression: `voicecapForms[${JSON.stringify(form)}]?.fields[${JSON.stringify(field)}]?.focus()`,
+    contextId,
+  });
+}
+
+/** A CSS selector for the form at `form`, or null when it's gone. */
+export async function formSelector(
+  cdp: CDPSession,
+  contextId: number | null,
+  form: number,
+): Promise<string | null> {
+  if (contextId === null) return null;
+  const read = await cdp.send("Runtime.evaluate", {
+    expression: `voicecapFormSelector(${JSON.stringify(form)})`,
+    contextId,
+    returnByValue: true,
+  });
+  return read.exceptionDetails ? null : (read.result.value as string | null);
 }
 
 async function propertiesOf(
