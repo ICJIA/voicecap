@@ -116,7 +116,7 @@ The words and signs repeat each other, so color is never the only sign. A line u
 
 ## Order of work
 
-1. **A short trial on the PC, with the owner's OK.** Before any design is final, run real NVDA by hand on a small test form. Unknowns the trial must answer: whether NVDA reads Chrome's native validation bubble, whether Enter reaches the button through NVDA in focus mode, how long error announcements take, and whether typing, Space, and arrow keys reach fields through Guidepup. The last matters most: filling fields by keyboard is the heart of the pass. If any of these needs a way around Guidepup, stop and ask the owner first.
+1. **A short trial on the PC, with the owner's OK. Done 2026-10-30:** every answer was good, and no way around Guidepup is needed. The plan's Task 0 has the findings. It asked: whether NVDA reads Chrome's native validation bubble, whether Enter reaches the button through NVDA in focus mode, how long error announcements take, and whether typing, Space, and arrow keys reach fields through Guidepup. The last matters most: filling fields by keyboard is the heart of the pass. If any of these needs a way around Guidepup, stop and ask the owner first.
 2. **The guard, and its test.** Nothing else is built until it's proven.
 3. **The whole pass, in one release:** the empty press and filling the fields go together, because completing a form is the point. Fixture pages: a good form, one with silent errors, one with no feedback, one with no labels, and one with a field a keyboard can't fill. Report, flags, and a real recorded fixture run.
 4. **Real runs on ICJIA sites,** with the owner, then a decision on making it a default.

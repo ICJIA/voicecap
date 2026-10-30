@@ -34,20 +34,17 @@
 
 ---
 
-### Task 0: The PC trial (a gate: the owner runs or approves it)
+### Task 0: The PC trial (done, 2026-10-30)
 
-Do not start Task 1 until the owner has answered from this trial. **Needs the owner's OK before any real NVDA run.**
+The owner ran `pnpm forms:trial` on the PC (NVDA 2026.2, Windows). **No way around Guidepup is needed.** What it found, which later tasks rely on:
 
-**Files:**
-- Done: `fixture/site/form-trial/`, `fixture/site/form-trial/native/`, `scripts/forms-trial.ts`, `pnpm forms:trial`, which writes `docs/forms-trial-notes.md`
-
-- [ ] **Step 1: Prepared:** the two trial pages and the script.
-- [ ] **Step 2: The owner runs `pnpm forms:trial` on the PC,** on the `forms-pass` branch. It answers:
-  - does NVDA read Chrome's native validation bubble?
-  - does Enter reach the button through NVDA in focus mode?
-  - do typing, Space, and arrow keys reach fields through Guidepup?
-  - how long does an announcement take to arrive after the press?
-- [ ] **Step 3: Record the answers in `docs/forms-trial-notes.md`.** If any needs a way around Guidepup, stop and ask the owner. Adjust `forms.settleMs` and the later tasks from what was found.
+- `nvda.press("Enter" | "Space" | "ArrowDown")` and `nvda.type(text)` reach fields through Guidepup, once Tab has put NVDA in the field. The trial's whole form reached "Ready to send." by keyboard.
+- Enter on a focused submit button works through NVDA. A page's `role="alert"` is spoken, and so is Chrome's own bubble: "Your name, edit, required, blank. Please fill out this field., alert". Chrome moves focus to the first invalid field, and shows only that field's message.
+- Every announcement arrived within 500 ms on a local page. `forms.settleMs` stays 3000, for real sites.
+- NVDA says "required" on every required field, so `form-required-unsaid` can rely on it.
+- **NVDA says "invalid entry" before any press,** on an untouched required radio, list, and check box. `form-error-unlinked` must not take those words alone as evidence: compare the walk before the press with the walk after it, and ask for what changed or for the error's own words.
+- Chrome's bubble isn't in the DOM. `FormState.messages` must include the focused field's `validationMessage`, or `form-error-silent` would flag every form that uses native validation.
+- Typing is echoed a character at a time ("v", "o", "i", …), so a filled field's step is long. That's expected, not a problem to flag.
 
 ### Task 1: The guard
 
@@ -111,6 +108,8 @@ interface FormInfo {
 interface FormState {
   focused: FocusedElement | null; invalid: number[]; messages: string[];
   liveChanged: boolean; heldRequests: number; present: boolean;
+  /** The focused field's own validationMessage: Chrome's bubble, which is in no element. */
+  bubble: string | null;
 }
 ```
 
@@ -167,7 +166,7 @@ interface FormOutcome {
 
 - [ ] **Step 1: Write the failing tests:** each form gets its own `openPage`; a page's second occurrence of a signature adds "tested on /x" and no presses; more than `maxPerPage` says how many were left; a page with no forms has no `forms` transcripts and no gap; a forms-pass failure leaves the page's other passes done; Ctrl+C mid-form keeps no outcome for it, and a retry opens a fresh page and arms a fresh guard; Enter, Space, and the keys a fill presses are in `nvdaGestureOf`.
 - [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.** `fillField` presses keys through Guidepup, as Task 0 found works. The typed value is one of voicecap's own fake values, so the cleaned NVDA log may keep it; add those keys to what the log keeps, or mark those steps "not checked". Choose whichever Task 0 and `src/share/log-check.ts` show is simpler, and say why in the commit.
+- [ ] **Step 3: Implement.** `fillField` presses keys through Guidepup, as Task 0 found works: `type` for text, `Space` for a check box or radio, `ArrowDown` for a list. Add them to `NvdaControl` with the same capture as `press`. The typed value is one of voicecap's own fake values, so the cleaned NVDA log may keep it; add those keys to what the log keeps, or mark those steps "not checked". Choose whichever Task 0 and `src/share/log-check.ts` show is simpler, and say why in the commit.
 - [ ] **Step 4: Run them.** Expected: PASS.
 - [ ] **Step 5: Commit.**
 
@@ -197,7 +196,7 @@ interface FormOutcome {
 - Consumes: `FormOutcome`.
 - Produces: the six rules, with the spec's exact ids and WCAG numbers.
 
-- [ ] **Step 1: Write the failing tests,** one each way for: `form-error-silent` (3.3.1, 4.1.3), `form-no-feedback` (3.3.1), `form-error-unlinked` (3.3.1, 1.3.1), `form-required-unsaid` (3.3.2), `form-cant-finish` (2.1.1, 3.3.3), `form-field-unreachable` (2.1.1); no flag on a completed form; no flag from axe; a flag never changes the exit code. A message seen only after a request was held doesn't count as a form error.
+- [ ] **Step 1: Write the failing tests,** one each way, including "invalid entry" said before the press and no change after it (no evidence of an error being linked), and a native bubble NVDA spoke (not silent), for: `form-error-silent` (3.3.1, 4.1.3), `form-no-feedback` (3.3.1), `form-error-unlinked` (3.3.1, 1.3.1), `form-required-unsaid` (3.3.2), `form-cant-finish` (2.1.1, 3.3.3), `form-field-unreachable` (2.1.1); no flag on a completed form; no flag from axe; a flag never changes the exit code. A message seen only after a request was held doesn't count as a form error.
 - [ ] **Step 2: Run them.** Expected: FAIL.
 - [ ] **Step 3: Implement,** matching NVDA's English words from config. Each rule's card has the likely cause, why it matters, the fix in the code, and the path forward.
 - [ ] **Step 4: Run them.** Expected: PASS.
