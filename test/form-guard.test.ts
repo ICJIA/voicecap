@@ -917,6 +917,21 @@ describe.skipIf(!haveChromium)("the form guard", () => {
       ).toBe(3);
     });
 
+    it("counts a cancelled submit once the page really sends it, as a held fetch", async () => {
+      kind = "post form";
+      await start();
+      const page = await open();
+      await session.scanForms();
+      await session.armFormGuard();
+      await page.evaluate(`document.forms[0].addEventListener("submit", (event) => {
+        event.preventDefault();
+        fetch("/sent", { method: "POST", body: "secret" }).catch(() => {});
+      })`);
+      await press(page);
+      await settled();
+      expect((await session.readFormState(0)).heldRequests).toBe(1);
+    });
+
     it("doesn't count a beacon, a ping, or an image", async () => {
       expect(
         await sendsAfter(`(() => {

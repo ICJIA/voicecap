@@ -2,12 +2,18 @@
  * The forms pass against a fake form: what it presses, fills, and concludes. The driver's real side
  * is tested with the run.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FORMS_DEFAULTS } from "../src/config/defaults.js";
-import { fieldValueOf, formPass, UNREACHABLE, type FormPassOptions } from "../src/passes/forms.js";
+import {
+  fieldValueOf,
+  FILL_MS_PER_CHARACTER,
+  formPass,
+  UNREACHABLE,
+  type FormPassOptions,
+} from "../src/passes/forms.js";
 import { runPass, type PassSettings } from "../src/passes/index.js";
-import { InterruptedError, StepRecorder } from "../src/passes/steps.js";
+import { InterruptedError, StepRecorder, StepTimeoutError } from "../src/passes/steps.js";
 import { progressLine } from "../src/run/progress.js";
 import { MAIN_COMMAND, stopReasonText } from "../src/transcripts/format.js";
 import { FakeFormDriver, type FakeForm } from "./helpers/fake-form-driver.js";
@@ -289,6 +295,46 @@ describe("the keys a fill records", () => {
       .map((step) => step.command)
       .filter((c) => c.startsWith("fill") || c === "pressSpace" || c === "pressArrow");
     expect(fills).toEqual(["fillField", "pressSpace", "pressArrow"]);
+  });
+});
+
+describe("a step's time limit", () => {
+  // 19 characters, the longest default value.
+  const URL_FIELD: FakeForm["fields"] = [{ name: "Site", type: "url" }];
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** What a form gives once time has run on enough for any limit here. */
+  async function settled(form: FakeForm) {
+    const running = pass(form).then(
+      ({ outcome }) => outcome.result,
+      (error: unknown) => error,
+    );
+    await vi.advanceTimersByTimeAsync(120_000);
+    return running;
+  }
+
+  it("grows with a typed value, so a slow capture of 19 characters doesn't time out", async () => {
+    expect(await settled({ fields: URL_FIELD, msPerCharacter: 1_300 })).toBe("completed");
+  });
+
+  it("still ends a fill that takes longer than its characters allow", async () => {
+    const result = await settled({ fields: URL_FIELD, msPerCharacter: 2_000 });
+    expect(result).toBeInstanceOf(StepTimeoutError);
+    expect((result as StepTimeoutError).ms).toBe(1000 + 19 * FILL_MS_PER_CHARACTER);
+  });
+
+  it("is the step timeout for any other step", async () => {
+    const recorder = new StepRecorder(1000, undefined);
+    const step = recorder.step("nextFocusable", () => new Promise(() => {}));
+    const failed = step.catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await failed).toMatchObject({ ms: 1000 });
   });
 });
 

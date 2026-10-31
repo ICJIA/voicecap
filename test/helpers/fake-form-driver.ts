@@ -62,6 +62,8 @@ export interface FakeForm {
   axe?: AxeCapture;
   /** What tells this form from others, here and on other pages ("fake" unless given). */
   signature?: string;
+  /** How long a fill takes for each character typed, as Guidepup's capture of each does. */
+  msPerCharacter?: number;
   /** Runs at each press, before the press does anything: to throw, or to press Ctrl+C. */
   onPress?: () => void;
 }
@@ -263,14 +265,18 @@ export class FakeFormDriver extends ScriptedDriver {
     return Promise.resolve(this.bubble ?? this.shown.at(-1) ?? "");
   }
 
-  fillField(value: FieldValue): Promise<Speech> {
+  async fillField(value: FieldValue): Promise<Speech> {
+    if (value.kind === "text" && this.form.msPerCharacter !== undefined) {
+      const ms = value.text.length * this.form.msPerCharacter;
+      await new Promise((resolve) => setTimeout(resolve, ms));
+    }
     this.made.push(`fillField ${String(this.focus)}`);
     this.fills.push(value);
     if (typeof this.focus === "number" && this.form.fields[this.focus]?.takes !== false) {
       this.filled.add(this.focus);
     }
     if (this.form.sendsOnFill) this.held += 1;
-    return Promise.resolve("v");
+    return "v";
   }
 
   formState(form: number): Promise<FormState> {

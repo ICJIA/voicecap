@@ -129,6 +129,12 @@ const FILL_COMMANDS = {
   arrow: "pressArrow",
 } as const satisfies Record<FieldValue["kind"], DriverCommand>;
 
+/**
+ * What a typed value adds to its step's time limit, for each character: Guidepup captures each one
+ * as a command of its own, about 1.3 s, so a long value would otherwise outlast the step.
+ */
+export const FILL_MS_PER_CHARACTER = 1_500;
+
 /** How one walk goes. */
 interface WalkPlan {
   /** Where it ends: a field, the submit control, or, left out, the submit once all are heard. */
@@ -359,7 +365,13 @@ export async function formPass(
     if (!reached.some((entry) => entry.field === next.index)) {
       return end("stuck", UNREACHABLE, next);
     }
-    await recorder.step(FILL_COMMANDS[value.kind], () => driver.fillField(value));
+    const extraMs = value.kind === "text" ? value.text.length * FILL_MS_PER_CHARACTER : 0;
+    await recorder.step(
+      FILL_COMMANDS[value.kind],
+      () => driver.fillField(value),
+      undefined,
+      extraMs,
+    );
     filled.add(next.index);
   }
 }

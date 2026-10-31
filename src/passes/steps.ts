@@ -100,16 +100,20 @@ export class StepRecorder {
     return Math.round(this.clock() - this.started);
   }
 
-  /** Run one screen reader action as a recorded step. */
+  /**
+   * Run one screen reader action as a recorded step, within the step timeout and `extraMs` more, for
+   * a step that takes longer the more it has to do.
+   */
   async step(
     command: DriverCommand,
     action: () => Promise<Speech>,
     after?: () => Promise<Pick<StepRecord, "inDocument" | "focused">>,
+    extraMs = 0,
   ): Promise<StepRecord> {
     const begin = this.clock();
     const n = this.steps.length + 1;
     this.underway = { n, command };
-    const spoken = await withTimeout(command, action, this.stepTimeoutMs, this.signal);
+    const spoken = await withTimeout(command, action, this.stepTimeoutMs + extraMs, this.signal);
     const extra = after
       ? await withTimeout(`${command} focus check`, after, this.stepTimeoutMs, this.signal)
       : {};
