@@ -6,7 +6,15 @@ import { describe, expect, it } from "vitest";
 
 import { FORMS_DEFAULTS } from "../src/config/defaults.js";
 import { formsFlags } from "../src/flags/forms.js";
-import { fieldValueOf, formPass, UNREACHABLE, type FormPassOptions } from "../src/passes/forms.js";
+import { sendsForm } from "../src/forms/press.js";
+import { keptFormsResults } from "../src/forms/result-file.js";
+import {
+  DIALOG,
+  fieldValueOf,
+  formPass,
+  UNREACHABLE,
+  type FormPassOptions,
+} from "../src/passes/forms.js";
 import { runPass, type PassSettings } from "../src/passes/index.js";
 import { InterruptedError, StepRecorder } from "../src/passes/steps.js";
 import { progressLine } from "../src/run/progress.js";
@@ -290,6 +298,118 @@ describe("what counts as completed", () => {
     const { outcome } = await pass({ fields: THREE });
     expect(outcome.result).toBe("completed");
     expect(outcome.presses.at(-1)?.state).toMatchObject({ invalid: [], bubble: null });
+  });
+});
+
+// Only a navigation, or a request to the page's own host or the form's action host, is the form
+// sending: a beacon to an analytics host goes out on a press whether or not the form does.
+describe("what counts as the form sending", () => {
+  const OPTIONAL: FakeForm["fields"] = [
+    { name: "Name", required: false },
+    { name: "Comments", required: false },
+  ];
+
+  it("isn't a third-party beacon held during the settle, on a form the page's script refused", async () => {
+    const { outcome } = await pass({
+      fields: OPTIONAL,
+      validates: "message",
+      neverSends: true,
+      sendsOnPress: true,
+      beaconHost: "www.google-analytics.com",
+    });
+    const [first] = outcome.presses;
+    expect(first?.state.held).toEqual([{ host: "www.google-analytics.com", type: "ping" }]);
+    expect(first?.state).toMatchObject({ invalid: [], emptyRequired: [], bubble: null });
+    expect(outcome.result).not.toBe("completed");
+    expect(outcome.result).toBe("stuck");
+  });
+
+  it("is a request to the page's own host, with a third-party beacon beside it", async () => {
+    const { outcome } = await pass({
+      fields: OPTIONAL,
+      sendsBy: "fetch",
+      sendsOnPress: true,
+      beaconHost: "www.google-analytics.com",
+    });
+    expect(outcome.result).toBe("completed");
+    expect(outcome.presses.at(-1)?.state.held).toEqual([
+      { host: "www.google-analytics.com", type: "ping" },
+      { host: "example.illinois.gov", type: "fetch" },
+    ]);
+  });
+
+  it("is a navigation of the page, wherever it goes", async () => {
+    const { outcome } = await pass({ fields: OPTIONAL, sendsBy: "navigation" });
+    expect(outcome.presses.at(-1)?.state.held).toEqual([
+      { host: "elsewhere.example", type: "navigation" },
+    ]);
+    expect(outcome.result).toBe("completed");
+  });
+
+  it("is a request to the form's action host, on another host than the page's", () => {
+    const hosts = { pageHost: "example.illinois.gov", actionHost: "forms.illinois.gov" };
+    expect(sendsForm({ host: "forms.illinois.gov", type: "fetch" }, hosts)).toBe(true);
+    expect(sendsForm({ host: "example.illinois.gov", type: "xhr" }, hosts)).toBe(true);
+    expect(sendsForm({ host: "www.google-analytics.com", type: "ping" }, hosts)).toBe(false);
+    expect(sendsForm({ host: "cdn.example.com", type: "navigation" }, hosts)).toBe(true);
+    expect(sendsForm({ host: "forms.illinois.gov", type: "fetch" }, { actionHost: null })).toBe(
+      false,
+    );
+  });
+
+  it("keeps each held request's host and type in forms-result.json, the same each time", async () => {
+    const { outcome } = await pass({
+      fields: OPTIONAL,
+      sendsBy: "fetch",
+      sendsOnPress: true,
+      beaconHost: "www.google-analytics.com",
+    });
+    const { json } = keptFormsResults([outcome], "/contact");
+    expect(json).toBe(keptFormsResults([outcome], "/contact").json);
+    const kept = JSON.parse(json) as {
+      forms: { presses: { state: { held: unknown; pageHost: string; actionHost: string } }[] }[];
+    };
+    expect(kept.forms[0]?.presses.at(-1)?.state).toMatchObject({
+      held: [
+        { host: "www.google-analytics.com", type: "ping" },
+        { host: "example.illinois.gov", type: "fetch" },
+      ],
+      pageHost: "example.illinois.gov",
+      actionHost: "example.illinois.gov",
+    });
+  });
+
+  it("is any held request when the driver doesn't say what it held", async () => {
+    const { outcome } = await pass({ fields: OPTIONAL });
+    expect(outcome.presses.at(-1)?.state.held).toBeUndefined();
+    expect(outcome.result).toBe("completed");
+  });
+});
+
+describe("a form that answers with a dialog box", () => {
+  it("isn't tested: the dialog is dismissed, and the press keeps its words", async () => {
+    const { driver, outcome } = await pass({
+      fields: [{ name: "Name" }],
+      validates: "message",
+      dialogOnPress: { type: "alert", message: "Please enter your name" },
+    });
+    expect(outcome.result).toBe("not-tested");
+    expect(outcome.reason).toBe(DIALOG);
+    expect(DIALOG).toBe("it answered with a dialog box, which voicecap doesn't test yet");
+    expect(outcome.presses).toHaveLength(1);
+    expect(outcome.presses[0]?.state.dialogs).toEqual([
+      { type: "alert", message: "Please enter your name" },
+    ]);
+    expect(driver.fills).toEqual([]);
+  });
+
+  it("isn't tested when the dialog asks to confirm, which voicecap answers no to", async () => {
+    const { outcome } = await pass({
+      fields: [{ name: "Name", required: false }],
+      dialogOnPress: { type: "confirm", message: "Send this form?" },
+    });
+    expect(outcome).toMatchObject({ result: "not-tested", reason: DIALOG });
+    expect(formsFlags([outcome])).toEqual([]);
   });
 });
 

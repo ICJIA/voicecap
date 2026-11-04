@@ -21,6 +21,7 @@ import {
   type BrowserContext,
   type CDPSession,
   type Page,
+  type Request as PlaywrightRequest,
   type Response,
   type Route,
 } from "playwright";
@@ -31,9 +32,9 @@ import { EnvironmentError, errorMessage } from "../../util/errors.js";
 import { formatDuration } from "../../util/time.js";
 import type { BrowserSession, FocusState, LoadResult } from "../guidepup-nvda.js";
 import { BROWSER_WINDOW, type FocusedElement } from "../types.js";
-import type { FormInfo, FormState } from "../../forms/types.js";
+import type { FormInfo, FormState, HeldRequest, PageDialog } from "../../forms/types.js";
 import { listenForUdp, type FormGate } from "./form-gate.js";
-import { focusField, readFormState, scanForms, selectorOf } from "./form-scan.js";
+import { focusField, hostOf, readFormState, scanForms, selectorOf } from "./form-scan.js";
 import { envValue, PROFILE_PREFIX } from "./paths.js";
 import { closeBrowsersUsing } from "./windows.js";
 
@@ -563,9 +564,14 @@ export class ChromeSession implements BrowserSession {
   /** The guard's arming: once begun, it's never begun again, and a failure stays a failure. */
   private guarding: Promise<void> | null = null;
   private guardProbeSeen = false;
-  private held = 0;
+  /** Each request the guard has held, with where it was going and what it was. */
+  private readonly held: HeldRequest[] = [];
+  /** Each JavaScript dialog the page opened, in a guarded session: each was dismissed. */
+  private readonly dialogs: PageDialog[] = [];
   /** The isolated world the last scan held its forms in; null before one. */
   private formsWorld: number | null = null;
+  /** The host name each form of the last scan sends to, by its index; null for no web address. */
+  private actionHosts = new Map<number, string | null>();
   private unclosedWindows = 0;
 
   constructor(
@@ -585,9 +591,18 @@ export class ChromeSession implements BrowserSession {
     });
     // Watched from the start: a socket the page opened on load still has its say once it's armed.
     page.on("websocket", (socket) => {
-      this.holdSocket();
-      socket.on("framesent", () => this.holdSocket());
+      this.holdSocket(socket.url());
+      socket.on("framesent", () => this.holdSocket(socket.url()));
     });
+    // A guarded session answers the page's dialogs itself, on purpose: it keeps each one's words for
+    // the forms pass, which doesn't test a form that answers with one, and dismisses it ("Cancel"
+    // for a confirm, "Stay" for a "leave this page?"), so a press isn't confirmed by voicecap.
+    if (options.formGate) {
+      page.on("dialog", (dialog) => {
+        this.dialogs.push({ type: dialog.type(), message: dialog.message() });
+        dialog.dismiss().catch(() => {});
+      });
+    }
   }
 
   /**
@@ -781,6 +796,7 @@ export class ChromeSession implements BrowserSession {
       const { frameTree } = await this.cdp.send("Page.getFrameTree");
       const scanned = await scanForms(this.cdp, frameTree.frame.id);
       this.formsWorld = scanned.contextId;
+      this.actionHosts = scanned.actionHosts;
       return scanned.forms;
     });
   }
@@ -802,7 +818,15 @@ export class ChromeSession implements BrowserSession {
   readFormState(form: number): Promise<FormState> {
     return this.onPage(async () => {
       const read = await readFormState(this.cdp, this.formsWorld, form);
-      return { ...read, focused: await this.focusedElement(), heldRequests: this.heldRequests() };
+      return {
+        ...read,
+        focused: await this.focusedElement(),
+        heldRequests: this.heldRequests(),
+        held: this.held.map((request) => ({ ...request })),
+        pageHost: hostOf(this.page.url()),
+        actionHost: this.actionHosts.get(form) ?? null,
+        dialogs: this.dialogs.map((dialog) => ({ ...dialog })),
+      };
     });
   }
 
@@ -909,7 +933,7 @@ export class ChromeSession implements BrowserSession {
    * never high, except that a page that polls adds to it with no one pressing anything.
    */
   heldRequests(): number {
-    return this.held;
+    return this.held.length;
   }
 
   /** How many windows a page opened that the guard tried to close and couldn't. */
@@ -917,8 +941,8 @@ export class ChromeSession implements BrowserSession {
     return this.unclosedWindows;
   }
 
-  private holdSocket(): void {
-    if (this.guarding) this.held += 1;
+  private holdSocket(url: string): void {
+    if (this.guarding) this.held.push({ host: hostOf(url), type: "websocket" });
   }
 
   private async armGuard(): Promise<void> {
@@ -966,10 +990,26 @@ export class ChromeSession implements BrowserSession {
   }
 
   private async holdRequest(route: Route): Promise<void> {
-    if (route.request().url() === GUARD_PROBE) this.guardProbeSeen = true;
-    else this.held += 1;
+    const request = route.request();
+    if (request.url() === GUARD_PROBE) this.guardProbeSeen = true;
+    else this.held.push({ host: hostOf(request.url()), type: this.typeOf(request) });
     // "aborted", which a navigation takes as called off: the page stays where it was to be read.
     await route.abort("aborted").catch(() => {});
+  }
+
+  /**
+   * What a held request was: "navigation" for the page's own, which is what a form's ordinary sending
+   * is, and otherwise the browser's type for it (fetch, xhr, ping, document for a frame, and so on).
+   */
+  private typeOf(request: PlaywrightRequest): string {
+    try {
+      if (request.isNavigationRequest() && request.frame() === this.page.mainFrame()) {
+        return "navigation";
+      }
+    } catch {
+      // A service worker's request has no frame.
+    }
+    return request.resourceType();
   }
 
   /**

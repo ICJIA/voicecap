@@ -1,5 +1,12 @@
 import type { AxeCapture, Speech } from "../../src/drivers/types.js";
-import type { FieldValue, FormField, FormInfo, FormState } from "../../src/forms/types.js";
+import type {
+  FieldValue,
+  FormField,
+  FormInfo,
+  FormState,
+  HeldRequest,
+  PageDialog,
+} from "../../src/forms/types.js";
 import { ScriptedDriver } from "./scripted-driver.js";
 
 /** One field of the fake form. */
@@ -65,7 +72,19 @@ export interface FakeForm {
   afterHeld?: string;
   /** What checkFormWithAxe gives. */
   axe?: AxeCapture;
+  /**
+   * How the form itself sends, as the guard holds it: a navigation, or a fetch to the page's own
+   * host. Set (or `beaconHost` set), the fake says what it held, and the page's and action's hosts.
+   */
+  sendsBy?: "navigation" | "fetch";
+  /** The host a request sent by a fill or a press beacon goes to; the page's own when left out. */
+  beaconHost?: string;
+  /** The JavaScript dialog a press opens (the page's alert, say), which voicecap dismisses. */
+  dialogOnPress?: PageDialog;
 }
+
+/** The page's own host, and the form's action host, for a fake that says what it held. */
+export const FAKE_HOST = "example.illinois.gov";
 
 /** The driver side of the forms pass, over a form it models. `made` lists what the pass did. */
 export class FakeFormDriver extends ScriptedDriver {
@@ -77,6 +96,8 @@ export class FakeFormDriver extends ScriptedDriver {
   /** A field's index, "submit", "out" (past the form), or null before anything is focused. */
   private focus: number | "submit" | "out" | null = null;
   private held = 0;
+  private readonly heldList: HeldRequest[] = [];
+  private readonly dialogs: PageDialog[] = [];
   private tabs = 0;
   private presses = 0;
   private marked: number[] = [];
@@ -159,8 +180,12 @@ export class FakeFormDriver extends ScriptedDriver {
     this.focus = "submit";
     this.bubble = null;
     this.live = false;
+    if (this.form.dialogOnPress !== undefined) {
+      this.dialogs.push(this.form.dialogOnPress);
+      return Promise.resolve(this.form.dialogOnPress.message);
+    }
     if (this.form.sendsOnPress) {
-      this.held += 1;
+      this.hold("ping", this.form.beaconHost);
       if (this.form.afterHeld !== undefined) this.show(this.form.afterHeld);
     }
     const empty = this.emptyFields();
@@ -183,7 +208,10 @@ export class FakeFormDriver extends ScriptedDriver {
     if (this.form.neverSends) {
       this.show("Please complete the form");
     } else if (empty.length === 0 && (this.form.validates ?? "native") !== "nothing") {
-      this.held += 1;
+      this.hold(
+        this.form.sendsBy ?? "fetch",
+        this.form.sendsBy === "navigation" ? "elsewhere.example" : FAKE_HOST,
+      );
       if (this.form.afterHeld !== undefined) this.show(this.form.afterHeld);
     }
     if (this.form.resets) this.filled.clear();
@@ -196,7 +224,7 @@ export class FakeFormDriver extends ScriptedDriver {
     if (typeof this.focus === "number" && this.form.fields[this.focus]?.takes !== false) {
       this.filled.add(this.focus);
     }
-    if (this.form.sendsOnFill) this.held += 1;
+    if (this.form.sendsOnFill) this.hold("xhr", this.form.beaconHost);
     return Promise.resolve("v");
   }
 
@@ -214,6 +242,10 @@ export class FakeFormDriver extends ScriptedDriver {
       messages: [],
       liveChanged: live,
       heldRequests: this.held,
+      ...(this.form.sendsBy !== undefined || this.form.beaconHost !== undefined
+        ? { held: [...this.heldList], pageHost: FAKE_HOST, actionHost: FAKE_HOST }
+        : {}),
+      ...(this.form.dialogOnPress !== undefined ? { dialogs: [...this.dialogs] } : {}),
       present,
       bubble: null,
     };
@@ -231,6 +263,12 @@ export class FakeFormDriver extends ScriptedDriver {
         this.form.strayBubble ??
         (typeof this.focus === "number" && !this.filled.has(this.focus) ? this.bubble : null),
     });
+  }
+
+  /** A request the guard holds: counted, and listed with where it was going. */
+  private hold(type: string, host: string = FAKE_HOST): void {
+    this.held += 1;
+    this.heldList.push({ host, type });
   }
 
   checkFormWithAxe(form: number): Promise<AxeCapture> {

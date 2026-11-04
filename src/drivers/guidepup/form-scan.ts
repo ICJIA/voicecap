@@ -290,7 +290,10 @@ interface RemoteProperty {
 }
 
 /** The scan's answer, without the part the session adds. */
-export type FormStateRead = Omit<FormState, "focused" | "heldRequests">;
+export type FormStateRead = Omit<
+  FormState,
+  "focused" | "heldRequests" | "held" | "pageHost" | "actionHost" | "dialogs"
+>;
 
 /**
  * Every form the page shows, sorted. The world the forms are held in is made new each time, and its
@@ -299,7 +302,7 @@ export type FormStateRead = Omit<FormState, "focused" | "heldRequests">;
 export async function scanForms(
   cdp: CDPSession,
   frameId: string,
-): Promise<{ forms: FormInfo[]; contextId: number }> {
+): Promise<{ forms: FormInfo[]; contextId: number; actionHosts: Map<number, string | null> }> {
   const { executionContextId: contextId } = await cdp.send("Page.createIsolatedWorld", {
     frameId,
     worldName: FORMS_WORLD,
@@ -324,9 +327,21 @@ export async function scanForms(
     for (const raw of raws) {
       for (const field of raw.fields) field.name = names[next++] ?? null;
     }
-    return { forms: raws.map(describeForm), contextId };
+    const actionHosts = new Map(
+      raws.map((raw) => [raw.index, /^https?:/i.test(raw.action) ? hostOf(raw.action) : null]),
+    );
+    return { forms: raws.map(describeForm), contextId, actionHosts };
   } finally {
     await cdp.send("Runtime.releaseObjectGroup", { objectGroup: OBJECT_GROUP }).catch(() => {});
+  }
+}
+
+/** The host name of an address, as the guard names a held request's; empty for none. */
+export function hostOf(address: string): string {
+  try {
+    return new URL(address).hostname;
+  } catch {
+    return "";
   }
 }
 

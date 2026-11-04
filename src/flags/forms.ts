@@ -14,12 +14,13 @@
  * - `form-field-unreachable`: Tab never reached a required field, or its value couldn't be entered.
  *
  * A message seen only after a request was held is no form error: a page may be reacting to the guard.
+ * A form that answered with a JavaScript dialog raises nothing: voicecap doesn't test dialogs yet.
  * A form that got to the point of sending with no problems raises nothing, and axe's findings raise
  * nothing. NVDA's English words are FORMS_DEFAULTS.words, in the config's defaults. Pure.
  */
 import { FORMS_DEFAULTS } from "../config/defaults.js";
 import type { FlagResult } from "../model.js";
-import { OUT_OF_STEPS, UNREACHABLE } from "../passes/forms.js";
+import { DIALOG, OUT_OF_STEPS, UNREACHABLE } from "../passes/forms.js";
 import { readPress } from "../forms/press.js";
 import type { FormField, FormOutcome, FormState } from "../forms/types.js";
 import { normalizeSpeech } from "../passes/steps.js";
@@ -87,6 +88,8 @@ export function formsQuotes(rule: string, forms: readonly FormFlagInput[]): stri
 
 function findings(form: FormFlagInput): Partial<Record<FormsRule, Finding>> {
   const found: Partial<Record<FormsRule, Finding>> = {};
+  // A form that answered with a dialog box isn't tested: its presses are no evidence either way.
+  if (form.result === "not-tested" && form.reason === DIALOG) return found;
   const label = form.form.submitName === null ? "The form" : `The "${form.form.submitName}" form`;
   const words = FORMS_DEFAULTS.words;
   const presses = form.presses.map((_, i) => readOne(form, i));

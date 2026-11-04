@@ -67,10 +67,40 @@ export interface FormState {
   liveChanged: boolean;
   /** How many requests the guard has held: the session's count, not the page's. */
   heldRequests: number;
+  /**
+   * Each request the guard has held, in order, as many as `heldRequests`: where it was going and what
+   * it was. Only a navigation of the page, or a request to the page's own host or the form's action
+   * host, counts as the form sending (readPress). Left out by a driver that can't say, and in a file
+   * from before voicecap kept it, where every held request counts.
+   */
+  held?: HeldRequest[];
+  /** The page's own host name, as the held requests name theirs. */
+  pageHost?: string;
+  /** The host name the form sends to; null for an action that isn't a web address. */
+  actionHost?: string | null;
+  /**
+   * Each JavaScript dialog (alert, confirm, prompt, or "leave this page?") the page has opened in the
+   * session, in order, with its words: voicecap dismissed each one. Left out by a driver that can't
+   * say.
+   */
+  dialogs?: PageDialog[];
   /** Whether the form is still in the page. */
   present: boolean;
   /** The focused field's own validationMessage: Chrome's bubble, which is in no element. */
   bubble: string | null;
+}
+
+/** A request the guard held: its host name, and what it was ("navigation", or the browser's type). */
+export interface HeldRequest {
+  host: string;
+  type: string;
+}
+
+/** A JavaScript dialog the page opened, and the words it showed. */
+export interface PageDialog {
+  /** "alert", "confirm", "prompt", or "beforeunload". */
+  type: string;
+  message: string;
 }
 
 /** What NVDA said at a field, and whether the field is required. */

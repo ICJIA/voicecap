@@ -13,6 +13,7 @@
  */
 import type { FlagResult } from "../model.js";
 import { formsFlags, type FormFlagInput } from "../flags/forms.js";
+import { TESTED_ON } from "../passes/forms.js";
 import { readPress } from "./press.js";
 
 export type FormBannerKind = "works" | "needs-work" | "cant-complete" | "not-checked";
@@ -113,12 +114,6 @@ function stopped(outcome: FormFlagInput): string {
     ? "It never reached the point of sending."
     : `It never reached the point of sending: ${outcome.reason}.`;
 }
-
-/**
- * The start of the reason a form gives when an earlier test of the same form stands for it, followed
- * by that test's page as a path: "tested on /about".
- */
-export const TESTED_ON = "tested on ";
 
 /** Why a form wasn't tested, by what voicecap knows of it. */
 function whyNot(outcome: FormFlagInput): string {

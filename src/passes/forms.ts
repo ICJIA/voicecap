@@ -9,7 +9,6 @@ import type {
   FormResult,
   FormState,
 } from "../forms/types.js";
-import { TESTED_ON } from "../forms/banner.js";
 import { readPress } from "../forms/press.js";
 import type { StopReason } from "../model.js";
 import { redactAccount } from "../run/failure.js";
@@ -58,6 +57,13 @@ const NO_FORM_DRIVER = "this run's driver doesn't test forms";
 
 /** Why a form stopped at a field the keyboard can't get to: `form-field-unreachable`'s evidence. */
 export const UNREACHABLE = "Tab never reached it";
+
+/**
+ * Why a form that answered with a JavaScript dialog (an alert, say, or "Are you sure?") isn't
+ * tested: voicecap dismisses the dialog, and the press's state keeps its words. Until dialogs are
+ * tested, the banner says neither that NVDA can complete the form nor that it can't.
+ */
+export const DIALOG = "it answered with a dialog box, which voicecap doesn't test yet";
 
 export const OUT_OF_STEPS = "the pass ran out of steps on this form";
 
@@ -241,6 +247,9 @@ export async function formPass(
 
   const baseline = await readState();
   seen.baseline = { invalid: [...baseline.invalid], messages: [...baseline.messages] };
+  // A dialog the page opened as it loaded isn't the form's answer: only one after this is.
+  const dialogsBefore = baseline.dialogs?.length ?? 0;
+  const dialogSince = (state: FormState) => (state.dialogs?.length ?? 0) > dialogsBefore;
   firstWalk = await walk(driver, recorder, form, stepLimit);
   for (;;) {
     if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
@@ -251,6 +260,7 @@ export async function formPass(
       if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
       before = await readState();
     }
+    if (dialogSince(before)) return end("not-tested", DIALOG);
     if (!before.present) return end("stuck", "the form left the page");
     if (!before.focusedSubmit) {
       const submit = form.submitName === null ? "" : `, "${form.submitName}"`;
@@ -270,6 +280,8 @@ export async function formPass(
     }
     lastErrors = errors;
     presses.push({ state, spoken, axe, heldBefore: before.heldRequests });
+    // The press's state keeps the dialog's words, for the record.
+    if (dialogSince(state)) return end("not-tested", DIALOG);
 
     if (!state.present) {
       if (emptyOnly !== null) return end("not-tested", emptyOnly);
@@ -324,6 +336,12 @@ export async function formPass(
     filled.add(next.index);
   }
 }
+
+/**
+ * The start of the reason a form gives when an earlier test of the same form stands for it, followed
+ * by that test's page as a path: "tested on /about". The banner reads it (forms/banner.ts).
+ */
+export const TESTED_ON = "tested on ";
 
 /** What a form says when an earlier test of the same form stands for it. */
 export function testedOnReason(page: string): string {

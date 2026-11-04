@@ -26,6 +26,7 @@ import {
   tunnelTarget,
   type FormGate,
 } from "../src/drivers/guidepup/form-gate.js";
+import { sentByPress } from "../src/forms/press.js";
 
 // Real Chromium (Playwright's build, headless) against a local server that counts every request.
 // The guard is what keeps a form's data on the computer, so nothing here is faked but the failures
@@ -138,6 +139,12 @@ const sentBy = (kind: string, otherOrigin: string): string => {
       return `${HEAD}<a id="go" href="#here" ping="/sent">Send</a>`;
     case "a frame's move":
       return `${button(`document.querySelector("iframe").src = "/sent?a=secret"`)}<iframe></iframe>`;
+    case "an alert-validated form":
+      return `${HEAD}<form method="post" action="/sent" onsubmit='if (!this.a.value) { alert("Please enter your name"); return false; }'><input name="a"><button id="go">Send</button></form>`;
+    case "a confirm form":
+      return `${HEAD}<form method="post" action="/sent" onsubmit='return confirm("Send this form?")'><input name="a" value="secret"><button id="go">Send</button></form>`;
+    case "a third-party beacon on a form its script refused":
+      return `${HEAD}<form method="post" action="/sent" onsubmit='navigator.sendBeacon("${otherOrigin}/collect", "form_submit"); return false;'><input name="a" value="secret"><button id="go">Send</button></form>`;
     case "a cross-origin fetch":
       return button(
         `fetch("${otherOrigin}/sent", { method: "POST", body: "secret", headers: { "x-secret": "1" } })`,
@@ -699,6 +706,69 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     await page.evaluate(`fetch("/pic.png").catch(() => {})`);
     await settled();
     expect(server.paths()).toEqual([]);
+  });
+
+  // The page's JavaScript dialogs: voicecap keeps each one's words and dismisses it, and nothing the
+  // form would send leaves the browser.
+  describe("a dialog box", () => {
+    it.each([
+      ["an alert-validated form", { type: "alert", message: "Please enter your name" }],
+      ["a confirm form", { type: "confirm", message: "Send this form?" }],
+    ])("is kept and dismissed, and nothing reaches the server: %s", async (name, dialog) => {
+      kind = name;
+      const page = await armAndPress();
+      await vi.waitFor(
+        async () => expect((await session.readFormState(0)).dialogs).toEqual([dialog]),
+        {
+          timeout: SEND_LIMIT_MS,
+          interval: 25,
+        },
+      );
+      await delay(STRAGGLER_MS);
+      // Dismissed: the page answers again, and the confirm's "no" kept the form from sending.
+      await expect(page.evaluate("1 + 1")).resolves.toBe(2);
+      expect(session.heldRequests()).toBe(0);
+      expect(server.paths()).toEqual([]);
+      expect(server.reaches()).toBe(0);
+    });
+  });
+
+  // What the guard held, and whether it's the form's own sending: a navigation, or a request to the
+  // page's own host. A beacon to another host isn't.
+  describe("what it held", () => {
+    const sent = async () => {
+      await settled();
+      const state = await session.readFormState(0);
+      return { state, sends: sentByPress(0, state) };
+    };
+
+    it("names a beacon to another host, which isn't the form sending", async () => {
+      kind = "a third-party beacon on a form its script refused";
+      await armAndPress();
+      const { state, sends } = await sent();
+      expect(state.pageHost).toBe("127.0.0.1");
+      expect(state.held?.map((request) => request.host)).toEqual(["localhost"]);
+      expect(sends).toBe(false);
+      expect(server.reaches()).toBe(0);
+    });
+
+    it("names the form's own post as a navigation, which is the form sending", async () => {
+      kind = "post form";
+      await armAndPress();
+      const { state, sends } = await sent();
+      expect(state.held).toContainEqual({ host: "127.0.0.1", type: "navigation" });
+      expect(sends).toBe(true);
+      expect(server.reaches()).toBe(0);
+    });
+
+    it("names a fetch to the page's own host, which is the form sending", async () => {
+      kind = "fetch";
+      await armAndPress();
+      const { state, sends } = await sent();
+      expect(state.held).toEqual([{ host: "127.0.0.1", type: "fetch" }]);
+      expect(sends).toBe(true);
+      expect(server.reaches()).toBe(0);
+    });
   });
 
   describe("as the session closes", () => {
