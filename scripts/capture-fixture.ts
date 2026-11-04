@@ -98,6 +98,12 @@ async function main(): Promise<number> {
     // --from <run folder> checks a run made earlier instead of making a new one, and
     // --forms-from <run folder> the same for the forms run, which --from alone leaves out.
     // --forms-new, with --from, makes only a new forms run (see the top of this file).
+    for (const flag of ["--from", "--forms-from"]) {
+      if (process.argv.includes(flag) && argumentAfter(flag) === null) {
+        logger.error(`${flag} needs a run folder after it.`);
+        return 2;
+      }
+    }
     const from = argumentAfter("--from");
     const formsFrom = argumentAfter("--forms-from");
     const formsNew = process.argv.includes("--forms-new");
@@ -139,6 +145,12 @@ async function main(): Promise<number> {
     // The site folder is always two levels above the run folder (<site>/<date>/<rest>/).
     const run = await readRunJson(path.dirname(path.dirname(runDir)), runId);
     await checkRun(run, runDir, outcome);
+    if (formsNew && outcome.failures.length > 0) {
+      // The forms run would replace nothing beside a main run that fails its checks.
+      report(logger, outcome);
+      logger.info("The main run given failed its checks, so no forms run was made.");
+      return 1;
+    }
 
     // The forms run: made now (with no --from, or with --forms-new), given with --forms-from, or,
     // with --from alone, left out.
@@ -230,9 +242,11 @@ async function main(): Promise<number> {
   }
 }
 
+/** The value after `flag`, or null when the flag isn't given or no value follows it. */
 function argumentAfter(flag: string): string | null {
   const index = process.argv.indexOf(flag);
-  return index === -1 ? null : (process.argv[index + 1] ?? null);
+  const value = index === -1 ? undefined : process.argv[index + 1];
+  return value === undefined || value.startsWith("--") ? null : value;
 }
 
 async function transcript(
