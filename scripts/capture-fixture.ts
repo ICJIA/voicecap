@@ -20,6 +20,13 @@
  *   and fixture tests check page by page, stays the three passes of the three sitemap pages.
  *
  * NVDA speaks and browser windows come and go for about 10 minutes: nobody may use the computer.
+ *
+ * Runs made earlier can stand in: `--from <run folder>` checks a main run made earlier instead of
+ * making one (the Speech Viewer and frames checks, about a minute of NVDA, still run), and
+ * `--forms-from <run folder>` the same for the forms run, which `--from` alone leaves out. With
+ * `--from`, `--forms-new` makes only a new forms run (about 13 minutes of NVDA), checks it and the
+ * given main run, and leaves out the Speech Viewer and frames checks, which belong to the main run;
+ * with `--write`, it replaces only fixture/forms-run, and it keeps the new run's folder and names it.
  */
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -90,10 +97,17 @@ async function main(): Promise<number> {
   try {
     // --from <run folder> checks a run made earlier instead of making a new one, and
     // --forms-from <run folder> the same for the forms run, which --from alone leaves out.
+    // --forms-new, with --from, makes only a new forms run (see the top of this file).
     const from = argumentAfter("--from");
     const formsFrom = argumentAfter("--forms-from");
+    const formsNew = process.argv.includes("--forms-new");
+    if (formsNew && (!from || formsFrom)) {
+      logger.error("--forms-new needs --from <main run folder>, and no --forms-from.");
+      return 2;
+    }
+    const minutes = formsNew ? "13 minutes" : from ? "a minute" : "10 minutes";
     logger.alert(
-      `NVDA speaks and browser windows come and go for about ${from ? "a minute" : "10 minutes"}. Don't use the keyboard or mouse until this finishes.`,
+      `NVDA speaks and browser windows come and go for about ${minutes}. Don't use the keyboard or mouse until this finishes.`,
     );
     let runDir: string;
     let runId: string;
@@ -126,11 +140,12 @@ async function main(): Promise<number> {
     const run = await readRunJson(path.dirname(path.dirname(runDir)), runId);
     await checkRun(run, runDir, outcome);
 
-    // The forms run: made now, given with --forms-from, or, with --from alone, left out.
+    // The forms run: made now (with no --from, or with --forms-new), given with --forms-from, or,
+    // with --from alone, left out.
     let formsDir: string | null = null;
     if (formsFrom) {
       formsDir = path.resolve(formsFrom);
-    } else if (!from) {
+    } else if (!from || formsNew) {
       const started = Date.now();
       const result = await runAudit({
         site: SITE,
@@ -161,10 +176,16 @@ async function main(): Promise<number> {
       outcome.notes.push("No forms run: --from without --forms-from leaves it out.");
     }
 
-    const home = await transcript(run, runDir, `${SITE}/`, "read");
-    const viewer = home ? await captureSpeechViewer(home, config, logger, controller.signal) : null;
-    if (home && viewer) checkSpeechViewer(home, viewer, outcome);
-    await checkFrames(config, logger, controller.signal, outcome);
+    // The main run's own checks with NVDA, which --forms-new leaves out: it makes a forms run only.
+    let viewer: string | null = null;
+    if (formsNew) {
+      outcome.notes.push("No Speech Viewer or frames check: --forms-new makes only a forms run.");
+    } else {
+      const home = await transcript(run, runDir, `${SITE}/`, "read");
+      viewer = home ? await captureSpeechViewer(home, config, logger, controller.signal) : null;
+      if (home && viewer) checkSpeechViewer(home, viewer, outcome);
+      await checkFrames(config, logger, controller.signal, outcome);
+    }
 
     report(logger, outcome);
     if (outcome.failures.length > 0) {
@@ -172,7 +193,14 @@ async function main(): Promise<number> {
       if (formsDir) logger.info(`The forms run is kept for inspection in ${formsDir}`);
       return 1;
     }
-    if (write && viewer) {
+    if (write && formsNew && formsDir) {
+      // Only the forms run is new: the main run's fixture copies go with a Speech Viewer capture.
+      await rm(FORMS_RUN_DIR, { recursive: true, force: true });
+      await cp(formsDir, FORMS_RUN_DIR, { recursive: true });
+      logger.info(
+        "Replaced fixture/forms-run with the forms run. Review the changes with git diff.",
+      );
+    } else if (write && viewer) {
       await rm(REPLAY_RUN_DIR, { recursive: true, force: true });
       await cp(runDir, REPLAY_RUN_DIR, { recursive: true });
       if (formsDir) {
@@ -185,7 +213,12 @@ async function main(): Promise<number> {
         `Replaced fixture/replay-run with ${run.id}${formsDir ? " and fixture/forms-run with the forms run" : ""}, and rewrote fixture/reviews.json and fixture/manual/speech-viewer.txt. Review the changes with git diff.`,
       );
     }
-    await rm(work, { recursive: true, force: true, maxRetries: 5 });
+    if (formsNew && formsDir) {
+      // Kept, so it can be given with --forms-from beside the main run, to replace both.
+      logger.info(`The forms run is kept in ${formsDir}`);
+    } else {
+      await rm(work, { recursive: true, force: true, maxRetries: 5 });
+    }
     return 0;
   } catch (error) {
     if (!(error instanceof InterruptedError)) throw error;
