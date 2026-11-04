@@ -4,12 +4,15 @@
  * fails the page's other passes. The Guidepup driver's own side is in guidepup-driver.test.ts.
  */
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { OpenPageOptions, PageInfo, Speech } from "../src/drivers/types.js";
 import type { FormInfo, FormState } from "../src/forms/types.js";
+import * as ResultFile from "../src/forms/result-file.js";
+import { fileHash } from "../src/transcripts/write.js";
 import { runAudit } from "../src/run/audit.js";
 import { pageDir } from "../src/run/paths.js";
 import { readRunJson } from "../src/run/store.js";
@@ -24,7 +27,13 @@ vi.mock("../src/run/page-runner.js", async (importOriginal) => {
   return { ...actual, processPage: vi.fn(actual.processPage) };
 });
 
+vi.mock("../src/forms/result-file.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof ResultFile>();
+  return { ...actual, keptFormsResults: vi.fn(actual.keptFormsResults) };
+});
+
 afterEach(() => {
+  vi.mocked(ResultFile.keptFormsResults).mockClear();
   vi.mocked(PageRunner.processPage).mockClear();
 });
 
@@ -384,5 +393,83 @@ describe("the order of the passes", () => {
       { guarded: true },
     ]);
     expect(result.run.pages[0]?.passes.forms?.stopReason).toBe("forms-done");
+  });
+});
+
+describe("the forms record", () => {
+  const resultOf = (dir: string, runId: string, slug: string) =>
+    path.join(pageDir(outDir(dir), runId, slug), "forms-result.json");
+
+  it("writes forms-result.json, and records its fingerprint, counts, and when with the page", async () => {
+    const driver = new FormsDriver(TWO_FORMS);
+    const { dir, result } = await run(driver);
+    const [home, about] = result.run.pages;
+
+    const text = await readFile(resultOf(dir, result.runId, home!.slug), "utf8");
+    expect(home!.forms).toMatchObject({
+      ...fileHash(text),
+      counts: { forms: 2, completed: 2, stuck: 0, notTested: 0, presses: 2 },
+    });
+    expect(home!.forms).toHaveProperty("ranAt");
+    const file = JSON.parse(text) as { page: string; forms: { form: { signature: string } }[] };
+    expect(file.page).toBe("/");
+    expect(file.forms.map((form) => form.form.signature)).toEqual(["signup", "contact"]);
+
+    // The second page's one form was tested on the first: it says so, with no press.
+    const aboutText = await readFile(resultOf(dir, result.runId, about!.slug), "utf8");
+    expect(about!.forms).toMatchObject({
+      ...fileHash(aboutText),
+      counts: { forms: 1, completed: 0, stuck: 0, notTested: 1, presses: 0 },
+    });
+    expect((await readRunJson(outDir(dir), result.runId)).pages[0]?.forms).toEqual(home!.forms);
+    // The file is no transcript: the page's files are the forms pass's two.
+    expect(Object.keys(home!.files).sort()).toEqual(["forms.json", "forms.txt"]);
+  });
+
+  it("is verified, and sealed with the run", async () => {
+    const { dir } = await run(new FormsDriver(TWO_FORMS));
+    const home = path.join(dir, "transcripts");
+    expect((await verifyHome({ home, logger: createMemoryLogger() })).problems).toBe(0);
+  });
+
+  it("is left out for a page with no forms, and for a run without the forms pass", async () => {
+    const { dir, result } = await run(new FormsDriver({}), ["/"], ["read", "forms"]);
+    expect(result.run.pages[0]).not.toHaveProperty("forms");
+    expect(existsSync(resultOf(dir, result.runId, result.run.pages[0]!.slug))).toBe(false);
+
+    const without = await run(new FormsDriver(TWO_FORMS), ["/"], ["read"]);
+    expect(without.result.run.pages[0]).not.toHaveProperty("forms");
+    expect(existsSync(resultOf(without.dir, without.result.runId, "home"))).toBe(false);
+    expect(
+      (
+        await verifyHome({
+          home: path.join(without.dir, "transcripts"),
+          logger: createMemoryLogger(),
+        })
+      ).problems,
+    ).toBe(0);
+  });
+
+  it("records why it has none when it can't be written, and the page is done all the same", async () => {
+    vi.mocked(ResultFile.keptFormsResults).mockImplementationOnce(() => {
+      throw new Error("no room in the folder");
+    });
+    const { dir, result } = await run(
+      new FormsDriver({ "/": [formOf(0, "signup")] }),
+      ["/"],
+      ["read", "forms"],
+    );
+    const page = result.run.pages[0]!;
+    expect(page.status).toBe("done");
+    expect(page.passes.read?.stopReason).toBe("end-reached");
+    expect(page.forms).toMatchObject({
+      error: "Could not keep the forms results: no room in the folder",
+    });
+    expect(page.forms).toHaveProperty("ranAt");
+    expect(existsSync(resultOf(dir, result.runId, page.slug))).toBe(false);
+    expect(
+      (await verifyHome({ home: path.join(dir, "transcripts"), logger: createMemoryLogger() }))
+        .problems,
+    ).toBe(0);
   });
 });

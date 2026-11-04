@@ -12,6 +12,7 @@ import type {
 } from "../drivers/types.js";
 import {
   AXE_FILE,
+  FORMS_FILE,
   SCREENSHOT_FILE,
   VOICE_FILE,
   type AttemptRecord,
@@ -19,6 +20,7 @@ import {
   type EnvironmentRecord,
   type FailureKind,
   type FileHash,
+  type FormsRecord,
   type PageRecord,
   type PassName,
   type PassSummary,
@@ -36,6 +38,8 @@ import {
   type PassResult,
   type PassSettings,
 } from "../passes/index.js";
+import type { FormOutcome } from "../forms/types.js";
+import { keptFormsResults } from "../forms/result-file.js";
 import { InterruptedError, StepTimeoutError, withTimeout } from "../passes/steps.js";
 import { displayPath, isHtmlContentType, sameOrigin } from "../pages/url.js";
 import { fileHash, writeTranscript } from "../transcripts/write.js";
@@ -116,6 +120,12 @@ export interface PageOutcome {
    */
   axe?: AxeRecord;
   /**
+   * The forms pass's results the last attempt kept in the page's folder, or why it has none. Left
+   * out for a page where no form was tested: the pass wasn't in the run, the driver can't test
+   * forms, or the page had none.
+   */
+  forms?: FormsRecord;
+  /**
    * The recording of NVDA's voice the last attempt kept in the page's folder, or why it has none: made
    * from the attempt's start to its end, as the screenshot is taken as the page first loads, and
    * kept only when the attempt finished (see endVoice), with only each pass's stretch of it (see
@@ -147,6 +157,8 @@ interface Loaded {
   screenshot?: ScreenshotRecord;
   /** And the check of the page with axe, if the driver makes one. */
   axe?: AxeRecord;
+  /** And the forms pass's results, once that pass has tested a form on the page. */
+  forms?: FormsRecord;
   /**
    * Whether the page is to be read: the attempt's first load wasn't skipped, and wasn't an HTTP error.
    * Left out otherwise, and then the attempt's recording of NVDA's voice isn't kept, as no one reads
@@ -237,6 +249,7 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     ...(status === "done" && result.canonical !== undefined ? { canonical: result.canonical } : {}),
     ...(result.screenshot !== undefined ? { screenshot: result.screenshot } : {}),
     ...(result.axe !== undefined ? { axe: result.axe } : {}),
+    ...(result.forms !== undefined ? { forms: result.forms } : {}),
     ...(result.voice !== undefined ? { voice: result.voice } : {}),
     ...(result.kind === "skipped" ? { skip: result.skip } : {}),
   });
@@ -464,6 +477,8 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
             tested[outcome.form.signature] ??= displayPath(page.url);
           }
         }
+        const forms = await keepForms(ctx, dir, result.forms ?? []);
+        if (forms) loaded.forms = forms;
         // A problem in the forms pass never fails the page's other passes: it says why in its record.
         continue;
       }
@@ -552,6 +567,32 @@ async function keepAxe(
     counts: { ...counts },
     impacts: { ...impacts },
   };
+}
+
+/**
+ * Keep what the forms pass concluded on a page: the file in the page's folder (forms-result.json),
+ * and its record, with when. A file that couldn't be written is recorded as the reason, with no file:
+ * a problem in the forms pass never fails the page's other passes. Null when no form was tested.
+ */
+async function keepForms(
+  ctx: PageContext,
+  dir: string,
+  outcomes: readonly FormOutcome[],
+): Promise<FormsRecord | null> {
+  if (outcomes.length === 0) return null;
+  const ranAt = isoLocalMs(ctx.now());
+  try {
+    const kept = keptFormsResults(outcomes, displayPath(ctx.page.url));
+    await writeFileAtomic(path.join(dir, FORMS_FILE), kept.json);
+    return { ...fileHash(kept.json), ranAt, counts: kept.counts };
+  } catch (error) {
+    return {
+      error: axeErrorReason(
+        redactAccount(`Could not keep the forms results: ${errorMessage(error)}`),
+      ),
+      ranAt,
+    };
+  }
 }
 
 /**

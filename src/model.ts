@@ -269,6 +269,28 @@ export const AXE_FILE = "axe.json";
 export type AxeRecord =
   (FileHash & AxeSummary & { ranAt: string }) | { error: string; ranAt: string };
 
+/** What the forms pass concluded on a page, in the page's folder (pages/<slug>/). */
+export const FORMS_FILE = "forms-result.json";
+
+/** How the forms of a page came out, as its record counts them: every form is in one of three. */
+export interface FormsCounts {
+  forms: number;
+  completed: number;
+  stuck: number;
+  notTested: number;
+  /** The presses of submit controls, across the page's forms. */
+  presses: number;
+}
+
+/**
+ * A page's forms pass, as the page's record keeps it, beside axe's. Results that were kept have the
+ * file's SHA-256 and size, and how the forms came out (see FormsCounts). Results that couldn't be
+ * written have the reason, and no file. Both have when the run recorded it (a local ISO time to the
+ * millisecond). A page with no forms tested has neither the file nor the record, and that is no gap.
+ */
+export type FormsRecord =
+  (FileHash & { counts: FormsCounts; ranAt: string }) | { error: string; ranAt: string };
+
 /** A page's recording of what NVDA said aloud, in the page's folder (pages/<slug>/). */
 export const VOICE_FILE = "voice.webm";
 
@@ -475,6 +497,12 @@ export interface PageRecord extends PageRef {
    * is from before voicecap 0.16.0.
    */
   axe?: AxeRecord;
+  /**
+   * What the forms pass found on the page, kept in its folder (forms-result.json), or why there is
+   * no file. Kept apart from `files`, as axe's is. Left out when the pass tested no form on the
+   * page: it wasn't in the run, the driver can't test forms, or the page had none.
+   */
+  forms?: FormsRecord;
   /**
    * What NVDA said aloud while each pass read the page, recorded from the start of its last attempt
    * to its end with only each pass's stretch kept (see VoiceRecord), and kept only when that

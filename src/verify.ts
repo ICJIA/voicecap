@@ -2,7 +2,14 @@ import { existsSync } from "node:fs";
 import { lstat, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { AXE_FILE, SCREENSHOT_FILE, VOICE_FILE, type FileHash, type ReviewsFile } from "./model.js";
+import {
+  AXE_FILE,
+  FORMS_FILE,
+  SCREENSHOT_FILE,
+  VOICE_FILE,
+  type FileHash,
+  type ReviewsFile,
+} from "./model.js";
 import { isWebRoot } from "./pages/canonical.js";
 import { canonicalKey } from "./pages/url.js";
 import { readReviews } from "./reviews/store.js";
@@ -311,8 +318,8 @@ async function checkRunFiles(
 
 /**
  * The files a run records, by path in pages/: each page's transcripts, and its screenshot, its axe
- * results, and its recording of NVDA's voice when the page's record has the file's hash (a record of
- * why there's none has no file to check; a run from before 0.18.0 has no recordings). Null when its
+ * results, its forms results, and its recording of NVDA's voice when the page's record has the
+ * file's hash (a record of why there's none has no file to check; a run from before 0.18.0 has no recordings). Null when its
  * pages aren't as voicecap writes them.
  */
 function recordedFiles(run: Record<string, unknown>): Map<string, FileHash> | null {
@@ -326,6 +333,7 @@ function recordedFiles(run: Record<string, unknown>): Map<string, FileHash> | nu
     }
     if (isFileHash(page.screenshot)) files.set(`${page.slug}/${SCREENSHOT_FILE}`, page.screenshot);
     if (isFileHash(page.axe)) files.set(`${page.slug}/${AXE_FILE}`, page.axe);
+    if (isFileHash(page.forms)) files.set(`${page.slug}/${FORMS_FILE}`, page.forms);
     if (isFileHash(page.voice)) files.set(`${page.slug}/${VOICE_FILE}`, page.voice);
   }
   return files;

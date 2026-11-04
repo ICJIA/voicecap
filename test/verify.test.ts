@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { keptAxeResults } from "../src/axe/results.js";
+import { keptFormsResults } from "../src/forms/result-file.js";
 import { addManualSession } from "../src/manual-add.js";
 import type {
   ManualSessionJson,
@@ -368,7 +369,83 @@ describe("verifyHome", () => {
       expect(existsSync(at(untouched, AXE))).toBe(false);
       expect((await verify(untouched)).lines).toEqual([MATCHES]);
     });
+  });
 
+  describe("a page's forms results", () => {
+    const FORMS = `${RUN}/pages/home/forms-result.json`;
+    const RAN_AT = "2026-09-27T11:02:05.000-05:00";
+    const ONE_PROBLEM = `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`;
+    const found = keptFormsResults([], "/");
+    const recorded = { ...fileHash(found.json), ranAt: RAN_AT, counts: found.counts };
+
+    /** A copy of the home whose home page has forms results, in its folder and in its record. */
+    async function withForms(): Promise<string> {
+      const home = await changingPage("home", (page) => {
+        page.forms = recorded;
+      });
+      await writeFile(at(home, FORMS), found.json);
+      return home;
+    }
+
+    it("finds nothing wrong with results that are as the run recorded them", async () => {
+      expect((await verify(await withForms())).lines).toEqual([MATCHES]);
+    });
+
+    it("names results that were edited, removed, or not recorded", async () => {
+      const edited = await withForms();
+      await appendFile(at(edited, FORMS), "\n");
+      expect((await verify(edited)).lines).toEqual([
+        `${FORMS}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+
+      const removed = await withForms();
+      await rm(at(removed, FORMS));
+      expect((await verify(removed)).lines).toEqual([`${FORMS}: missing`, ONE_PROBLEM]);
+
+      // No forms in the record, and one whose record says why it has none: the file is unrecorded.
+      for (const forms of [undefined, { error: "disk full", ranAt: RAN_AT }]) {
+        const home = await changingPage("home", (page) => {
+          if (forms) page.forms = forms;
+        });
+        await writeFile(at(home, FORMS), found.json);
+        expect((await verify(home)).lines).toEqual([
+          `${FORMS}: not recorded by the run`,
+          ONE_PROBLEM,
+        ]);
+      }
+    });
+
+    it("finds nothing wrong with a record of why there's none", async () => {
+      const home = await changingPage("home", (page) => {
+        page.forms = { error: "disk full", ranAt: RAN_AT };
+      });
+      expect((await verify(home)).lines).toEqual([MATCHES]);
+    });
+
+    it("passes a run with no forms pass: no file and no record is no gap", async () => {
+      const run = JSON.parse(await readFile(at(untouched, `${RUN}/run.json`), "utf8")) as RunJson;
+      for (const page of run.pages) expect(page).not.toHaveProperty("forms");
+      expect(existsSync(at(untouched, FORMS))).toBe(false);
+      expect((await verify(untouched)).lines).toEqual([MATCHES]);
+    });
+
+    it("is covered by the seal: a record added without sealing again is named", async () => {
+      const home = await withForms();
+      await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+        run.pages.find((page) => page.slug === "home")!.forms = {
+          ...recorded,
+          counts: { ...found.counts, forms: 9 },
+        };
+      });
+      expect((await verify(home)).lines).toEqual([
+        `${RUN}/run.json: changed since it was sealed`,
+        ONE_PROBLEM,
+      ]);
+    });
+  });
+
+  describe("the i2i fixture", () => {
     it("passes the i2i fixture, a sealed run from voicecap 0.11.0", async () => {
       const home = fixture("i2i-v3-run");
       const { result, lines } = await verify(home);

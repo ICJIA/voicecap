@@ -946,6 +946,9 @@ function applyOutcome(
   // The same for axe's results: an earlier attempt's axe.json was moved aside with the files.
   if (outcome.axe) page.axe = outcome.axe;
   else delete page.axe;
+  // And for the forms pass's results: an earlier attempt's forms-result.json was moved aside too.
+  if (outcome.forms) page.forms = outcome.forms;
+  else delete page.forms;
   // And for the recording of NVDA's voice: an earlier attempt's voice.webm was moved aside too.
   if (outcome.voice) page.voice = outcome.voice;
   else delete page.voice;
