@@ -113,6 +113,19 @@ export type {
   VoiceCapture,
   VoiceRecording,
 } from "./drivers/types.js";
+// What a driver's forms pass members take and give (ScreenReaderDriver.findForms and the rest), and
+// what forms-result.json keeps of each form.
+export type { OpenPageOptions } from "./drivers/types.js";
+export type {
+  FieldHeard,
+  FieldValue,
+  FormField,
+  FormInfo,
+  FormKind,
+  FormOutcome,
+  FormResult,
+  FormState,
+} from "./forms/types.js";
 // What a page's record keeps of axe's check of it (`PageRecord.axe`), and what a driver's check
 // gives beside the file's text (`AxeCapture`).
 export type { AxeSummary } from "./axe/results.js";

@@ -44,7 +44,7 @@
  * keyboard focus, and complete without JavaScript, as it has no fold. What the facts hold goes
  * through `esc`, and so do the fixed words, which are plain text.
  */
-import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { DEFAULT_CONFIG, FORMS_DEFAULTS } from "../config/defaults.js";
 import { BUILT_IN_RULES } from "../flags/evaluate.js";
 import { DEFAULT_PASS_NAMES } from "../model.js";
 import { esc } from "../report/html.js";
@@ -275,6 +275,7 @@ function passes(): string {
       ]),
     ),
     paragraph(words.stops),
+    paragraph(words.forms),
     subheading(caught.heading),
     list(caught.points),
     subheading(defaults.heading, defaults.id),
@@ -283,6 +284,9 @@ function passes(): string {
       ...DEFAULT_PASS_NAMES.map((pass) =>
         setting(`stepCaps.${pass}`, count(stepCaps[pass]), defaults.stepCap(pass)),
       ),
+      setting("stepCaps.forms", count(FORMS_DEFAULTS.stepCap), defaults.stepCap("forms")),
+      setting("forms.settleMs", duration(FORMS_DEFAULTS.settleMs), defaults.formsSettleMs),
+      setting("forms.maxPerPage", count(FORMS_DEFAULTS.maxPerPage), defaults.formsMaxPerPage),
       setting("repeatLimit", count(repeatLimit), defaults.repeatLimit),
       setting("timeouts.stepMs", duration(timeouts.stepMs), defaults.stepMs),
       setting("timeouts.pageMs", duration(timeouts.pageMs), defaults.pageMs),

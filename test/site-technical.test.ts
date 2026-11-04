@@ -18,7 +18,7 @@ import path from "node:path";
 import { loadLibopus } from "libopus-wasm";
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_CONFIG } from "../src/config/defaults.js";
+import { DEFAULT_CONFIG, FORMS_DEFAULTS } from "../src/config/defaults.js";
 import { RECORDER_SCRIPT } from "../src/drivers/guidepup/voice-recorder.js";
 import { BUILT_IN_RULES } from "../src/flags/evaluate.js";
 import { AXE_FILE, DEFAULT_PASS_NAMES, SCREENSHOT_FILE, VOICE_FILE } from "../src/model.js";
@@ -337,6 +337,10 @@ describe("renderTechnical", () => {
     const { stepCaps, timeouts } = DEFAULT_CONFIG;
     expect(bodyOf(tableOf(html, "defaults")).map(([setting, value]) => [setting, value])).toEqual([
       ...DEFAULT_PASS_NAMES.map((pass) => [`stepCaps.${pass}`, count(stepCaps[pass])]),
+      // The forms pass's, which a config leaves out unless it sets them.
+      ["stepCaps.forms", count(FORMS_DEFAULTS.stepCap)],
+      ["forms.settleMs", `${FORMS_DEFAULTS.settleMs / 1000} seconds`],
+      ["forms.maxPerPage", count(FORMS_DEFAULTS.maxPerPage)],
       ["repeatLimit", count(DEFAULT_CONFIG.repeatLimit)],
       ["timeouts.stepMs", `${timeouts.stepMs / 1000} seconds`],
       ["timeouts.pageMs", `${timeouts.pageMs / 60_000} minutes`],
