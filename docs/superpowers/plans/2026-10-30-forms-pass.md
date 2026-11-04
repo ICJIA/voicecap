@@ -1,7 +1,5 @@
 # Forms Pass Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Add a `forms` pass that completes each form on a page with NVDA, by keyboard, checks it with axe with its errors showing, gives each form a definitive banner ("This form works with NVDA"), and never lets anything the form sends leave the browser.
 
 **Architecture:** `forms` is a fourth pass with the usual transcripts, plus a sealed `forms-result.json` beside them. The driver gains optional actions, and a guard in `ChromeSession` that fails closed; `src/passes/forms.ts` decides what to do from what they return. Each form gets a fresh page load.
@@ -13,7 +11,7 @@
 ## Global Constraints
 
 - **Nothing a form sends ever leaves the browser.** No option turns the guard off.
-- No real NVDA or VoiceOver run without the owner's OK. Every subagent prompt must say so. Tests use the replay driver, fakes, or headless Chromium.
+- No real NVDA or VoiceOver run without the owner's OK. Every task's instructions must say so. Tests use the replay driver, fakes, or headless Chromium.
 - Ask the owner before working around Guidepup. Screen-reader specifics stay in `src/drivers/` and config.
 - Fields are filled by keys, never set by script. Focus may be moved by script only to reach a form's first field and its submit control.
 - Submission is assumed to work. Errors only a server gives are out of scope.
@@ -22,7 +20,7 @@
 - A problem in this pass never fails the page's other passes.
 - The banner is the feature's headline: the spec's four banners, with its exact words, shown first wherever a form is reported, never only in a fold, and never hedged.
 - Limits: `forms.settleMs` 3000, `forms.maxPerPage` 5, presses per form at most fields + 1.
-- Commit messages have no AI attribution trailers. Commit and push only when the owner asks. Check CI on a pushed branch before `main`.
+- Commit messages carry no attribution trailers. Commit and push only when the owner asks. Check CI on a pushed branch before `main`.
 
 ## Review Focus
 
