@@ -978,4 +978,20 @@ describe("a walk that leaves the page", () => {
     expect(result.stopReason).toBe("forms-done");
     expect(driver.outside).toEqual([]);
   });
+
+  it("gives a later form that wouldn't be pressed its own reason, not the earlier form's", async () => {
+    class ThenSearch extends FakeFormDriver {
+      override findForms() {
+        return Promise.resolve([
+          this.info,
+          { ...this.info, index: 1, signature: "search", kind: "search" as const },
+        ]);
+      }
+    }
+    const driver = new ThenSearch({ fields: THREE, submitUntabbable: true });
+    const recorder = new StepRecorder(1000, undefined);
+    const result = await formsPass(driver, recorder, { ...options });
+    expect(result.forms[1]?.reason).toContain("search form");
+    expect(driver.outside).toEqual([]);
+  });
 });

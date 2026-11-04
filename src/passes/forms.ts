@@ -518,7 +518,8 @@ export async function formsPass(
       current = match;
       outside = false;
     }
-    if (outside) {
+    // A form that wouldn't be pressed says its own reason, wherever focus is.
+    if (outside && whyNotPressed(current) === null) {
       // No key goes to the browser's own controls, and script can't bring focus back from there.
       outcomes.push(untested(form, LEFT_BEFORE));
       return;
