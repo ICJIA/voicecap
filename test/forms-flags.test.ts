@@ -749,6 +749,40 @@ describe("form-error-unlinked, as real NVDA spoke the fixture's forms", () => {
       const flags = flagsOf(good("Enter your name. 3 fields need fixing.. Your name, edit, blank"));
       expect(ruleIds(flags)).toContain("form-error-unlinked");
     });
+
+    it("doesn't take an error summary that names the field before its announcement", () => {
+      // A summary of links, read as one alert with its role words, so it's never spoken whole.
+      const flags = flagsOf(
+        good(
+          "There is a problem, heading level 2, list with 2 items, link, Your name: Enter your name., link, Email: Enter an email address.. Your name, edit, required, blank",
+        ),
+      );
+      expect(flags.find((flag) => flag.rule === "form-error-unlinked")?.message).toContain(
+        "Your name",
+      );
+    });
+
+    it("doesn't take a summary read after the field's announcement", () => {
+      const flags = flagsOf(
+        good(
+          "Your name, edit, required, blank. Fix these: Enter your name. Enter an email address.",
+        ),
+      );
+      expect(flags.find((flag) => flag.rule === "form-error-unlinked")?.message).toContain(
+        "Your name",
+      );
+    });
+
+    it("doesn't take another field's announcement after the focused one's", () => {
+      const flags = flagsOf(
+        good(
+          "Your name, edit, required, blank, Email, edit, required, invalid entry, Enter an email address, blank",
+        ),
+      );
+      expect(flags.find((flag) => flag.rule === "form-error-unlinked")?.message).toContain(
+        "Your name",
+      );
+    });
   });
 
   describe("Chrome's own errors (/forms/native/)", () => {
@@ -862,6 +896,15 @@ describe("form-error-unlinked, as real NVDA spoke the fixture's forms", () => {
     it("doesn't take the page's other words at the press for a nameless field's", () => {
       const flags = flagsOf(
         noLabels("2 fields need fixing.. Enter your name. edit, required, blank"),
+      );
+      expect(flags.find((flag) => flag.rule === "form-error-unlinked")?.message).toContain(
+        "field 1",
+      );
+    });
+
+    it("takes a nameless field's invalid entry only from inside its own announcement", () => {
+      const flags = flagsOf(
+        noLabels("edit, required, blank. 2 fields need fixing, invalid entry, Enter your name."),
       );
       expect(flags.find((flag) => flag.rule === "form-error-unlinked")?.message).toContain(
         "field 1",

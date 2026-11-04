@@ -209,9 +209,10 @@ interface Unlinked {
 /**
  * Chrome's own errors: the fields its bubble was shown at, each the field a press put focus on (or
  * the first invalid one), that NVDA didn't speak the bubble for at any such press. A field the bubble
- * was never shown at isn't checked: it never blocked the form. A walk after the press that says the
- * bubble's words at the field counts too, but "invalid entry" there isn't needed: real NVDA says
- * "required, blank" at a native text field.
+ * was never shown at isn't checked: it never blocked the form. The error walk (the one after the
+ * first press that showed an error) saying the bubble's words at the field counts too, which can
+ * only be for a field bubbled at that press. "Invalid entry" isn't needed: real NVDA says
+ * "required, blank" at a native text field after the press.
  */
 function unlinkedBubbled(
   presses: readonly ReturnType<typeof readOne>[],
@@ -238,9 +239,10 @@ function unlinkedBubbled(
  * The page's own errors: each field invalid at the press that showed them which said no more than it
  * did before. The field a press put focus on (a page moves it to the first error) is heard at the
  * press itself: NVDA announces it then, and the walk's script focus of the same field is silent. It
- * is linked when that press's words, from its name on, turn it invalid or hold an error's words; a
- * field with no name can't be told from the page's other words, so only "invalid entry" counts for
- * it. Every other field is heard on the walk after the press.
+ * is linked when its own announcement in that press's words (see announcementsOf) turns it invalid
+ * or holds an error's words; a field with no name can't be told from the page's other words, so only
+ * "invalid entry" in an announcement counts for it. Every other field is heard on the walk after
+ * the press.
  */
 function unlinkedMarked(
   form: FormFlagInput,
@@ -260,8 +262,7 @@ function unlinkedMarked(
     const name = form.form.fields[index]?.name;
     const named = typeof name === "string" && name.trim() !== "";
     const own = [...press.messages, ...(press.bubble === null ? [] : [press.bubble])];
-    const heard = named ? spokenAfter(press.spoken, name, own) : [press.spoken];
-    const linked = heard.some(
+    const linked = announcementsOf(press.spoken, named ? name : null).some(
       (said) => turnedFrom(index, said) || (named && own.some((text) => contains(said, text))),
     );
     if (linked) linkedAtPress.add(index);
@@ -275,34 +276,32 @@ function unlinkedMarked(
   });
 }
 
+/** A run of letters and digits stands alone: no letter or digit just before or after it. */
+const APART_BEFORE = String.raw`(?<![\p{L}\p{N}])`;
+const APART_AFTER = String.raw`(?![\p{L}\p{N}])`;
+
 /**
- * What NVDA said after each time it said `name` as it would announce the field (its words, from
- * where the name's run of words ends), none when it never said the name. A time the name was said
- * inside one of the page's `messages`, as they were spoken, doesn't count: an alert ("Enter your
- * name.") may hold the name too, before the field's announcement, or in it.
+ * What NVDA said of a field in each of its announcements in `spoken`, after its role word: the
+ * field's name (`name`; left out for a field with no name) followed at once by a role word (an
+ * edit, a combo box: FORMS_DEFAULTS.words.fieldRoles), up to the end of the announcement, which is
+ * the next sentence break NVDA puts in (". " or "..") or the next field's role word. So a summary
+ * that names the field before its announcement, or one read after it, isn't taken as the field's.
  */
-function spokenAfter(spoken: string, name: string, messages: readonly string[]): string[] {
-  const said = wordsOf(spoken);
-  const wanted = wordsOf(name);
-  if (wanted.length === 0) return [];
-  const at = (run: readonly string[], start: number) =>
-    run.every((word, i) => said[start + i] === word);
-  // Which of the words are a message's, spoken whole.
-  const inMessage = new Array<boolean>(said.length).fill(false);
-  for (const message of messages) {
-    const run = wordsOf(message);
-    if (run.length === 0) continue;
-    for (let start = 0; start + run.length <= said.length; start++) {
-      if (at(run, start)) inMessage.fill(true, start, start + run.length);
-    }
-  }
-  const after: string[] = [];
-  for (let start = 0; start + wanted.length <= said.length; start++) {
-    if (at(wanted, start) && !inMessage[start]) {
-      after.push(said.slice(start + wanted.length).join(" "));
-    }
-  }
-  return after;
+function announcementsOf(spoken: string, name: string | null): string[] {
+  const text = spoken.toLowerCase();
+  const roles = FORMS_DEFAULTS.words.fieldRoles
+    .map((role) => wordsOf(role).join(String.raw`\s+`))
+    .join("|");
+  const lead =
+    name === null ? "" : `${wordsOf(name).join(String.raw`[^\p{L}\p{N}]+`)}${String.raw`[\s,:]*`}`;
+  if (name !== null && wordsOf(name).length === 0) return [];
+  const start = new RegExp(`${APART_BEFORE}${lead}(?:${roles})${APART_AFTER}`, "gu");
+  const stop = new RegExp(String.raw`\.\.|\.\s|,\s*(?:` + roles + ")" + APART_AFTER, "u");
+  return [...text.matchAll(start)].map((match) => {
+    const rest = text.slice(match.index + match[0].length);
+    const end = rest.search(stop);
+    return end === -1 ? rest : rest.slice(0, end);
+  });
 }
 
 /**

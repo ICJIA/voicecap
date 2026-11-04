@@ -33,7 +33,13 @@ export const FORMS_DEFAULTS = {
   words: {
     required: ["required"],
     invalid: ["invalid entry"],
-  } as { required: readonly string[]; invalid: readonly string[] },
+    // The roles NVDA gives a form's fields, right after the name, as it announces one at focus.
+    fieldRoles: ["edit", "combo box", "check box", "radio button", "list", "spin button", "slider"],
+  } as {
+    required: readonly string[];
+    invalid: readonly string[];
+    fieldRoles: readonly string[];
+  },
 };
 
 /** The forms pass's settings as the config has them, with FORMS_DEFAULTS for each it leaves out. */
