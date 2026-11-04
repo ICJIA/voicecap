@@ -28,6 +28,11 @@ export interface FormsPassOutcome {
   stopReason: StopReason;
   forms: FormOutcome[];
   warnings: string[];
+  /**
+   * The error that ended the pass at a form (not Ctrl+C): the forms before it keep their outcomes,
+   * and it and those after are not tested, so the pass still has a result for each form it took.
+   */
+  error?: Error;
 }
 
 /** The members a driver needs for the pass, which leaves only checkFormWithAxe optional. */
@@ -372,6 +377,7 @@ export async function formsPass(
   const find = driver.findForms?.bind(driver);
   if (find === undefined)
     return { stopReason: "forms-done", forms: [], warnings: [NO_FORM_DRIVER] };
+  const findAgain: () => Promise<FormInfo[]> = find;
   const outcomes: FormOutcome[] = [];
   const found = await recorder.query("finding forms", find);
   const taken = found.slice(0, options.maxPerPage ?? found.length);
@@ -384,25 +390,45 @@ export async function formsPass(
   const here = new Map<string, string>();
   // Whether the load that's open has had a form tried on it.
   let used = false;
-  for (const form of taken) {
+  for (const [at, form] of taken.entries()) {
+    try {
+      await takeForm(form);
+    } catch (error) {
+      if (error instanceof InterruptedError) throw error;
+      const why = redactAccount(errorMessage(error));
+      outcomes.push(untested(form, `voicecap couldn't finish testing it: ${why}`));
+      for (const after of taken.slice(at + 1)) outcomes.push(untested(after, ENDED_AT_ERROR));
+      return {
+        stopReason: "error",
+        forms: outcomes,
+        warnings,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
+  }
+  const capped = outcomes.some((outcome) => outcome.reason === OUT_OF_STEPS);
+  return { stopReason: capped ? "step-cap" : "forms-done", forms: outcomes, warnings };
+
+  /** Test one form, or say why it isn't, and add its outcome. */
+  async function takeForm(form: FormInfo): Promise<void> {
     const earlier =
       form.kind === "test"
         ? (here.get(form.signature) ?? options.testedOn?.(form.signature))
         : null;
     if (earlier) {
       outcomes.push(untested(form, testedOnReason(earlier)));
-      continue;
+      return;
     }
     let current = form;
     if (used && options.reopen !== undefined) {
       await options.reopen();
-      const again = await recorder.query("finding forms", find);
+      const again = await recorder.query("finding forms", findAgain);
       const match =
         again.find((one) => one.signature === form.signature && one.index === form.index) ??
         again.find((one) => one.signature === form.signature);
       if (match === undefined) {
         outcomes.push(untested(form, "the form wasn't on the page when it loaded again"));
-        continue;
+        return;
       }
       current = match;
     }
@@ -413,6 +439,7 @@ export async function formsPass(
     }
     if (whyNotPressed(current) === null) used = true;
   }
-  const capped = outcomes.some((outcome) => outcome.reason === OUT_OF_STEPS);
-  return { stopReason: capped ? "step-cap" : "forms-done", forms: outcomes, warnings };
 }
+
+/** Why the forms after one the pass ended at weren't tested. */
+const ENDED_AT_ERROR = "the pass ended at an error before it was tested";

@@ -670,6 +670,33 @@ describe("runPass", () => {
     expect(result.warnings).toEqual(["this run's driver doesn't test forms"]);
   });
 
+  it("keeps the forms finished before one that fails, and says why that one and those after weren't tested", async () => {
+    class FailsOnSecond extends FakeFormDriver {
+      override findForms() {
+        const first = this.info;
+        return Promise.resolve([
+          first,
+          { ...first, index: 1, signature: "second" },
+          { ...first, index: 2, signature: "third" },
+        ]);
+      }
+      override focusFormField(form: number, field: number) {
+        if (form === 1) return Promise.reject(new Error("the browser went away"));
+        return super.focusFormField(form, field);
+      }
+    }
+    const driver = new FailsOnSecond({ fields: [{ name: "Note", required: false }] });
+    const result = await runPass("forms", driver, settings);
+    expect(result.stopReason).toBe("error");
+    expect(result.errors).toEqual(["the browser went away"]);
+    expect(result.failure?.message).toBe("the browser went away");
+    expect(result.forms?.map(({ result: one, reason }) => [one, reason])).toEqual([
+      ["completed", null],
+      ["not-tested", "voicecap couldn't finish testing it: the browser went away"],
+      ["not-tested", "the pass ended at an error before it was tested"],
+    ]);
+  });
+
   it("keeps a settle time short of the step's own limit", async () => {
     const driver = new FakeFormDriver({ fields: [{ name: "Note", required: false }] });
     await runPass("forms", driver, {

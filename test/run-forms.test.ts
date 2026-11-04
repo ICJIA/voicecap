@@ -336,6 +336,21 @@ describe("a problem in the forms pass", () => {
     expect(driver.stops).toBe(1);
   });
 
+  it("keeps the outcome of a form finished before the error, in the page's forms-result.json", async () => {
+    // The first form is tested on the forms pass's first load; the scan on the next load fails.
+    const driver = new FormsDriver({ "/": TWO_FORMS["/"]! }, { findOnLoad: 4 });
+    const { result } = await run(driver, ["/"], ["read", "headings", "forms"]);
+    const page = result.run.pages[0]!;
+    expect(page).toMatchObject({ status: "done", attempts: 1 });
+    expect(page.passes.forms).toMatchObject({ stopReason: "error", errors: ["the scan failed"] });
+    const [forms] = await outcomesOf();
+    expect(forms?.map((outcome) => [outcome.result, outcome.reason])).toEqual([
+      ["completed", null],
+      ["not-tested", "voicecap couldn't finish testing it: the scan failed"],
+    ]);
+    expect(page.forms).toMatchObject({ counts: expect.any(Object) as unknown });
+  });
+
   it("leaves the page done, and its other passes' transcripts where they are, when the page can't be loaded behind the guard", async () => {
     const driver = new FormsDriver({ "/": TWO_FORMS["/"]! }, { guardedLoadFails: true });
     const { dir, result } = await run(driver, ["/"], ["read", "headings", "forms"]);

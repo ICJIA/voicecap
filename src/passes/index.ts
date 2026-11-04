@@ -82,6 +82,8 @@ export async function runPass(
       stopReason = outcome.stopReason;
       forms = outcome.forms;
       warnings.push(...outcome.warnings);
+      // An error at a form ends the pass as any pass's error does, with the forms' outcomes kept.
+      if (outcome.error !== undefined) throw outcome.error;
     } else {
       const outcome = await tabPass(driver, recorder, settings);
       stopReason = outcome.stopReason;
