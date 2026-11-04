@@ -4,7 +4,8 @@
  *
  *   pnpm test:nvda          run and check; the fixture is left alone
  *   pnpm fixture:capture    run, check, and (if the checks pass) replace fixture/replay-run,
- *                           fixture/reviews.json, and fixture/manual/speech-viewer.txt
+ *                           fixture/forms-run, fixture/reviews.json, and
+ *                           fixture/manual/speech-viewer.txt
  *
  * The checks:
  * - every read pass ends at the end of the page, including the page with duplicate lines;
@@ -12,9 +13,13 @@
  * - the home and duplicates tab passes start at the skip link and end by leaving the page;
  * - complete capture: NVDA's Speech Viewer shows the same speech as the home page's read pass;
  * - Tab goes into and out of a frame, and one from another site (/frames/, not in the sitemap),
- *   without a foreground error.
+ *   without a foreground error;
+ * - a second run, of the forms pages (FIXTURE_FORMS_PAGES, not in the sitemap) with the forms pass
+ *   (read, headings, tab, forms), ends each pass as the main run's do, and each page's forms come to
+ *   what scripts/forms-fixture.ts expects. It's a run of its own so the main run, which the replay
+ *   and fixture tests check page by page, stays the three passes of the three sitemap pages.
  *
- * NVDA speaks and browser windows come and go for about 5 minutes: nobody may use the computer.
+ * NVDA speaks and browser windows come and go for about 10 minutes: nobody may use the computer.
  */
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -22,23 +27,37 @@ import path from "node:path";
 
 import { resolveConfig } from "../src/config/load.js";
 import { createGuidepupNvdaDriver } from "../src/drivers/guidepup-nvda.js";
-import type { DefaultPassName, PassName, RunJson, TranscriptJson } from "../src/model.js";
+import type { PassName, RunJson, TranscriptJson } from "../src/model.js";
 import { InterruptedError, withTimeout } from "../src/passes/steps.js";
 import { runAudit } from "../src/run/audit.js";
 import { readRunJson } from "../src/run/store.js";
 import { handleInterrupts } from "../src/run/signals.js";
 import { errorMessage } from "../src/util/errors.js";
 import { createConsoleLogger, type Logger } from "../src/util/log.js";
-import { REPLAY_RUN_DIR, SPEECH_VIEWER_FILE, writeFixtureReviews } from "./fixture-reviews.js";
-import { FIXTURE_HOST, FIXTURE_PORT, startFixtureServer } from "./serve-fixture.js";
+import {
+  FORMS_RUN_DIR,
+  REPLAY_RUN_DIR,
+  SPEECH_VIEWER_FILE,
+  writeFixtureReviews,
+} from "./fixture-reviews.js";
+import { FORMS_FIXTURE_EXPECTED, formsPageOutcome } from "./forms-fixture.js";
+import {
+  FIXTURE_FORMS_PAGES,
+  FIXTURE_HOST,
+  FIXTURE_PORT,
+  startFixtureServer,
+} from "./serve-fixture.js";
 import { comparableStep, readSpeechViewer, speechViewerLines } from "./speech-viewer.js";
 
 const SITE = `http://${FIXTURE_HOST}:${FIXTURE_PORT}`;
-const EXPECTED_STOP: Record<DefaultPassName, string> = {
+const EXPECTED_STOP: Record<PassName, string> = {
   read: "end-reached",
   headings: "no-next-heading",
   tab: "left-document",
+  forms: "forms-done",
 };
+/** The forms run's passes: the three a run takes unless asked, and the forms pass. */
+const FORMS_RUN_PASSES: PassName[] = ["read", "headings", "tab", "forms"];
 
 interface Outcome {
   failures: string[];
@@ -69,10 +88,12 @@ async function main(): Promise<number> {
   const controller = new AbortController();
   const unhook = handleInterrupts(controller, logger);
   try {
-    // --from <run folder> checks a run made earlier instead of making a new one.
+    // --from <run folder> checks a run made earlier instead of making a new one, and
+    // --forms-from <run folder> the same for the forms run, which --from alone leaves out.
     const from = argumentAfter("--from");
+    const formsFrom = argumentAfter("--forms-from");
     logger.alert(
-      `NVDA speaks and browser windows come and go for about ${from ? "a minute" : "5 minutes"}. Don't use the keyboard or mouse until this finishes.`,
+      `NVDA speaks and browser windows come and go for about ${from ? "a minute" : "10 minutes"}. Don't use the keyboard or mouse until this finishes.`,
     );
     let runDir: string;
     let runId: string;
@@ -105,6 +126,41 @@ async function main(): Promise<number> {
     const run = await readRunJson(path.dirname(path.dirname(runDir)), runId);
     await checkRun(run, runDir, outcome);
 
+    // The forms run: made now, given with --forms-from, or, with --from alone, left out.
+    let formsDir: string | null = null;
+    if (formsFrom) {
+      formsDir = path.resolve(formsFrom);
+    } else if (!from) {
+      const started = Date.now();
+      const result = await runAudit({
+        site: SITE,
+        pageUrls: FIXTURE_FORMS_PAGES.map((page) => `${SITE}${page}`),
+        passes: FORMS_RUN_PASSES,
+        fresh: true,
+        runName: "real-nvda-forms",
+        out: path.join(work, "transcripts"),
+        cwd: work,
+        config: { config, file: null, sha256: "default" },
+        logger,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return 130;
+      if (result.exitCode !== 0) {
+        outcome.failures.push(`the forms run ended with exit code ${result.exitCode}`);
+      }
+      outcome.notes.push(
+        `Forms run ${result.runId}: ${Math.round((Date.now() - started) / 1000)} s`,
+      );
+      formsDir = result.runDir;
+    }
+    if (formsDir) {
+      const formsId = `${path.basename(path.dirname(formsDir))}_${path.basename(formsDir)}`;
+      const formsRun = await readRunJson(path.dirname(path.dirname(formsDir)), formsId);
+      await checkFormsRun(formsRun, formsDir, outcome);
+    } else {
+      outcome.notes.push("No forms run: --from without --forms-from leaves it out.");
+    }
+
     const home = await transcript(run, runDir, `${SITE}/`, "read");
     const viewer = home ? await captureSpeechViewer(home, config, logger, controller.signal) : null;
     if (home && viewer) checkSpeechViewer(home, viewer, outcome);
@@ -113,15 +169,20 @@ async function main(): Promise<number> {
     report(logger, outcome);
     if (outcome.failures.length > 0) {
       logger.info(`The run is kept for inspection in ${runDir}`);
+      if (formsDir) logger.info(`The forms run is kept for inspection in ${formsDir}`);
       return 1;
     }
     if (write && viewer) {
       await rm(REPLAY_RUN_DIR, { recursive: true, force: true });
       await cp(runDir, REPLAY_RUN_DIR, { recursive: true });
+      if (formsDir) {
+        await rm(FORMS_RUN_DIR, { recursive: true, force: true });
+        await cp(formsDir, FORMS_RUN_DIR, { recursive: true });
+      }
       await writeFile(SPEECH_VIEWER_FILE, viewer);
       await writeFixtureReviews();
       logger.info(
-        `Replaced fixture/replay-run with ${run.id}, and rewrote fixture/reviews.json and fixture/manual/speech-viewer.txt. Review the changes with git diff.`,
+        `Replaced fixture/replay-run with ${run.id}${formsDir ? " and fixture/forms-run with the forms run" : ""}, and rewrote fixture/reviews.json and fixture/manual/speech-viewer.txt. Review the changes with git diff.`,
       );
     }
     await rm(work, { recursive: true, force: true, maxRetries: 5 });
@@ -206,6 +267,39 @@ async function checkRun(run: RunJson, runDir: string, outcome: Outcome): Promise
   outcome.notes.push(
     `Home page flags: ${home?.flags.map((flag) => flag.rule).join(", ") || "none"}`,
   );
+}
+
+/**
+ * The forms run: every page read, each pass ending as it should (the forms pass by taking every
+ * form), and each page's forms coming to what FORMS_FIXTURE_EXPECTED says.
+ */
+async function checkFormsRun(run: RunJson, runDir: string, outcome: Outcome): Promise<void> {
+  const done = run.pages.filter((page) => page.status === "done");
+  if (done.length !== FIXTURE_FORMS_PAGES.length) {
+    outcome.failures.push(
+      `forms run: expected ${FIXTURE_FORMS_PAGES.length} transcribed pages, got ${done.length}`,
+    );
+  }
+  for (const page of done) {
+    for (const pass of FORMS_RUN_PASSES) {
+      const stop = page.passes[pass]?.stopReason;
+      if (stop !== EXPECTED_STOP[pass]) {
+        outcome.failures.push(
+          `forms run ${page.slug} ${pass}: stopped on ${stop ?? "nothing"}, not ${EXPECTED_STOP[pass]}`,
+        );
+      }
+    }
+  }
+  for (const [page, expected] of Object.entries(FORMS_FIXTURE_EXPECTED)) {
+    const found = await formsPageOutcome(run, runDir, page);
+    if (JSON.stringify(found) === JSON.stringify(expected)) {
+      outcome.notes.push(`Forms on ${page}: as expected`);
+    } else {
+      outcome.failures.push(
+        `forms on ${page}:\n  expected: ${JSON.stringify(expected)}\n  found:    ${JSON.stringify(found)}`,
+      );
+    }
+  }
 }
 
 /**
@@ -314,7 +408,7 @@ function report(logger: Logger, outcome: Outcome): void {
   for (const note of outcome.notes) logger.info(note);
   if (outcome.failures.length === 0) {
     logger.info(
-      "All checks passed: end of page, no next heading, skip link first, complete capture, frames.",
+      "All checks passed: end of page, no next heading, skip link first, complete capture, frames, forms.",
     );
   } else {
     for (const failure of outcome.failures) logger.error(failure);
