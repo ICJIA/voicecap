@@ -741,8 +741,27 @@ describe("accessibility, in Chromium", () => {
           }),
         ],
       },
+      // A gray banner of the words a form tested on an earlier page has, and a dialog's.
+      {
+        path: "/again/",
+        forms: [
+          completed({ result: "not-tested", presses: [], reason: "tested on /ok/" }),
+          completed({
+            form: formOf({ signature: "alerting" }),
+            result: "not-tested",
+            reason: "it answered with a dialog box, which voicecap doesn't test yet",
+          }),
+        ],
+      },
     ]);
     const html = renderSharePage(model, { fontCss: "" });
+    // Each kind of banner, the fold, and At a glance's line are there for axe to check.
+    for (const kind of ["works", "needs-work", "cant-complete", "not-checked"]) {
+      expect(html, kind).toContain(`class="form-banner ${kind}"`);
+    }
+    expect(html).toContain('class="fold forms-fold"');
+    expect(textOf(renderGlance(model))).toContain("1 of 3 forms work with NVDA");
+    expect(html).toContain("Checked on /ok/, where its result is.");
     const browser = await launchBrowser();
     try {
       for (const scheme of ["dark", "light"] as const) {
