@@ -121,7 +121,11 @@ describe("a run given an unknown pass", () => {
   it("is refused with every pass voicecap knows listed, forms too", async () => {
     const dir = await setup(["/"]);
     await expect(
-      runAudit(options(dir, new ScriptedDriver(sitePages()), { passes: ["read", "form"] })),
+      runAudit(
+        options(dir, new ScriptedDriver(sitePages()), {
+          passes: ["read", "form"] as unknown as RunAuditOptions["passes"],
+        }),
+      ),
     ).rejects.toThrow("Unknown pass form: use read, headings, tab, and/or forms.");
   });
 });

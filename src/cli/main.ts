@@ -11,12 +11,7 @@ import { createPrompter, deferPrompter, InputEndedError, type Prompter } from ".
 import { runWizard } from "../init/wizard.js";
 import { listUrls } from "../list-urls.js";
 import { addManualSession } from "../manual-add.js";
-import {
-  PASS_NAMES,
-  REVIEW_STATUSES,
-  type PassName,
-  type ReviewStatus,
-} from "../model.js";
+import { PASS_NAMES, REVIEW_STATUSES, type PassName, type ReviewStatus } from "../model.js";
 import { normalizeCanonical } from "../pages/canonical.js";
 import { InterruptedError } from "../passes/steps.js";
 import { offerLiveTest } from "../readiness/guided.js";
