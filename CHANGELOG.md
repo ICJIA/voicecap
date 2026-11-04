@@ -4,6 +4,25 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+A run can now test each form on a page with NVDA, by keyboard, with nothing the form sends ever leaving the browser, and every copy of the report says, form by form, whether it works with NVDA.
+
+### Added
+
+- **The forms pass, opt-in: `--passes read,headings,tab,forms`.** For each form on a page, on a load of its own, NVDA tabs through the form, Enter presses its submit button with the fields empty, and voicecap reads what the page did: where focus went, which fields turned invalid, which messages appeared, whether NVDA said them, and what axe finds with the errors showing. Then it fills the field that's keeping the form back with a plainly fake value, by keyboard (`voicecap test`, `test@example.com`, `555-555-5555`, Space, or Down Arrow), and presses again, until the form is ready to send, or says exactly where it couldn't go on. Values are never set by script, so a field a keyboard can't fill shows up as one. The pass always runs last on a page, so the time it takes never cuts short the other passes, and a problem in it never fails them. A search form, a form on another site's frame, one that sends by email, and fields with no submit button aren't tested, and say why; a login, a password or card field, or a CAPTCHA is tested empty and never filled; the same form on many pages is tested once; and at most 5 forms a page are tested (`forms.maxPerPage`).
+- **Nothing a form sends leaves the browser, and no option turns that off.** On the forms pass's loads, Chrome reaches the network only through a gate voicecap runs on the computer, which is shut, with every open connection cut, before the first key. It fails closed: a guard that can't be armed or confirmed means no key is pressed, and the form is recorded as not tested. A test in CI submits each kind of form in real Chromium, on Windows, macOS, and Linux, and checks that nothing reaches the server.
+- **A banner for each form, first wherever it's reported:** ✓ "This form works with NVDA.", ⚠ "This form needs work with NVDA.", ⚠ "This form can't be completed with NVDA.", or "This form wasn't checked.", each with a line that says what was checked, what's wrong, where it stopped, or why. At a glance has its own (✓ "All 4 forms work with NVDA", or ⚠ "3 of 4 forms work with NVDA", naming the pages), and so does the website's site card, from what the share recorded ("No forms on these pages" for a site with none).
+- **Six flags for forms, each a hint with the WCAG criteria it may relate to,** and a card under "What needs attention" with the likely cause and the fix: `form-error-silent` (3.3.1, 4.1.3), `form-no-feedback` (3.3.1), `form-error-unlinked` (3.3.1, 1.3.1), `form-required-unsaid` (3.3.2), `form-cant-finish` (2.1.1, 3.3.3), and `form-field-unreachable` (2.1.1).
+- **Each page's card shows each form's banner, in view, then a fold, "What happened at the form":** each required field and what NVDA said at it, each press and what it did, and axe's result with the errors showing. The Word copy, the report for AI tools (Markdown, and JSON's `forms`), and the voice page carry the same, and the voice page times the pass's lines from the recording's stretches, now each tagged with the pass that made it.
+- **A sealed record of it.** The pass's transcript is `forms.txt` and `forms.json`, as any pass's is, and `forms-result.json` keeps what the browser saw at each form and press, apart from the transcripts, as `axe.json` is. The run's seal covers it, the shareable page's fingerprint check checks it, and `voicecap verify` names one that's missing or has changed.
+- **Settings:** `forms.settleMs` (3,000 ms, how long to keep listening after a press), `forms.maxPerPage` (5), `forms.values` (the fake values, by input type), and `stepCaps.forms` (500 steps a form). A config without them has the SHA-256 it had before.
+- **A report of a run from before the forms pass says "Not recorded"** where At a glance would show the forms, in every copy, as for every newer part. The README's picture of the report's top shows it.
+- **The fixture has a page for each of the forms pass's results** (`fixture/site/forms/`), and `pnpm fixture:capture` makes a second run of them with the forms pass, checked against what each page should come to.
+
+### Changed
+
+- **NVDA's own log keeps Enter and Space,** the forms pass's keys, as voicecap's own. The check of the log against the transcripts leaves out the forms pass's fills: NVDA echoes what's typed a key at a time, and the cleaned copy keeps no typed key.
+- **`--passes`' help names every pass,** and says the default is `read,headings,tab`.
+
 ## [0.24.1] - 2026-10-30
 
 The README matches voicecap as it is, and the website no longer says VoiceOver is coming.
