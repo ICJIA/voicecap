@@ -342,22 +342,98 @@ export async function formPass(
   }
 }
 
+/** What a form says when an earlier test of the same form stands for it. */
+export function testedOnReason(page: string): string {
+  return `tested on ${page}`;
+}
+
+/** What the forms pass is told about the run it's part of. */
+export interface FormsContext {
+  /** The most forms the pass takes on one page. */
+  maxPerPage?: number;
+  /** This page, as a path such as "/about", which a later form of the same signature says. */
+  page?: string;
+  /** The page a form of this signature was tested on earlier in the run, as a path; null for none. */
+  testedOn?: (signature: string) => string | null;
+  /**
+   * Load the page again, with the guard's gate in front of the browser, for the next form: each form
+   * gets a load of its own, since pressing a form changes the page. It times itself. Left out, every
+   * form is taken on the load that's open.
+   */
+  reopen?: () => Promise<void>;
+}
+
+/** A form taken without a press, and why. */
+function untested(form: FormInfo, reason: string): FormOutcome {
+  return {
+    form,
+    result: "not-tested",
+    stoppedAt: null,
+    reason,
+    presses: [],
+    firstWalk: [],
+    errorWalk: [],
+    lastWalk: [],
+  };
+}
+
 /**
- * Test the forms on the page that's open, in the order the driver found them. A driver that can't
- * test forms is no failure of the page: its forms aren't tested, and the pass says so.
+ * Test the forms on the page that's open, in the order the driver found them: the first
+ * `maxPerPage`, with a warning that says how many it left. A form the run tested on an earlier page,
+ * or earlier on this one (a footer's sign-up), is pressed no more: it says where it was tested. Each
+ * form that's pressed gets a load of its own (`reopen`), and is found again on it by its signature,
+ * since the scan numbers a page's forms on each load. A driver that can't test forms is no failure
+ * of the page: its forms aren't tested, and the pass says so.
  */
 export async function formsPass(
   driver: ScreenReaderDriver,
   recorder: StepRecorder,
-  options: FormPassOptions,
+  options: FormPassOptions & FormsContext,
 ): Promise<FormsPassOutcome> {
   const warnings = testsForms(driver) ? [] : [NO_FORM_DRIVER];
   const find = driver.findForms?.bind(driver);
   if (find === undefined)
     return { stopReason: "forms-done", forms: [], warnings: [NO_FORM_DRIVER] };
   const outcomes: FormOutcome[] = [];
-  for (const form of await recorder.query("finding forms", find)) {
-    outcomes.push(await formPass(driver, recorder, form, options));
+  const found = await recorder.query("finding forms", find);
+  const taken = found.slice(0, options.maxPerPage ?? found.length);
+  const left = found.length - taken.length;
+  if (left > 0) {
+    warnings.push(
+      `${left} more ${left === 1 ? "form was" : "forms were"} left untested: the pass takes ${taken.length} a page`,
+    );
+  }
+  const here = new Map<string, string>();
+  // Whether the load that's open has had a form tried on it.
+  let used = false;
+  for (const form of taken) {
+    const earlier =
+      form.kind === "test"
+        ? (here.get(form.signature) ?? options.testedOn?.(form.signature))
+        : null;
+    if (earlier) {
+      outcomes.push(untested(form, testedOnReason(earlier)));
+      continue;
+    }
+    let current = form;
+    if (used && options.reopen !== undefined) {
+      await options.reopen();
+      const again = await recorder.query("finding forms", find);
+      const match =
+        again.find((one) => one.signature === form.signature && one.index === form.index) ??
+        again.find((one) => one.signature === form.signature);
+      if (match === undefined) {
+        outcomes.push(untested(form, "the form wasn't on the page when it loaded again"));
+        continue;
+      }
+      current = match;
+    }
+    const outcome = await formPass(driver, recorder, current, options);
+    outcomes.push(outcome);
+    if (outcome.presses.length > 0 && options.page !== undefined) {
+      here.set(form.signature, options.page);
+    }
+    if (whyNotPressed(current) === null) used = true;
   }
   const capped = outcomes.some((outcome) => outcome.reason === OUT_OF_STEPS);
   return { stopReason: capped ? "step-cap" : "forms-done", forms: outcomes, warnings };

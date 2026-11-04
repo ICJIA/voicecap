@@ -1701,3 +1701,30 @@ describe("spokenAsLogged: what NVDA logged (its entries' items), against the tra
     });
   });
 });
+
+describe("checkAgainstLog on a forms pass", () => {
+  const FORM: Line[] = [
+    // Script moves focus to the first field: NVDA logs no key for it, and speaks.
+    { command: "focusField", spoken: "Name, edit, required, blank", key: false },
+    { command: "nextFocusable", spoken: "Send, button" },
+    // Typed text is the person's keys as far as the cleaned copy goes: it keeps none of it, nor
+    // what NVDA says after it, so the log has no speech for the step.
+    { command: "fillField", spoken: "v, o, i, c, e", key: false, logged: [] },
+    { command: "nextFocusable", spoken: "Send, button" },
+    { command: "pressSubmit", spoken: "Please fill out this field." },
+  ];
+
+  it("compares the steps with a key or speech in the log, and leaves a fill out", () => {
+    const pass = passAt(T0, HOME, "forms", FORM);
+    const result = check([copyOf(...pass.entries)], [pass]);
+
+    // Four of the five steps are compared, and agree; the fill is in no count and no list.
+    expect(result).toMatchObject({ transcriptLines: 4, logLines: 4, agree: 4, ...AGREED });
+  });
+
+  it("keeps a typed fill's missing speech from showing as a step NVDA never said", () => {
+    const pass = passAt(T0, HOME, "forms", FORM);
+    const { onlyInTranscripts } = check([copyOf(...pass.entries)], [pass]);
+    expect(onlyInTranscripts.map((line) => line.step)).not.toContain(3);
+  });
+});

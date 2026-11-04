@@ -3,7 +3,7 @@ import type { FormOutcome } from "../forms/types.js";
 import type { DriverCommand, FailureCause, PassName, StepRecord, StopReason } from "../model.js";
 import { causeOf, redactAccount } from "../run/failure.js";
 import { errorMessage, programOf } from "../util/errors.js";
-import { type FormPassOptions, formsPass } from "./forms.js";
+import { type FormPassOptions, type FormsContext, formsPass } from "./forms.js";
 import { headingsPass } from "./headings.js";
 import { readPass } from "./read.js";
 import { InterruptedError, StepRecorder, StepTimeoutError } from "./steps.js";
@@ -15,7 +15,7 @@ export interface PassSettings {
   endConfirmations: number;
   noNextHeading: RegExp;
   stepTimeoutMs: number;
-  forms: Pick<FormPassOptions, "settleMs" | "values">;
+  forms: Pick<FormPassOptions, "settleMs" | "values"> & FormsContext;
 }
 
 /** What a failed pass, or the opening of a page for one, says about why it failed. */

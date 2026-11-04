@@ -24,11 +24,12 @@
  */
 import { spawnSync } from "node:child_process";
 import net from "node:net";
+import { setTimeout as delay } from "node:timers/promises";
 
 import type * as GuidepupModule from "@guidepup/guidepup";
 
 import { EnvironmentError } from "../../util/errors.js";
-import type { NvdaControl, NvdaKey } from "../guidepup-nvda.js";
+import type { FormKey, NvdaControl, NvdaKey } from "../guidepup-nvda.js";
 import type { CaptureMode, Speech } from "../types.js";
 import type { GuidepupInstall } from "./paths.js";
 
@@ -118,6 +119,34 @@ export class GuidepupNvda implements NvdaControl {
     const spoken = await nvda.lastSpokenPhrase();
     await nvda.clearSpokenPhraseLog();
     return spoken;
+  }
+
+  async pressFormKey(key: FormKey, options: { settleMs?: number } = {}): Promise<Speech> {
+    const began = this.clock();
+    await this.lib.nvda.press(key);
+    this.checkCaptured(began);
+    return this.spokenSince(options.settleMs ?? 0);
+  }
+
+  async typeText(text: string): Promise<Speech> {
+    const began = this.clock();
+    await this.lib.nvda.type(text);
+    this.checkCaptured(began);
+    return this.spokenSince(0);
+  }
+
+  /**
+   * Everything NVDA has said since the log was last cleared, once it has had `settleMs` more to say
+   * it, as one string (the format of Speech), and clears the log. A key press or typing is one or
+   * more entries: NVDA echoes typed text a character at a time, and a page's alert comes some time
+   * after the key that raised it.
+   */
+  private async spokenSince(settleMs: number): Promise<Speech> {
+    const { nvda } = this.lib;
+    if (settleMs > 0) await delay(settleMs);
+    const said = await nvda.spokenPhraseLog();
+    await nvda.clearSpokenPhraseLog();
+    return said.join(". ");
   }
 
   async speechDuring(action: () => Promise<void>): Promise<Speech> {

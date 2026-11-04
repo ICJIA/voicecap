@@ -1,9 +1,11 @@
 import type {
   BrowserSession,
+  FormKey,
   LoadResult,
   NvdaControl,
   NvdaKey,
 } from "../../src/drivers/guidepup-nvda.js";
+import type { FormInfo, FormState } from "../../src/forms/types.js";
 import type { ForegroundWindow } from "../../src/drivers/guidepup/windows.js";
 import type { CaptureMode, FocusedElement, Speech } from "../../src/drivers/types.js";
 import { TINY_JPEG } from "./jpeg.js";
@@ -290,6 +292,9 @@ export class FakeDesktop {
   }
 
   /** The newest browser launched (open or not). */
+  /** Whether each browser launched was guarded (launched with the form guard's gate), in order. */
+  readonly guardedLaunches: boolean[] = [];
+
   get session(): FakeSession {
     const session = this.sessions.at(-1);
     if (!session) throw new Error("no browser session");
@@ -422,6 +427,28 @@ export class FakeNvda implements NvdaControl {
 
   press(key: NvdaKey, options: { capture?: boolean } = {}): Promise<Speech> {
     const command = this.run(key, options);
+    this.commands.add(command);
+    const done = () => this.commands.delete(command);
+    command.then(done, done);
+    return command;
+  }
+
+  /** The form keys pressed and the text typed through NVDA, in order, as "Enter (settle 500)" and "type: abc". */
+  readonly formKeys: string[] = [];
+
+  pressFormKey(key: FormKey, options: { settleMs?: number } = {}): Promise<Speech> {
+    this.formKeys.push(
+      options.settleMs === undefined ? key : `${key} (settle ${options.settleMs})`,
+    );
+    return this.tracked(this.run(key.toLowerCase() as NvdaKey, {}));
+  }
+
+  typeText(text: string): Promise<Speech> {
+    this.formKeys.push(`type: ${text}`);
+    return this.tracked(this.run("type" as NvdaKey, {}));
+  }
+
+  private tracked(command: Promise<Speech>): Promise<Speech> {
     this.commands.add(command);
     const done = () => this.commands.delete(command);
     command.then(done, done);
@@ -576,7 +603,38 @@ export class FakeSession implements BrowserSession {
    * axe's check of the page loaded last, with the script it was given to run there: asked before a
    * page has loaded, it fails. It never brings the window forward or presses a key.
    */
-  runAxe(script: string): Promise<unknown> {
+  /** What the forms side of the browser did, in order, as "scan", "arm", "focus 0.1", "state 0". */
+  readonly formCalls: string[] = [];
+  /** The forms the scan finds. */
+  forms: FormInfo[] = [];
+  /** What a form's state reads. */
+  formStateRead: FormState | null = null;
+  /** The forms that axe was limited to, in order. */
+  readonly axeWithin: ({ form: number } | undefined)[] = [];
+
+  scanForms(): Promise<FormInfo[]> {
+    this.formCalls.push("scan");
+    return Promise.resolve(this.forms);
+  }
+
+  armFormGuard(): Promise<void> {
+    this.formCalls.push("arm");
+    return Promise.resolve();
+  }
+
+  focusFormField(form: number, field: number): Promise<void> {
+    this.formCalls.push(`focus ${form}.${field}`);
+    this.lastSpoken = `field ${field} speech`;
+    return Promise.resolve();
+  }
+
+  readFormState(form: number): Promise<FormState> {
+    this.formCalls.push(`state ${form}`);
+    return Promise.resolve(this.formStateRead!);
+  }
+
+  runAxe(script: string, within?: { form: number }): Promise<unknown> {
+    this.axeWithin.push(within);
     this.desktop.events.push("axe");
     this.axeScripts.push(script);
     const url = this.loaded.at(-1);

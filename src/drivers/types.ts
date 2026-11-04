@@ -76,7 +76,7 @@ export interface ScreenReaderDriver {
    * A driver that takes screenshots takes one of an HTML page once it has loaded, before the screen
    * reader moves into it, and gives it in the PageInfo.
    */
-  openPage(url: string): Promise<PageInfo>;
+  openPage(url: string, options?: OpenPageOptions): Promise<PageInfo>;
 
   /**
    * Check the page that's open with axe-core, an automated checker, and give what voicecap keeps of
@@ -145,6 +145,16 @@ export interface ScreenReaderDriver {
   formState?(form: number): Promise<FormState>;
   /** Check the form as it stands with axe-core, limited to the form, as checkWithAxe does a page. */
   checkFormWithAxe?(form: number): Promise<AxeCapture>;
+}
+
+/** How a load differs from the usual one. */
+export interface OpenPageOptions {
+  /**
+   * For the forms pass: the browser reaches the network only through the form guard's gate, which
+   * `armFormGuard` shuts. A driver that can't guard a load ignores this, and its forms aren't
+   * tested (it has no `armFormGuard`).
+   */
+  guarded?: boolean;
 }
 
 export interface PageInfo {

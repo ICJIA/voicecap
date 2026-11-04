@@ -659,7 +659,26 @@ describe("voicecap's gestures", () => {
     for (const [key, gesture] of Object.entries(GESTURE_OF_KEY)) {
       expect(gestureOfKey(commands[key]!), key).toBe(gesture);
     }
-    expect([...VOICECAP_GESTURES].sort()).toEqual(Object.values(GESTURE_OF_KEY).sort());
+    // And the forms pass's keys, which the driver sends as Guidepup's own `press` (Enter, Space) or
+    // shares with the commands above (Down Arrow in a list).
+    const formKeys = ["enter", "space"];
+    expect([...VOICECAP_GESTURES].sort()).toEqual(
+      [...new Set([...Object.values(GESTURE_OF_KEY), ...formKeys])].sort(),
+    );
+  });
+
+  it("have the forms pass's keys: Enter on the submit control, Space on a check box or radio, Down Arrow in a list", () => {
+    for (const gesture of ["enter", "space", "downArrow"]) {
+      expect(VOICECAP_GESTURES).toContain(gesture);
+    }
+    expect(gestureOf("pressSubmit")).toBe("enter");
+  });
+
+  it("have no key for a fill, which presses different keys for each field and types its text", () => {
+    // Typed characters are keys of the person's, as far as the log can tell, so what NVDA says
+    // after them is left out of the cleaned copy, and the log check leaves those steps unchecked.
+    expect(gestureOf("fillField")).toBeNull();
+    expect(gestureOf("focusField")).toBeNull();
   });
 
   it("have no duplicates", () => {

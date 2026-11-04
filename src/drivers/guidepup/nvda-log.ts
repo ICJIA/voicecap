@@ -11,7 +11,7 @@
  * kept only while the last key NVDA logged was one voicecap pressed (or none has been logged yet),
  * and what NVDA says after any other key is dropped, up to the next key voicecap pressed. A key of
  * the person's that NVDA logs as one of voicecap's (an h, a Tab, an Escape, Down Arrow, Ctrl+Home,
- * Ctrl+End, or NVDA+T) can't be told from voicecap's own, so it stays, and what NVDA says after it.
+ * Ctrl+End, NVDA+T, an Enter, or a Space) can't be told from voicecap's own, so it stays, and what NVDA says after it.
  *
  * voicecap's first Tab on each page goes to the browser, not through NVDA (the `firstTab` branch of
  * `nextFocusable` in the NVDA driver, and `pressTab` in its Chrome session). So NVDA logs no key
@@ -61,7 +61,9 @@ export function beganWithSession(raw: string, began: Date, now: Date): boolean {
  * The gestures the NVDA driver presses, as NVDA logs them after `kb(desktop):` or `kb(laptop):`: a
  * key for each command of a pass's steps, and NVDA+T and Escape, which the driver presses itself to
  * check the window, to leave focus mode, and to close Windows Search or the Start menu when one
- * comes in front of the browser. A test ties the list to the driver's key map.
+ * comes in front of the browser. The forms pass adds Enter, on a submit control, and Space, on a
+ * check box or radio; its Down Arrow in a list is the command's own. A test ties the list to the
+ * driver's key map.
  */
 export const VOICECAP_GESTURES: readonly string[] = [
   "downArrow",
@@ -71,6 +73,8 @@ export const VOICECAP_GESTURES: readonly string[] = [
   "control+end",
   "NVDA+t",
   "escape",
+  "enter",
+  "space",
 ];
 
 /**
@@ -90,6 +94,11 @@ export function gestureOf(command: DriverCommand): string | null {
       return "control+home";
     case "toBottom":
       return "control+end";
+    case "pressSubmit":
+      return "enter";
+    // A fill presses Space, Down Arrow, or types text, by the field, and a typed character is a key
+    // the cleaned copy drops along with what NVDA says after it. The log check leaves fills out.
+    // focusField moves focus by script, with no key at all.
     default:
       return null;
   }

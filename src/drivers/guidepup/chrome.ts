@@ -32,7 +32,7 @@ import type { BrowserSession, FocusState, LoadResult } from "../guidepup-nvda.js
 import { BROWSER_WINDOW, type FocusedElement } from "../types.js";
 import type { FormInfo, FormState } from "../../forms/types.js";
 import { listenForUdp, type FormGate } from "./form-gate.js";
-import { readFormState, scanForms } from "./form-scan.js";
+import { focusField, readFormState, scanForms, selectorOf } from "./form-scan.js";
 import { envValue, PROFILE_PREFIX } from "./paths.js";
 import { closeBrowsersUsing } from "./windows.js";
 
@@ -469,6 +469,12 @@ const RUN_AXE = `function (tags) {
   }).then((results) => JSON.stringify(results));
 }`;
 
+/** The same for a check limited to the element a CSS selector names: the forms pass checks a form. */
+const RUN_AXE_WITHIN = RUN_AXE.replace("function (tags)", "function (tags, selector)").replace(
+  "axe.run(document,",
+  "axe.run({ include: [selector] },",
+);
+
 /**
  * The guard's confirmation asks for this. ".invalid" is a name that never resolves, so if the guard
  * isn't there, the request reaches no one.
@@ -709,8 +715,15 @@ export class ChromeSession implements BrowserSession {
    * A script that throws, and an axe whose promise is rejected, fail with what axe's world said.
    * There's no time limit here: the driver gives axe its own.
    */
-  runAxe(script: string): Promise<unknown> {
+  runAxe(script: string, within?: { form: number }): Promise<unknown> {
     return this.onPage(async () => {
+      // A check limited to a form is run on the form the last scan numbered `within.form`.
+      let selector: string | null = null;
+      if (within !== undefined) {
+        selector = await selectorOf(this.cdp, this.formsWorld, within.form);
+        if (selector === null)
+          throw new Error("The form isn't in the page, so axe can't check it.");
+      }
       const { frameTree } = await this.cdp.send("Page.getFrameTree");
       const { executionContextId } = await this.cdp.send("Page.createIsolatedWorld", {
         frameId: frameTree.frame.id,
@@ -723,9 +736,9 @@ export class ChromeSession implements BrowserSession {
       });
       if (loaded.exceptionDetails) throw thrownIn(loaded.exceptionDetails);
       const ran = await this.cdp.send("Runtime.callFunctionOn", {
-        functionDeclaration: RUN_AXE,
+        functionDeclaration: selector === null ? RUN_AXE : RUN_AXE_WITHIN,
         executionContextId,
-        arguments: [{ value: [...AXE_TAGS] }],
+        arguments: [{ value: [...AXE_TAGS] }, ...(selector === null ? [] : [{ value: selector }])],
         awaitPromise: true,
         returnByValue: true,
       });
@@ -748,6 +761,15 @@ export class ChromeSession implements BrowserSession {
       this.formsWorld = scanned.contextId;
       return scanned.forms;
     });
+  }
+
+  /**
+   * Move focus to one of the form's fields, by script: the one place voicecap does, to enter a form
+   * at its first field. Rejects when the field isn't there or won't take focus.
+   */
+  async focusFormField(form: number, field: number): Promise<void> {
+    const moved = await this.onPage(() => focusField(this.cdp, this.formsWorld, form, field));
+    if (!moved) throw new Error("The form's field couldn't be given focus.");
   }
 
   /**

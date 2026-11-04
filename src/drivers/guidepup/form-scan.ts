@@ -251,6 +251,28 @@ const SCAN = `(() => {
     return read;
   };
 
+  // Where the form is in the page, as a selector from the document's root, for a check limited to it.
+  world.voicecapFormSelector = (form) => {
+    const entry = world.voicecapForms[form];
+    const element = entry ? entry.form : null;
+    if (!element || !element.isConnected) return null;
+    const parts = [];
+    for (let node = element; node && node !== document.documentElement; node = node.parentElement) {
+      const at = Array.prototype.indexOf.call(node.parentElement.children, node) + 1;
+      parts.unshift(node.localName + ":nth-child(" + at + ")");
+    }
+    return "html > " + parts.join(" > ");
+  };
+
+  // The one place voicecap moves focus by script: into the form's field, to enter it.
+  world.voicecapFocusField = (form, field) => {
+    const entry = world.voicecapForms[form];
+    const element = entry ? entry.fields[field] : undefined;
+    if (!element || !element.isConnected) return false;
+    element.focus();
+    return document.activeElement === element;
+  };
+
   const elements = entries.flatMap((entry) => entry.fields);
   return { json: JSON.stringify(raws), elements };
 })()`;
@@ -336,6 +358,47 @@ export async function readFormState(
   } catch {
     // The world went with the page it was made for.
     return gone;
+  }
+}
+
+/** Move focus to one of the form's fields by script; false when the field isn't there or won't take it. */
+export async function focusField(
+  cdp: CDPSession,
+  contextId: number | null,
+  form: number,
+  field: number,
+): Promise<boolean> {
+  if (contextId === null) return false;
+  try {
+    const moved = await cdp.send("Runtime.evaluate", {
+      expression: `voicecapFocusField(${JSON.stringify(form)}, ${JSON.stringify(field)})`,
+      contextId,
+      returnByValue: true,
+    });
+    return !moved.exceptionDetails && moved.result.value === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Where the form is in the page, as a CSS selector from the root, or null when it isn't there. */
+export async function selectorOf(
+  cdp: CDPSession,
+  contextId: number | null,
+  form: number,
+): Promise<string | null> {
+  if (contextId === null) return null;
+  try {
+    const read = await cdp.send("Runtime.evaluate", {
+      expression: `voicecapFormSelector(${JSON.stringify(form)})`,
+      contextId,
+      returnByValue: true,
+    });
+    return !read.exceptionDetails && typeof read.result.value === "string"
+      ? read.result.value
+      : null;
+  } catch {
+    return null;
   }
 }
 

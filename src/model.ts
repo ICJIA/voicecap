@@ -620,6 +620,9 @@ export type NewRunEvent =
  */
 export type RunEvent = NewRunEvent & { at: string };
 
+/** The forms a run has tested, by signature, with the page each was tested on. */
+export type FormSignatures = Record<string, string>;
+
 export interface RunJson {
   schemaVersion: 1;
   id: string;
@@ -661,6 +664,14 @@ export interface RunJson {
    * 0.11.0, and while a run has no file to record.
    */
   files?: Record<string, FileHash>;
+  /**
+   * The forms the run has tested (FormSignatures): each form's signature, with the page it was
+   * tested on, as a path such as "/about". The same form on another page (a footer's sign-up) is
+   * pressed no more, and says where it was tested. A page adds its forms once it is read, so a page
+   * that is tried again, or a run that is resumed, doesn't test a form twice or lose one. Absent
+   * until a form has been tested.
+   */
+  formSignatures?: FormSignatures;
   /**
    * SHA-256 seal of this record (see sealOf), set once every other field is final at completion.
    * Absent while the run is incomplete, and on runs written before this field existed.

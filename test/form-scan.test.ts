@@ -368,3 +368,51 @@ describe.skipIf(!haveChromium)("readFormState", () => {
     expect((await session.readFormState(9)).present).toBe(false);
   });
 });
+
+describe.skipIf(!haveChromium)("entering a form, and checking just that form", () => {
+  it("moves focus to a field by script, and says when it can't", async () => {
+    const session = await open("/focus");
+    await session.scanForms();
+    await session.focusFormField(0, 1);
+    // The radio group's index is its one field, and it is the radio that has focus.
+    expect(await session.readFormState(0)).toMatchObject({ focusedField: 1 });
+    await session.focusFormField(0, 0);
+    expect(await session.readFormState(0)).toMatchObject({ focusedField: 0 });
+    await expect(session.focusFormField(0, 9)).rejects.toThrow("couldn't be given focus");
+    await expect(session.focusFormField(4, 0)).rejects.toThrow("couldn't be given focus");
+  });
+
+  it("can't move focus before a scan has found the form", async () => {
+    const session = await open("/focus");
+    await expect(session.focusFormField(0, 0)).rejects.toThrow("couldn't be given focus");
+  });
+
+  it("limits axe to the form, by a selector that finds that form and no other", async () => {
+    const session = await open("/tab");
+    await session.scanForms();
+    // axe stands in as a script that gives back the context it was asked to check.
+    const script = "window.axe = { run: (context) => Promise.resolve({ context }) };";
+    const second = (await session.runAxe(script, { form: 1 })) as {
+      context: { include: string[] };
+    };
+    const [selector] = second.context.include;
+    const found = await pageOf(session).evaluate(
+      (css) => [...document.querySelectorAll(css)].map((element) => element.outerHTML.slice(0, 40)),
+      selector!,
+    );
+    expect(found).toEqual(['<form action="/y" method="post"><input n']);
+    // The whole page, as ever, when no form is named.
+    expect(((await session.runAxe(script)) as { context: unknown }).context).toHaveProperty(
+      "location",
+    );
+  });
+
+  it("won't check a form that isn't in the page", async () => {
+    const session = await open("/state");
+    await session.scanForms();
+    await pageOf(session).evaluate("removeForm()");
+    await expect(
+      session.runAxe("window.axe = { run: () => Promise.resolve({}) };", { form: 0 }),
+    ).rejects.toThrow("isn't in the page");
+  });
+});
