@@ -477,9 +477,13 @@ describe("At a glance", () => {
       passes: ["read", "headings", "tab"],
       version: "0.12.0",
     });
-    expect(model.forms).toEqual({ notRecorded: "Forms: not recorded: this run used voicecap 0.12.0." });
+    expect(model.forms).toEqual({
+      notRecorded: "Forms: not recorded: this run used voicecap 0.12.0.",
+    });
     expect(model.result.forms).toBeUndefined();
-    expect(textOf(renderGlance(model))).toContain("Forms: not recorded: this run used voicecap 0.12.0.");
+    expect(textOf(renderGlance(model))).toContain(
+      "Forms: not recorded: this run used voicecap 0.12.0.",
+    );
   });
 });
 
@@ -584,7 +588,9 @@ describe("the Word copy", () => {
       passes: ["read", "headings", "tab"],
       version: "0.12.0",
     });
-    expect(wordsOf(wordGlance(model))).toContain("Forms: not recorded: this run used voicecap 0.12.0.");
+    expect(wordsOf(wordGlance(model))).toContain(
+      "Forms: not recorded: this run used voicecap 0.12.0.",
+    );
     expect(wordOf(model).join(" ")).not.toMatch(/This form|What happened at the form|forms work/);
   });
 });
@@ -684,8 +690,12 @@ describe("the files for AI tools", () => {
       version: "0.12.0",
     });
     const report = JSON.parse(renderAiJson(model)) as { forms: unknown };
-    expect(report.forms).toEqual({ notRecorded: "Forms: not recorded: this run used voicecap 0.12.0." });
-    expect(renderAiMarkdown(model)).toContain("Forms: not recorded: this run used voicecap 0.12.0.");
+    expect(report.forms).toEqual({
+      notRecorded: "Forms: not recorded: this run used voicecap 0.12.0.",
+    });
+    expect(renderAiMarkdown(model)).toContain(
+      "Forms: not recorded: this run used voicecap 0.12.0.",
+    );
   });
 
   it("give the counts, and an empty list for the page, when the pass found no form", () => {
