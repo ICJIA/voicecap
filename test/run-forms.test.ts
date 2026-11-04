@@ -73,7 +73,11 @@ class FormsDriver extends ScriptedDriver {
 
   constructor(
     private readonly forms: FormsBySite,
-    private readonly fails: { armOnLoad?: number; findOnLoad?: number } = {},
+    private readonly fails: {
+      armOnLoad?: number;
+      findOnLoad?: number;
+      guardedLoadFails?: boolean;
+    } = {},
   ) {
     super(sitePages());
   }
@@ -85,6 +89,9 @@ class FormsDriver extends ScriptedDriver {
     this.focus = null;
     this.held = 0;
     this.armed = false;
+    if (this.fails.guardedLoadFails && opened?.guarded) {
+      return Promise.reject(new Error("net::ERR_PROXY_CONNECTION_FAILED"));
+    }
     return super.openPage(url);
   }
 
@@ -327,6 +334,29 @@ describe("a problem in the forms pass", () => {
     expect(page.passes.headings?.stopReason).toBe("no-next-heading");
     expect(page.passes.forms).toMatchObject({ stopReason: "error", errors: ["the scan failed"] });
     expect(driver.stops).toBe(1);
+  });
+
+  it("leaves the page done, and its other passes' transcripts where they are, when the page can't be loaded behind the guard", async () => {
+    const driver = new FormsDriver({ "/": TWO_FORMS["/"]! }, { guardedLoadFails: true });
+    const { dir, result } = await run(driver, ["/"], ["read", "headings", "forms"]);
+    expect(result.outcome).toBe("completed");
+    const page = result.run.pages[0]!;
+    expect(page).toMatchObject({ status: "done", attempts: 1 });
+    expect(page.passes.read?.stopReason).toBe("end-reached");
+    expect(page.passes.headings?.stopReason).toBe("no-next-heading");
+    expect(page.passes.forms).toMatchObject({
+      stopReason: "error",
+      errors: ["The page couldn't be loaded behind the guard: net::ERR_PROXY_CONNECTION_FAILED"],
+    });
+    // The other passes' transcripts were written once, and never moved aside.
+    const folder = pageDir(outDir(dir), result.runId, page.slug);
+    expect(Object.keys(page.files)).toEqual(expect.arrayContaining(["read.txt", "headings.txt"]));
+    for (const name of Object.keys(page.files)) {
+      expect(existsSync(path.join(folder, name)), name).toBe(true);
+    }
+    expect(driver.loads.filter((load) => load.options?.guarded)).toHaveLength(1);
+    expect(driver.count("pressSubmit")).toBe(0);
+    expect(result.exitCode).toBe(ExitCode.ok);
   });
 
   it("is a form not tested, not a page failed, when the guard can't be armed", async () => {

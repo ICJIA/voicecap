@@ -372,10 +372,25 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
   try {
     for (const [index, pass] of ctx.passes.entries()) {
       let info: PageInfo;
+      // The forms pass's result when its guarded load failed: no form was reached.
+      let unguarded: PassResult | undefined;
       try {
         info = await open(pass);
       } catch (error) {
-        return notOpened(pass, error);
+        // A guarded load can fail where an ordinary one doesn't (the gate goes straight out, not
+        // through the computer's own proxy). When the page's other passes are done, that fails the
+        // forms pass, not the page: the others' transcripts stay, and the page isn't tried again.
+        if (pass !== "forms" || index === 0 || error instanceof InterruptedError) {
+          return notOpened(pass, error);
+        }
+        info = {
+          finalUrl: loaded.finalUrl ?? page.url,
+          status: loaded.httpStatus ?? null,
+          contentType: null,
+          title: loaded.title ?? null,
+          canonical: loaded.canonical ?? null,
+        };
+        unguarded = guardedLoadFailed(error);
       }
 
       const warnings: string[] = [];
@@ -459,7 +474,8 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
           },
         };
       }
-      const result = await runPass(pass, session.driver, settings, signal, ctx.clock);
+      const result =
+        unguarded ?? (await runPass(pass, session.driver, settings, signal, ctx.clock));
       result.warnings.unshift(...warnings);
       // A page with no forms has no forms transcripts, and that is no gap: nothing was there to test.
       if (pass === "forms" && noForms(result)) continue;
@@ -914,6 +930,24 @@ function transcriptFor(
  * Whether the forms pass found nothing to say: no form on the page, and nothing wrong, so the page
  * keeps no forms transcripts. A driver that can't test forms says so in a warning, and is kept.
  */
+/**
+ * The forms pass when the page couldn't be loaded behind the guard: no form was found or pressed, and
+ * its error says why, as a pass's own error does.
+ */
+function guardedLoadFailed(error: unknown): PassResult {
+  const failure = failureOf(error);
+  return {
+    pass: "forms",
+    steps: [],
+    stopReason: "error",
+    durationMs: 0,
+    warnings: [],
+    errors: [`The page couldn't be loaded behind the guard: ${failure.message}`],
+    failure,
+    forms: [],
+  };
+}
+
 function noForms(result: PassResult): boolean {
   return (
     result.forms?.length === 0 &&
