@@ -17,6 +17,7 @@ import { runAudit } from "../src/run/audit.js";
 import { pageDir } from "../src/run/paths.js";
 import { readRunJson } from "../src/run/store.js";
 import * as PageRunner from "../src/run/page-runner.js";
+import { ExitCode } from "../src/util/errors.js";
 import { verifyHome } from "../src/verify.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { config, options, outDir, setup, sitePages } from "./helpers/run-site.js";
@@ -471,5 +472,23 @@ describe("the forms record", () => {
       (await verifyHome({ home: path.join(dir, "transcripts"), logger: createMemoryLogger() }))
         .problems,
     ).toBe(0);
+  });
+});
+
+describe("a forms flag", () => {
+  it("never changes the run's exit code", async () => {
+    // A press that holds no request and changes nothing: the form is stuck, and the flag is raised.
+    class NothingHappens extends FormsDriver {
+      override pressSubmit(form: number, settleMs: number): Promise<Speech> {
+        this.made.push(`pressSubmit ${form} ${settleMs}`);
+        return Promise.resolve("");
+      }
+    }
+    const { result } = await run(new NothingHappens(TWO_FORMS), ["/"]);
+    const flags = result.run.pages.flatMap((page) => page.flags.map((flag) => flag.rule));
+
+    expect(flags).toContain("form-no-feedback");
+    expect(flags).toContain("form-cant-finish");
+    expect(result.exitCode).toBe(ExitCode.ok);
   });
 });

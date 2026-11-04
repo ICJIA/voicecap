@@ -100,7 +100,13 @@ export interface FormOutcome {
   /** Why it stopped short of completed; null for a form that's completed. */
   reason: string | null;
   /** Each press in turn: `axe` is null where the form's errors hadn't changed, so it wasn't checked. */
-  presses: { state: FormState; spoken: string; axe: AxeCapture | null }[];
+  presses: {
+    state: FormState;
+    spoken: string;
+    axe: AxeCapture | null;
+    /** The session's held-request count just before the press: what `state.heldRequests` is read against. */
+    heldBefore?: number;
+  }[];
   /**
    * The fields the browser called invalid and the messages showing before any press: what a later
    * press is new against. Left out where the pass took no look at the form, and in a file from before

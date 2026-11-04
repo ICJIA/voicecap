@@ -19,7 +19,8 @@
  */
 import { FORMS_DEFAULTS } from "../config/defaults.js";
 import type { FlagResult } from "../model.js";
-import { UNREACHABLE } from "../passes/forms.js";
+import { OUT_OF_STEPS, UNREACHABLE } from "../passes/forms.js";
+import { readPress } from "../forms/press.js";
 import type { FormField, FormOutcome, FormState } from "../forms/types.js";
 import { normalizeSpeech } from "../passes/steps.js";
 
@@ -48,7 +49,7 @@ export function isFormsRule(rule: string): rule is FormsRule {
 export type FormFlagInput = Pick<
   FormOutcome,
   "form" | "result" | "stoppedAt" | "reason" | "baseline" | "firstWalk" | "errorWalk" | "lastWalk"
-> & { presses: readonly { state: FormState; spoken: string }[] };
+> & { presses: readonly { state: FormState; spoken: string; heldBefore?: number }[] };
 
 /** What a rule found on one form: its message, how many times, and the lines it quotes. */
 interface Finding {
@@ -88,7 +89,7 @@ function findings(form: FormFlagInput): Partial<Record<FormsRule, Finding>> {
   const found: Partial<Record<FormsRule, Finding>> = {};
   const label = form.form.submitName === null ? "The form" : `The "${form.form.submitName}" form`;
   const words = FORMS_DEFAULTS.words;
-  const presses = form.presses.map((_, i) => readPress(form, i));
+  const presses = form.presses.map((_, i) => readOne(form, i));
 
   const shown = presses.find((press) => press.showedError);
   if (shown) {
@@ -115,7 +116,9 @@ function findings(form: FormFlagInput): Partial<Record<FormsRule, Finding>> {
 
   if (shown && form.errorWalk.length > 0) {
     const errorWords = [...shown.messages, ...(shown.bubble === null ? [] : [shown.bubble])];
-    const unlinked = shown.invalid.flatMap((index) => {
+    // Every field invalid at the press, not only the newly invalid: the scan marks an empty native
+    // `required` field invalid from the page's load, so it is in the baseline.
+    const unlinked = shown.state.invalid.flatMap((index) => {
       const after = form.errorWalk.find((heard) => heard.field === index);
       if (!after) return [];
       const before = form.firstWalk.find((heard) => heard.field === index);
@@ -168,8 +171,10 @@ function findings(form: FormFlagInput): Partial<Record<FormsRule, Finding>> {
   }
 
   const walked = [...form.firstWalk, ...form.errorWalk, ...form.lastWalk];
+  // A walk cut short (the pass ran out of steps, or the form left the page) hasn't heard every field.
+  const cutShort = form.reason === OUT_OF_STEPS || form.reason?.startsWith(LEFT_PAGE) === true;
   const missed =
-    form.firstWalk.length === 0
+    form.firstWalk.length === 0 || cutShort
       ? []
       : form.form.fields.filter(
           (field) => field.required && !walked.some((heard) => heard.field === field.index),
@@ -177,7 +182,11 @@ function findings(form: FormFlagInput): Partial<Record<FormsRule, Finding>> {
   const stopped =
     form.result === "stuck" &&
     form.stoppedAt &&
-    (form.reason === UNREACHABLE || form.reason?.startsWith("it was filled by keyboard"))
+    (form.reason === UNREACHABLE ||
+      // A value keyboard keys put in and the form refused: a keyboard problem only for a control
+      // that isn't typed into. A typed field may simply refuse voicecap's fake value (a pattern).
+      (form.reason?.startsWith("it was filled by keyboard") === true &&
+        !TYPED.has(form.stoppedAt.type)))
       ? [form.stoppedAt]
       : [];
   const unreachable = [
@@ -193,30 +202,24 @@ function findings(form: FormFlagInput): Partial<Record<FormsRule, Finding>> {
   return found;
 }
 
-/** What one press did, against the page before the first press, as the pass reads it. */
-function readPress(form: FormFlagInput, i: number) {
-  const { state, spoken } = form.presses[i]!;
+/**
+ * What one press did, read as the pass read it (forms/press.ts) against the count of held requests
+ * just before it, which the outcome keeps; an older file without it is read against the press before.
+ */
+function readOne(form: FormFlagInput, i: number) {
+  const { state, spoken, heldBefore } = form.presses[i]!;
   const baseline = form.baseline ?? { invalid: [], messages: [] };
-  const held = i === 0 ? 0 : form.presses[i - 1]!.state.heldRequests;
-  const wouldSend = state.heldRequests > held;
-  const invalid = state.invalid.filter((index) => !baseline.invalid.includes(index));
-  const fresh = state.messages.filter((text) => !baseline.messages.includes(text));
-  // A message that comes after a held request may be the page's answer to the guard, not an error.
-  const messages = wouldSend ? [] : fresh;
+  const held = heldBefore ?? (i === 0 ? 0 : form.presses[i - 1]!.state.heldRequests);
+  const read = readPress(baseline, held, state);
   return {
     state,
     spoken,
-    invalid,
-    messages,
+    invalid: read.newInvalid,
+    // A message that comes after a held request may be the page's answer to the guard, not an error.
+    messages: read.wouldSend ? [] : read.newMessages,
     bubble: state.bubble,
-    showedError: invalid.length > 0 || state.bubble !== null || messages.length > 0,
-    changed:
-      wouldSend ||
-      invalid.length > 0 ||
-      fresh.length > 0 ||
-      state.bubble !== null ||
-      state.liveChanged ||
-      state.focusedField !== null,
+    showedError: read.showedError,
+    changed: read.changed,
   };
 }
 
@@ -237,17 +240,38 @@ function plural(count: number, one: string): string {
   return `${count} ${count === 1 ? one : `${one}s`}`;
 }
 
-function norm(text: string): string {
-  return normalizeSpeech(text).toLowerCase();
+/** Words of a text, lowercased: letters and digits, whatever stands between them. */
+function wordsOf(text: string): string[] {
+  return text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 }
 
-/** Whether what NVDA said holds `text`, ignoring case and spacing; empty words are never held. */
+/** The most consecutive words of a message that must be spoken for it to count as heard. */
+const HEARD_RUN = 3;
+
+/**
+ * Whether what NVDA said holds `text`: a run of its words (3 in a row, or all of a shorter one),
+ * spoken in order. NVDA puts role words between the parts of a structured alert ("Errors, heading
+ * level 2, list with 1 item, Name is required"), so the whole text rarely comes in one piece. Empty
+ * text is never held.
+ */
 function contains(spoken: string, text: string): boolean {
-  const wanted = norm(text);
-  return wanted !== "" && norm(spoken).includes(wanted);
+  const wanted = wordsOf(text);
+  if (wanted.length === 0) return false;
+  const said = wordsOf(spoken).join(" ");
+  const run = Math.min(HEARD_RUN, wanted.length);
+  for (let start = 0; start + run <= wanted.length; start++) {
+    if (` ${said} `.includes(` ${wanted.slice(start, start + run).join(" ")} `)) return true;
+  }
+  return false;
 }
 
 /** Whether what NVDA said holds one of the words. */
 function hasWord(spoken: string, words: readonly string[]): boolean {
   return words.some((word) => contains(spoken, word));
 }
+
+/** Why a form stopped when it left the page, which the pass words two ways. */
+const LEFT_PAGE = "the form left the page";
+
+/** The types of field a keyboard types into. */
+const TYPED = new Set(["text", "email", "tel", "url", "number", "search", "password", "textarea"]);

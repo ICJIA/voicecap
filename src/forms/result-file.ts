@@ -40,6 +40,7 @@ export function keptFormsResults(
       reason: outcome.reason,
       presses: outcome.presses.map((press) => ({
         state: press.state,
+        ...(press.heldBefore === undefined ? {} : { heldBefore: press.heldBefore }),
         spoken: press.spoken,
         axe: keptAxe(press.axe),
       })),

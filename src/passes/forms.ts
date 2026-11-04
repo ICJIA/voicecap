@@ -9,6 +9,7 @@ import type {
   FormResult,
   FormState,
 } from "../forms/types.js";
+import { readPress } from "../forms/press.js";
 import type { StopReason } from "../model.js";
 import { redactAccount } from "../run/failure.js";
 import { errorMessage } from "../util/errors.js";
@@ -52,7 +53,7 @@ const NO_FORM_DRIVER = "this run's driver doesn't test forms";
 /** Why a form stopped at a field the keyboard can't get to: `form-field-unreachable`'s evidence. */
 export const UNREACHABLE = "Tab never reached it";
 
-const OUT_OF_STEPS = "the pass ran out of steps on this form";
+export const OUT_OF_STEPS = "the pass ran out of steps on this form";
 
 /** Tab stops a walk allows beyond the fields: links and buttons among them, such as a "What's this?". */
 const WALK_SPARE_TABS = 10;
@@ -151,33 +152,6 @@ async function walk(
     if (state.focusedSubmit && stopAt === undefined && heard.length === form.fields.length) break;
   }
   return heard;
-}
-
-/** What one press did, against the page before the first press and just before this one. */
-function readPress(baseline: FormState, before: FormState, state: FormState) {
-  const newInvalid = state.invalid.filter((field) => !baseline.invalid.includes(field));
-  const newMessages = state.messages.filter((message) => !baseline.messages.includes(message));
-  const wouldSend = state.heldRequests > before.heldRequests;
-  return {
-    // A request alone proves nothing: a click beacon goes out on a press that was blocked, by Chrome
-    // or the page's script. So nothing may be left invalid or empty, and no bubble may be showing.
-    completed:
-      wouldSend &&
-      state.invalid.length === 0 &&
-      state.emptyRequired.length === 0 &&
-      state.bubble === null,
-    // The page may be reacting to the guard, so a message after a held request isn't an error.
-    showedError:
-      newInvalid.length > 0 || state.bubble !== null || (newMessages.length > 0 && !wouldSend),
-    // pressSubmit leaves focus on the submit control: a field that has it was moved to by the page.
-    changed:
-      wouldSend ||
-      newInvalid.length > 0 ||
-      newMessages.length > 0 ||
-      state.bubble !== null ||
-      state.liveChanged ||
-      state.focusedField !== null,
-  };
 }
 
 /** The fields keeping the form back, as far as the page says: its invalid ones, then the empty. */
@@ -289,7 +263,7 @@ export async function formPass(
       );
     }
     lastErrors = errors;
-    presses.push({ state, spoken, axe });
+    presses.push({ state, spoken, axe, heldBefore: before.heldRequests });
 
     if (!state.present) {
       if (emptyOnly !== null) return end("not-tested", emptyOnly);
@@ -299,7 +273,7 @@ export async function formPass(
     if (axe && "leftRunning" in axe) {
       return end("not-tested", "axe was still running in the page, so voicecap pressed no more");
     }
-    const press = readPress(baseline, before, state);
+    const press = readPress(baseline, before.heldRequests, state);
     const finishes = emptyOnly === null && barred === undefined;
     if (finishes && press.completed) return end("completed", null);
     if (finishes && !press.changed) {

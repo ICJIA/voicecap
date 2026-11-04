@@ -443,6 +443,13 @@ const ADVICE: Record<AttentionKind, (card: AttentionCard) => Advice> = {
     cause:
       "The keyboard never got the form to the point of sending: where it stopped is in the flag's message, and what NVDA said there is in the transcript.",
     why: "A screen reader user who can't finish the form can't use what it's for: an application, a request, a sign-up.",
+    fixes: [
+      {
+        lead: "Use real form controls and a real submit button, so Tab reaches each one and the keys fill it:",
+        code: '<label for="email">Email</label>\n<input id="email" type="email" required>\n<button type="submit">Send</button>',
+        after: '"Email, edit, required" at the field, and "Send, button" at the submit',
+      },
+    ],
     path: [
       "Open the page and try the form with the keyboard alone, with NVDA on. Fill each required field, then press submit.",
       ...flagPath(card),

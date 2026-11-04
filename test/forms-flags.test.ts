@@ -8,6 +8,7 @@ import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { evaluateFlags, flagQuotes } from "../src/flags/evaluate.js";
 import { RULE_WCAG, wcagOf } from "../src/flags/wcag.js";
 import { keptFormsResults, readFormsResults } from "../src/forms/result-file.js";
+import { OUT_OF_STEPS } from "../src/passes/forms.js";
 import type { FormField, FormInfo, FormOutcome, FormState } from "../src/forms/types.js";
 import type { FlagResult } from "../src/model.js";
 import { attentionCards, type AttentionPage } from "../src/share/attention.js";
@@ -294,13 +295,50 @@ describe("form-field-unreachable", () => {
     );
   });
 
-  it("is raised for a required field no walk reached, even on a form not tested further", () => {
+  it("is raised for a required field no walk reached, on a form that went on to be stuck", () => {
     const outcome = outcomeOf({
-      result: "not-tested",
-      reason: "tested empty",
+      result: "stuck",
+      reason: 'Tab never reached the submit control, "Send"',
       firstWalk: [{ field: 0, spoken: "Name, edit, required", required: true }],
     });
     expect(ruleIds(flagsOf(outcome))).toContain("form-field-unreachable");
+  });
+
+  it("is not raised for fields a walk never heard because the pass ran out of steps", () => {
+    const outcome = outcomeOf({
+      result: "not-tested",
+      reason: OUT_OF_STEPS,
+      firstWalk: [{ field: 0, spoken: "Name, edit, required", required: true }],
+    });
+    expect(ruleIds(flagsOf(outcome))).not.toContain("form-field-unreachable");
+  });
+
+  it("is not raised for fields a walk never heard because the form left the page", () => {
+    for (const reason of ["the form left the page", "the form left the page after the press"]) {
+      const outcome = outcomeOf({
+        result: "stuck",
+        reason,
+        firstWalk: [{ field: 0, spoken: "Name, edit, required", required: true }],
+      });
+      expect(ruleIds(flagsOf(outcome)), reason).not.toContain("form-field-unreachable");
+    }
+  });
+
+  it("is not raised when a typed field refused voicecap's value, but is for a list or date", () => {
+    const refused = (type: string) =>
+      outcomeOf({
+        form: formOf([field(0, "Name"), field(1, "Zip", { type })]),
+        result: "stuck",
+        reason: "it was filled by keyboard, and the form didn't take it",
+        stoppedAt: field(1, "Zip", { type }),
+        firstWalk: [
+          { field: 0, spoken: "Name, edit, required", required: true },
+          { field: 1, spoken: "Zip, edit, required", required: true },
+        ],
+      });
+    expect(ruleIds(flagsOf(refused("text")))).not.toContain("form-field-unreachable");
+    expect(ruleIds(flagsOf(refused("text")))).toContain("form-cant-finish");
+    expect(ruleIds(flagsOf(refused("date")))).toContain("form-field-unreachable");
   });
 
   it("is not raised when every required field was reached", () => {
@@ -390,7 +428,7 @@ describe("the cards", () => {
       expect(words.cause).not.toBe("");
       expect(words.why).not.toBe("");
       expect(words.path.length).toBeGreaterThan(0);
-      if (card.kind !== "form-cant-finish") expect(words.fixes.length).toBeGreaterThan(0);
+      expect(words.fixes.length).toBeGreaterThan(0);
     }
   });
 
@@ -416,5 +454,105 @@ describe("the results file", () => {
   it("reads nothing from text that isn't one", () => {
     expect(readFormsResults("not json")).toBeNull();
     expect(readFormsResults('{"schemaVersion":99,"forms":[]}')).toBeNull();
+  });
+});
+
+describe("fields already invalid before the press, as the scan marks native required fields", () => {
+  /** A native required field is invalid from load; NVDA says "invalid entry" before and after. */
+  const native = (after: string) =>
+    outcomeOf({
+      result: "stuck",
+      baseline: { invalid: [0], messages: [] },
+      presses: [
+        {
+          state: stateOf({
+            invalid: [0],
+            emptyRequired: [0],
+            bubble: "Please fill out this field.",
+          }),
+          spoken: "Name, edit",
+          axe: null,
+        },
+      ],
+      firstWalk: [{ field: 0, spoken: "Name, edit, required, invalid entry", required: true }],
+      errorWalk: [{ field: 0, spoken: after, required: true }],
+    });
+
+  it("raises form-error-unlinked when 'invalid entry' is said both times and nothing says why", () => {
+    expect(ruleIds(flagsOf(native("Name, edit, required, invalid entry")))).toContain(
+      "form-error-unlinked",
+    );
+  });
+
+  it("does not when the field says the error's own words after the press", () => {
+    expect(
+      ruleIds(flagsOf(native("Name, edit, required, invalid entry, Please fill out this field."))),
+    ).not.toContain("form-error-unlinked");
+  });
+});
+
+describe("a request held before a press", () => {
+  const empty = { invalid: [], messages: [] };
+
+  it("is not this press's: a second form whose session count was already 2 still changed nothing", () => {
+    const outcome = outcomeOf({
+      result: "stuck",
+      baseline: empty,
+      presses: [{ state: stateOf({ heldRequests: 2 }), spoken: "", heldBefore: 2, axe: null }],
+    });
+    expect(ruleIds(flagsOf(outcome))).toContain("form-no-feedback");
+  });
+
+  it("does not drop a silent error's message because the count rose before the first press", () => {
+    const outcome = outcomeOf({
+      result: "stuck",
+      baseline: empty,
+      presses: [
+        {
+          state: stateOf({ heldRequests: 1, invalid: [0], messages: ["Name is required"] }),
+          spoken: "Send, button",
+          heldBefore: 1,
+          axe: null,
+        },
+      ],
+    });
+    expect(ruleIds(flagsOf(outcome))).toContain("form-error-silent");
+  });
+
+  it("is this press's when the count rose across it", () => {
+    const outcome = outcomeOf({
+      presses: [{ state: stateOf({ heldRequests: 3 }), spoken: "", heldBefore: 2, axe: null }],
+    });
+    expect(flagsOf(outcome)).toEqual([]);
+  });
+});
+
+describe("a structured alert", () => {
+  it("is heard when a run of the message's words is spoken among role words", () => {
+    const outcome = outcomeOf({
+      result: "stuck",
+      presses: [
+        {
+          state: stateOf({ messages: ["Errors Name is required"] }),
+          spoken: "alert, Errors, heading level 2, list with 1 item, Name is required",
+          axe: null,
+        },
+      ],
+    });
+    expect(ruleIds(flagsOf(outcome))).not.toContain("form-error-silent");
+  });
+
+  it("is silent when only scraps of it are spoken", () => {
+    const outcome = outcomeOf({
+      result: "stuck",
+      presses: [
+        {
+          state: stateOf({ messages: ["Errors Name is required"] }),
+          spoken: "alert, Errors, list with 1 item",
+          axe: null,
+        },
+      ],
+    });
+    expect(ruleIds(flagsOf(outcome))).toContain("form-error-silent");
   });
 });
