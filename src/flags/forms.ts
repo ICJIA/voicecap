@@ -116,11 +116,22 @@ function findings(form: FormFlagInput): Partial<Record<FormsRule, Finding>> {
 
   if (shown && form.errorWalk.length > 0) {
     const errorWords = [...shown.messages, ...(shown.bubble === null ? [] : [shown.bubble])];
+    const nativeError = shown.bubble !== null && shown.messages.length === 0;
     // Every field invalid at the press, not only the newly invalid: the scan marks an empty native
     // `required` field invalid from the page's load, so it is in the baseline.
     const unlinked = shown.state.invalid.flatMap((index) => {
       const after = form.errorWalk.find((heard) => heard.field === index);
       if (!after) return [];
+      if (nativeError) {
+        // Chrome's own bubble: NVDA speaks it at the press, and says "invalid entry" at the other
+        // fields (which a radio, list, or check box says before any press too).
+        const bubbled = index === (shown.state.focusedField ?? shown.state.invalid[0]);
+        const heard =
+          bubbled && [shown.spoken, after.spoken].some((said) => contains(said, shown.bubble!));
+        return hasWord(after.spoken, words.invalid) || heard
+          ? []
+          : [{ index, spoken: after.spoken }];
+      }
       const before = form.firstWalk.find((heard) => heard.field === index);
       const turned =
         hasWord(after.spoken, words.invalid) && !(before && hasWord(before.spoken, words.invalid));

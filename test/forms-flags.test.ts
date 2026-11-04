@@ -457,37 +457,118 @@ describe("the results file", () => {
   });
 });
 
-describe("fields already invalid before the press, as the scan marks native required fields", () => {
-  /** A native required field is invalid from load; NVDA says "invalid entry" before and after. */
-  const native = (after: string) =>
+describe("native required fields, which the scan marks invalid from load", () => {
+  const NATIVE_FIELDS = [
+    field(0, "Name"),
+    field(1, "Size", { type: "radio" }),
+    field(2, "Agree", { type: "checkbox" }),
+  ];
+  const bubble = "Please fill out this field.";
+  /** A native form: Name has the bubble, a radio and a check box are invalid from load. */
+  const native = (walk: { name: string; radio: string; check: string }, spoken = bubble) =>
     outcomeOf({
+      form: formOf(NATIVE_FIELDS),
       result: "stuck",
-      baseline: { invalid: [0], messages: [] },
+      baseline: { invalid: [0, 1, 2], messages: [] },
       presses: [
         {
-          state: stateOf({
-            invalid: [0],
-            emptyRequired: [0],
-            bubble: "Please fill out this field.",
-          }),
-          spoken: "Name, edit",
+          state: stateOf({ invalid: [0, 1, 2], emptyRequired: [0, 1, 2], focusedField: 0, bubble }),
+          spoken,
           axe: null,
         },
       ],
-      firstWalk: [{ field: 0, spoken: "Name, edit, required, invalid entry", required: true }],
+      firstWalk: [
+        { field: 0, spoken: "Name, edit, required, blank", required: true },
+        {
+          field: 1,
+          spoken: "Size, radio button, not checked, required, invalid entry",
+          required: true,
+        },
+        {
+          field: 2,
+          spoken: "Agree, check box, not checked, required, invalid entry",
+          required: true,
+        },
+      ],
+      errorWalk: [
+        { field: 0, spoken: walk.name, required: true },
+        { field: 1, spoken: walk.radio, required: true },
+        { field: 2, spoken: walk.check, required: true },
+      ],
+    });
+  const RADIO = "Size, radio button, not checked, required, invalid entry";
+  const CHECK = "Agree, check box, not checked, required, invalid entry";
+
+  it("raises no form-error-unlinked when the bubble was spoken and the others say invalid entry", () => {
+    const flags = flagsOf(
+      native({ name: "Name, edit, required, blank", radio: RADIO, check: CHECK }),
+    );
+    expect(ruleIds(flags)).not.toContain("form-error-unlinked");
+  });
+
+  it("counts the bubbled field linked when its walk says the bubble's words", () => {
+    const flags = flagsOf(
+      native({ name: `Name, edit, required, ${bubble}`, radio: RADIO, check: CHECK }, ""),
+    );
+    expect(ruleIds(flags)).not.toContain("form-error-unlinked");
+  });
+
+  it("still raises it for a field that doesn't say invalid entry after the press", () => {
+    const flags = flagsOf(
+      native({
+        name: "Name, edit, required, blank",
+        radio: RADIO,
+        check: "Agree, check box, not checked, required",
+      }),
+    );
+    const found = flags.find((flag) => flag.rule === "form-error-unlinked");
+    expect(found?.message).toContain("Agree");
+    expect(found?.message).not.toContain("Size");
+  });
+
+  it("still raises it for the bubbled field when the bubble was never spoken", () => {
+    const flags = flagsOf(
+      native({ name: "Name, edit, required, blank", radio: RADIO, check: CHECK }, "Send, button"),
+    );
+    expect(flags.find((flag) => flag.rule === "form-error-unlinked")?.message).toContain("Name");
+  });
+});
+
+describe("a page-made error on a field", () => {
+  const page = (after: string, before = "Name, edit, required, blank") =>
+    outcomeOf({
+      result: "stuck",
+      baseline: { invalid: [], messages: [] },
+      presses: [
+        {
+          state: stateOf({ invalid: [0], messages: ["Name is required"] }),
+          spoken: "alert, Name is required",
+          axe: null,
+        },
+      ],
+      firstWalk: [{ field: 0, spoken: before, required: true }],
       errorWalk: [{ field: 0, spoken: after, required: true }],
     });
 
-  it("raises form-error-unlinked when 'invalid entry' is said both times and nothing says why", () => {
-    expect(ruleIds(flagsOf(native("Name, edit, required, invalid entry")))).toContain(
+  it("raises form-error-unlinked when the field neither newly says invalid entry nor its words", () => {
+    expect(ruleIds(flagsOf(page("Name, edit, required, blank")))).toContain("form-error-unlinked");
+  });
+
+  it("does not when the field newly says invalid entry, or says the message", () => {
+    expect(ruleIds(flagsOf(page("Name, edit, required, invalid entry")))).not.toContain(
+      "form-error-unlinked",
+    );
+    expect(ruleIds(flagsOf(page("Name, edit, required, Name is required")))).not.toContain(
       "form-error-unlinked",
     );
   });
 
-  it("does not when the field says the error's own words after the press", () => {
-    expect(
-      ruleIds(flagsOf(native("Name, edit, required, invalid entry, Please fill out this field."))),
-    ).not.toContain("form-error-unlinked");
+  it("raises it when invalid entry was said before the press too and nothing says why", () => {
+    const flags = page(
+      "Name, edit, required, invalid entry",
+      "Name, edit, required, invalid entry",
+    );
+    expect(ruleIds(flagsOf(flags))).toContain("form-error-unlinked");
   });
 });
 
