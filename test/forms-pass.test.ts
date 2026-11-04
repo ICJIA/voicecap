@@ -854,9 +854,33 @@ describe("runPass", () => {
  * (the page has no focus), and keeps what was tried in `outside`: the pass must try nothing.
  */
 describe("a walk that leaves the page", () => {
-  it("ends the form at the required field Tab never reached, with no error and no key after", async () => {
-    const { driver, recorder, outcome } = await pass({
+  it("presses, then stops at the required field with a negative tabindex, as on /forms/unreachable/", async () => {
+    // The scan says Tab skips Date of birth, so the first walk ends at Apply, in the page.
+    const { driver, outcome } = await pass({
       fields: [{ name: "Your name" }, { name: "Date of birth", tabIndex: -1 }],
+      validates: "aria",
+      linksErrors: true,
+    });
+    expect(outcome.result).toBe("stuck");
+    expect(outcome.reason).toBe(UNREACHABLE);
+    expect(outcome.stoppedAt?.name).toBe("Date of birth");
+    expect(outcome.presses).toHaveLength(1);
+    expect(driver.outside).toEqual([]);
+    expect(formsFlags([outcome]).map((flag) => flag.rule)).toEqual([
+      "form-cant-finish",
+      "form-field-unreachable",
+    ]);
+    expect(formBanner(outcome, formsFlags([outcome]))).toMatchObject({
+      kind: "cant-complete",
+      detail: "It stopped at Date of birth.",
+    });
+  });
+
+  it("ends the form at the required field Tab never reached, with no error and no key after", async () => {
+    // Tab skips Date of birth though the scan can't tell (hidden from Tab some other way), so the
+    // walk goes on past Apply, out of the page.
+    const { driver, recorder, outcome } = await pass({
+      fields: [{ name: "Your name" }, { name: "Date of birth", tabbable: false }],
     });
     expect(outcome.result).toBe("stuck");
     expect(outcome.reason).toBe(UNREACHABLE);
@@ -907,12 +931,37 @@ describe("a walk that leaves the page", () => {
     expect(driver.outside).toEqual([]);
   });
 
-  it("stops at the submit control once every required field is heard, not on out of the page", async () => {
+  it("stops at the submit control once every field Tab can reach is heard, not on out of the page", async () => {
     const { driver, outcome } = await pass({
       fields: [{ name: "Name" }, { name: "Note", required: false, tabIndex: -1 }],
     });
     expect(outcome.result).toBe("completed");
     expect(driver.outside).toEqual([]);
+  });
+
+  it("goes on past the submit control to a field after it, and hears it", async () => {
+    const { outcome } = await pass({
+      fields: [{ name: "Name" }, { name: "Note", required: false, afterSubmit: true }],
+    });
+    expect(outcome.result).toBe("completed");
+    expect(outcome.firstWalk.map((heard) => heard.field)).toEqual([0, 1]);
+  });
+
+  it("reaches and fills a field after the submit control that the page requires unmarked", async () => {
+    const { driver, outcome } = await pass({
+      fields: [{ name: "Name" }, { name: "Code", unmarked: true, afterSubmit: true }],
+      validates: "aria",
+    });
+    // No false red: Tab reaches Code, past the submit control, and the keyboard fills it.
+    expect(outcome.result).toBe("completed");
+    expect(driver.made.filter((made) => made.startsWith("fillField"))).toEqual([
+      "fillField 0",
+      "fillField 1",
+    ]);
+    expect(outcome.firstWalk.map((heard) => heard.field)).toEqual([0, 1]);
+    const flags = formsFlags([outcome]);
+    expect(flags.map((flag) => flag.rule)).not.toContain("form-field-unreachable");
+    expect(flags.find((flag) => flag.rule === "form-required-unsaid")?.message).toContain("Code");
   });
 
   it("tests no later form on the load once focus has left it, with no load of its own", async () => {

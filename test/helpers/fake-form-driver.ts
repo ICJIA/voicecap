@@ -20,6 +20,13 @@ export interface FakeField {
   tabbable?: boolean;
   /** Its tabIndex, 0 by default. Below 0, Tab passes over it too. */
   tabIndex?: number;
+  /** It comes after the submit control in the Tab order. */
+  afterSubmit?: boolean;
+  /**
+   * The page's script requires it, but it isn't marked required (no `required`, no
+   * `aria-required`): the scan says it isn't, and NVDA doesn't say it is.
+   */
+  unmarked?: boolean;
 }
 
 /** How the fake form behaves when pressed, by the rule a real page would have. */
@@ -121,11 +128,11 @@ export class FakeFormDriver extends ScriptedDriver {
       signature: "fake",
       kind: form.kind ?? "test",
       site: form.kind === "other-site" ? "docs.google.com" : null,
-      fields: form.fields.map(({ name, type, required, tabIndex }, index): FormField => ({
+      fields: form.fields.map(({ name, type, required, tabIndex, unmarked }, index): FormField => ({
         index,
         name,
         type: type ?? "text",
-        required: required ?? true,
+        required: unmarked === true ? false : (required ?? true),
         tabIndex: tabIndex ?? 0,
       })),
       submitName: "Send",
@@ -159,17 +166,26 @@ export class FakeFormDriver extends ScriptedDriver {
   override nextFocusable(): Promise<Speech> {
     this.refuseOutside("nextFocusable");
     this.made.push("nextFocusable");
-    const stops = this.form.fields.flatMap((field, index) =>
-      field.tabbable === false || (field.tabIndex ?? 0) < 0 ? [] : [index],
-    );
+    const stopsOf = (after: boolean) =>
+      this.form.fields.flatMap((field, index) =>
+        field.tabbable === false ||
+        (field.tabIndex ?? 0) < 0 ||
+        (field.afterSubmit ?? false) !== after
+          ? []
+          : [index],
+      );
+    // The Tab order: the fields before the submit control, it, and the fields after it.
+    const order: (number | "submit")[] = [
+      ...stopsOf(false),
+      ...(this.form.submitUntabbable ? [] : (["submit"] as const)),
+      ...stopsOf(true),
+    ];
     this.tabs += 1;
     if (this.form.onBlur) this.markEmpty();
-    const at = typeof this.focus === "number" ? stops.indexOf(this.focus) : -1;
-    const next = stops[at + 1];
+    const at = this.focus === null ? -1 : order.indexOf(this.focus as number | "submit");
     const leaves = this.form.tabsUntilOut !== undefined && this.tabs > this.form.tabsUntilOut;
-    if (leaves || this.focus === "submit" || this.focus === "out") this.focus = "out";
-    else if (next === undefined) this.focus = this.form.submitUntabbable ? "out" : "submit";
-    else this.focus = next;
+    if (leaves || this.focus === "out") this.focus = "out";
+    else this.focus = order[at + 1] ?? "out";
     if (typeof this.focus === "number") return Promise.resolve(this.speechAt(this.focus));
     return Promise.resolve(this.focus === "submit" ? "Send, button" : LEFT_FOR_TOOLBAR);
   }
@@ -310,7 +326,10 @@ export class FakeFormDriver extends ScriptedDriver {
 
   private emptyFields(): number[] {
     return this.info.fields.flatMap((field) =>
-      field.required && !this.filled.has(field.index) ? [field.index] : [],
+      (field.required || this.form.fields[field.index]?.unmarked === true) &&
+      !this.filled.has(field.index)
+        ? [field.index]
+        : [],
     );
   }
 

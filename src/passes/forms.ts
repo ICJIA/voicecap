@@ -133,8 +133,9 @@ export function fieldValueOf(
 /** How one walk goes. */
 interface WalkPlan {
   /**
-   * Where it ends: a field, the submit control, or, left out, the submit control once every required
-   * field is heard (an optional field Tab skips would otherwise take the walk out of the page).
+   * Where it ends: a field, the submit control, or, left out, the submit control once every field
+   * Tab can reach (by the scan's tabIndex) is heard: a field with a negative tabIndex would take the
+   * walk out of the page, and a field after the submit control is heard on the way.
    */
   stopAt?: number | "submit";
   /** Tab on from where focus is, rather than enter the form at its first field. */
@@ -148,14 +149,16 @@ interface Walked {
   left: boolean;
   /** Tab reached the form's submit control on the way. */
   submit: boolean;
+  /** The fields it heard after Tab had passed the submit control. */
+  pastSubmit: number[];
 }
 
 /**
  * Keep what NVDA says at each of the form's fields as focus moves through it: Tab, from the first
  * field, which script moves focus to, or from where focus is. Ends with focus on `plan.stopAt`.
  * Otherwise it ends when focus leaves the page (`left`), the form goes, it has used its spare tabs,
- * or the form's steps run out. A submit control that comes before a required field doesn't end a
- * walk that's hearing the form. The fields it returns are those it found focus on, so one at
+ * or the form's steps run out. A submit control that comes before a field Tab can reach doesn't end
+ * a walk that's hearing the form: it goes on to hear the fields after it, and ends at the last. The fields it returns are those it found focus on, so one at
  * `stopAt` is really there.
  */
 async function walk(
@@ -167,8 +170,11 @@ async function walk(
 ): Promise<Walked> {
   const heard: FieldHeard[] = [];
   let submit = false;
-  const allRequired = () =>
-    form.fields.every((field) => !field.required || heard.some((one) => one.field === field.index));
+  const pastSubmit: number[] = [];
+  const allReachable = () =>
+    form.fields.every(
+      (field) => field.tabIndex < 0 || heard.some((one) => one.field === field.index),
+    );
   const focusCheck = async () => ({ inDocument: await driver.focusInDocument() });
   for (let stop = 0; stop <= form.fields.length + WALK_SPARE_TABS; stop++) {
     if (recorder.count >= stepLimit) break;
@@ -176,19 +182,21 @@ async function walk(
       stop === 0 && !fromHere
         ? await recorder.step("focusField", () => driver.focusFormField(form.index, 0), focusCheck)
         : await recorder.step("nextFocusable", () => driver.nextFocusable(), focusCheck);
-    if (step.inDocument === false) return { heard, left: true, submit };
+    if (step.inDocument === false) return { heard, left: true, submit, pastSubmit };
     const state = await recorder.query("form state", () => driver.formState(form.index));
     if (!state.present) break;
     const field = state.focusedField === null ? undefined : form.fields[state.focusedField];
     if (field && !heard.some((entry) => entry.field === field.index)) {
       heard.push({ field: field.index, spoken: step.spoken, required: field.required });
+      if (submit) pastSubmit.push(field.index);
     }
     submit ||= state.focusedSubmit;
     if (field && field.index === stopAt) break;
     if (state.focusedSubmit && stopAt === "submit") break;
-    if (state.focusedSubmit && stopAt === undefined && allRequired()) break;
+    // Heard all: at the submit control, or, once Tab has passed it, where it is, in the page.
+    if (stopAt === undefined && submit && allReachable()) break;
   }
-  return { heard, left: false, submit };
+  return { heard, left: false, submit, pastSubmit };
 }
 
 /** The fields keeping the form back, as far as the page says: its invalid ones, then the empty. */
@@ -270,11 +278,14 @@ export async function formPass(
   const filled = new Set<number>();
   let lastErrors: string | null = null;
 
-  // Whether any walk has had Tab reach the submit control.
+  // Whether any walk has had Tab reach the submit control, and the fields a walk heard after it.
   let submitSeen = false;
+  const pastSubmit = new Set<number>();
+  let lastFilled: number | null = null;
   const walkOn = async (plan?: WalkPlan): Promise<Walked> => {
     const walked = await walk(driver, recorder, form, stepLimit, plan);
     submitSeen ||= walked.submit;
+    for (const index of walked.pastSubmit) pastSubmit.add(index);
     return walked;
   };
   /**
@@ -307,7 +318,9 @@ export async function formPass(
     if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
     let before = await readState();
     if (before.present && !before.focusedSubmit) {
-      const fromHere = presses.length > 0;
+      // Tab on from the field just filled, unless it comes after the submit control: Tab from there
+      // goes on away from it, so the walk enters the form at its first field again.
+      const fromHere = lastFilled !== null && !pastSubmit.has(lastFilled);
       const toSubmit = await walkOn({ stopAt: "submit", fromHere });
       if (toSubmit.left) return leftPage(toSubmit.heard);
       if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
@@ -368,9 +381,6 @@ export async function formPass(
         stoppedAt,
       );
     }
-    if (!lastWalk.some((entry) => entry.field === next.index)) {
-      return end("stuck", UNREACHABLE, next);
-    }
     const value = fieldValueOf(next, options);
     if (value === null) {
       return end(
@@ -388,6 +398,7 @@ export async function formPass(
     }
     await recorder.step("fillField", () => driver.fillField(value));
     filled.add(next.index);
+    lastFilled = next.index;
   }
 }
 
