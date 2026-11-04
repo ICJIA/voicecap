@@ -477,7 +477,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
             tested[outcome.form.signature] ??= displayPath(page.url);
           }
         }
-        const forms = await keepForms(ctx, dir, result.forms ?? []);
+        const forms = await keepForms(ctx, dir, result.forms ?? [], result.formsLoads);
         if (forms) loaded.forms = forms;
         // A problem in the forms pass never fails the page's other passes: it says why in its record.
         continue;
@@ -578,11 +578,12 @@ async function keepForms(
   ctx: PageContext,
   dir: string,
   outcomes: readonly FormOutcome[],
+  loads?: number,
 ): Promise<FormsRecord | null> {
   if (outcomes.length === 0) return null;
   const ranAt = isoLocalMs(ctx.now());
   try {
-    const kept = keptFormsResults(outcomes, displayPath(ctx.page.url));
+    const kept = keptFormsResults(outcomes, displayPath(ctx.page.url), loads);
     await writeFileAtomic(path.join(dir, FORMS_FILE), kept.json);
     return { ...fileHash(kept.json), ranAt, counts: kept.counts };
   } catch (error) {

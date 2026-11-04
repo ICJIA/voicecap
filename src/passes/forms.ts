@@ -26,6 +26,8 @@ export interface FormPassOptions {
 export interface FormsPassOutcome {
   stopReason: StopReason;
   forms: FormOutcome[];
+  /** How many times the pass loaded the page: its own load, and one for each form after the first it went on to. */
+  loads: number;
   warnings: string[];
 }
 
@@ -370,7 +372,7 @@ export async function formsPass(
   const warnings = testsForms(driver) ? [] : [NO_FORM_DRIVER];
   const find = driver.findForms?.bind(driver);
   if (find === undefined)
-    return { stopReason: "forms-done", forms: [], warnings: [NO_FORM_DRIVER] };
+    return { stopReason: "forms-done", forms: [], loads: 0, warnings: [NO_FORM_DRIVER] };
   const outcomes: FormOutcome[] = [];
   const found = await recorder.query("finding forms", find);
   const taken = found.slice(0, options.maxPerPage ?? found.length);
@@ -383,6 +385,8 @@ export async function formsPass(
   const here = new Map<string, string>();
   // Whether the load that's open has had a form tried on it.
   let used = false;
+  // The load the pass opened with, and each one it opens for a form after that.
+  let loads = 1;
   for (const form of taken) {
     const earlier =
       form.kind === "test"
@@ -395,6 +399,7 @@ export async function formsPass(
     let current = form;
     if (used && options.reopen !== undefined) {
       await options.reopen();
+      loads++;
       const again = await recorder.query("finding forms", find);
       const match =
         again.find((one) => one.signature === form.signature && one.index === form.index) ??
@@ -413,5 +418,5 @@ export async function formsPass(
     if (whyNotPressed(current) === null) used = true;
   }
   const capped = outcomes.some((outcome) => outcome.reason === OUT_OF_STEPS);
-  return { stopReason: capped ? "step-cap" : "forms-done", forms: outcomes, warnings };
+  return { stopReason: capped ? "step-cap" : "forms-done", forms: outcomes, loads, warnings };
 }

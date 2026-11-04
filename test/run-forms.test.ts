@@ -397,6 +397,26 @@ describe("the order of the passes", () => {
   });
 });
 
+describe("the forms record's count of loads", () => {
+  it("counts a load for every form after the first, whatever came of it", async () => {
+    // One form is pressed; the search form after it gets a load though nothing is pressed there; the
+    // last is the first again, tested already, and gets none. So two loads for three forms.
+    const forms = [formOf(0, "signup"), formOf(1, "find", { kind: "search" }), formOf(2, "signup")];
+    const driver = new FormsDriver({ "/": forms });
+    const { dir, result } = await run(driver, ["/"]);
+    const home = result.run.pages[0]!;
+    expect(driver.loads).toHaveLength(2);
+    expect(home.forms).toMatchObject({ counts: { forms: 3, completed: 1, notTested: 2 } });
+    const text = await readFile(
+      path.join(pageDir(outDir(dir), result.runId, home.slug), "forms-result.json"),
+      "utf8",
+    );
+    const counts = (JSON.parse(text) as { counts: { loads: number } }).counts;
+    expect(counts.loads).toBe(driver.loads.length);
+    expect((home.forms as { counts: { loads: number } }).counts.loads).toBe(driver.loads.length);
+  });
+});
+
 describe("the forms record", () => {
   const resultOf = (dir: string, runId: string, slug: string) =>
     path.join(pageDir(outDir(dir), runId, slug), "forms-result.json");
@@ -409,7 +429,7 @@ describe("the forms record", () => {
     const text = await readFile(resultOf(dir, result.runId, home!.slug), "utf8");
     expect(home!.forms).toMatchObject({
       ...fileHash(text),
-      counts: { forms: 2, completed: 2, stuck: 0, notTested: 0, presses: 2 },
+      counts: { forms: 2, completed: 2, stuck: 0, notTested: 0, presses: 2, loads: 2 },
     });
     expect(home!.forms).toHaveProperty("ranAt");
     const file = JSON.parse(text) as { page: string; forms: { form: { signature: string } }[] };
@@ -420,7 +440,7 @@ describe("the forms record", () => {
     const aboutText = await readFile(resultOf(dir, result.runId, about!.slug), "utf8");
     expect(about!.forms).toMatchObject({
       ...fileHash(aboutText),
-      counts: { forms: 1, completed: 0, stuck: 0, notTested: 1, presses: 0 },
+      counts: { forms: 1, completed: 0, stuck: 0, notTested: 1, presses: 0, loads: 1 },
     });
     expect((await readRunJson(outDir(dir), result.runId)).pages[0]?.forms).toEqual(home!.forms);
     // The file is no transcript: the page's files are the forms pass's two.

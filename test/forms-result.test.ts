@@ -119,6 +119,16 @@ describe("keptFormsResults", () => {
     expect((JSON.parse(kept.json) as { counts: unknown }).counts).toEqual(kept.counts);
   });
 
+  it("keeps the count of loads the pass made, in the file and the counts, when it is given", () => {
+    const outcomes = [outcomeOf("a")];
+    const kept = keptFormsResults(outcomes, "/", 3);
+    expect(kept.counts.loads).toBe(3);
+    expect((JSON.parse(kept.json) as { counts: { loads: number } }).counts.loads).toBe(3);
+    expect(kept.json).toBe(keptFormsResults(structuredClone(outcomes), "/", 3).json);
+    // A record made without a count has none.
+    expect(keptFormsResults(outcomes, "/").counts).not.toHaveProperty("loads");
+  });
+
   it("keeps a form tested on another page, and one not tested, with no press", () => {
     const kept = keptFormsResults(
       [outcomeOf("a", { result: "not-tested", presses: [], reason: "tested on /x" })],

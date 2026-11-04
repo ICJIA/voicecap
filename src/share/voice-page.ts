@@ -276,34 +276,31 @@ function facts(record: KeptVoice): string {
 }
 
 /**
- * Where in a page's recording each of its passes began, in ms, by pass. The recording keeps one
- * stretch for each pass the run's record of the page has, in the passes' order (see VoiceStretch in
- * ../model.ts); a stretch begins with the check of the window, before the pass's first key, and ends
- * as the pass ends, so the pass began at its stretch's end less its length, its last line's end (see
- * AppendixFile's `timing`). Nothing for a pass whose stretch or length isn't known, or whose start
- * would fall before its stretch's, and nothing at all when the passes and the stretches aren't as
- * many, so no line is ever outlined at another's time. The forms pass opens the page again for every
- * form it presses after the first, and each load is a stretch of its own, so the recording has one
- * stretch for each pass before it and one for each load of the forms pass: the count is taken from
- * the page's forms record (the forms pressed, at least one), and must be exactly that, since stretches
- * that meet are joined and empty ones dropped (see keptStretches), and a count that is off by one
- * would put a pass against another's stretch. When the count can't be known, the passes and the
- * stretches must be as many. The forms pass gets a start only when it had one load.
- */
-/**
- * How many loads the forms pass made, from the page's forms record: one for the first form it pressed
- * and one more for each other (at least one). Null when the pass isn't the last of the page's passes,
- * or the record doesn't count the forms, so the count of loads can't be told.
+ * How many times the forms pass loaded the page, as the page's forms record counts them: its own
+ * load, and one more for every form it went on to (see formsPass). Null when the page has no forms
+ * pass, or its record doesn't say (one from before the count was kept), so it can't be told.
  */
 function formsLoads(page: PageRecord, passes: readonly PassName[]): number | null {
   if (passes.at(-1) !== "forms") return null;
   const record = page.forms;
   if (record === undefined || !("counts" in record)) return null;
-  const { completed, stuck } = record.counts;
-  if (!isNumber(completed) || !isNumber(stuck)) return null;
-  return Math.max(1, completed + stuck);
+  const { loads } = record.counts;
+  return isNumber(loads) && Number.isInteger(loads) && loads >= 1 ? loads : null;
 }
 
+/**
+ * Where in a page's recording each of its passes began, in ms, by pass. The recording keeps one
+ * stretch for each pass the run's record of the page has, in the passes' order (see VoiceStretch in
+ * ../model.ts), and for the forms pass one for each load it made: a stretch begins with the check of
+ * the window, before the pass's first key, and ends as the pass ends, so the pass began at its
+ * stretch's end less its length, its last line's end (see AppendixFile's `timing`). Nothing for a
+ * pass whose stretch or length isn't known, or whose start would fall before its stretch's, and
+ * nothing at all when the stretches aren't as many as expected, so no line is ever outlined at
+ * another's time. Stretches that meet are joined and empty ones dropped (see keptStretches), so the
+ * expected count is exact: one for each pass before the forms pass and the forms record's count of
+ * loads. When that count isn't known, the stretches must be as many as the passes, and the forms
+ * pass gets no start. It gets one, too, only when it made a single load.
+ */
 function passStarts(
   page: PageRecord,
   record: KeptVoice,
@@ -316,7 +313,7 @@ function passStarts(
   const expected = loads === null ? passes.length : passes.length - 1 + loads;
   if (stretches.length !== expected) return starts;
   passes.forEach((pass, index) => {
-    if (pass === "forms" && loads !== 1 && loads !== null) return;
+    if (pass === "forms" && loads !== 1) return;
     const stretch = stretches[index];
     const length = files.find((file) => file.pass === pass)?.timing?.at(-1)?.toMs;
     if (stretch === undefined || length === undefined) return;

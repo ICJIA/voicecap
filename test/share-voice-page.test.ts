@@ -1126,8 +1126,15 @@ describe("the voice page's transcripts beside each recording", () => {
 
   describe("the forms pass", () => {
     const FORMS_LINES = ["Name, edit, required", "Send, button"];
-    /** A run whose page pressed `pressed` forms: the record counts them, as the loads are told from it. */
-    const withForms = (stretches: { startMs: number; endMs: number }[], pressed = 1): RunJson =>
+    type Stretches = { startMs: number; endMs: number }[];
+    /**
+     * A run whose page's forms record counts `counts` (its forms, and `loads`, how many times the
+     * pass loaded the page), with these stretches in the recording.
+     */
+    const withForms = (
+      stretches: Stretches,
+      counts: { forms: number; completed: number; notTested: number; loads?: number },
+    ): RunJson =>
       shareRun({
         id: RUN,
         createdAt: "2026-10-30T14:02:51-05:00",
@@ -1141,7 +1148,7 @@ describe("the voice page's transcripts beside each recording", () => {
               passes: { ...LINES, forms: FORMS_LINES },
               forms: {
                 ...fileHash("{}"),
-                counts: { forms: pressed, completed: pressed, stuck: 0, notTested: 0, presses: 2 },
+                counts: { stuck: 0, presses: 2, ...counts },
                 ranAt: "2026-10-30T14:03:00-05:00",
               },
             },
@@ -1160,17 +1167,24 @@ describe("the voice page's transcripts beside each recording", () => {
       );
       return sectionOf(pageOf(model, recordingsOf([run])), model.pages[0]?.slug ?? "");
     };
-    const base = [
+    const base: Stretches = [
       { startMs: 100, endMs: 100 + 3500 + 4 * 1200 },
       { startMs: 9000, endMs: 9000 + 3500 + 2 * 1200 },
       { startMs: 15500, endMs: 15500 + 3500 + 2 * 1200 },
     ];
+    const more = (...ends: number[]): Stretches =>
+      ends.map((end, at) => ({ startMs: 22000 + at * 8000, endMs: end }));
+    const earlier = (lines: [number, number, string][]): number =>
+      lines.filter(([, , words]) => !FORMS_LINES.includes(words)).length;
 
-    it("times the forms pass's lines from its own stretch, as the other passes' are", () => {
-      const section = sectionFor(
-        withForms([...base, { startMs: 22000, endMs: 22000 + 3500 + 2 * 1200 }]),
-      );
-      const lines = timedLines(section);
+    it("times the forms pass's lines from its own stretch when it made one load", () => {
+      const run = withForms([...base, ...more(22000 + 3500 + 2 * 1200)], {
+        forms: 1,
+        completed: 1,
+        notTested: 0,
+        loads: 1,
+      });
+      const lines = timedLines(sectionFor(run));
       expect(lines).toHaveLength(10);
       expect(lines.slice(8)).toEqual([
         [27900 - 2400, 27900 - 2400 + 1200, FORMS_LINES[0]],
@@ -1178,30 +1192,65 @@ describe("the voice page's transcripts beside each recording", () => {
       ]);
     });
 
-    it("keeps the other passes timed when the forms pass has a stretch for each form, and times no forms line", () => {
-      const section = sectionFor(
-        withForms([...base, { startMs: 22000, endMs: 28000 }, { startMs: 30000, endMs: 36000 }], 2),
-      );
-      const lines = timedLines(section);
+    it("keeps the other passes timed when the pass loaded the page more than once, and times no forms line", () => {
+      const run = withForms([...base, ...more(28000, 36000)], {
+        forms: 2,
+        completed: 2,
+        notTested: 0,
+        loads: 2,
+      });
+      const lines = timedLines(sectionFor(run));
       expect(lines).toHaveLength(8);
-      expect(lines.some(([, , words]) => FORMS_LINES.includes(words ?? ""))).toBe(false);
-      expect(section).toContain(FORMS_LINES[0]);
+      expect(earlier(lines)).toBe(8);
+    });
+
+    it("counts a load for a search form and a form not tested after a pressed one", () => {
+      // One form pressed, then a search form and a form that ended not tested: three forms, three
+      // loads, though only one completed. Six stretches are the whole recording.
+      const counts = { forms: 3, completed: 1, notTested: 2, loads: 3 };
+      const whole = withForms([...base, ...more(26000, 34000, 42000)], counts);
+      expect(earlier(timedLines(sectionFor(whole)))).toBe(8);
+      // With one earlier stretch merged into its neighbour there are five, one short of the six: the
+      // lower bound the pressed forms give (one load) would have said four, and the passes would
+      // have been put against the wrong stretches.
+      const merged = withForms(
+        [
+          base[0] ?? { startMs: 0, endMs: 0 },
+          { startMs: 9000, endMs: 15500 + 3500 + 2 * 1200 },
+          ...more(26000, 34000, 42000),
+        ],
+        counts,
+      );
+      expect(timedLines(sectionFor(merged))).toEqual([]);
+    });
+
+    it("times nothing when two earlier stretches merged and the forms pass made two loads", () => {
+      const merged: Stretches = [
+        base[0] ?? { startMs: 0, endMs: 0 },
+        { startMs: 9000, endMs: 15500 + 3500 + 2 * 1200 },
+        ...more(28000, 36000),
+      ];
+      const run = withForms(merged, { forms: 2, completed: 2, notTested: 0, loads: 2 });
+      expect(timedLines(sectionFor(run))).toEqual([]);
     });
 
     it("times nothing when the stretches are fewer than the passes", () => {
-      expect(timedLines(sectionFor(withForms(base)))).toEqual([]);
+      const run = withForms(base, { forms: 1, completed: 1, notTested: 0, loads: 1 });
+      expect(timedLines(sectionFor(run))).toEqual([]);
     });
 
-    it("times nothing when two earlier stretches merged, though the count still reaches the passes", () => {
-      // Read, headings, and tab with the last two joined, and two forms loads: four stretches for
-      // four passes, but the forms pass pressed two forms, so five were expected.
-      const merged = [
-        base[0] ?? { startMs: 0, endMs: 0 },
-        { startMs: 9000, endMs: 15500 + 3500 + 2 * 1200 },
-        { startMs: 22000, endMs: 28000 },
-        { startMs: 30000, endMs: 36000 },
-      ];
-      expect(timedLines(sectionFor(withForms(merged, 2)))).toEqual([]);
+    it("times the earlier passes, and not the forms pass, when the record has no count of loads", () => {
+      const run = withForms([...base, ...more(27900)], { forms: 1, completed: 1, notTested: 0 });
+      const lines = timedLines(sectionFor(run));
+      expect(lines).toHaveLength(8);
+      expect(earlier(lines)).toBe(8);
+      // A count that does not fit the stretches times nothing, as before.
+      const off = withForms([...base, ...more(27900, 36000)], {
+        forms: 1,
+        completed: 1,
+        notTested: 0,
+      });
+      expect(timedLines(sectionFor(off))).toEqual([]);
     });
   });
 

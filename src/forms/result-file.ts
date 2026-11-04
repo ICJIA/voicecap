@@ -25,8 +25,16 @@ const SCHEMA_VERSION = 1;
 export function keptFormsResults(
   outcomes: readonly FormOutcome[],
   page: string,
+  loads?: number,
 ): { json: string; counts: FormsCounts } {
-  const counts: FormsCounts = { forms: 0, completed: 0, stuck: 0, notTested: 0, presses: 0 };
+  const counts: FormsCounts = {
+    forms: 0,
+    completed: 0,
+    stuck: 0,
+    notTested: 0,
+    presses: 0,
+    ...(loads === undefined ? {} : { loads }),
+  };
   const forms = outcomes.map((outcome) => {
     counts.forms++;
     if (outcome.result === "completed") counts.completed++;

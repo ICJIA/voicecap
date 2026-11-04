@@ -280,6 +280,12 @@ export interface FormsCounts {
   notTested: number;
   /** The presses of submit controls, across the page's forms. */
   presses: number;
+  /**
+   * How many times the forms pass loaded the page: its own load, and one more for every form it went
+   * on to, whatever came of that form. The recording keeps a stretch for each. A record from before
+   * this was kept has none.
+   */
+  loads?: number;
 }
 
 /**
