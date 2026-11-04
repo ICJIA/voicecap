@@ -117,6 +117,30 @@ describe("forms as a pass name", () => {
   });
 });
 
+describe("the driver a run makes", () => {
+  it("is given the run's passes in its config, so the NVDA driver knows a run with the forms pass", async () => {
+    vi.resetModules();
+    const passed: string[][] = [];
+    vi.doMock("../src/drivers/index.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      createDriver: (_selection: unknown, context: { config: { passes: string[] } }) => {
+        passed.push([...context.config.passes]);
+        return Promise.resolve(new ScriptedDriver(sitePages()));
+      },
+    }));
+    try {
+      const { runAudit: audit } = await import("../src/run/audit.js");
+      const dir = await setup(["/"]);
+      await audit({ ...options(dir, undefined), replayFrom: dir, passes: ["read", "forms"] });
+      await audit({ ...options(dir, undefined), replayFrom: dir, passes: ["read"] });
+      expect(passed).toEqual([["read", "forms"], ["read"]]);
+    } finally {
+      vi.doUnmock("../src/drivers/index.js");
+      vi.resetModules();
+    }
+  });
+});
+
 describe("a run given an unknown pass", () => {
   it("is refused with every pass voicecap knows listed, forms too", async () => {
     const dir = await setup(["/"]);

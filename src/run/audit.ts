@@ -301,7 +301,10 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   // check this computer, with its own config, whatever a repeat's file says.
   await checkReadiness({ selection, config: loaded.config, options, logger, cwd });
   // Creating the driver first means a wrong platform fails before any folder is touched.
-  const driver = options.driver ?? (await createDriver(selection, { config, logger }));
+  // The driver is given the run's passes in its config, as --passes or a repeat gives them: the NVDA
+  // driver keeps the forms pass's keys in NVDA's cleaned log only for a run with that pass.
+  const driver =
+    options.driver ?? (await createDriver(selection, { config: { ...config, passes }, logger }));
 
   const home = resolveHome({ out: options.out, env: options.env ?? process.env, cwd });
   const outDir = siteDirFor(home, site);

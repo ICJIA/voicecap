@@ -24,7 +24,7 @@ import {
 } from "../src/drivers/guidepup/voice-recorder.js";
 import { ForegroundError, type EventRecorder, type VoiceCapture } from "../src/drivers/types.js";
 import type { FormInfo, FormState } from "../src/forms/types.js";
-import type { NewRunEvent, VoiceRecord } from "../src/model.js";
+import type { NewRunEvent, PassName, VoiceRecord } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
 import { openEventLog, readEventLog } from "../src/run/events.js";
 import { EnvironmentError, errorCode } from "../src/util/errors.js";
@@ -2552,6 +2552,32 @@ describe("NVDA's own log", () => {
       expect(copy).toContain(String.raw`Couldn't read %USERPROFILE%\AppData\Roaming\nvda\nvda.ini`);
       expect(copy).not.toContain(HOME);
       expect(copy).not.toMatch(/\bpat\b/);
+    });
+
+    it("keeps Enter and Space, and what NVDA said after them, only for a run with the forms pass", async () => {
+      const ENTER_LOG = [
+        "IO - inputCore.InputManager.executeGesture (09:00:01.000) - winInputHook (5200):",
+        "Input: kb(desktop):tab",
+        "IO - inputCore.InputManager.executeGesture (09:00:02.000) - winInputHook (5200):",
+        "Input: kb(desktop):enter",
+        "IO - speech.speech.speak (09:00:02.100) - MainThread (4100):",
+        "Speaking [LangChangeCommand ('en_US'), 'Thank you', CancellableSpeech (still valid)]",
+        "",
+      ].join("\r\n");
+      const copyOf = async (passes: PassName[]) => {
+        const { driver, desktop, recorder } = recordingLogs({ config: { passes } });
+        desktop.nvdaLog = ENTER_LOG;
+        await driver.start();
+        await driver.stop();
+        return recorder.logs[0] ?? "";
+      };
+      const ordinary = await copyOf(["read", "headings", "tab"]);
+      expect(ordinary).toContain("Input: kb(desktop):tab");
+      expect(ordinary).not.toContain("Input: kb(desktop):enter");
+      expect(ordinary).not.toContain("Thank you");
+      const forms = await copyOf(["read", "forms"]);
+      expect(forms).toContain("Input: kb(desktop):enter");
+      expect(forms).toContain("Thank you");
     });
 
     it("keeps a copy for each NVDA session, a restart's and then the final stop's, in order", async () => {

@@ -58,12 +58,11 @@ export function beganWithSession(raw: string, began: Date, now: Date): boolean {
 }
 
 /**
- * The gestures the NVDA driver presses, as NVDA logs them after `kb(desktop):` or `kb(laptop):`: a
- * key for each command of a pass's steps, and NVDA+T and Escape, which the driver presses itself to
- * check the window, to leave focus mode, and to close Windows Search or the Start menu when one
- * comes in front of the browser. The forms pass adds Enter, on a submit control, and Space, on a
- * check box or radio; its Down Arrow in a list is the command's own. A test ties the list to the
- * driver's key map.
+ * The gestures the NVDA driver presses on every run, as NVDA logs them after `kb(desktop):` or
+ * `kb(laptop):`: a key for each command of a pass's steps, and NVDA+T and Escape, which the driver
+ * presses itself to check the window, to leave focus mode, and to close Windows Search or the Start
+ * menu when one comes in front of the browser. The forms pass's Down Arrow in a list is the
+ * command's own. A test ties the list to the driver's key map.
  */
 export const VOICECAP_GESTURES: readonly string[] = [
   "downArrow",
@@ -73,9 +72,15 @@ export const VOICECAP_GESTURES: readonly string[] = [
   "control+end",
   "NVDA+t",
   "escape",
-  "enter",
-  "space",
 ];
+
+/**
+ * The gestures only the forms pass presses: Enter, on a submit control, and Space, on a check box or
+ * radio. A person presses them in another window too, and with NVDA's "speak typed words" on, NVDA
+ * speaks the word typed before a Space after it, so only a run with the forms pass keeps them (and
+ * what NVDA said after them) in the cleaned copy: an ordinary run's copy keeps what it always did.
+ */
+export const FORM_GESTURES: readonly string[] = ["enter", "space"];
 
 /**
  * The gesture a step's command presses in NVDA, or null for a command with no key of its own. The
@@ -127,22 +132,21 @@ type Kind = "voicecap-key" | "other-key" | "speech" | "problem" | "other";
  * else NVDA logs (a typed word, and its INFO and debugging entries, which name the account's
  * folders).
  */
-function kindOf(entry: LogEntry): Kind {
+function kindOf(entry: LogEntry, gestures: readonly string[]): Kind {
   if (PROBLEM_LEVELS.has(entry.level)) return "problem";
   if (entry.level !== "IO") return "other";
   if (entry.message.startsWith("Speaking ")) return "speech";
   if (!entry.message.startsWith("Input: ")) return "other";
   const gesture = KEY_MESSAGE.exec(entry.message)?.[1];
-  return gesture !== undefined && VOICECAP_GESTURES.includes(gesture)
-    ? "voicecap-key"
-    : "other-key";
+  return gesture !== undefined && gestures.includes(gesture) ? "voicecap-key" : "other-key";
 }
 
 /**
  * The cleaned copy of an NVDA log (any line ends): its first line says what it is, then come the
  * entries it keeps, whole and in order, as NVDA wrote them: the keys voicecap pressed, NVDA's
  * speech while the last key was one of those (see the top of this file), and its warnings and
- * errors. The home folder is written as redactHome writes it, and the temp folder, when it's given,
+ * errors. The keys are VOICECAP_GESTURES, and FORM_GESTURES too when `forms` says the run has the
+ * forms pass. The home folder is written as redactHome writes it, and the temp folder, when it's given,
  * as redactTemp writes it, before the home folder, since NVDA names its own files there in the
  * spelling Windows gives the temp folder, which may be the account's short name (C:\Users\JANEDO~1).
  * Every line of the copy ends with "\n". Cleaning a cleaned copy gives it back unchanged, since its
@@ -150,15 +154,17 @@ function kindOf(entry: LogEntry): Kind {
  */
 export function cleanNvdaLog(
   raw: string,
-  options: { home: string; platform: NodeJS.Platform; temp?: string },
+  options: { home: string; platform: NodeJS.Platform; temp?: string; forms?: boolean },
 ): string {
+  const gestures =
+    options.forms === true ? [...VOICECAP_GESTURES, ...FORM_GESTURES] : VOICECAP_GESTURES;
   const lines = splitLines(raw);
   const entries = splitLogEntries(raw);
   const kept: string[] = [];
   // Whether the last key NVDA logged was one voicecap pressed (before the first key, it counts).
   let afterVoicecapKey = true;
   entries.forEach((entry, index) => {
-    const kind = kindOf(entry);
+    const kind = kindOf(entry, gestures);
     if (kind === "voicecap-key") afterVoicecapKey = true;
     else if (kind === "other-key") afterVoicecapKey = false;
     const keep =

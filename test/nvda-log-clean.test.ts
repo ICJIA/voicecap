@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import type { NvdaKey } from "../src/drivers/guidepup-nvda.js";
 import { GuidepupNvda } from "../src/drivers/guidepup/nvda.js";
 import {
+  FORM_GESTURES,
   NVDA_LOG_FILE,
   VOICECAP_GESTURES,
   beganWithSession,
@@ -294,6 +295,41 @@ describe("cleanNvdaLog: what NVDA said after a key voicecap didn't press", () =>
   it("keeps the first letter of hunter2, which is voicecap's key for the next heading", () => {
     const [key, echo] = typing("hunter2");
     expect(bodyOf(clean(...typing("hunter2")))).toEqual([...key!, ...echo!]);
+  });
+});
+
+// The forms pass presses Enter and Space, keys a person presses in another window too (with NVDA's
+// "speak typed words" on, the word before a Space is spoken after it), so only a run with the forms
+// pass keeps them, and what NVDA said after them.
+describe("cleanNvdaLog: Enter and Space", () => {
+  const key = (time: string, gesture: string) =>
+    entry("IO", KEY_CODEPATH, time, HOOK, `Input: kb(desktop):${gesture}`);
+  const enter = key("09:00:05.000", "enter");
+  const space = key("09:00:05.200", "space");
+  const sent = spoken("Thank you", "09:00:05.100");
+  const word = spoken("hunter2", "09:00:05.300");
+
+  it("are left out of an ordinary run's copy, with what NVDA said after them", () => {
+    expect(bodyOf(clean(DOWN, HEADING_SPEECH, enter, sent, space, word))).toEqual([
+      ...DOWN,
+      ...HEADING_SPEECH,
+    ]);
+  });
+
+  it("are kept in the copy of a run with the forms pass, with what NVDA said after them", () => {
+    const raw = nvdaWrites([DOWN, enter, sent, space, word]);
+    expect(bodyOf(cleanNvdaLog(raw, { ...HOME, forms: true }))).toEqual([
+      ...DOWN,
+      ...enter,
+      ...sent,
+      ...space,
+      ...word,
+    ]);
+  });
+
+  it("are the forms pass's own keys, and no ordinary run's", () => {
+    expect([...FORM_GESTURES].sort()).toEqual(["enter", "space"]);
+    for (const gesture of FORM_GESTURES) expect(VOICECAP_GESTURES).not.toContain(gesture);
   });
 });
 
@@ -661,16 +697,15 @@ describe("voicecap's gestures", () => {
     }
     // And the forms pass's keys, which the driver sends as Guidepup's own `press` (Enter, Space) or
     // shares with the commands above (Down Arrow in a list).
-    const formKeys = ["enter", "space"];
     expect([...VOICECAP_GESTURES].sort()).toEqual(
-      [...new Set([...Object.values(GESTURE_OF_KEY), ...formKeys])].sort(),
+      [...new Set(Object.values(GESTURE_OF_KEY))].sort(),
     );
+    expect([...FORM_GESTURES].sort()).toEqual(["enter", "space"]);
   });
 
   it("have the forms pass's keys: Enter on the submit control, Space on a check box or radio, Down Arrow in a list", () => {
-    for (const gesture of ["enter", "space", "downArrow"]) {
-      expect(VOICECAP_GESTURES).toContain(gesture);
-    }
+    for (const gesture of ["enter", "space"]) expect(FORM_GESTURES).toContain(gesture);
+    expect(VOICECAP_GESTURES).toContain("downArrow");
     expect(gestureOf("pressSubmit")).toBe("enter");
   });
 

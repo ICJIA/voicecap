@@ -1593,7 +1593,9 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       }
       // The temp folder is the one the sound's folder is made in (see voiceFolder).
       const temp = path.dirname(this.deps.voiceDir);
-      return { cleaned: cleanNvdaLog(raw, { home, platform, temp }) };
+      // Enter and Space are kept only for a run with the forms pass, the one pass that presses them.
+      const forms = this.options.config.passes.includes("forms");
+      return { cleaned: cleanNvdaLog(raw, { home, platform, temp, forms }) };
     } catch (error) {
       // The run keeps the reason, and a path in an error's message names the account: in the temp
       // folder's spelling (reasonOf), which may be a short one, and in the home folder's.
