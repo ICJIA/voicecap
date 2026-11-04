@@ -35,6 +35,7 @@ import {
   heardFirstLine,
   heardTitle,
   howLead,
+  notRecordedLine,
   sentence,
   shareOf,
   spokenDuration,
@@ -155,12 +156,11 @@ function verdictBlock(result: ShareModel["result"]): Block {
  * At a glance's line on the forms, once the run has the forms pass: its sign and words in bold
  * ("✓ All 4 forms work with NVDA", or "⚠ 3 of 4 forms work with NVDA") and, when some don't, the
  * line that names their pages; the same words as the page's banner (../forms-view.ts). A run from
- * before the pass, a run with no forms pass, and one that checked no form say nothing, so a copy
- * of an older run is as it was.
+ * before the pass says "Not recorded"; a run with no forms pass, or none checked, says nothing.
  */
 function formsGlanceBlocks({ forms }: ShareModel): Block[] {
   if (forms === null) return [];
-  if ("notRecorded" in forms) return [];
+  if ("notRecorded" in forms) return [para(notRecordedLine(forms.notRecorded))];
   const banner = glanceBannerOf(forms, names);
   if (banner === null) return [];
   return [

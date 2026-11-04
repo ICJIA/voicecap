@@ -25,6 +25,7 @@
  * transcript that couldn't be read), the words are new, and use the mockup's own classes.
  */
 import { AXE_FILE, PASS_NAMES, SCREENSHOT_FILE, type PassName } from "../../model.js";
+import { showsFormName } from "../forms-view.js";
 import { esc, idFragment } from "../../report/html.js";
 import { cardAnchor, transcriptAnchor } from "../anchors.js";
 import {
@@ -463,11 +464,10 @@ function axeFold(card: PageCard): string {
 function formBanners(card: PageCard): string[] {
   const { forms } = card;
   if (forms === undefined || !("forms" in forms)) return [];
-  const many = forms.forms.length > 1;
   return forms.forms.map((form) =>
     formBannerHtml(
       form.banner,
-      many || form.label.includes(",") ? form.label : "",
+      showsFormName(form, forms.forms.length) ? form.label : "",
       `<p class="sub form-axe">${esc(form.axe)}</p>`,
     ),
   );

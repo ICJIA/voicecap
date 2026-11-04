@@ -40,7 +40,7 @@ import {
 } from "../axe-view.js";
 import { jpegOfAddress } from "../cards.js";
 import { count } from "../format.js";
-import { bannerLine, formFoldWords } from "../forms-view.js";
+import { bannerLine, formFoldWords, showsFormName } from "../forms-view.js";
 import type { Inline, Line } from "../line.js";
 import type { AppendixFile, NoLongerListed, PageCard, ShareModel } from "../model.js";
 import {
@@ -203,9 +203,8 @@ function heardFirstBlocks({ heardFirst }: PageCard): Block[] {
  */
 function formsBannerBlocks({ forms }: PageCard): Block[] {
   if (forms === undefined || !("forms" in forms)) return [];
-  const many = forms.forms.length > 1;
   return forms.forms.flatMap((form) => [
-    ...(many || form.label.includes(",") ? [leadIn(form.label)] : []),
+    ...(showsFormName(form, forms.forms.length) ? [leadIn(form.label)] : []),
     leadIn({ text: bannerLine(form.banner), bold: true }),
     ...(form.banner.detail === "" ? [] : [leadIn(form.banner.detail)]),
     para(form.axe),

@@ -385,10 +385,11 @@ export interface AiPage {
   /** Where the flags are not the plain list: that nothing was read, none were raised, or they are as the run recorded them. */
   flagsNote: string | null;
   /**
-   * Each form on the page, banner first, when its run took the forms pass. There only for such a
-   * page: a page with no forms record has no such key.
+   * Each form on the page, banner first, when its run took the forms pass (an empty list for a page
+   * with none); `{ notRecorded }` where the card says it was not recorded; null for a page with no
+   * forms record.
    */
-  forms?: AiNotRecorded | AiForm[];
+  forms: AiNotRecorded | AiForm[] | null;
   /** What axe found; null for a card that says nothing of axe. */
   axe: AiNotRecorded | AiAxeResults | null;
   /** The person's review as far as the records show it. Nothing for a page with none. */
@@ -545,10 +546,11 @@ export interface AiReport {
   };
   counts: AiCounts;
   /**
-   * What At a glance says of the forms. There only for a run that took the forms pass and found a form; any
-   * other run has no such key.
+   * What At a glance says of the forms: the counts for a run that took the forms pass (also when it
+   * found no form), `{ notRecorded }` for a run from before the pass, and null for a run that did not
+   * take it.
    */
-  forms?: AiFormsGlance;
+  forms: AiFormsGlance | AiNotRecorded | null;
   attention: AiCard[];
   pages: AiPage[];
   noLongerListed: AiGone[];
@@ -783,27 +785,28 @@ function formOf(form: CardForm): AiForm {
   };
 }
 
-/** A page's forms, when its card says anything of them. Nothing (no key) for a card that does not. */
-function formsOfCard({ forms }: PageCard): { forms?: AiPage["forms"] } {
-  if (forms === undefined) return {};
-  if ("notRecorded" in forms)
-    return { forms: { notRecorded: notRecordedLine(ownWords(forms.notRecorded)) } };
-  return forms.forms.length === 0 ? {} : { forms: forms.forms.map(formOf) };
+/**
+ * A page's forms: its list, the line that they were not recorded, or null. A page the pass covered
+ * (it was read, in a run that took the pass) and that has no forms record has an empty list: the
+ * pass found none, which is a result. Any other page without a record is null.
+ */
+function formsOfCard({ forms, counts }: PageCard, passTaken: boolean): AiPage["forms"] {
+  if (forms === undefined) return passTaken && counts !== null ? [] : null;
+  if ("notRecorded" in forms) return { notRecorded: notRecordedLine(ownWords(forms.notRecorded)) };
+  return forms.forms.map(formOf);
 }
 
-/** At a glance's forms, when its run took the pass (or the line that a run before it did not). */
-function formsOfModel({ forms }: ShareModel): { forms?: AiReport["forms"] } {
-  if (forms === null) return {};
-  if ("notRecorded" in forms || forms.found + forms.notChecked === 0) return {};
+/** At a glance's forms: the counts of a run that took the pass, the line that a run before it did not record them, or null. */
+function formsOfModel({ forms }: ShareModel): AiReport["forms"] {
+  if (forms === null) return null;
+  if ("notRecorded" in forms) return { notRecorded: notRecordedLine(ownWords(forms.notRecorded)) };
   const banner = glanceBannerOf(forms, names);
   return {
-    forms: {
-      found: forms.found,
-      working: forms.working,
-      notChecked: forms.notChecked,
-      banner: banner === null ? null : bannerOf(banner),
-      pagesToFix: [...forms.broken],
-    },
+    found: forms.found,
+    working: forms.working,
+    notChecked: forms.notChecked,
+    banner: banner === null ? null : bannerOf(banner),
+    pagesToFix: [...forms.broken],
   };
 }
 
@@ -847,6 +850,7 @@ function pageOf(
   number: number,
   transcripts: Transcripts | undefined,
   latest: string | null,
+  passTaken: boolean,
 ): AiPage {
   const passes = passesOf(transcripts);
   return {
@@ -867,7 +871,7 @@ function pageOf(
       wcag: [...wcagOf(flag.rule)],
     })),
     flagsNote: flagsNoteOf(card),
-    ...formsOfCard(card),
+    forms: formsOfCard(card, passTaken),
     axe: axeOf(card),
     review: [...card.reviewChips, ...card.manual.map(manualLine)],
     transcriptsFrom: originOf(card, transcripts, latest),
@@ -1037,6 +1041,7 @@ export function aiReportOf(model: ShareModel): AiReport {
   const numbers = new Map(model.pages.map((card, at) => [card.slug, at + 1]));
   const transcripts = new Map(model.appendix.map((entry) => [entry.slug, entry]));
   const latest = model.evidence[0]?.run.id ?? null;
+  const passTaken = model.forms !== null && !("notRecorded" in model.forms);
   return {
     schemaVersion: 1,
     kind: "voicecap-report",
@@ -1052,9 +1057,11 @@ export function aiReportOf(model: ShareModel): AiReport {
     verdict: verdictOfModel(model),
     summary: { sentence: summary.sentence, method: summary.second },
     counts: countsOf(model),
-    ...formsOfModel(model),
+    forms: formsOfModel(model),
     attention: model.attention.map((card, at) => cardOf(card, at + 1, numbers)),
-    pages: model.pages.map((card, at) => pageOf(card, at + 1, transcripts.get(card.slug), latest)),
+    pages: model.pages.map((card, at) =>
+      pageOf(card, at + 1, transcripts.get(card.slug), latest, passTaken),
+    ),
     noLongerListed: model.noLongerListed.map(goneOf),
     stillToDo: [...summary.todo],
     howComplete:

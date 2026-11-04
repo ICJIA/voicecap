@@ -55,7 +55,7 @@ import {
 import type { DiffLine, OnlyInOnePage, PageChange } from "../changes.js";
 import { wcagOf } from "../../flags/wcag.js";
 import { count, names, pagePath, pageTitle } from "../format.js";
-import { bannerLine, formFoldWords, glanceBannerOf } from "../forms-view.js";
+import { bannerLine, formFoldWords, glanceBannerOf, showsFormName } from "../forms-view.js";
 import { firstSentenceBold, type Inline, type Line } from "../line.js";
 import type {
   AppendixFile,
@@ -329,12 +329,12 @@ function glanceBlocks(model: ShareModel): Block[] {
 
 /**
  * At a glance's line on the forms, once the run has the forms pass: its sign and words in bold, and
- * the line that names the pages whose forms don't work. A run from before the pass, a run
- * with no forms pass, and one that checked no form say nothing, so a file of an older run is as it was.
+ * the line that names the pages whose forms don't work. A run from before the pass says it did not
+ * record them; a run with no forms pass, or none checked, says nothing.
  */
 function formsGlanceBlocks({ forms }: ShareModel): Block[] {
   if (forms === null) return [];
-  if ("notRecorded" in forms) return [];
+  if ("notRecorded" in forms) return [paragraph(notRecordedLine(ownWords(forms.notRecorded)))];
   const banner = glanceBannerOf(forms, names);
   if (banner === null) return [];
   return [label(bannerLine(banner)), ...(banner.detail === "" ? [] : [paragraph(banner.detail)])];
@@ -635,9 +635,8 @@ function axeCounts(view: AxeView): string {
  */
 function formBannerBlocks({ forms }: PageCard): Block[] {
   if (forms === undefined || !("forms" in forms)) return [];
-  const many = forms.forms.length > 1;
   return forms.forms.flatMap((form) => [
-    ...(many || form.label.includes(",") ? [paragraph(form.label)] : []),
+    ...(showsFormName(form, forms.forms.length) ? [paragraph(form.label)] : []),
     label(bannerLine(form.banner)),
     ...(form.banner.detail === "" ? [] : [paragraph(form.banner.detail)]),
     ...(form.flagsLeft.length === 0

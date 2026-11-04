@@ -1763,7 +1763,8 @@ describe("renderAiMarkdown", () => {
     const markdown = renderAiMarkdown(i2i);
     const axe = markdown.match(/^Not recorded: this run used voicecap 0\.11\.0\.$/gm) ?? [];
 
-    expect(axe).toHaveLength(32);
+    // One for each page's axe, and one in At a glance: the run did not record the forms.
+    expect(axe).toHaveLength(33);
     expect(headingsOf(markdown, 4).filter((words) => words === text.AXE_TEXT.title)).toHaveLength(
       32,
     );
@@ -1774,7 +1775,7 @@ describe("renderAiMarkdown", () => {
     const mark = "Not recorded: this run used voicecap 0.4.1.";
 
     expect(older).toContain(`- Title: ${mark}`);
-    expect(older.match(/^Not recorded: this run used voicecap 0\.4\.1\.$/gm)).toHaveLength(7);
+    expect(older.match(/^Not recorded: this run used voicecap 0\.4\.1\.$/gm)).toHaveLength(8);
     expect(older).toContain(`- NVDA restarts: ${mark}`);
     expect(older).toContain(`- Whether NVDA was heard: ${mark}`);
     expect(older).toContain(`- Run by: ${mark}`);

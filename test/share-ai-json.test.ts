@@ -212,6 +212,27 @@ const AXE = either(
     file: obj({ name: str, bytes: num, sha256: str }),
   }),
 );
+const FORM_BANNER = obj({
+  kind: enumOf("works", "needs-work", "cant-complete", "not-checked"),
+  line: str,
+  headline: str,
+  detail: str,
+});
+const FORM = obj({
+  name: str,
+  banner: FORM_BANNER,
+  flags: list(obj({ rule: str, message: str, wcag: strs })),
+  requiredFields: list(obj({ name: str, said: maybe(str) })),
+  presses: list(obj({ said: str, did: str })),
+  axe: str,
+});
+const FORMS_GLANCE = obj({
+  found: num,
+  working: num,
+  notChecked: num,
+  banner: maybe(FORM_BANNER),
+  pagesToFix: strs,
+});
 const PAGE = obj({
   number: num,
   name: str,
@@ -232,6 +253,7 @@ const PAGE = obj({
   firstLines: strs,
   flags: list(FLAG),
   flagsNote: maybe(str),
+  forms: maybe(either(list(FORM), notRecorded)),
   axe: maybe(AXE),
   review: strs,
   transcriptsFrom: maybe(obj({ run: str, date: maybe(str) })),
@@ -330,6 +352,7 @@ const REPORT = obj({
     sessionsWithoutEnd: num,
     ring: obj({ readNoProblems: num, readWithProblems: num, notRead: num }),
   }),
+  forms: maybe(either(FORMS_GLANCE, notRecorded)),
   attention: list(CARD),
   pages: list(PAGE),
   noLongerListed: list(obj({ name: str, path: str, address: str, lastRun: str, lastStatus: str })),
@@ -1056,6 +1079,7 @@ describe("renderAiJson", () => {
         "verdict",
         "summary",
         "counts",
+        "forms",
         "attention",
         "pages",
         "noLongerListed",
@@ -1556,6 +1580,7 @@ describe("the pages of renderAiJson", () => {
       "firstLines",
       "flags",
       "flagsNote",
+      "forms",
       "axe",
       "review",
       "transcriptsFrom",

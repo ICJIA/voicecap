@@ -283,10 +283,27 @@ function facts(record: KeptVoice): string {
  * AppendixFile's `timing`). Nothing for a pass whose stretch or length isn't known, or whose start
  * would fall before its stretch's, and nothing at all when the passes and the stretches aren't as
  * many, so no line is ever outlined at another's time. The forms pass opens the page again for every
- * form after its first, and each load is a stretch of its own: a page with the forms pass has one
- * stretch for each pass before it and one or more for the forms pass, which gets a start only when it
- * has the one (a second form's lines are not at a time its first stretch can give).
+ * form it presses after the first, and each load is a stretch of its own, so the recording has one
+ * stretch for each pass before it and one for each load of the forms pass: the count is taken from
+ * the page's forms record (the forms pressed, at least one), and must be exactly that, since stretches
+ * that meet are joined and empty ones dropped (see keptStretches), and a count that is off by one
+ * would put a pass against another's stretch. When the count can't be known, the passes and the
+ * stretches must be as many. The forms pass gets a start only when it had one load.
  */
+/**
+ * How many loads the forms pass made, from the page's forms record: one for the first form it pressed
+ * and one more for each other (at least one). Null when the pass isn't the last of the page's passes,
+ * or the record doesn't count the forms, so the count of loads can't be told.
+ */
+function formsLoads(page: PageRecord, passes: readonly PassName[]): number | null {
+  if (passes.at(-1) !== "forms") return null;
+  const record = page.forms;
+  if (record === undefined || !("counts" in record)) return null;
+  const { completed, stuck } = record.counts;
+  if (!isNumber(completed) || !isNumber(stuck)) return null;
+  return Math.max(1, completed + stuck);
+}
+
 function passStarts(
   page: PageRecord,
   record: KeptVoice,
@@ -295,11 +312,11 @@ function passStarts(
   const starts = new Map<PassName, number>();
   const passes = PASS_NAMES.filter((pass) => page.passes[pass] !== undefined);
   const stretches = Array.isArray(record.stretches) ? record.stretches : [];
-  const formsLast = passes.at(-1) === "forms";
-  const fits = formsLast ? stretches.length >= passes.length : stretches.length === passes.length;
-  if (!fits) return starts;
+  const loads = formsLoads(page, passes);
+  const expected = loads === null ? passes.length : passes.length - 1 + loads;
+  if (stretches.length !== expected) return starts;
   passes.forEach((pass, index) => {
-    if (pass === "forms" && stretches.length !== passes.length) return;
+    if (pass === "forms" && loads !== 1 && loads !== null) return;
     const stretch = stretches[index];
     const length = files.find((file) => file.pass === pass)?.timing?.at(-1)?.toMs;
     if (stretch === undefined || length === undefined) return;

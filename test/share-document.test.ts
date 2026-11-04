@@ -936,18 +936,21 @@ describe("renderSharePage", () => {
     // for forms results, and At a glance says "Forms: Not recorded: this run used voicecap ..." for a
     // run from before the pass. Each page grew by 2,645 characters (2,646 for the logged run, whose
     // version name is a character longer than the others' "an earlier version of voicecap").
+    // The same task's second half re-pinned the three Word copies, and not the pages: At a glance
+    // says that the run did not record its forms (71 characters more for i2i's and the demo's, 72 for the logged
+    // run's, by the length of the version's name).
     const before = {
       i2i: {
         page: [212_580, "c669b7e599d65a995300069c65b080ab32953d39a40a828d140890e0657ca887"],
-        word: [53_604, "c45ccfd08d41941fb41b99aae8de31a39a8c1f4052e895fd235bcf9a089ba7f0"],
+        word: [53_675, "ad62123f40a5e140916070a7fa1fb16ca7a19d814b40125e9a1aac4213cb0f46"],
       },
       demo: {
         page: [247_122, "06f1f1cd5bffdc88f5a585c8be0c6e26306ba19178aa489b29e7c37f40c16001"],
-        word: [76_442, "97f1d6d72ff667120a5e4b1f2681305cdad5db11870e6860d9a2289f5e395aa9"],
+        word: [76_513, "0c7e7ace705540bbee6aba50fe0ecfdadeeaa94700f40f84838ce4f46d5bf393"],
       },
       logged: {
         page: [129_538, "71d3ed8765d1bf36ed3380e63aa8f30b912f02608395a1a86d0a45c0cf6b3bec"],
-        word: [35_133, "b81d7a1db95e8d96a117d212f256cb98a7c0b82b47754d99eb53b98633b7ce34"],
+        word: [35_205, "dc0cd7b6ee5583e543d3dabe1747a79829d6c44d3c041bf068886e6a95b976d9"],
       },
     };
     const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };

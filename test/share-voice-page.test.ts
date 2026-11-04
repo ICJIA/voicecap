@@ -25,6 +25,7 @@ import { KEEPS_VOICE_FROM, keepsVoice } from "../src/share/run-evidence.js";
 import { cardRecord, standingOf } from "../src/share/standing.js";
 import { EVIDENCE_TEXT, VOICE_TEXT } from "../src/share/text.js";
 import { renderVoicePage, SPEED_TOKEN, VOICE_SCRIPT } from "../src/share/voice-page.js";
+import { fileHash } from "../src/transcripts/write.js";
 import { STRETCH_LIBRARY } from "../src/share/voice-stretch.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, decode, textOf } from "./helpers/share-html.js";
@@ -1125,7 +1126,8 @@ describe("the voice page's transcripts beside each recording", () => {
 
   describe("the forms pass", () => {
     const FORMS_LINES = ["Name, edit, required", "Send, button"];
-    const withForms = (stretches: { startMs: number; endMs: number }[]): RunJson =>
+    /** A run whose page pressed `pressed` forms: the record counts them, as the loads are told from it. */
+    const withForms = (stretches: { startMs: number; endMs: number }[], pressed = 1): RunJson =>
       shareRun({
         id: RUN,
         createdAt: "2026-10-30T14:02:51-05:00",
@@ -1137,6 +1139,11 @@ describe("the voice page's transcripts beside each recording", () => {
             {
               files: [...TRANSCRIPTS, "forms.txt"],
               passes: { ...LINES, forms: FORMS_LINES },
+              forms: {
+                ...fileHash("{}"),
+                counts: { forms: pressed, completed: pressed, stuck: 0, notTested: 0, presses: 2 },
+                ranAt: "2026-10-30T14:03:00-05:00",
+              },
             },
           ),
         ],
@@ -1173,7 +1180,7 @@ describe("the voice page's transcripts beside each recording", () => {
 
     it("keeps the other passes timed when the forms pass has a stretch for each form, and times no forms line", () => {
       const section = sectionFor(
-        withForms([...base, { startMs: 22000, endMs: 28000 }, { startMs: 30000, endMs: 36000 }]),
+        withForms([...base, { startMs: 22000, endMs: 28000 }, { startMs: 30000, endMs: 36000 }], 2),
       );
       const lines = timedLines(section);
       expect(lines).toHaveLength(8);
@@ -1183,6 +1190,18 @@ describe("the voice page's transcripts beside each recording", () => {
 
     it("times nothing when the stretches are fewer than the passes", () => {
       expect(timedLines(sectionFor(withForms(base)))).toEqual([]);
+    });
+
+    it("times nothing when two earlier stretches merged, though the count still reaches the passes", () => {
+      // Read, headings, and tab with the last two joined, and two forms loads: four stretches for
+      // four passes, but the forms pass pressed two forms, so five were expected.
+      const merged = [
+        base[0] ?? { startMs: 0, endMs: 0 },
+        { startMs: 9000, endMs: 15500 + 3500 + 2 * 1200 },
+        { startMs: 22000, endMs: 28000 },
+        { startMs: 30000, endMs: 36000 },
+      ];
+      expect(timedLines(sectionFor(withForms(merged, 2)))).toEqual([]);
     });
   });
 

@@ -256,3 +256,11 @@ export function formFoldWords(form: CardForm): FormFoldWords {
     axe: form.axe,
   };
 }
+
+/**
+ * Whether a form is named above its banner: when the page has more than one form, or the form's
+ * submit control has a name (its label then says it: Form 1, sends with "Send"). One rule for the
+ * page, the Word copy, and the files for AI tools.
+ */
+export const showsFormName = (form: Pick<CardForm, "label">, forms: number): boolean =>
+  forms > 1 || form.label.includes(",");

@@ -552,11 +552,12 @@ describe("the Word copy", () => {
     expect(lines).not.toMatch(/This form|What happened at the form|forms work/);
   });
 
-  it("says nothing of forms for a run from before the pass, so its copy is as it was", () => {
+  it("says Not recorded in At a glance for a run from before the pass, and nothing else of forms", () => {
     const { model } = build([{ path: "/old/" }], {
       passes: ["read", "headings", "tab"],
       version: "0.12.0",
     });
+    expect(wordsOf(wordGlance(model))).toContain("Not recorded: this run used voicecap 0.12.0.");
     expect(wordOf(model).join(" ")).not.toMatch(/This form|What happened at the form|forms work/);
   });
 });
@@ -639,32 +640,41 @@ describe("the files for AI tools", () => {
     expect(b?.forms[0]?.banner.kind).toBe("cant-complete");
   });
 
-  it("change nothing for a run with no forms pass: no forms key, no forms words", () => {
+  it("say null for a run with no forms pass, and no forms words", () => {
     const { model } = build([{ path: "/plain/" }], { passes: ["read", "headings", "tab"] });
     const report = JSON.parse(renderAiJson(model)) as {
-      forms?: unknown;
-      pages: { forms?: unknown }[];
+      forms: unknown;
+      pages: { forms: unknown }[];
     };
-    expect("forms" in report).toBe(false);
-    expect("forms" in (report.pages[0] ?? {})).toBe(false);
+    expect(report.forms).toBeNull();
+    expect(report.pages[0]?.forms).toBeNull();
     expect(renderAiMarkdown(model)).not.toMatch(/This form|What happened at the form|forms work/);
   });
 
-  it("say nothing of forms for a run from before the pass, or one that found no form", () => {
-    for (const made of [
-      build([{ path: "/old/" }], { passes: ["read", "headings", "tab"], version: "0.12.0" }),
-      build([{ path: "/plain/" }]),
-    ]) {
-      const report = JSON.parse(renderAiJson(made.model)) as {
-        forms?: unknown;
-        pages: { forms?: unknown }[];
-      };
-      expect("forms" in report).toBe(false);
-      expect("forms" in (report.pages[0] ?? {})).toBe(false);
-      expect(renderAiMarkdown(made.model)).not.toMatch(
-        /This form|What happened at the form|forms work/,
-      );
-    }
+  it("say Not recorded in every file for a run from before the pass", () => {
+    const { model } = build([{ path: "/old/" }], {
+      passes: ["read", "headings", "tab"],
+      version: "0.12.0",
+    });
+    const report = JSON.parse(renderAiJson(model)) as { forms: unknown };
+    expect(report.forms).toEqual({ notRecorded: "Not recorded: this run used voicecap 0.12.0." });
+    expect(renderAiMarkdown(model)).toContain("Not recorded: this run used voicecap 0.12.0.");
+  });
+
+  it("give the counts, and an empty list for the page, when the pass found no form", () => {
+    const { model } = build([{ path: "/plain/" }]);
+    const report = JSON.parse(renderAiJson(model)) as {
+      forms: unknown;
+      pages: { forms: unknown }[];
+    };
+    expect(report.forms).toEqual({
+      found: 0,
+      working: 0,
+      notChecked: 0,
+      banner: null,
+      pagesToFix: [],
+    });
+    expect(report.pages[0]?.forms).toEqual([]);
   });
 });
 
