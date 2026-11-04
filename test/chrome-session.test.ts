@@ -644,6 +644,31 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     expect(session.pid).toEqual(expect.any(Number));
   });
 
+  // Seen on GitHub's Windows runners: the browser answers before it lists the window it opens with,
+  // and a page opened then was a second window, the first showing after it.
+  it("uses the window the browser opens with, though it's listed late, and opens no other", async () => {
+    const connect = chromium.connectOverCDP.bind(chromium);
+    const connecting = vi
+      .spyOn(chromium, "connectOverCDP")
+      .mockImplementation(async (...args: Parameters<typeof chromium.connectOverCDP>) => {
+        const browser = await connect(...args);
+        const context = browser.contexts()[0]!;
+        const pages = context.pages.bind(context);
+        let asked = 0;
+        vi.spyOn(context, "pages").mockImplementation(() => (asked++ < 3 ? [] : pages()));
+        return browser;
+      });
+    try {
+      const session = await launch();
+      const browser = (session as unknown as { browser: Browser }).browser;
+      const cdp = await browser.newBrowserCDPSession();
+      const { targetInfos } = await cdp.send("Target.getTargets");
+      expect(targetInfos.filter((target) => target.type === "page")).toHaveLength(1);
+    } finally {
+      connecting.mockRestore();
+    }
+  });
+
   it("uses a fresh profile, deleted when the browser closes", async () => {
     const session = await launch();
     expect(existsSync(session.profileDir)).toBe(true);

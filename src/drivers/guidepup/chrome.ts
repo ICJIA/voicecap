@@ -18,6 +18,7 @@ import {
   chromium,
   errors,
   type Browser,
+  type BrowserContext,
   type CDPSession,
   type Page,
   type Response,
@@ -47,6 +48,8 @@ const SCREENSHOT_SCALE = 0.5;
  */
 const LEAST_PIXEL_RATIO = 0.5;
 const MOST_PIXEL_RATIO = 4;
+/** How long the browser gets to list the page it opened with, before voicecap opens one. */
+const STARTUP_PAGE_MS = 10_000;
 /** How long the browser gets to answer before the screenshot is given up. */
 const SCREENSHOT_TIMEOUT_MS = 5_000;
 
@@ -260,7 +263,9 @@ async function launchOnce(
     // that answers with a download mustn't put files in the user's Downloads folder.
     const browserCdp = await browser.newBrowserCDPSession();
     await browserCdp.send("Browser.setDownloadBehavior", { behavior: "deny" });
-    const page = context.pages()[0] ?? (await context.newPage());
+    const page =
+      (await Promise.race([startupPage(context, timeoutMs), calledOff])) ??
+      (await context.newPage());
     const cdp = await context.newCDPSession(page);
     if (signal?.aborted) throw new Error("the launch was called off");
     return new ChromeSession(executable, child, profileDir, browser, page, cdp, {
@@ -279,6 +284,21 @@ async function launchOnce(
     });
   } finally {
     signal?.removeEventListener("abort", callOff);
+  }
+}
+
+/**
+ * The page the browser opened with, or null if it lists none in time. The browser can answer before
+ * it lists that page (seen on GitHub's Windows runners), and a page opened then was a second window,
+ * the first showing after it.
+ */
+async function startupPage(context: BrowserContext, timeoutMs: number): Promise<Page | null> {
+  const until = Date.now() + Math.min(timeoutMs, STARTUP_PAGE_MS);
+  for (;;) {
+    const page = context.pages()[0];
+    if (page) return page;
+    if (Date.now() >= until) return null;
+    await delay(50);
   }
 }
 
@@ -905,16 +925,42 @@ export class ChromeSession implements BrowserSession {
     gate.shut();
     const context = this.page.context();
     await this.cdp.send("Network.setBypassServiceWorker", { bypass: true });
-    context.on("page", (page) => {
-      if (page === this.page) return;
-      // Closing the window isn't what stops data, the gate is. A close that fails is counted, so
-      // it's seen, and never thrown from an event handler.
-      page.close().catch(() => {
-        if (!page.isClosed()) this.unclosedWindows += 1;
-      });
-    });
+    await this.closeNewWindows();
     await context.route("**/*", (route) => this.holdRequest(route));
     await this.confirmGuard(gate);
+  }
+
+  /**
+   * Close every window but the session's, from now on, as the browser makes it. Closing a window
+   * isn't what stops data, the gate is, but a window left open could take the foreground from the
+   * screen reader. It's asked of the browser and not of Playwright, whose page event waits for a
+   * new window's first page to commit, and the guard holds that page, so it never comes.
+   */
+  private async closeNewWindows(): Promise<void> {
+    const { targetInfo } = await this.cdp.send("Target.getTargetInfo");
+    const browser = await this.browser.newBrowserCDPSession();
+    browser.on("Target.targetCreated", ({ targetInfo: created }) => {
+      // A prerendered page is no window, and the gate keeps what it sends.
+      if (created.type !== "page" || created.subtype || created.targetId === targetInfo.targetId) {
+        return;
+      }
+      void this.closeWindow(browser, created.targetId);
+    });
+    // Reports the targets already there as created, too.
+    await browser.send("Target.setDiscoverTargets", { discover: true });
+  }
+
+  /** A close that fails is counted, so it's seen, unless the window has gone anyway. */
+  private async closeWindow(browser: CDPSession, targetId: string): Promise<void> {
+    try {
+      await browser.send("Target.closeTarget", { targetId });
+    } catch {
+      const open = await browser
+        .send("Target.getTargets")
+        .then(({ targetInfos }) => targetInfos.some((target) => target.targetId === targetId))
+        .catch(() => !this.crashed && !this.closing);
+      if (open) this.unclosedWindows += 1;
+    }
   }
 
   private async holdRequest(route: Route): Promise<void> {

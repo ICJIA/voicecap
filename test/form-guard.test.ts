@@ -567,8 +567,6 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     "xhr",
     "beacon",
     "websocket",
-    "window.open",
-    'target="_blank" form',
     "service worker fetch",
     "cross-origin frame's form",
     "input event autosave",
@@ -893,13 +891,41 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     expect(server.reaches()).toBe(0);
   });
 
-  it("closes a new window, and the session's page stays", async () => {
-    kind = "window.open";
-    const page = await armAndPress();
-    await settled();
-    await vi.waitFor(() => expect(page.context().pages()).toEqual([page]), { timeout: 10_000 });
-    expect(session.strayWindows()).toBe(0);
-  });
+  // A new window's own page is never counted: the window can close before it asks for it. So the
+  // browser is asked what was opened and what's left, not Playwright, which reports a new window
+  // only once its first page commits, and the guard holds that page, so a window it never reported
+  // would look closed.
+  it.each(["window.open", 'target="_blank" form'])(
+    "closes a new window, and the session's page stays: %s",
+    async (name) => {
+      kind = name;
+      await start();
+      const page = await open();
+      const browser = await page.context().browser()!.newBrowserCDPSession();
+      const opened = new Set<string>();
+      browser.on("Target.targetCreated", ({ targetInfo }) => {
+        if (targetInfo.type === "page") opened.add(targetInfo.targetId);
+      });
+      await browser.send("Target.setDiscoverTargets", { discover: true });
+      const windows = async (): Promise<string[]> =>
+        (await browser.send("Target.getTargets")).targetInfos
+          .filter((target) => target.type === "page")
+          .map((target) => target.targetId);
+      const own = (await (await page.context().newCDPSession(page)).send("Target.getTargetInfo"))
+        .targetInfo.targetId;
+      await session.armFormGuard();
+      await press(page);
+      await vi.waitFor(() => expect([...opened].filter((id) => id !== own)).not.toEqual([]), {
+        timeout: SEND_LIMIT_MS,
+      });
+      await vi.waitFor(async () => expect(await windows()).toEqual([own]), { timeout: 10_000 });
+      await delay(STRAGGLER_MS);
+      expect(server.paths()).toEqual([]);
+      expect(server.reaches()).toBe(0);
+      expect(page.context().pages()).toEqual([page]);
+      expect(session.strayWindows()).toBe(0);
+    },
+  );
 
   it("confirms on a page whose Content Security Policy forbids any connection", async () => {
     kind = "fetch";
