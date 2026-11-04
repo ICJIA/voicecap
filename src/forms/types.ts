@@ -101,6 +101,12 @@ export interface FormOutcome {
   reason: string | null;
   /** Each press in turn: `axe` is null where the form's errors hadn't changed, so it wasn't checked. */
   presses: { state: FormState; spoken: string; axe: AxeCapture | null }[];
+  /**
+   * The fields the browser called invalid and the messages showing before any press: what a later
+   * press is new against. Left out where the pass took no look at the form, and in a file from before
+   * voicecap kept it.
+   */
+  baseline?: { invalid: number[]; messages: string[] };
   /** What NVDA said at each field before any press. */
   firstWalk: FieldHeard[];
   /** The same after the first press that showed an error; empty when none did. */

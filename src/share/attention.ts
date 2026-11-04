@@ -43,6 +43,12 @@ const KINDS = [
   "skip-link",
   "tab-nothing",
   "repeated",
+  "form-error-silent",
+  "form-no-feedback",
+  "form-error-unlinked",
+  "form-required-unsaid",
+  "form-cant-finish",
+  "form-field-unreachable",
   "read-stopped",
   "custom",
   "recorded",
@@ -200,6 +206,12 @@ const RULE_KINDS = new Map<string, AttentionKind>([
   ["tab-before-main", "skip-link"],
   ["tab-no-stops", "tab-nothing"],
   ["repeated-phrase", "repeated"],
+  ["form-error-silent", "form-error-silent"],
+  ["form-no-feedback", "form-no-feedback"],
+  ["form-error-unlinked", "form-error-unlinked"],
+  ["form-required-unsaid", "form-required-unsaid"],
+  ["form-cant-finish", "form-cant-finish"],
+  ["form-field-unreachable", "form-field-unreachable"],
 ]);
 
 /** The rules that find items, whose lines give each card its subject. */

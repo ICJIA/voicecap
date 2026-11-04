@@ -219,6 +219,7 @@ export async function formPass(
   let firstWalk: FieldHeard[] = [];
   let errorWalk: FieldHeard[] | null = null;
   let lastWalk: FieldHeard[] = [];
+  const seen: Pick<FormOutcome, "baseline"> = {};
   const end = (
     result: FormResult,
     reason: string | null,
@@ -229,6 +230,7 @@ export async function formPass(
     stoppedAt,
     reason,
     presses,
+    ...(seen.baseline ? { baseline: seen.baseline } : {}),
     firstWalk,
     errorWalk: errorWalk ?? [],
     lastWalk,
@@ -258,6 +260,7 @@ export async function formPass(
   let lastErrors: string | null = null;
 
   const baseline = await readState();
+  seen.baseline = { invalid: [...baseline.invalid], messages: [...baseline.messages] };
   firstWalk = await walk(driver, recorder, form, stepLimit);
   for (;;) {
     if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);

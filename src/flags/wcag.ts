@@ -14,6 +14,10 @@
  * - `headings`: 1.3.1 (Info and Relationships) and 2.4.6 (Headings and Labels).
  * - `tab-no-stops`: 2.1.1 (Keyboard).
  * - `tab-before-main`: 2.4.1 (Bypass Blocks).
+ * - the forms pass's six (src/flags/forms.ts): `form-error-silent` 3.3.1 (Error Identification) and
+ *   4.1.3 (Status Messages); `form-no-feedback` 3.3.1; `form-error-unlinked` 3.3.1 and 1.3.1;
+ *   `form-required-unsaid` 3.3.2 (Labels or Instructions); `form-cant-finish` 2.1.1 (Keyboard) and
+ *   3.3.3 (Error Suggestion); `form-field-unreachable` 2.1.1.
  * - `read-not-finished` and `repeated-phrase`: none. The first says voicecap's read pass stopped
  *   before the page's end, which is about the run, and the second that the same words were said
  *   many times in a row, which any of a dozen things can cause.
@@ -25,6 +29,7 @@
  * Pure.
  */
 import type { BuiltInRule } from "./evaluate.js";
+import type { FormsRule } from "./forms.js";
 
 /** A list of criteria that can't be changed. */
 const criteria = (...numbers: string[]): readonly string[] => Object.freeze(numbers);
@@ -33,15 +38,22 @@ const criteria = (...numbers: string[]): readonly string[] => Object.freeze(numb
  * The criteria each built-in rule may relate to, in the order of the rules' own list
  * (`BUILT_IN_RULES`). A rule missing here is a type error.
  */
-export const RULE_WCAG: Readonly<Record<BuiltInRule, readonly string[]>> = Object.freeze({
-  "generic-link-text": criteria("2.4.4"),
-  unlabeled: criteria("1.1.1", "4.1.2"),
-  "read-not-finished": criteria(),
-  headings: criteria("1.3.1", "2.4.6"),
-  "tab-no-stops": criteria("2.1.1"),
-  "tab-before-main": criteria("2.4.1"),
-  "repeated-phrase": criteria(),
-});
+export const RULE_WCAG: Readonly<Record<BuiltInRule | FormsRule, readonly string[]>> =
+  Object.freeze({
+    "generic-link-text": criteria("2.4.4"),
+    unlabeled: criteria("1.1.1", "4.1.2"),
+    "read-not-finished": criteria(),
+    headings: criteria("1.3.1", "2.4.6"),
+    "tab-no-stops": criteria("2.1.1"),
+    "tab-before-main": criteria("2.4.1"),
+    "repeated-phrase": criteria(),
+    "form-error-silent": criteria("3.3.1", "4.1.3"),
+    "form-no-feedback": criteria("3.3.1"),
+    "form-error-unlinked": criteria("3.3.1", "1.3.1"),
+    "form-required-unsaid": criteria("3.3.2"),
+    "form-cant-finish": criteria("2.1.1", "3.3.3"),
+    "form-field-unreachable": criteria("2.1.1"),
+  });
 
 /**
  * The criteria a flag's rule may relate to, by the rule's id as a flag records it: the table's for
@@ -50,5 +62,5 @@ export const RULE_WCAG: Readonly<Record<BuiltInRule, readonly string[]>> = Objec
  * or "toString" finds none, not a function every object has.
  */
 export function wcagOf(rule: string): readonly string[] {
-  return Object.hasOwn(RULE_WCAG, rule) ? RULE_WCAG[rule as BuiltInRule] : [];
+  return Object.hasOwn(RULE_WCAG, rule) ? RULE_WCAG[rule as BuiltInRule | FormsRule] : [];
 }

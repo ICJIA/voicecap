@@ -23,6 +23,17 @@ export const FORMS_DEFAULTS = {
     url: "https://example.org",
     date: "01012026",
   } as Record<string, string>,
+  /**
+   * NVDA's English words the forms pass's flag rules listen for (matched in any case, anywhere in
+   * what it said): the state it gives a required field, and the one it gives an invalid field. NVDA
+   * 2026.2 says "required" at every required field, and "invalid entry" at an invalid one, and also,
+   * before any press, at an untouched required radio button, list, and check box (the PC trial of
+   * 2026-10-30), so the rules never take "invalid entry" alone as proof of an error.
+   */
+  words: {
+    required: ["required"],
+    invalid: ["invalid entry"],
+  } as { required: readonly string[]; invalid: readonly string[] },
 };
 
 /** The forms pass's settings as the config has them, with FORMS_DEFAULTS for each it leaves out. */

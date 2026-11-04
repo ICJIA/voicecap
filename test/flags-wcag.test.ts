@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BUILT_IN_RULES } from "../src/flags/evaluate.js";
+import { FORMS_RULES } from "../src/flags/forms.js";
 import { RULE_WCAG, wcagOf } from "../src/flags/wcag.js";
 import { axeCriteria, axeCriteriaList } from "../src/share/axe-view.js";
 import { names } from "../src/share/format.js";
@@ -24,12 +25,19 @@ describe("RULE_WCAG", () => {
       "tab-before-main": ["2.4.1"],
       "read-not-finished": [],
       "repeated-phrase": [],
+      "form-error-silent": ["3.3.1", "4.1.3"],
+      "form-no-feedback": ["3.3.1"],
+      "form-error-unlinked": ["3.3.1", "1.3.1"],
+      "form-required-unsaid": ["3.3.2"],
+      "form-cant-finish": ["2.1.1", "3.3.3"],
+      "form-field-unreachable": ["2.1.1"],
     });
   });
 
-  it("has a key for every built-in rule and for nothing else, in the rules' own order", () => {
-    expect(Object.keys(RULE_WCAG)).toEqual([...BUILT_IN_RULES]);
-    for (const rule of BUILT_IN_RULES) expect(Object.hasOwn(RULE_WCAG, rule)).toBe(true);
+  it("has a key for every built-in rule and every forms rule, and nothing else, in the rules' own order", () => {
+    expect(Object.keys(RULE_WCAG)).toEqual([...BUILT_IN_RULES, ...FORMS_RULES]);
+    for (const rule of [...BUILT_IN_RULES, ...FORMS_RULES])
+      expect(Object.hasOwn(RULE_WCAG, rule)).toBe(true);
   });
 
   it("gives each criterion as its number in a string, once for a rule", () => {

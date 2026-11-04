@@ -10,6 +10,8 @@ import { lstat, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { VoicecapConfig } from "../config/schema.js";
+import { readFormsResults } from "../forms/result-file.js";
+import type { FormFlagInput } from "../flags/forms.js";
 import {
   evaluateFlags,
   flagRulesSha256,
@@ -19,6 +21,7 @@ import {
 import { listManualSessions, type ManualSessionFile } from "../manual/list.js";
 import {
   AXE_FILE,
+  FORMS_FILE,
   PASS_NAMES,
   SCREENSHOT_FILE,
   VOICE_FILE,
@@ -284,6 +287,11 @@ export async function loadShareInput(options: {
 interface PageTranscripts {
   txt: Partial<Record<PassName, string>>;
   json: Partial<Record<PassName, TranscriptJson>>;
+  /**
+   * The forms pass's results (forms-result.json), where the page's record lists the file and it is
+   * there as recorded and is one voicecap can read; the forms rules read them.
+   */
+  forms?: FormFlagInput[];
 }
 
 const storeKey = (run: string, slug: string): string => `${run}/${slug}`;
@@ -339,6 +347,9 @@ async function readPage(
       if (transcript !== null) read.json[pass] = transcript;
     }),
   );
+  const kept = await readAsRecorded(path.join(dir, FORMS_FILE), page.forms);
+  const forms = kept === null ? null : readFormsResults(kept.toString("utf8"));
+  if (forms !== null) read.forms = forms;
   return read;
 }
 
@@ -591,6 +602,11 @@ function flagsOf(
     const transcript = transcripts.json[pass];
     if (transcript === undefined) return null;
     passes[pass] = transcript;
+  }
+  if (passes.forms !== undefined) {
+    // The forms rules read the results beside the transcript: without them, the flags are as recorded.
+    if (transcripts.forms === undefined) return null;
+    passes.forms = { ...passes.forms, forms: transcripts.forms };
   }
   return evaluateFlags(passes, rules);
 }

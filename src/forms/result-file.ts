@@ -9,6 +9,7 @@ import { FORMS_FILE, type FormsCounts } from "../model.js";
 import { redactAccount } from "../run/failure.js";
 import { sortKeys } from "../util/hash.js";
 import type { AxeCapture } from "../drivers/types.js";
+import type { FormFlagInput } from "../flags/forms.js";
 import type { FormOutcome } from "./types.js";
 
 export { FORMS_FILE };
@@ -42,6 +43,7 @@ export function keptFormsResults(
         spoken: press.spoken,
         axe: keptAxe(press.axe),
       })),
+      ...(outcome.baseline ? { baseline: outcome.baseline } : {}),
       firstWalk: outcome.firstWalk,
       errorWalk: outcome.errorWalk,
       lastWalk: outcome.lastWalk,
@@ -76,4 +78,18 @@ function redactStrings(value: unknown): unknown {
     return copy;
   }
   return value;
+}
+
+/**
+ * The forms of a forms-result.json read back, as the flag rules read them (they leave out each
+ * press's axe check); null where the text isn't one, or is of a version this voicecap doesn't know.
+ */
+export function readFormsResults(text: string): FormFlagInput[] | null {
+  try {
+    const file = JSON.parse(text) as { schemaVersion?: unknown; forms?: unknown };
+    if (file.schemaVersion !== SCHEMA_VERSION || !Array.isArray(file.forms)) return null;
+    return file.forms as FormFlagInput[];
+  } catch {
+    return null;
+  }
 }

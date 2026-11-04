@@ -9,6 +9,7 @@ import {
 import { lineMatches } from "../passes/read.js";
 import { normalizeSpeech } from "../passes/steps.js";
 import { hashJson } from "../util/hash.js";
+import { formsFlags, formsQuotes, isFormsRule, type FormFlagInput } from "./forms.js";
 import { speechItems } from "./speech.js";
 
 export type FlagRules = VoicecapConfig["flags"];
@@ -37,6 +38,11 @@ export type BuiltInRule = (typeof BUILT_IN_RULES)[number];
 export interface PassData {
   steps: StepRecord[];
   stopReason: StopReason;
+  /**
+   * The forms pass only: what each form's test found (a FormOutcome, or a form of forms-result.json
+   * read back), which the forms rules read, beside the pass's steps.
+   */
+  forms?: readonly FormFlagInput[];
 }
 
 export type PagePasses = Partial<Record<PassName, PassData>>;
@@ -98,6 +104,7 @@ export function evaluateFlags(passes: PagePasses, rules: FlagRules): FlagResult[
   if (rules.repeatedPhrase.enabled) {
     flags.push(...repeatedPhrase(passes, rules.repeatedPhrase.minRun));
   }
+  if (passes.forms?.forms) flags.push(...formsFlags(passes.forms.forms));
   for (const rule of rules.custom) {
     for (const pass of rule.passes) {
       const data = passes[pass];
@@ -138,6 +145,7 @@ export function flagQuotes(passes: PagePasses, rules: FlagRules, flag: FlagResul
   const { pass } = flag;
   const data = pass === undefined ? undefined : passes[pass];
   if (pass === undefined || data === undefined) return [];
+  if (isFormsRule(flag.rule)) return formsQuotes(flag.rule, data.forms ?? []);
   const steps = contentSteps(pass, data);
   switch (flag.rule) {
     case "generic-link-text": {

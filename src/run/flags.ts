@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -7,7 +7,8 @@ import {
   type FlagRules,
   type PagePasses,
 } from "../flags/evaluate.js";
-import type { RunJson } from "../model.js";
+import { readFormsResults } from "../forms/result-file.js";
+import { FORMS_FILE, type RunJson } from "../model.js";
 import { readTranscriptJson } from "../transcripts/write.js";
 import { pageDir } from "./paths.js";
 
@@ -29,10 +30,16 @@ export async function withCurrentFlags(
   for (const page of copy.pages) {
     if (page.status !== "done") continue;
     const passes: PagePasses = {};
-    for (const pass of ["read", "headings", "tab"] as const) {
+    for (const pass of ["read", "headings", "tab", "forms"] as const) {
       const file = path.join(pageDir(outDir, run.id, page.slug), `${pass}.json`);
       if (existsSync(file)) passes[pass] = await readTranscriptJson(file);
     }
+    const formsFile = path.join(pageDir(outDir, run.id, page.slug), FORMS_FILE);
+    const forms =
+      passes.forms && existsSync(formsFile)
+        ? readFormsResults(readFileSync(formsFile, "utf8"))
+        : null;
+    if (passes.forms && forms) passes.forms = { ...passes.forms, forms };
     page.flags = evaluateFlags(passes, rules);
   }
   return copy;
