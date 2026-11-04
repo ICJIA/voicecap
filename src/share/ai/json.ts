@@ -57,7 +57,8 @@ import {
   type AxeViewRule,
 } from "../axe-view.js";
 import type { DiffLine, PageChange } from "../changes.js";
-import { pagePath } from "../format.js";
+import { names, pagePath } from "../format.js";
+import { bannerLine, formFoldWords, glanceBannerOf, type CardForm } from "../forms-view.js";
 import { lineText } from "../line.js";
 import type { NoLongerListed, PageCard, RunEvidence, ShareModel } from "../model.js";
 import type { Problem, ProblemKind } from "../problems.js";
@@ -95,6 +96,42 @@ import { asSentence, resultOf, stepsOf, type Step } from "./shared.js";
  */
 export interface AiNotRecorded {
   notRecorded: string;
+}
+
+/** A form's banner, as the page says it: the sign it carries, its headline, and the line under it. */
+export interface AiFormBanner {
+  kind: "works" | "needs-work" | "cant-complete" | "not-checked";
+  /** The sign and the headline as a copy with no style says them: "✓ This form works with NVDA." */
+  line: string;
+  headline: string;
+  detail: string;
+}
+
+/** One form of a page: its banner first, the flags that decided it, and what happened at it. */
+export interface AiForm {
+  /** "Form 1", and, when its submit control has a name, "sends with ...". */
+  name: string;
+  banner: AiFormBanner;
+  /** The form's flags no review settled, with the WCAG criteria each may relate to. */
+  flags: { rule: string; message: string; wcag: string[] }[];
+  /** Each required field, and what NVDA said at it on the first walk; null when it said nothing. */
+  requiredFields: { name: string; said: string | null }[];
+  /** Each press of the submit control: what NVDA said, and what the press did. */
+  presses: { said: string; did: string }[];
+  /** What axe found with the form's errors showing, in a sentence. */
+  axe: string;
+}
+
+/** At a glance's count of the forms, once a run has the forms pass. */
+export interface AiFormsGlance {
+  found: number;
+  working: number;
+  /** The forms the pass did not check. */
+  notChecked: number;
+  /** The banner At a glance gives; null when the pass checked no form. */
+  banner: AiFormBanner | null;
+  /** The pages with a form that does not work with NVDA yet. */
+  pagesToFix: string[];
 }
 
 /** A label and what a run recorded for it, as a row of the run's evidence. */
@@ -347,6 +384,11 @@ export interface AiPage {
   flags: AiFlag[];
   /** Where the flags are not the plain list: that nothing was read, none were raised, or they are as the run recorded them. */
   flagsNote: string | null;
+  /**
+   * Each form on the page, banner first, when its run took the forms pass. There only for such a
+   * page: a page with no forms record has no such key.
+   */
+  forms?: AiNotRecorded | AiForm[];
   /** What axe found; null for a card that says nothing of axe. */
   axe: AiNotRecorded | AiAxeResults | null;
   /** The person's review as far as the records show it. Nothing for a page with none. */
@@ -502,6 +544,11 @@ export interface AiReport {
     method: string;
   };
   counts: AiCounts;
+  /**
+   * What At a glance says of the forms. There only for a run that took the forms pass and found a form; any
+   * other run has no such key.
+   */
+  forms?: AiFormsGlance;
   attention: AiCard[];
   pages: AiPage[];
   noLongerListed: AiGone[];
@@ -710,6 +757,56 @@ function ruleOf(rule: AxeViewRule): AiAxeRule {
   };
 }
 
+// What the forms pass found.
+
+const bannerOf = (banner: CardForm["banner"]): AiFormBanner => ({
+  kind: banner.kind,
+  line: bannerLine(banner),
+  headline: banner.headline,
+  detail: banner.detail,
+});
+
+/** A form, in the words of its card: its banner and flags, then the fold's fields, presses, and axe. */
+function formOf(form: CardForm): AiForm {
+  const words = formFoldWords(form);
+  return {
+    name: form.label,
+    banner: bannerOf(form.banner),
+    flags: form.flagsLeft.map((flag) => ({
+      rule: flag.rule,
+      message: flag.message,
+      wcag: [...wcagOf(flag.rule)],
+    })),
+    requiredFields: form.fields.map((field) => ({ name: field.name, said: field.heard })),
+    presses: form.presses.map((press) => ({ said: press.spoken, did: press.did })),
+    axe: words.axe,
+  };
+}
+
+/** A page's forms, when its card says anything of them. Nothing (no key) for a card that does not. */
+function formsOfCard({ forms }: PageCard): { forms?: AiPage["forms"] } {
+  if (forms === undefined) return {};
+  if ("notRecorded" in forms)
+    return { forms: { notRecorded: notRecordedLine(ownWords(forms.notRecorded)) } };
+  return forms.forms.length === 0 ? {} : { forms: forms.forms.map(formOf) };
+}
+
+/** At a glance's forms, when its run took the pass (or the line that a run before it did not). */
+function formsOfModel({ forms }: ShareModel): { forms?: AiReport["forms"] } {
+  if (forms === null) return {};
+  if ("notRecorded" in forms || forms.found + forms.notChecked === 0) return {};
+  const banner = glanceBannerOf(forms, names);
+  return {
+    forms: {
+      found: forms.found,
+      working: forms.working,
+      notChecked: forms.notChecked,
+      banner: banner === null ? null : bannerOf(banner),
+      pagesToFix: [...forms.broken],
+    },
+  };
+}
+
 /**
  * What axe found on a page: its results as its file keeps them, with the counts the page's fold
  * gives; or the card's reason there are none, so a gap never reads as a pass. None for a card that
@@ -770,6 +867,7 @@ function pageOf(
       wcag: [...wcagOf(flag.rule)],
     })),
     flagsNote: flagsNoteOf(card),
+    ...formsOfCard(card),
     axe: axeOf(card),
     review: [...card.reviewChips, ...card.manual.map(manualLine)],
     transcriptsFrom: originOf(card, transcripts, latest),
@@ -954,6 +1052,7 @@ export function aiReportOf(model: ShareModel): AiReport {
     verdict: verdictOfModel(model),
     summary: { sentence: summary.sentence, method: summary.second },
     counts: countsOf(model),
+    ...formsOfModel(model),
     attention: model.attention.map((card, at) => cardOf(card, at + 1, numbers)),
     pages: model.pages.map((card, at) => pageOf(card, at + 1, transcripts.get(card.slug), latest)),
     noLongerListed: model.noLongerListed.map(goneOf),

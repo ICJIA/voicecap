@@ -1123,6 +1123,69 @@ describe("the voice page's transcripts beside each recording", () => {
     expect(section).not.toContain(VOICE_TEXT.follow.outlined);
   });
 
+  describe("the forms pass", () => {
+    const FORMS_LINES = ["Name, edit, required", "Send, button"];
+    const withForms = (stretches: { startMs: number; endMs: number }[]): RunJson =>
+      shareRun({
+        id: RUN,
+        createdAt: "2026-10-30T14:02:51-05:00",
+        voicecapVersion: "0.25.0",
+        pages: [
+          read(
+            "/",
+            { ...speech.record, stretches },
+            {
+              files: [...TRANSCRIPTS, "forms.txt"],
+              passes: { ...LINES, forms: FORMS_LINES },
+            },
+          ),
+        ],
+      });
+    const sectionFor = (run: RunJson): string => {
+      const model = buildShareModel(
+        inputOf([run], {
+          transcripts: storeOf(() => ({ ...LINES, forms: FORMS_LINES })),
+          recordings: recordingsOf([run]),
+          fileName: PAGE,
+          wordName: WORD,
+          voiceName: VOICE_PAGE,
+        }),
+      );
+      return sectionOf(pageOf(model, recordingsOf([run])), model.pages[0]?.slug ?? "");
+    };
+    const base = [
+      { startMs: 100, endMs: 100 + 3500 + 4 * 1200 },
+      { startMs: 9000, endMs: 9000 + 3500 + 2 * 1200 },
+      { startMs: 15500, endMs: 15500 + 3500 + 2 * 1200 },
+    ];
+
+    it("times the forms pass's lines from its own stretch, as the other passes' are", () => {
+      const section = sectionFor(
+        withForms([...base, { startMs: 22000, endMs: 22000 + 3500 + 2 * 1200 }]),
+      );
+      const lines = timedLines(section);
+      expect(lines).toHaveLength(10);
+      expect(lines.slice(8)).toEqual([
+        [27900 - 2400, 27900 - 2400 + 1200, FORMS_LINES[0]],
+        [27900 - 2400 + 1200, 27900, FORMS_LINES[1]],
+      ]);
+    });
+
+    it("keeps the other passes timed when the forms pass has a stretch for each form, and times no forms line", () => {
+      const section = sectionFor(
+        withForms([...base, { startMs: 22000, endMs: 28000 }, { startMs: 30000, endMs: 36000 }]),
+      );
+      const lines = timedLines(section);
+      expect(lines).toHaveLength(8);
+      expect(lines.some(([, , words]) => FORMS_LINES.includes(words ?? ""))).toBe(false);
+      expect(section).toContain(FORMS_LINES[0]);
+    });
+
+    it("times nothing when the stretches are fewer than the passes", () => {
+      expect(timedLines(sectionFor(withForms(base)))).toEqual([]);
+    });
+  });
+
   it("has no transcripts for a page never read in full, and its recording alone", () => {
     const run = shareRun({
       id: RUN,

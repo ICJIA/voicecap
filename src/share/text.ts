@@ -388,8 +388,18 @@ export const FORMS_TEXT = {
     reason === ""
       ? "Not shown: the forms pass couldn't keep its results."
       : `Not shown: the forms pass couldn't keep its results (${reason}).`,
+  /** The sign a banner has in a copy that cannot draw one (the Word copy), repeating its words. */
+  signs: {
+    works: "✓",
+    "needs-work": "⚠",
+    "cant-complete": "⚠",
+    "not-checked": "–",
+  } satisfies Record<"works" | "needs-work" | "cant-complete" | "not-checked", string>,
   /** At a glance. */
   glance: {
+    /** The website card, and nowhere a problem: a site whose pages have no form, or only forms not checked. */
+    noForms: "No forms on these pages",
+    noneChecked: "No forms checked",
     all: (found: number): string =>
       `All ${found} ${found === 1 ? "form works" : "forms work"} with NVDA`,
     some: (working: number, found: number): string => `${working} of ${found} forms work with NVDA`,

@@ -173,3 +173,86 @@ export function formsGlanceOf(
   }
   return { found, working, notChecked, broken };
 }
+
+/**
+ * At a glance's banner on the forms, in the words every copy of the report uses: "All 4 forms work
+ * with NVDA" (works), or "3 of 4 forms work with NVDA" (needs-work) with the pages of those that
+ * don't named in its line. Null when the pass checked no form, since there is nothing to count.
+ * `names` joins the pages' names as the copy says them.
+ */
+export function glanceBannerOf(
+  forms: Pick<FormsGlance, "found" | "working" | "broken">,
+  names: (pages: string[]) => string,
+): FormBanner | null {
+  if (forms.found === 0) return null;
+  const all = forms.working === forms.found;
+  return {
+    kind: all ? "works" : "needs-work",
+    headline: all
+      ? FORMS_TEXT.glance.all(forms.found)
+      : FORMS_TEXT.glance.some(forms.working, forms.found),
+    detail: all ? "" : FORMS_TEXT.glance.which(names(forms.broken)),
+  };
+}
+
+/**
+ * The line a site's card on the website gives from a share's recorded count of its forms
+ * (`ShareResult.forms`): the same words as At a glance for forms that were checked, and, where there
+ * were none, plain words that are not a problem. `kind` is the verdict's class for a line that has a
+ * sign (ok, warn); "plain" is a line with none.
+ */
+export function formsResultLine(forms: { found: number; working: number; notChecked: number }): {
+  kind: "ok" | "warn" | "plain";
+  words: string;
+} {
+  if (forms.found === 0) {
+    return {
+      kind: "plain",
+      words: forms.notChecked === 0 ? FORMS_TEXT.glance.noForms : FORMS_TEXT.glance.noneChecked,
+    };
+  }
+  return forms.working === forms.found
+    ? { kind: "ok", words: FORMS_TEXT.glance.all(forms.found) }
+    : { kind: "warn", words: FORMS_TEXT.glance.some(forms.working, forms.found) };
+}
+
+/**
+ * A banner as a copy with no style says it: its sign, then its headline, so the sign repeats the
+ * words and carries nothing they don't ("✓ This form works with NVDA.").
+ */
+export const bannerLine = (banner: FormBanner): string =>
+  `${FORMS_TEXT.signs[banner.kind]} ${banner.headline}`;
+
+/**
+ * A form's "What happened at the form" as words, for the copies that cannot fold it (the Word copy
+ * and the files for AI tools): what the fold's lists say, in its order and words. A form with no
+ * required field, or no press, has the line that says so in place of the list.
+ */
+export interface FormFoldWords {
+  label: string;
+  /** The line over the required fields, or the line that there are none (then `fields` is empty). */
+  fieldsHead: string;
+  fields: { name: string; said: string }[];
+  /** The line over the presses, or the line that none was made (then `presses` is empty). */
+  pressesHead: string;
+  /** Each press: what NVDA said, and what the press did. */
+  presses: string[];
+  axe: string;
+}
+
+export function formFoldWords(form: CardForm): FormFoldWords {
+  return {
+    label: form.label,
+    fieldsHead: form.fields.length === 0 ? FORMS_TEXT.noRequired : FORMS_TEXT.fields,
+    fields: form.fields.map((field) => ({
+      name: field.name,
+      said: field.heard === null ? FORMS_TEXT.notHeard : FORMS_TEXT.said(field.heard),
+    })),
+    pressesHead: form.presses.length === 0 ? FORMS_TEXT.noPresses : FORMS_TEXT.presses,
+    presses: form.presses.map(
+      (press) =>
+        `${press.spoken === "" ? FORMS_TEXT.saidNothing : FORMS_TEXT.said(press.spoken)} ${press.did}`,
+    ),
+    axe: form.axe,
+  };
+}

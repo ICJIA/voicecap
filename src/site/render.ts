@@ -46,6 +46,7 @@ import { esc } from "../report/html.js";
 import { folderSafe } from "../run/paths.js";
 import { markdownInline } from "../share/ai/escape.js";
 import { count as countWords, longDate, sizeWords } from "../share/format.js";
+import { formsResultLine } from "../share/forms-view.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf, type VerdictKind } from "../share/verdict.js";
 import type { VoicecapFacts, VoicecapRelease } from "./facts.js";
@@ -258,6 +259,23 @@ function verdict(result: ShareResult | undefined): string[] {
   ];
 }
 
+/**
+ * The line on a report's forms, under its verdict, from the count its share recorded (from the
+ * forms pass): At a glance's own words, "All 4 forms work with NVDA" in green or "3 of 4 forms work
+ * with NVDA" in amber, as a pill like the verdict, whose sign only repeats the words; or, for a site
+ * with no form, or none checked, plain words that are not a problem. Nothing for a share that
+ * records no count (one from before the pass, or of a run that did not take it).
+ */
+function formsLine(result: ShareResult | undefined): string[] {
+  if (result?.forms === undefined) return [];
+  const { kind, words } = formsResultLine(result.forms);
+  return [
+    kind === "plain"
+      ? `<p class="forms-note">${esc(words)}</p>`
+      : `<p class="verdict ${kind} forms-line">${esc(words)}</p>`,
+  ];
+}
+
 /** A report's file of this kind, its page or its Word copy, say, when it's published. */
 function fileOf(shared: PublishedReport, kind: PublishedFile["kind"]): PublishedFile | undefined {
   return shared.files.find((file) => file.kind === kind);
@@ -358,7 +376,7 @@ function capturedTile(shared: PublishedReport): string[] {
  * the site (see capturedTile). Nothing for a report with neither.
  */
 function result(shared: PublishedReport): string[] {
-  const said = verdict(shared.result);
+  const said = [...verdict(shared.result), ...formsLine(shared.result)];
   const day = capturedTile(shared);
   if (said.length === 0 && day.length === 0) return [];
   const outcome = said.length === 0 ? "" : `<div class="outcome">${said.join("")}</div>`;

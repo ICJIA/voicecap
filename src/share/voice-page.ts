@@ -282,7 +282,10 @@ function facts(record: KeptVoice): string {
  * as the pass ends, so the pass began at its stretch's end less its length, its last line's end (see
  * AppendixFile's `timing`). Nothing for a pass whose stretch or length isn't known, or whose start
  * would fall before its stretch's, and nothing at all when the passes and the stretches aren't as
- * many, so no line is ever outlined at another's time.
+ * many, so no line is ever outlined at another's time. The forms pass opens the page again for every
+ * form after its first, and each load is a stretch of its own: a page with the forms pass has one
+ * stretch for each pass before it and one or more for the forms pass, which gets a start only when it
+ * has the one (a second form's lines are not at a time its first stretch can give).
  */
 function passStarts(
   page: PageRecord,
@@ -292,8 +295,11 @@ function passStarts(
   const starts = new Map<PassName, number>();
   const passes = PASS_NAMES.filter((pass) => page.passes[pass] !== undefined);
   const stretches = Array.isArray(record.stretches) ? record.stretches : [];
-  if (passes.length !== stretches.length) return starts;
+  const formsLast = passes.at(-1) === "forms";
+  const fits = formsLast ? stretches.length >= passes.length : stretches.length === passes.length;
+  if (!fits) return starts;
   passes.forEach((pass, index) => {
+    if (pass === "forms" && stretches.length !== passes.length) return;
     const stretch = stretches[index];
     const length = files.find((file) => file.pass === pass)?.timing?.at(-1)?.toMs;
     if (stretch === undefined || length === undefined) return;

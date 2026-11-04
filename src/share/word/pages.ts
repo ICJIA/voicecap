@@ -40,9 +40,18 @@ import {
 } from "../axe-view.js";
 import { jpegOfAddress } from "../cards.js";
 import { count } from "../format.js";
+import { bannerLine, formFoldWords } from "../forms-view.js";
 import type { Inline, Line } from "../line.js";
 import type { AppendixFile, NoLongerListed, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, passTitle, VOICE_TEXT, WORD_TEXT } from "../text.js";
+import {
+  APPENDIX_TEXT,
+  AXE_TEXT,
+  FORMS_TEXT,
+  PAGES_TEXT,
+  passTitle,
+  VOICE_TEXT,
+  WORD_TEXT,
+} from "../text.js";
 import {
   axeFingerprint,
   capturedOf,
@@ -181,6 +190,58 @@ function statusLine(card: PageCard): Line {
 function heardFirstBlocks({ heardFirst }: PageCard): Block[] {
   if (heardFirst.length === 0) return [];
   return [para({ text: PAGES_TEXT.heardFirst, bold: true }), list(heardFirst.map(heardFirstLine))];
+}
+
+// What the forms pass found.
+
+/**
+ * Each form's banner, first among what a card says of its forms: the form's name when the page has
+ * more than one (or the form has a submit name), then its sign and headline in bold, then its line,
+ * and what axe found with its errors showing. The words are the page's (src/forms/banner.ts decides
+ * them); the sign is a character here, as the verdict's is, since a document has no style to draw it.
+ * A card whose results are not shown, or has no forms, has none.
+ */
+function formsBannerBlocks({ forms }: PageCard): Block[] {
+  if (forms === undefined || !("forms" in forms)) return [];
+  const many = forms.forms.length > 1;
+  return forms.forms.flatMap((form) => [
+    ...(many || form.label.includes(",") ? [leadIn(form.label)] : []),
+    leadIn({ text: bannerLine(form.banner), bold: true }),
+    ...(form.banner.detail === "" ? [] : [leadIn(form.banner.detail)]),
+    para(form.axe),
+  ]);
+}
+
+/**
+ * "What happened at the form", as the card's fold has it, unfolded and before what axe found on the
+ * page: for each form its name, each required field with what NVDA said at it, each press of the
+ * submit control and what it did, and what axe found with the form's errors showing. A card whose
+ * results cannot be shown says so under the label, in the card's words; a card with no forms has none.
+ */
+function formsBlocks({ forms }: PageCard): Block[] {
+  if (forms === undefined) return [];
+  const label = leadIn({ text: FORMS_TEXT.fold, bold: true });
+  if ("notRecorded" in forms) return [label, para(notRecordedLine(forms.notRecorded))];
+  if (forms.forms.length === 0) return [];
+  return [
+    label,
+    ...forms.forms.flatMap((form) => {
+      const words = formFoldWords(form);
+      return [
+        leadIn({ text: words.label, bold: true }),
+        ...(words.fields.length === 0
+          ? [para(words.fieldsHead)]
+          : [
+              leadIn(words.fieldsHead),
+              list(words.fields.map(({ name, said }) => [{ text: name, bold: true }, `: ${said}`])),
+            ]),
+        ...(words.presses.length === 0
+          ? [para(words.pressesHead)]
+          : [leadIn(words.pressesHead), list(words.presses)]),
+        para(words.axe),
+      ];
+    }),
+  ];
 }
 
 // What axe found.
@@ -404,7 +465,9 @@ function pageBlocks(
     ...(picture === null ? [] : [image(picture)]),
     ...voiceBlocks(card, voiceName),
     para(...statusLine(card)),
+    ...formsBannerBlocks(card),
     ...heardFirstBlocks(card),
+    ...formsBlocks(card),
     ...axeBlocks(card),
     ...(transcripts === undefined ? [] : transcriptsBlocks(card, transcripts, latest)),
   ];

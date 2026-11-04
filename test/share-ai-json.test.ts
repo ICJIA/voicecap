@@ -3248,6 +3248,9 @@ describe("the package's entry", () => {
       // Every page.
       Api.AiPage | null,
       Api.AiFlag | null,
+      Api.AiForm | null,
+      Api.AiFormBanner | null,
+      Api.AiFormsGlance | null,
       Api.AiAxeResults | null,
       Api.AiAxeRule | null,
       Api.AiAxeElement | null,
@@ -3263,9 +3266,9 @@ describe("the package's entry", () => {
       Api.AiRow | null,
       Api.AiProblem | null,
       Api.AiFingerprint | null,
-    ] = Array.from({ length: 26 }, () => null) as never;
+    ] = Array.from({ length: 29 }, () => null) as never;
 
-    expect(types).toHaveLength(26);
+    expect(types).toHaveLength(29);
   });
 
   /**
@@ -3294,8 +3297,8 @@ describe("the package's entry", () => {
       ([, name]) => name ?? "",
     );
 
-    // The file's shape is 25 types, and the entry's list names each, and its step too.
-    expect(types).toHaveLength(25);
+    // The file's shape is 28 types, and the entry's list names each, and its step too.
+    expect(types).toHaveLength(28);
     const exported = exportedFrom(entry, "./share/ai/json.js");
     for (const name of types) expect(exported, name).toContain(name);
     expect(exportedFrom(entry, "./share/ai/shared.js")).toEqual(["Step as AiStep"]);

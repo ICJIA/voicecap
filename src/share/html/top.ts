@@ -21,13 +21,13 @@
 import { esc } from "../../report/html.js";
 import { formatDuration } from "../../util/time.js";
 import { names } from "../format.js";
+import { glanceBannerOf } from "../forms-view.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
   ATTENTION_TEXT,
   AXE_TEXT,
   DETAILS_TEXT,
-  FORMS_TEXT,
   GLANCE_TEXT,
   HOW_STEPS,
   HOW_TEXT,
@@ -185,15 +185,8 @@ function formsLine(model: ShareModel): string[] {
   if ("notRecorded" in forms) {
     return [notRecorded(forms.notRecorded)];
   }
-  if (forms.found === 0) return [];
-  const all = forms.working === forms.found;
-  const banner = {
-    kind: all ? ("works" as const) : ("needs-work" as const),
-    headline: all
-      ? FORMS_TEXT.glance.all(forms.found)
-      : FORMS_TEXT.glance.some(forms.working, forms.found),
-    detail: all ? "" : FORMS_TEXT.glance.which(names(forms.broken)),
-  };
+  const banner = glanceBannerOf(forms, names);
+  if (banner === null) return [];
   return [formBannerHtml(banner)];
 }
 

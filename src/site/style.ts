@@ -297,6 +297,8 @@ tbody tr:last-child > * { border-bottom: 0; }
 .site .outcome { background: var(--site-tile); }
 .outcome > .verdict { font-size: 1.375rem; letter-spacing: 0.02em; padding: 8px 16px; border-radius: 10px; }
 .outcome > .reading > p { font-size: 1.0625rem; }
+.outcome > .verdict.forms-line { font-size: 1.0625rem; letter-spacing: 0.01em; padding: 5px 12px; border-radius: 8px; }
+.outcome > .forms-note { margin: 0; color: var(--muted); font-size: 1.0625rem; }
 .site .glance-tile:not(a), .site .files li, .site > details.fold { background: var(--site-tile); }
 .site .glance-tile { padding: 18px 20px; border-radius: 14px; }
 .site .glance-label > .icon { width: 1.375rem; height: 1.375rem; }

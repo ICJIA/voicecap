@@ -16,10 +16,15 @@ import type { FlagResult, FormsRecord, ReviewsFile, RunJson } from "../src/model
 import { CHECK_LIBRARY } from "../src/share/check.js";
 import { renderSharePage } from "../src/share/html/document.js";
 import { SHARE_CSS } from "../src/share/html/style.js";
+import { renderAiJson } from "../src/share/ai/json.js";
+import { renderAiMarkdown } from "../src/share/ai/markdown.js";
 import { renderGlance } from "../src/share/html/top.js";
 import { renderPages } from "../src/share/html/pages.js";
 import { shareResultOf } from "../src/share/shares.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
+import { wordsOf } from "../src/share/word/blocks.js";
+import { wordPages } from "../src/share/word/pages.js";
+import { wordGlance } from "../src/share/word/top.js";
 import { fileHash } from "../src/transcripts/write.js";
 import { launchBrowser, violations } from "./helpers/axe.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
@@ -498,6 +503,168 @@ describe("the fingerprint check's library", () => {
     });
     expect(changed.forms.map((each) => each.ok)).toEqual([false]);
     expect(changed.line).toContain("forms-result.json doesn't match its fingerprint.");
+  });
+});
+
+describe("the Word copy", () => {
+  const wordOf = (model: ShareModel): string[] => [
+    ...wordsOf(wordGlance(model)),
+    ...wordsOf(wordPages(model)),
+  ];
+
+  it("writes At a glance's line, with its sign and the pages that need work", () => {
+    const { model } = build([
+      { path: "/a/", forms: [completed()] },
+      { path: "/c/", forms: [stuck()] },
+    ]);
+    const glance = wordsOf(wordGlance(model));
+    expect(glance).toContain("⚠ 1 of 2 forms work with NVDA");
+    expect(glance.some((line) => line.includes("/c/") && line.includes("don't work"))).toBe(true);
+    const all = build([{ path: "/a/", forms: [completed()] }]);
+    expect(wordsOf(wordGlance(all.model))).toContain("✓ All 1 form works with NVDA");
+  });
+
+  it("writes each form's banner first on its page, with its sign, then what happened at the form", () => {
+    const { model } = build([{ path: "/a/", forms: [completed(), stuck()] }]);
+    const lines = wordOf(model);
+    const at = (words: string): number => lines.findIndex((line) => line === words);
+    expect(at("✓ This form works with NVDA.")).toBeGreaterThan(-1);
+    expect(at("⚠ This form can't be completed with NVDA.")).toBeGreaterThan(-1);
+    expect(lines).toContain('Form 1, sends with "Send"');
+    expect(lines).toContain("It stopped at Date of birth.");
+    // The banner is before the first lines NVDA said, and the fold after them.
+    const first = lines.findIndex((line) => line.startsWith("Heard first"));
+    expect(at("✓ This form works with NVDA.")).toBeLessThan(first === -1 ? Infinity : first);
+    const fold = at("What happened at the form");
+    expect(fold).toBeGreaterThan(at("✓ This form works with NVDA."));
+    expect(lines).toContain("Name: NVDA said: Name, edit, required");
+    expect(lines).toContain("Required fields, and what NVDA said at each");
+    expect(lines).toContain("Each press of the submit control");
+    expect(lines).toContain(
+      "NVDA said: Name is required The page showed an error: Name is required",
+    );
+    expect(lines).toContain("axe with its errors showing: not checked");
+  });
+
+  it("writes nothing of forms for a run with no forms pass", () => {
+    const { model } = build([{ path: "/plain/" }], { passes: ["read", "headings", "tab"] });
+    const lines = wordOf(model).join("\n");
+    expect(lines).not.toMatch(/This form|What happened at the form|forms work/);
+  });
+
+  it("says nothing of forms for a run from before the pass, so its copy is as it was", () => {
+    const { model } = build([{ path: "/old/" }], {
+      passes: ["read", "headings", "tab"],
+      version: "0.12.0",
+    });
+    expect(wordOf(model).join(" ")).not.toMatch(/This form|What happened at the form|forms work/);
+  });
+});
+
+describe("the files for AI tools", () => {
+  const FLAGGED: FormOutcome = silent();
+
+  it("carry each banner, with its sign and the flags that decided it, in the Markdown", () => {
+    const { model } = build([{ path: "/a/", forms: [FLAGGED, stuck()] }]);
+    const md = renderAiMarkdown(model);
+    expect(md).toContain("**⚠ This form needs work with NVDA.**");
+    expect(md).toContain("**⚠ This form can't be completed with NVDA.**");
+    expect(md).toContain("form-error-silent (WCAG 3.3.1 and 4.1.3)");
+  });
+
+  it("carry the fold's content in the Markdown, under its heading", () => {
+    const { model } = build([{ path: "/a/", forms: [completed()] }]);
+    const md = renderAiMarkdown(model);
+    expect(md).toContain("#### What happened at the form");
+    expect(md).toContain("Required fields, and what NVDA said at each");
+    expect(md).toContain("NVDA said: Name, edit, required");
+    expect(md).toContain(
+      "1. NVDA said: Name is required The page showed an error: Name is required",
+    );
+    expect(md).toContain("axe with its errors showing: not checked");
+  });
+
+  it("carry At a glance's line in the Markdown", () => {
+    const { model } = build([
+      { path: "/a/", forms: [completed()] },
+      { path: "/c/", forms: [stuck()] },
+    ]);
+    const md = renderAiMarkdown(model);
+    expect(md).toContain("**⚠ 1 of 2 forms work with NVDA**");
+    expect(md.indexOf("1 of 2 forms work with NVDA")).toBeLessThan(md.indexOf("## Every page"));
+  });
+
+  it("carry the banners, the fold, and each flag's WCAG list in the JSON", () => {
+    const { model } = build([
+      { path: "/a/", forms: [FLAGGED] },
+      { path: "/b/", forms: [stuck()] },
+    ]);
+    const report = JSON.parse(renderAiJson(model)) as {
+      forms: {
+        found: number;
+        working: number;
+        notChecked: number;
+        banner: { line: string };
+        pagesToFix: string[];
+      };
+      pages: {
+        forms: {
+          name: string;
+          banner: { kind: string; line: string; headline: string; detail: string };
+          flags: { rule: string; wcag: string[] }[];
+          requiredFields: { name: string; said: string | null }[];
+          presses: { said: string; did: string }[];
+          axe: string;
+        }[];
+      }[];
+    };
+    expect(report.forms).toMatchObject({ found: 2, working: 0, notChecked: 0 });
+    expect(report.forms.banner.line).toBe("⚠ 0 of 2 forms work with NVDA");
+    expect(report.forms.pagesToFix.map((page) => new URL(page).pathname)).toEqual(["/a/", "/b/"]);
+    const [a, b] = report.pages;
+    expect(a?.forms[0]).toMatchObject({
+      name: 'Form 1, sends with "Send"',
+      banner: { kind: "needs-work", headline: "This form needs work with NVDA." },
+    });
+    expect(a?.forms[0]?.flags[0]).toMatchObject({
+      rule: "form-error-silent",
+      wcag: ["3.3.1", "4.1.3"],
+    });
+    expect(a?.forms[0]?.requiredFields).toEqual([
+      { name: "Name", said: "Name, edit, required" },
+      { name: "Email", said: "Email, edit, required" },
+    ]);
+    expect(a?.forms[0]?.presses).toHaveLength(2);
+    expect(a?.forms[0]?.axe).toBe("axe with its errors showing: not checked");
+    expect(b?.forms[0]?.banner.kind).toBe("cant-complete");
+  });
+
+  it("change nothing for a run with no forms pass: no forms key, no forms words", () => {
+    const { model } = build([{ path: "/plain/" }], { passes: ["read", "headings", "tab"] });
+    const report = JSON.parse(renderAiJson(model)) as {
+      forms?: unknown;
+      pages: { forms?: unknown }[];
+    };
+    expect("forms" in report).toBe(false);
+    expect("forms" in (report.pages[0] ?? {})).toBe(false);
+    expect(renderAiMarkdown(model)).not.toMatch(/This form|What happened at the form|forms work/);
+  });
+
+  it("say nothing of forms for a run from before the pass, or one that found no form", () => {
+    for (const made of [
+      build([{ path: "/old/" }], { passes: ["read", "headings", "tab"], version: "0.12.0" }),
+      build([{ path: "/plain/" }]),
+    ]) {
+      const report = JSON.parse(renderAiJson(made.model)) as {
+        forms?: unknown;
+        pages: { forms?: unknown }[];
+      };
+      expect("forms" in report).toBe(false);
+      expect("forms" in (report.pages[0] ?? {})).toBe(false);
+      expect(renderAiMarkdown(made.model)).not.toMatch(
+        /This form|What happened at the form|forms work/,
+      );
+    }
   });
 });
 
