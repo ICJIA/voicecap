@@ -6,6 +6,7 @@
  * once, for good: a page has no way to reach this code, and nothing here can open it again.
  */
 import dgram from "node:dgram";
+import dns, { type LookupAddress, type LookupOptions } from "node:dns";
 import { createServer, request as httpRequest, type IncomingMessage } from "node:http";
 import net, { type AddressInfo, type Socket } from "node:net";
 
@@ -20,9 +21,49 @@ export function isLoopback(address: string | undefined): boolean {
   return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
 }
 
+/**
+ * The addresses of this computer and of private networks: loopback, link-local (a cloud's metadata
+ * service among them), private, shared (carrier-grade NAT), and "this network", in IPv4 and IPv6,
+ * and an IPv4 address written as IPv6.
+ */
+const LOCAL = new net.BlockList();
+for (const [address, prefix] of [
+  ["0.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],
+  ["172.16.0.0", 12],
+  ["192.168.0.0", 16],
+] as const) {
+  LOCAL.addSubnet(address, prefix, "ipv4");
+}
+LOCAL.addAddress("::", "ipv6");
+LOCAL.addAddress("::1", "ipv6");
+LOCAL.addSubnet("fe80::", 10, "ipv6");
+LOCAL.addSubnet("fc00::", 7, "ipv6");
+
+/** Whether an address is this computer's or a private network's (see LOCAL). A name is neither. */
+export function isLocalAddress(address: string): boolean {
+  const bare = address.replace(/^\[|\]$/g, "");
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(bare)?.[1];
+  if (mapped !== undefined) return LOCAL.check(mapped, "ipv4");
+  const family = net.isIP(bare);
+  if (family === 4) return LOCAL.check(bare, "ipv4");
+  if (family === 6) return LOCAL.check(bare, "ipv6");
+  return false;
+}
+
 export interface FormGate {
   /** The port it listens on, on 127.0.0.1. */
   readonly port: number;
+  /**
+   * The host of the page the browser is about to load. The gate carries nothing to this computer or
+   * a private network (isLocalAddress), by its address or by a name that leads there, unless the
+   * page's own host is there too (the fixture, on 127.0.0.1, or a site on a private network): a
+   * page can't use the gate to reach what it couldn't reach from the browser itself.
+   */
+  servePage(hostname: string): void;
   /** Refuse everything from now on, and cut what's open. There's no opening it again. */
   shut(): void;
   /** Whether it's carried a request for this host name: that the browser really goes through it. */
@@ -76,10 +117,54 @@ export async function openFormGate(): Promise<FormGate> {
     if (shut) socket.destroy();
   };
 
+  // The page's host, and whether it's on this computer or a private network, once its address is
+  // known: until then, and for a page elsewhere, nothing local is carried.
+  let pageHost: string | null = null;
+  let localAllowed = false;
+  const bare = (hostname: string) => hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  /** Whether a host may be reached at this address. */
+  const mayReach = (hostname: string, address: string): boolean => {
+    if (!isLocalAddress(address)) return true;
+    if (pageHost !== null && bare(hostname) === pageHost) localAllowed = true;
+    return localAllowed;
+  };
+  /** A name's lookup, refused when it leads to an address the gate doesn't carry. */
+  const lookupFor =
+    (hostname: string) =>
+    (
+      name: string,
+      options: LookupOptions,
+      callback: (
+        error: NodeJS.ErrnoException | null,
+        address: string | LookupAddress[],
+        family?: number,
+      ) => void,
+    ) => {
+      dns.lookup(name, { ...options, all: true }, (error, addresses) => {
+        if (error) {
+          callback(error, options.all ? [] : "");
+          return;
+        }
+        if (addresses.some((one) => !mayReach(hostname, one.address))) {
+          callback(Object.assign(new Error(`${name} isn't carried`), { code: "EACCES" }), "");
+          return;
+        }
+        if (options.all) callback(null, addresses);
+        else callback(null, addresses[0]?.address ?? "", addresses[0]?.family);
+      });
+    };
+  /** A literal address the gate doesn't carry (a name is looked up when it connects). */
+  const refusedLiteral = (hostname: string) =>
+    net.isIP(bare(hostname)) !== 0 && !mayReach(hostname, bare(hostname));
+
   const server = createServer((request, response) => {
     const target = plainTarget(request);
     if (!target) {
       response.writeHead(400).end();
+      return;
+    }
+    if (refusedLiteral(target.hostname)) {
+      response.writeHead(403).end();
       return;
     }
     served.add(target.hostname);
@@ -94,6 +179,7 @@ export async function openFormGate(): Promise<FormGate> {
         method: request.method,
         headers,
         agent: false,
+        lookup: lookupFor(target.hostname),
       },
       (answer) => {
         response.writeHead(answer.statusCode ?? 502, answer.rawHeaders);
@@ -116,8 +202,16 @@ export async function openFormGate(): Promise<FormGate> {
       client.destroy();
       return;
     }
+    if (refusedLiteral(target.hostname)) {
+      client.end("HTTP/1.1 403 Forbidden\r\n\r\n");
+      return;
+    }
     served.add(target.hostname);
-    const upstream = net.connect(target.port, target.hostname.replace(/^\[|\]$/g, ""));
+    const upstream = net.connect({
+      port: target.port,
+      host: target.hostname.replace(/^\[|\]$/g, ""),
+      lookup: lookupFor(target.hostname),
+    });
     track(upstream);
     upstream.once("connect", () => {
       client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
@@ -146,6 +240,12 @@ export async function openFormGate(): Promise<FormGate> {
 
   return {
     port,
+    servePage: (hostname) => {
+      pageHost = bare(hostname);
+      // A page at a local address, or at localhost, is known to be here before it's loaded; a page
+      // at another name is once the name is looked up (mayReach).
+      localAllowed = isLocalAddress(pageHost) || pageHost === "localhost";
+    },
     shut: shutGate,
     hasServed: (hostname) => served.has(hostname),
     refuses: () => refusedAt(port),

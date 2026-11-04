@@ -19,6 +19,7 @@ import {
   type LaunchChromeOptions,
 } from "../src/drivers/guidepup/chrome.js";
 import {
+  isLocalAddress,
   isLoopback,
   listenForUdp,
   openFormGate,
@@ -389,12 +390,75 @@ describe("a form gate", () => {
 
   beforeEach(async () => {
     gate = await openFormGate();
+    // The counting server is on 127.0.0.1, as the fixture's pages are: a page of this computer's.
+    gate.servePage("127.0.0.1");
     server = await countingServer(() => "fetch");
     server.mark();
   });
   afterEach(async () => {
     await gate.close();
     await server.close();
+  });
+
+  describe("for a page whose host isn't this computer or a private network", () => {
+    let away: FormGate;
+    beforeEach(async () => {
+      away = await openFormGate();
+      away.servePage("example.illinois.gov");
+    });
+    afterEach(() => away.close());
+
+    it("carries nothing to this computer, by its address or by a name for it", async () => {
+      const port = new URL(server.url).port;
+      for (const target of [
+        `${server.url}by-address`,
+        `http://localhost:${port}/by-name`,
+        `http://[::1]:${port}/by-v6`,
+      ]) {
+        expect(await throughGate(away, target), target).not.toBe(200);
+      }
+      const tunnel = net.connect(away.port, "127.0.0.1");
+      tunnel.on("error", () => {});
+      tunnel.write(`CONNECT 127.0.0.1:${port} HTTP/1.1\r\n\r\n`);
+      const answer = await new Promise<string | null>((resolve) => {
+        tunnel.once("data", (data) => resolve(data.toString()));
+        tunnel.once("close", () => resolve(null));
+      });
+      tunnel.destroy();
+      expect(answer ?? "").not.toMatch(/^HTTP\/1\.1 200/);
+      await delay(STRAGGLER_MS);
+      expect(server.reaches()).toBe(0);
+    });
+
+    it("counts loopback, link-local, and private addresses as this computer's or a private network's", () => {
+      const local = [
+        "127.0.0.1",
+        "127.5.6.7",
+        "10.1.2.3",
+        "172.16.0.1",
+        "172.31.255.255",
+        "192.168.1.5",
+        "169.254.169.254",
+        "100.64.0.1",
+        "0.0.0.0",
+        "::1",
+        "::",
+        "fe80::1",
+        "fd12:3456::1",
+        "::ffff:10.0.0.1",
+        "::ffff:127.0.0.1",
+      ];
+      for (const address of local) expect(isLocalAddress(address), address).toBe(true);
+      for (const address of ["8.8.8.8", "172.32.0.1", "163.191.1.1", "2607:f8b0::1"]) {
+        expect(isLocalAddress(address), address).toBe(false);
+      }
+    });
+  });
+
+  it("carries a page of this computer's, and other names for this computer with it", async () => {
+    const port = new URL(server.url).port;
+    await expect(throughGate(gate, `http://localhost:${port}/other-name`)).resolves.toBe(200);
+    expect(server.paths()).toContain("/other-name");
   });
 
   it("serves only this computer", () => {

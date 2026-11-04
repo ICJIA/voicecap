@@ -600,6 +600,8 @@ export class ChromeSession implements BrowserSession {
 
   load(url: string, timeoutMs: number): Promise<LoadResult> {
     return this.onPage(async () => {
+      // The gate carries nothing to this computer or a private network unless the page is there.
+      this.options.formGate?.servePage(new URL(url).hostname);
       // A download never commits, so goto() fails; the main response still tells what it was.
       let mainResponse: Response | null = null;
       const onResponse = (response: Response) => {
