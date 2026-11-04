@@ -282,7 +282,9 @@ describe("wordGlance", () => {
     expect(glance[2]).toEqual(para(model.summary.sentence));
     expect(wordsOf(glance.slice(2, 3))).toEqual(["NVDA read all 7 pages."]);
     // The demo's run is from before the forms pass: a line says it did not record the forms.
-    expect(wordsOf(glance.slice(5, 6))).toEqual(["Not recorded: this run used voicecap 0.4.1."]);
+    expect(wordsOf(glance.slice(5, 6))).toEqual([
+      "Forms: not recorded: this run used voicecap 0.4.1.",
+    ]);
     expect(glance[6]).toEqual(para(model.summary.second));
     expect(glance.at(-1)).toEqual(PAGE_BREAK);
   });
@@ -463,7 +465,7 @@ describe("wordGlance", () => {
     expect(wordsOf(glance)).toEqual([
       "At a glance",
       empty.summary.sentence,
-      expect.stringMatching(/^Not recorded: this run used voicecap \d/),
+      expect.stringMatching(/^Forms: not recorded: this run used voicecap \d/),
       empty.summary.second,
     ]);
     expect(wordsOf(glance).join("\n")).not.toContain("Nothing needs attention");

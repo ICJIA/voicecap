@@ -939,18 +939,19 @@ describe("renderSharePage", () => {
     // The same task's second half re-pinned the three Word copies, and not the pages: At a glance
     // says that the run did not record its forms (71 characters more for i2i's and the demo's, 72 for the logged
     // run's, by the length of the version's name).
+    // At a glance's line was then labeled ("Forms: not recorded: …"), 7 characters more in each.
     const before = {
       i2i: {
-        page: [212_580, "c669b7e599d65a995300069c65b080ab32953d39a40a828d140890e0657ca887"],
-        word: [53_675, "ad62123f40a5e140916070a7fa1fb16ca7a19d814b40125e9a1aac4213cb0f46"],
+        page: [212_587, "850001c88ece2cb994c49fedd1bde4032aca78b0b03c8250df175c7b43d99436"],
+        word: [53_682, "b043e54a8d4557a2d033bd9a18c9f2bf04cf82abc9fe87d37f147defa11d333d"],
       },
       demo: {
-        page: [247_122, "06f1f1cd5bffdc88f5a585c8be0c6e26306ba19178aa489b29e7c37f40c16001"],
-        word: [76_513, "0c7e7ace705540bbee6aba50fe0ecfdadeeaa94700f40f84838ce4f46d5bf393"],
+        page: [247_129, "345b7663dbe23c5febee82e629015cffc909d826c6fcd041796ef0d61a36c534"],
+        word: [76_520, "7e89ea6da0b79ee763157a9b7ef0e04884c1d11d6d31edc0deb19fcdc6e00d6e"],
       },
       logged: {
-        page: [129_538, "71d3ed8765d1bf36ed3380e63aa8f30b912f02608395a1a86d0a45c0cf6b3bec"],
-        word: [35_205, "dc0cd7b6ee5583e543d3dabe1747a79829d6c44d3c041bf068886e6a95b976d9"],
+        page: [129_545, "54cc56fffd4daccceb0a7be4bd376de5c61aa8ca1eadf6b4c2210ebd6f1de9e3"],
+        word: [35_212, "18bb422a5ff5d74558dabc5a46f9f7871f7e4379c13e300569dc39d3351ff629"],
       },
     };
     const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };

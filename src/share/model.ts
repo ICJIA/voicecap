@@ -87,7 +87,7 @@ import {
 } from "./run-evidence.js";
 import { runBefore, standingOf, type PageStanding, type Standing } from "./standing.js";
 import { summaryOf, type Summary } from "./summary.js";
-import { ownWords, TIMELINE_TEXT } from "./text.js";
+import { FORMS_TEXT, ownWords, TIMELINE_TEXT } from "./text.js";
 import {
   attemptEvents,
   eventText,
@@ -877,5 +877,7 @@ function formsOf(latest: RunJson | null, pages: PageCard[]): ShareModel["forms"]
     return formsGlanceOf(pages);
   }
   const version = versionOf(latest);
-  return keepsForms(version) ? null : { notRecorded: notRecordedBy(version) };
+  return keepsForms(version)
+    ? null
+    : { notRecorded: FORMS_TEXT.glance.notRecorded(notRecordedBy(version)) };
 }

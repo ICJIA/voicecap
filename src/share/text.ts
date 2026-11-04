@@ -400,6 +400,11 @@ export const FORMS_TEXT = {
     /** The website card, and nowhere a problem: a site whose pages have no form, or only forms not checked. */
     noForms: "No forms on these pages",
     noneChecked: "No forms checked",
+    /**
+     * A run from before the forms pass: the line names what wasn't recorded, so it doesn't stand
+     * alone under the tiles ("Forms: not recorded: this run used voicecap 0.24.1.").
+     */
+    notRecorded: (line: string): string => `Forms: ${line.charAt(0).toLowerCase()}${line.slice(1)}`,
     all: (found: number): string =>
       `All ${found} ${found === 1 ? "form works" : "forms work"} with NVDA`,
     some: (working: number, found: number): string => `${working} of ${found} forms work with NVDA`,
