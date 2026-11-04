@@ -265,13 +265,13 @@ const SCAN = `(() => {
   };
 
   // The one place voicecap moves focus by script: into the form's field, to enter it. A field that
-  // has focus already (a page moves it to the first error when submit is pressed) is blurred first:
-  // focus() on the focused element fires no focus event, so the screen reader would say nothing.
+  // has focus already (a page moves it to the first error when submit is pressed) is left as it is,
+  // never blurred: real NVDA said nothing at a blur and focus of it, and announced it at the press,
+  // and a blur would run the page's own checks of the field.
   world.voicecapFocusField = (form, field) => {
     const entry = world.voicecapForms[form];
     const element = entry ? entry.fields[field] : undefined;
     if (!element || !element.isConnected) return false;
-    if (document.activeElement === element) element.blur();
     element.focus();
     return document.activeElement === element;
   };

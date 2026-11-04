@@ -138,8 +138,8 @@ export interface ScreenReaderDriver {
   armFormGuard?(): Promise<void>;
   /**
    * Move focus to one of the form's fields by script: the core asks only for its first, to enter it.
-   * The screen reader must announce the field even when it has focus already (a page moves focus to
-   * its first error on a press), so a driver moves focus off it first.
+   * A field that has focus already (a page moves focus to its first error on a press) is left as it
+   * is, and the screen reader may say nothing: it announced the field at the press.
    */
   focusFormField?(form: number, field: number): Promise<Speech>;
   /**

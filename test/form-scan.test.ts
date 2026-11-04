@@ -62,7 +62,7 @@ const PAGES: Record<string, string> = {
     </form>`,
   "/refocus": `${HEAD}
     <form action="/x" method="post">
-      <input id="a" name="a" aria-label="Alpha" onfocus="this.dataset.n = String(Number(this.dataset.n || 0) + 1)">
+      <input id="a" name="a" aria-label="Alpha" onfocus="this.dataset.n = String(Number(this.dataset.n || 0) + 1)" onblur="this.dataset.b = String(Number(this.dataset.b || 0) + 1)">
       <button>Send</button>
     </form>`,
   "/required": `${HEAD}
@@ -387,21 +387,21 @@ describe.skipIf(!haveChromium)("entering a form, and checking just that form", (
     await expect(session.focusFormField(4, 0)).rejects.toThrow("couldn't be given focus");
   });
 
-  it("moves focus off a field that has it first, so focusing it fires a focus event", async () => {
+  it("never blurs a field that has focus already, so the page's own blur checks don't run", async () => {
     const session = await open("/refocus");
     await pageOf(session).bringToFront();
     await session.scanForms();
     await session.focusFormField(0, 0);
     await session.focusFormField(0, 0);
-    const focuses = await pageOf(session).evaluate(
-      () =>
-        (
-          globalThis as unknown as {
-            document: { getElementById(id: string): { dataset: { n?: string } } };
-          }
-        ).document.getElementById("a").dataset.n,
-    );
-    expect(focuses).toBe("2");
+    const counts = await pageOf(session).evaluate(() => {
+      const { dataset } = (
+        globalThis as unknown as {
+          document: { getElementById(id: string): { dataset: { n?: string; b?: string } } };
+        }
+      ).document.getElementById("a");
+      return { focuses: dataset.n, blurs: dataset.b };
+    });
+    expect(counts).toEqual({ focuses: "1", blurs: undefined });
     expect(await session.readFormState(0)).toMatchObject({ focusedField: 0 });
   });
 
