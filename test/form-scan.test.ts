@@ -34,6 +34,14 @@ const PAGES: Record<string, string> = {
     </form>
     ${SIGN_UP}`,
   "/two": `${HEAD}<h1>Other page</h1>${SIGN_UP}`,
+  "/out-of-tab": `${HEAD}
+    <form action="/x" method="post">
+      <input aria-label="Here" required>
+      <input aria-label="Off" disabled>
+      <fieldset disabled><legend>Later</legend><input aria-label="In a disabled group"></fieldset>
+      <div inert><input aria-label="Inert"></div>
+      <button>Send</button>
+    </form>`,
   "/kinds": `${HEAD}
     <form role="search" action="/s"><input type="search" aria-label="Find"><button>Go</button></form>
     <form action="/s" method="get"><input type="text" aria-label="Q"><button>Go</button></form>
@@ -187,6 +195,11 @@ describe.skipIf(!haveChromium)("scanForms", () => {
     expect(two).toHaveLength(1);
     expect(two[0]?.signature).toBe(one[1]?.signature);
     expect(one[0]?.signature).not.toBe(one[1]?.signature);
+  });
+
+  it("leaves out a field Tab can't reach: disabled, in a disabled fieldset, or inert", async () => {
+    const forms = await (await open("/out-of-tab")).scanForms();
+    expect(forms[0]?.fields.map((one) => one.name)).toEqual(["Here"]);
   });
 
   it("sorts each row of the table, and the others stay in the page's order", async () => {

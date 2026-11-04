@@ -53,7 +53,13 @@ const SCAN = `(() => {
   const isField = (element) => {
     const tag = element.localName;
     if (tag !== "input" && tag !== "select" && tag !== "textarea") return false;
-    return !NOT_FIELDS.test(element.type) && !element.disabled && visible(element);
+    // Tab never stops at a disabled field (one in a disabled fieldset too) or an inert one.
+    return (
+      !NOT_FIELDS.test(element.type) &&
+      !element.matches(":disabled") &&
+      element.closest("[inert]") === null &&
+      visible(element)
+    );
   };
   // The form a button or input belongs to: one inside it, or one elsewhere that names it by form="id".
   const formOf = (element) =>
