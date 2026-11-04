@@ -300,7 +300,7 @@ function passStarts(
   const starts = new Map<PassName, number>();
   const passes = PASS_NAMES.filter((pass) => page.passes[pass] !== undefined);
   const stretches = Array.isArray(record.stretches) ? record.stretches : [];
-  const tagged = stretches.length > 0 && stretches.every(({ pass }) => isPassName(pass));
+  const tagged = stretches.length > 0 && stretches.every((one) => isPassName(one?.pass));
   const stretchOf = (pass: PassName, index: number): VoiceStretch | undefined => {
     if (!tagged) return passes.length === stretches.length ? stretches[index] : undefined;
     const own = stretches.filter((one) => one.pass === pass);
@@ -309,7 +309,8 @@ function passStarts(
   passes.forEach((pass, index) => {
     const stretch = stretchOf(pass, index);
     const length = files.find((file) => file.pass === pass)?.timing?.at(-1)?.toMs;
-    if (stretch === undefined || length === undefined) return;
+    // A malformed record may keep a stretch that isn't one (null): it times no line.
+    if (stretch === undefined || stretch === null || length === undefined) return;
     if (!isNumber(stretch.startMs) || !isNumber(stretch.endMs)) return;
     const start = stretch.endMs - length;
     if (start >= stretch.startMs) starts.set(pass, start);

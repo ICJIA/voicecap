@@ -1087,6 +1087,19 @@ describe("the voice page's transcripts beside each recording", () => {
     );
   });
 
+  it("builds the page, timing no line of its pass, when a recording keeps a stretch that is null", () => {
+    const stretches = [
+      null,
+      { startMs: 9000, endMs: 9000 + 3500 + 2 * 1200 },
+      { startMs: 15500, endMs: 15500 + 3500 + 2 * 1200 },
+    ] as unknown as { startMs: number; endMs: number }[];
+    const run = timedRun(stretches);
+    const model = sharedModel(run);
+    const section = sectionOf(pageOf(model, recordingsOf([run])), model.pages[0]?.slug ?? "");
+    expect(timedLines(section).filter(([from]) => from < 9000)).toEqual([]);
+    expect(shownTextsOf(section)).toHaveLength(3);
+  });
+
   it("marks no line when the recording's stretches aren't one for each pass, or a pass would begin before its stretch", () => {
     for (const stretches of [
       // Two stretches for three passes: which is which can't be said.
