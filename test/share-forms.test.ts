@@ -172,6 +172,14 @@ describe("formBanner", () => {
     expect(banner.detail).toContain("it is a search form");
   });
 
+  it("says where a form tested on an earlier page was checked, in words of its own", () => {
+    const again = completed({ result: "not-tested", presses: [], reason: "tested on /about" });
+    const banner = formBanner(again, []);
+    expect(banner.kind).toBe("not-checked");
+    expect(banner.headline).toBe("This form wasn't checked.");
+    expect(banner.detail).toBe("Checked on /about, where its result is.");
+  });
+
   it("turns green when a review settled the flags of a completed form", () => {
     expect(formBanner(completed(), [FLAG]).kind).toBe("needs-work");
     expect(formBanner(completed(), []).kind).toBe("works");

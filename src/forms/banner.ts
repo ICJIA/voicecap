@@ -114,9 +114,19 @@ function stopped(outcome: FormFlagInput): string {
     : `It never reached the point of sending: ${outcome.reason}.`;
 }
 
+/**
+ * The start of the reason a form gives when an earlier test of the same form stands for it, followed
+ * by that test's page as a path: "tested on /about".
+ */
+export const TESTED_ON = "tested on ";
+
 /** Why a form wasn't tested, by what voicecap knows of it. */
 function whyNot(outcome: FormFlagInput): string {
   const { form, reason } = outcome;
+  // Tested on an earlier page: it was checked, just not here, so it says where its result is.
+  if (reason !== null && reason.startsWith(TESTED_ON)) {
+    return `Checked on ${reason.slice(TESTED_ON.length)}, where its result is.`;
+  }
   const kinds: Record<string, string> = {
     search: "It's a search form.",
     "other-site":

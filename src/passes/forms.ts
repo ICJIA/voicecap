@@ -9,6 +9,7 @@ import type {
   FormResult,
   FormState,
 } from "../forms/types.js";
+import { TESTED_ON } from "../forms/banner.js";
 import { readPress } from "../forms/press.js";
 import type { StopReason } from "../model.js";
 import { redactAccount } from "../run/failure.js";
@@ -321,7 +322,7 @@ export async function formPass(
 
 /** What a form says when an earlier test of the same form stands for it. */
 export function testedOnReason(page: string): string {
-  return `tested on ${page}`;
+  return `${TESTED_ON}${page}`;
 }
 
 /** What the forms pass is told about the run it's part of. */
