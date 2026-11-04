@@ -86,6 +86,8 @@ interface Line {
    * By default one entry, the spoken text's items.
    */
   logged?: string[][];
+  /** Keys NVDA logged inside the step that no step claims: the gestures a fill's keys come to. */
+  fillKeys?: string[];
   /** false: NVDA logged no key for the step, as for the first Tab, which goes to the browser. */
   key?: boolean;
   /** How long the step took, if not STEP_MS. */
@@ -129,6 +131,9 @@ function passAt(start: number, page: string, pass: PassName, lines: Line[]): Pas
     const durationMs = line.ms ?? STEP_MS;
     const pressed = begin + elapsed + KEY_MS + (line.later ?? 0);
     line.waited?.forEach((items, k) => entries.push(said(begin + elapsed + 600 + 9 * k, ...items)));
+    line.fillKeys?.forEach((gesture, k) => {
+      entries.push(key(begin + elapsed + 400 + 30 * k, gesture));
+    });
     if (line.key !== false) entries.push(key(pressed, gestureOf(line.command)!));
     const logged = line.logged ?? [line.spoken.split(", ")];
     logged.forEach((items, k) => {
@@ -1721,6 +1726,22 @@ describe("checkAgainstLog on a forms pass", () => {
     // Four of the five steps are compared, and agree; the fill is in no count and no list.
     expect(result).toMatchObject({ transcriptLines: 4, logLines: 4, agree: 4, ...AGREED });
   });
+
+  it.each([
+    ["a Space on a check box", ["space"]],
+    ["a Down Arrow in a list", ["downArrow"]],
+    ["a typed value with a space and an h", ["h", "space", "h", "h"]],
+  ])(
+    "still checks the rest of the pass when %s was logged, unclaimed, inside the fill",
+    (_, fillKeys) => {
+      const lines = FORM.map((line) =>
+        line.command === "fillField" ? { ...line, fillKeys, logged: [["v"]] } : line,
+      );
+      const pass = passAt(T0, HOME, "forms", lines);
+      const result = check([copyOf(...pass.entries)], [pass]);
+      expect(result).toMatchObject({ transcriptLines: 4, logLines: 4, agree: 4, ...AGREED });
+    },
+  );
 
   it("keeps a typed fill's missing speech from showing as a step NVDA never said", () => {
     const pass = passAt(T0, HOME, "forms", FORM);

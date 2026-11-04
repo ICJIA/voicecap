@@ -257,9 +257,11 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   const config = walkthrough
     ? configOfRepeat(loaded.config, walkthrough.parsed.settings)
     : loaded.config;
-  const passes = walkthrough
-    ? [...walkthrough.parsed.settings.passes]
-    : checkPasses(options.passes ?? config.passes);
+  const passes = formsLast(
+    walkthrough
+      ? [...walkthrough.parsed.settings.passes]
+      : checkPasses(options.passes ?? config.passes),
+  );
   const limit = checkCount("--limit", options.limit);
   const maxSteps = checkCount("--max-steps", options.maxSteps);
   const include = options.include ?? [];
@@ -998,6 +1000,18 @@ function noPagesError(source: RunJson["source"], skipped: number): UsageError {
   return new UsageError(
     `No pages to transcribe (${parts.join(", ")}). Check --site, the page source, and any --include or --exclude patterns.`,
   );
+}
+
+/**
+ * The passes with `forms` last, the others in the order given. The forms pass loads the page again
+ * for each form and waits out each press, and the page's time is one for all its passes, so it
+ * mustn't use up the time of a pass after it: a problem in it never fails the page's other passes.
+ */
+function formsLast(passes: PassName[]): PassName[] {
+  return [
+    ...passes.filter((pass) => pass !== "forms"),
+    ...passes.filter((pass) => pass === "forms"),
+  ];
 }
 
 function checkPasses(passes: readonly string[]): PassName[] {

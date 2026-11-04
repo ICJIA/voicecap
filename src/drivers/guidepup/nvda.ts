@@ -121,29 +121,31 @@ export class GuidepupNvda implements NvdaControl {
     return spoken;
   }
 
-  async pressFormKey(key: FormKey, options: { settleMs?: number } = {}): Promise<Speech> {
-    const began = this.clock();
-    await this.lib.nvda.press(key);
-    this.checkCaptured(began);
-    return this.spokenSince(options.settleMs ?? 0);
-  }
-
-  async typeText(text: string): Promise<Speech> {
-    const began = this.clock();
-    await this.lib.nvda.type(text);
-    this.checkCaptured(began);
-    return this.spokenSince(0);
-  }
-
   /**
-   * Everything NVDA has said since the log was last cleared, once it has had `settleMs` more to say
-   * it, as one string (the format of Speech), and clears the log. A key press or typing is one or
-   * more entries: NVDA echoes typed text a character at a time, and a page's alert comes some time
-   * after the key that raised it.
+   * Press a key, then keep listening for `settleMs` more. Guidepup adds a phrase to its log only
+   * for speech heard while one of its actions is under way, up to a short quiet after it, so speech
+   * that comes later is lost unless the wait is itself a capture. The wait is a second capture
+   * that holds nothing but a delay (no key goes through it, which would queue behind it), and its
+   * phrase follows the press's. It can't be called off: Ctrl+C waits out the settle.
    */
-  private async spokenSince(settleMs: number): Promise<Speech> {
+  async pressFormKey(key: FormKey, options: { settleMs?: number } = {}): Promise<Speech> {
     const { nvda } = this.lib;
-    if (settleMs > 0) await delay(settleMs);
+    const began = this.clock();
+    await nvda.press(key);
+    this.checkCaptured(began);
+    const pressed = await nvda.lastSpokenPhrase();
+    const settleMs = options.settleMs ?? 0;
+    const late = settleMs > 0 ? (await nvda.capture(() => delay(settleMs))).spokenPhrase : "";
+    await nvda.clearSpokenPhraseLog();
+    return [pressed, late].filter((phrase) => phrase !== "").join(". ");
+  }
+
+  /** Type text a character at a time, and give what NVDA said for each (it echoes them). */
+  async typeText(text: string): Promise<Speech> {
+    const { nvda } = this.lib;
+    const began = this.clock();
+    await nvda.type(text);
+    this.checkCaptured(began);
     const said = await nvda.spokenPhraseLog();
     await nvda.clearSpokenPhraseLog();
     return said.join(". ");

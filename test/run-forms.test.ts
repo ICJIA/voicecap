@@ -307,7 +307,7 @@ describe("a page with no forms", () => {
 describe("a problem in the forms pass", () => {
   it("leaves the page's other passes done, and the page done", async () => {
     // The scan on the first load fails, and the page isn't retried.
-    const driver = new FormsDriver({ "/": TWO_FORMS["/"]! }, { findOnLoad: 2 });
+    const driver = new FormsDriver({ "/": TWO_FORMS["/"]! }, { findOnLoad: 3 });
     const { result } = await run(driver, ["/"], ["read", "forms", "headings"]);
     expect(result.outcome).toBe("completed");
 
@@ -366,5 +366,23 @@ describe("Ctrl+C in the middle of a form", () => {
       "armFormGuard 1",
     ]);
     expect(second.count("pressSubmit")).toBe(1);
+  });
+});
+
+describe("the order of the passes", () => {
+  it("runs forms last, whatever order --passes gives, and the others in the order given", async () => {
+    const driver = new FormsDriver({ "/": [formOf(0, "signup")] });
+    const dir = await setup(["/"]);
+    const result = await runAudit(
+      options(dir, driver, { config: config({ passes: ["forms", "headings", "read"] }) }),
+    );
+    expect(result.run.settings.passes).toEqual(["headings", "read", "forms"]);
+    // The forms pass's guarded load is the last, after the other two passes' loads.
+    expect(driver.loads.map((load) => load.options)).toEqual([
+      undefined,
+      undefined,
+      { guarded: true },
+    ]);
+    expect(result.run.pages[0]?.passes.forms?.stopReason).toBe("forms-done");
   });
 });
