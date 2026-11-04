@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { FORMS_DEFAULTS } from "../src/config/defaults.js";
+import { formsFlags } from "../src/flags/forms.js";
 import { fieldValueOf, formPass, UNREACHABLE, type FormPassOptions } from "../src/passes/forms.js";
 import { runPass, type PassSettings } from "../src/passes/index.js";
 import { InterruptedError, StepRecorder } from "../src/passes/steps.js";
@@ -85,6 +86,22 @@ describe("a form that can be completed", () => {
     const { outcome } = await pass({ fields: THREE, validates: "aria" });
     expect(outcome.result).toBe("completed");
     expect(outcome.presses).toHaveLength(4);
+  });
+
+  it("enters the form again at a field the page moved focus to, which the driver announces anew", async () => {
+    const { driver, outcome } = await pass({ fields: THREE, validates: "aria", linksErrors: true });
+    expect(outcome.result).toBe("completed");
+    // The empty press put focus on Name, and the walk after it starts there: the driver moves focus
+    // off it first, so NVDA says it, with the error the page linked to it.
+    const press = driver.made.indexOf("pressSubmit 0");
+    expect(driver.made.slice(press)).toContain("refocus 0");
+    expect(outcome.errorWalk[0]).toEqual({
+      field: 0,
+      spoken: "Name, edit, required, invalid entry, Name is required, blank",
+      required: true,
+    });
+    expect(formsFlags([outcome]).map((flag) => flag.rule)).not.toContain("form-error-unlinked");
+    expect(formsFlags([outcome])).toEqual([]);
   });
 
   it("fills the required fields of a form whose only answer is one alert", async () => {

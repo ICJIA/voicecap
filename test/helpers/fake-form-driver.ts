@@ -56,6 +56,11 @@ export interface FakeForm {
   noBubble?: boolean;
   /** Chrome's message showing whatever the fields say, as `bubble` can with no field invalid. */
   strayBubble?: string;
+  /**
+   * With `validates: "aria"`: the page moves focus to the first field it marks, and each marked field
+   * says it's invalid and what's wrong ("Name is required"), by aria-describedby.
+   */
+  linksErrors?: boolean;
   /** Text the page shows on being told its request failed. */
   afterHeld?: string;
   /** What checkFormWithAxe gives. */
@@ -113,6 +118,8 @@ export class FakeFormDriver extends ScriptedDriver {
   }
 
   focusFormField(form: number, field: number): Promise<Speech> {
+    // The real driver moves focus off a field that has it before focusing it, so it's announced.
+    if (this.focus === field) this.made.push(`refocus ${field}`);
     this.made.push(`focusFormField ${form} ${field}`);
     this.focus = field;
     return Promise.resolve(this.speechAt(field));
@@ -165,6 +172,7 @@ export class FakeFormDriver extends ScriptedDriver {
         break;
       case "aria":
         this.markEmpty();
+        if (this.form.linksErrors && this.marked[0] !== undefined) this.focus = this.marked[0];
         break;
       case "message":
         if (empty.length > 0) this.show("Please complete the form");
@@ -254,6 +262,10 @@ export class FakeFormDriver extends ScriptedDriver {
 
   private speechAt(field: number): Speech {
     const { name, required } = this.info.fields[field]!;
-    return `${name}, edit${required ? ", required" : ""}, blank`;
+    const error =
+      this.form.linksErrors && this.marked.includes(field) && !this.filled.has(field)
+        ? `, invalid entry, ${name} is required`
+        : "";
+    return `${name}, edit${required ? ", required" : ""}${error}, blank`;
   }
 }

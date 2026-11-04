@@ -136,7 +136,11 @@ export interface ScreenReaderDriver {
    * be armed, or can't be confirmed, and the core then presses no key on the form.
    */
   armFormGuard?(): Promise<void>;
-  /** Move focus to one of the form's fields by script: the core asks only for its first, to enter it. */
+  /**
+   * Move focus to one of the form's fields by script: the core asks only for its first, to enter it.
+   * The screen reader must announce the field even when it has focus already (a page moves focus to
+   * its first error on a press), so a driver moves focus off it first.
+   */
   focusFormField?(form: number, field: number): Promise<Speech>;
   /**
    * Press Enter on the submit control that has focus, where Tab has put it: the core asks for this
