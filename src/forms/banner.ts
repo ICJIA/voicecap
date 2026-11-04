@@ -75,20 +75,26 @@ function requiredFields(count: number): string {
 function worked(outcome: FormFlagInput, checkedOn: string | undefined): string {
   const required = outcome.form.fields.filter((field) => field.required).length;
   const flagged = formsFlags([outcome]).length > 0;
+  // A field with no name: NVDA can't have said each field's name, whatever a review settled.
+  const nameless = outcome.form.fields.some(
+    (field) => typeof field.name !== "string" || field.name.trim() === "",
+  );
   const lead = checkedOn === undefined ? "" : `Checked ${checkedOn}: `;
   // A press that showed an error: only then can the banner say NVDA told the user what was wrong.
   const baseline = outcome.baseline ?? { invalid: [], messages: [] };
   const showedError = outcome.presses.some(
     (press) => readPress(baseline, press.heldBefore ?? 0, press.state).showedError,
   );
-  if (flagged) {
-    // A person's review settled what voicecap flagged, so the banner claims no more than that the
-    // fields were reached and the form was completed: the card's own evidence may show less.
+  if (flagged || nameless) {
+    // A person's review settled what voicecap flagged, or a field has no name, so the banner claims
+    // no more than that the fields were reached and the form was completed: the card's own evidence
+    // may show less.
     const reached =
       required === 0
         ? "NVDA reached the form's fields"
         : `NVDA reached all ${requiredFields(required)}`;
-    return `${lead}${reached}, and the form was completed by keyboard. A person's review settled what voicecap had flagged.`;
+    const settled = flagged ? " A person's review settled what voicecap had flagged." : "";
+    return `${lead}${reached}, and the form was completed by keyboard.${settled}`;
   }
   const said = "said each one's name and that it's required";
   const reached =

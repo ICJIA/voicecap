@@ -5,18 +5,20 @@
  * test/fixture-forms.test.ts, which checks the recorded run (fixture/forms-run).
  *
  * Each page's forms are read from its forms-result.json: what came of each form, its banner (as
- * every copy of the report draws it, with no review settling anything), and the forms pass's flags.
+ * every copy of the report draws it, with no review settling anything), and the flags that decided
+ * it: the forms pass's, and the page's `unlabeled` when a field of the form has no name.
  * The page's other flags, the read, headings, and Tab passes', are from its record in run.json.
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { formsFlags, isFormsRule } from "../src/flags/forms.js";
+import { isFormsRule } from "../src/flags/forms.js";
 import { formBanner, type FormBannerKind } from "../src/forms/banner.js";
 import { readFormsResults } from "../src/forms/result-file.js";
 import type { FormResult } from "../src/forms/types.js";
 import { FORMS_FILE, type RunJson } from "../src/model.js";
 import { displayPath } from "../src/pages/url.js";
+import { formFlagsOf } from "../src/share/forms-view.js";
 
 /** What a page's forms came to, form by form, and the page's other flags. */
 export interface FormsPageOutcome {
@@ -46,9 +48,9 @@ export const FORMS_FIXTURE_EXPECTED: Record<string, FormsPageOutcome> = {
     ],
     pageFlags: [],
   },
-  // A field with no name is the unlabeled flag's, not a forms flag.
+  // Its fields have no name: the page's unlabeled flag keeps the completed form amber.
   "/forms/no-labels/": {
-    forms: [{ result: "completed", banner: "works", flags: [] }],
+    forms: [{ result: "completed", banner: "needs-work", flags: ["unlabeled"] }],
     pageFlags: ["unlabeled"],
   },
   "/forms/unreachable/": {
@@ -80,9 +82,10 @@ export async function formsPageOutcome(
     () => null,
   );
   const forms = (text === null ? null : readFormsResults(text)) ?? [];
+  const unlabeled = page.flags.some((flag) => flag.rule === "unlabeled");
   return {
     forms: forms.map((form) => {
-      const flags = formsFlags([form]);
+      const flags = formFlagsOf(form, unlabeled);
       return {
         result: form.result,
         banner: formBanner(form, flags).kind,

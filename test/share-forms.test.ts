@@ -324,6 +324,33 @@ describe("the page's card", () => {
     expect(textOf(open)).not.toContain("said each one's name");
   });
 
+  it("keeps a completed form with a field that has no name amber, naming the field, when the page is flagged unlabeled", () => {
+    const nameless = completed({
+      form: formOf({ fields: [{ ...NAME, name: null }, EMAIL] }),
+    });
+    const unlabeled: FlagResult = {
+      rule: "unlabeled",
+      pass: "tab",
+      count: 1,
+      message: "1 item announced with no name",
+    };
+    const { model } = build([{ path: "/callback/", forms: [nameless], flags: [unlabeled] }]);
+    const open = outsideFolds(renderPages(model));
+    expect(open).toContain("form-banner needs-work");
+    expect(open).not.toContain("form-banner works");
+    expect(textOf(open)).toContain('The "Send" form: field 1 has no name');
+    const [form] =
+      model.pages[0]?.forms && "forms" in model.pages[0].forms ? model.pages[0].forms.forms : [];
+    expect(form?.flagsLeft.map((flag) => flag.rule)).toEqual(["unlabeled"]);
+    // A review of "Reviewed, no issues" settles it, as any flag; the banner then doesn't claim names.
+    const settled = build([{ path: "/callback/", forms: [nameless], flags: [unlabeled] }], {
+      review: "reviewed",
+    });
+    const green = outsideFolds(renderPages(settled.model));
+    expect(green).toContain("form-banner works");
+    expect(textOf(green)).not.toContain("said each one's name");
+  });
+
   it("keeps a form that can't be completed red under the same review", () => {
     const { model } = build([{ path: "/stuck/", forms: [stuck()] }], { review: "reviewed" });
     const open = outsideFolds(renderPages(model));

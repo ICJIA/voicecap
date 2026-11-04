@@ -27,8 +27,9 @@
       Forms fixture: no labels. The words beside each field aren't its label, so the fields have no
       name. Otherwise the form is the good one: required fields, errors marked and described, an
       alert, and focus on the first error. Expected: the unlabeled flag on the page (the Tab pass
-      hears "edit, required, blank"), and the form completed, with its fields named "a field with
-      no name" in the report.
+      hears "edit, required, blank"), and the form completed but amber, "This form needs work with
+      NVDA.", since a field with no name can't have its name said; the report names the fields
+      "a field with no name".
     -->
     <header>
       <a href="/">Voicecap Test Agency</a>

@@ -48,17 +48,54 @@ function wellFormed(form: unknown): form is FormFlagInput & { presses: { axe?: u
   );
 }
 
+/** A field the browser gave no name, as the form's fields keep it. */
+const unnamed = (field: FormFlagInput["form"]["fields"][number]): boolean =>
+  typeof field.name !== "string" || field.name.trim() === "";
+
+/**
+ * The flags that decide a form's banner: the forms pass's own, and the page's `unlabeled` flag when a
+ * field of the form has no name. A green banner says NVDA said each field's name, which a field with
+ * no name contradicts, so such a form is at best amber, and its banner names the field. The page's
+ * flag is the evidence that NVDA said no name; the form's fields say which have none. The card and
+ * the forms fixture's check both decide a banner by it.
+ */
+export function formFlagsOf(form: FormFlagInput, pageUnlabeled: boolean): FlagResult[] {
+  const own = formsFlags([form]);
+  const nameless = form.form.fields.filter(unnamed);
+  if (!pageUnlabeled || nameless.length === 0) return own;
+  const label =
+    typeof form.form.submitName === "string" && form.form.submitName.trim() !== ""
+      ? `The "${form.form.submitName.trim()}" form`
+      : "The form";
+  const which = nameless.map((field) => `field ${field.index + 1}`).join(", ");
+  return [
+    ...own,
+    {
+      rule: "unlabeled",
+      pass: "forms",
+      count: nameless.length,
+      message: `${label}: ${which} ${nameless.length === 1 ? "has" : "have"} no name, so NVDA can't say what to type there.`,
+    },
+  ];
+}
+
 /**
  * The forms of a forms-result.json, ready for a card; null when the text isn't a file voicecap
  * writes (or is one of a version it doesn't know), and an empty list for a file of no forms.
  * `settled` is whether a person's review settled the page's flags ("Reviewed, no issues" or
- * "Fixed", of the transcripts shown); `checkedOn` is the day the page's forms were checked.
+ * "Fixed", of the transcripts shown); `checkedOn` is the day the page's forms were checked;
+ * `pageUnlabeled` is whether the page has an `unlabeled` flag (see formFlagsOf).
  */
-export function cardFormsOf(text: string, settled: boolean, checkedOn: string): CardForm[] | null {
+export function cardFormsOf(
+  text: string,
+  settled: boolean,
+  checkedOn: string,
+  pageUnlabeled = false,
+): CardForm[] | null {
   const forms = readFormsResults(text);
   if (forms === null || !forms.every(wellFormed)) return null;
   return forms.map((form, at) => {
-    const flagsLeft = settled ? [] : formsFlags([form]);
+    const flagsLeft = settled ? [] : formFlagsOf(form, pageUnlabeled);
     const banner = formBanner(form, flagsLeft, checkedOn);
     return {
       label: labelOf(form, at + 1),

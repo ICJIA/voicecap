@@ -284,7 +284,12 @@ export function cardsOf(input: CardsInput): PageCard[] {
       heardFirst: readShown ? firstLinesOf(readSteps) : [],
       screenshot: screenshotOf(source, version, name, input, tookAny),
       axe: axeOf(source, version, input, checkedAny),
-      ...formsFields(source, input, reviewSettles(review)),
+      ...formsFields(
+        source,
+        input,
+        reviewSettles(review),
+        flags.some((flag) => flag.rule === "unlabeled"),
+      ),
       speaksFor: source === null ? null : { run: source.run.id, slug: source.page.slug },
       voice: voiceOf(source, page, input),
       from:
@@ -439,6 +444,7 @@ function formsFields(
   source: { run: RunJson; page: PageRecord } | null,
   input: CardsInput,
   settled: boolean,
+  unlabeled: boolean,
 ): { forms?: NonNullable<PageCard["forms"]> } {
   if (source === null) return {};
   const { run, page } = source;
@@ -451,7 +457,7 @@ function formsFields(
   const text = input.formsFiles?.get(`${run.id}/${page.slug}`);
   if (text === undefined) return { forms: { notRecorded: FORMS_TEXT.changed } };
   const day = typeof record.ranAt === "string" && record.ranAt !== "" ? longDate(record.ranAt) : "";
-  const forms = cardFormsOf(text, settled, day);
+  const forms = cardFormsOf(text, settled, day, unlabeled);
   if (forms === null) return { forms: { notRecorded: FORMS_TEXT.notResults } };
   return {
     forms: {
