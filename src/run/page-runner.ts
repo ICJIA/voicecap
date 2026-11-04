@@ -121,8 +121,8 @@ export interface PageOutcome {
   axe?: AxeRecord;
   /**
    * The forms pass's results the last attempt kept in the page's folder, or why it has none. Left
-   * out for a page where no form was tested: the pass wasn't in the run, the driver can't test
-   * forms, or the page had none.
+   * out for a page with no form: the pass wasn't in the run, the driver can't test forms, or the page
+   * had none. A page whose forms were all left untested (a search form) has them, with the reasons.
    */
   forms?: FormsRecord;
   /**

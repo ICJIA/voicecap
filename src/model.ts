@@ -286,7 +286,8 @@ export interface FormsCounts {
  * A page's forms pass, as the page's record keeps it, beside axe's. Results that were kept have the
  * file's SHA-256 and size, and how the forms came out (see FormsCounts). Results that couldn't be
  * written have the reason, and no file. Both have when the run recorded it (a local ISO time to the
- * millisecond). A page with no forms tested has neither the file nor the record, and that is no gap.
+ * millisecond). A page with no form has neither the file nor the record, and that is no gap; a page
+ * whose forms were all left untested (a search form) has both, with the reasons.
  */
 export type FormsRecord =
   (FileHash & { counts: FormsCounts; ranAt: string }) | { error: string; ranAt: string };
@@ -505,8 +506,9 @@ export interface PageRecord extends PageRef {
   axe?: AxeRecord;
   /**
    * What the forms pass found on the page, kept in its folder (forms-result.json), or why there is
-   * no file. Kept apart from `files`, as axe's is. Left out when the pass tested no form on the
-   * page: it wasn't in the run, the driver can't test forms, or the page had none.
+   * no file. Kept apart from `files`, as axe's is. Left out for a page with no form: the pass wasn't
+   * in the run, the driver can't test forms, or the page had none. A page whose forms were all left
+   * untested (a search form) has it, with the reasons.
    */
   forms?: FormsRecord;
   /**
