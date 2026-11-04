@@ -125,6 +125,8 @@ export type {
   FormOutcome,
   FormResult,
   FormState,
+  HeldRequest,
+  PageDialog,
 } from "./forms/types.js";
 // What a page's record keeps of axe's check of it (`PageRecord.axe`), and what a driver's check
 // gives beside the file's text (`AxeCapture`).
