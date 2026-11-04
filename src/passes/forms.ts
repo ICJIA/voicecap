@@ -67,6 +67,14 @@ export const DIALOG = "it answered with a dialog box, which voicecap doesn't tes
 
 export const OUT_OF_STEPS = "the pass ran out of steps on this form";
 
+/**
+ * Why a form isn't tested when Tab went on out of the page, into the browser's own controls, with
+ * every required field heard: a keyboard user could go back, but voicecap presses no key outside the
+ * page, and script can't bring focus back from there.
+ */
+export const TAB_LEFT =
+  "Tab went on out of the page, into the browser's own controls, where voicecap presses no key";
+
 /** Tab stops a walk allows beyond the fields: links and buttons among them, such as a "What's this?". */
 const WALK_SPARE_TABS = 10;
 
@@ -124,18 +132,31 @@ export function fieldValueOf(
 
 /** How one walk goes. */
 interface WalkPlan {
-  /** Where it ends: a field, the submit control, or, left out, the submit once all are heard. */
+  /**
+   * Where it ends: a field, the submit control, or, left out, the submit control once every required
+   * field is heard (an optional field Tab skips would otherwise take the walk out of the page).
+   */
   stopAt?: number | "submit";
   /** Tab on from where focus is, rather than enter the form at its first field. */
   fromHere?: boolean;
 }
 
+/** What a walk heard, and whether Tab took focus out of the page, which ends it. */
+interface Walked {
+  heard: FieldHeard[];
+  /** Focus is in the browser's own controls now: no key may follow, and no script focus can. */
+  left: boolean;
+  /** Tab reached the form's submit control on the way. */
+  submit: boolean;
+}
+
 /**
  * Keep what NVDA says at each of the form's fields as focus moves through it: Tab, from the first
  * field, which script moves focus to, or from where focus is. Ends with focus on `plan.stopAt`.
- * Otherwise it ends when focus leaves the page, the form goes, it has used its spare tabs, or the
- * form's steps run out. A submit control that comes before a field doesn't end a walk that's hearing
- * the form. The fields it returns are those it found focus on, so one at `stopAt` is really there.
+ * Otherwise it ends when focus leaves the page (`left`), the form goes, it has used its spare tabs,
+ * or the form's steps run out. A submit control that comes before a required field doesn't end a
+ * walk that's hearing the form. The fields it returns are those it found focus on, so one at
+ * `stopAt` is really there.
  */
 async function walk(
   driver: FormDriver,
@@ -143,8 +164,11 @@ async function walk(
   form: FormInfo,
   stepLimit: number,
   { stopAt, fromHere = false }: WalkPlan = {},
-): Promise<FieldHeard[]> {
+): Promise<Walked> {
   const heard: FieldHeard[] = [];
+  let submit = false;
+  const allRequired = () =>
+    form.fields.every((field) => !field.required || heard.some((one) => one.field === field.index));
   const focusCheck = async () => ({ inDocument: await driver.focusInDocument() });
   for (let stop = 0; stop <= form.fields.length + WALK_SPARE_TABS; stop++) {
     if (recorder.count >= stepLimit) break;
@@ -152,18 +176,19 @@ async function walk(
       stop === 0 && !fromHere
         ? await recorder.step("focusField", () => driver.focusFormField(form.index, 0), focusCheck)
         : await recorder.step("nextFocusable", () => driver.nextFocusable(), focusCheck);
-    if (step.inDocument === false) break;
+    if (step.inDocument === false) return { heard, left: true, submit };
     const state = await recorder.query("form state", () => driver.formState(form.index));
     if (!state.present) break;
     const field = state.focusedField === null ? undefined : form.fields[state.focusedField];
     if (field && !heard.some((entry) => entry.field === field.index)) {
       heard.push({ field: field.index, spoken: step.spoken, required: field.required });
     }
+    submit ||= state.focusedSubmit;
     if (field && field.index === stopAt) break;
     if (state.focusedSubmit && stopAt === "submit") break;
-    if (state.focusedSubmit && stopAt === undefined && heard.length === form.fields.length) break;
+    if (state.focusedSubmit && stopAt === undefined && allRequired()) break;
   }
-  return heard;
+  return { heard, left: false, submit };
 }
 
 /** The fields keeping the form back, as far as the page says: its invalid ones, then the empty. */
@@ -245,27 +270,52 @@ export async function formPass(
   const filled = new Set<number>();
   let lastErrors: string | null = null;
 
+  // Whether any walk has had Tab reach the submit control.
+  let submitSeen = false;
+  const walkOn = async (plan?: WalkPlan): Promise<Walked> => {
+    const walked = await walk(driver, recorder, form, stepLimit, plan);
+    submitSeen ||= walked.submit;
+    return walked;
+  };
+  /**
+   * Where a form ends once a walk took Tab out of the page, with no key after it: at the first
+   * required field no walk heard, which Tab never reaches; at the submit control, when Tab never
+   * reached it; or, with both heard, not tested, since only a key outside the page could go back.
+   */
+  const leftPage = (walked: FieldHeard[]): FormOutcome => {
+    // A form tested empty says why, as it would after its press.
+    if (emptyOnly !== null) return end("not-tested", emptyOnly);
+    const heard = [...firstWalk, ...(errorWalk ?? []), ...lastWalk, ...walked];
+    const missed = form.fields.find(
+      (field) => field.required && !heard.some((entry) => entry.field === field.index),
+    );
+    if (missed) return end("stuck", UNREACHABLE, missed);
+    return submitSeen ? end("not-tested", TAB_LEFT) : end("stuck", neverSubmit());
+  };
+  const neverSubmit = () =>
+    `Tab never reached the submit control${form.submitName === null ? "" : `, "${form.submitName}"`}`;
+
   const baseline = await readState();
   seen.baseline = { invalid: [...baseline.invalid], messages: [...baseline.messages] };
   // A dialog the page opened as it loaded isn't the form's answer: only one after this is.
   const dialogsBefore = baseline.dialogs?.length ?? 0;
   const dialogSince = (state: FormState) => (state.dialogs?.length ?? 0) > dialogsBefore;
-  firstWalk = await walk(driver, recorder, form, stepLimit);
+  const first = await walkOn();
+  firstWalk = first.heard;
+  if (first.left) return leftPage([]);
   for (;;) {
     if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
     let before = await readState();
     if (before.present && !before.focusedSubmit) {
       const fromHere = presses.length > 0;
-      await walk(driver, recorder, form, stepLimit, { stopAt: "submit", fromHere });
+      const toSubmit = await walkOn({ stopAt: "submit", fromHere });
+      if (toSubmit.left) return leftPage(toSubmit.heard);
       if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
       before = await readState();
     }
     if (dialogSince(before)) return end("not-tested", DIALOG);
     if (!before.present) return end("stuck", "the form left the page");
-    if (!before.focusedSubmit) {
-      const submit = form.submitName === null ? "" : `, "${form.submitName}"`;
-      return end("stuck", `Tab never reached the submit control${submit}`);
-    }
+    if (!before.focusedSubmit) return end("stuck", neverSubmit());
     const { spoken } = await recorder.step("pressSubmit", () =>
       driver.pressSubmit(form.index, settleMs),
     );
@@ -299,9 +349,11 @@ export async function formPass(
       return end("stuck", "pressing submit changed nothing", stoppedAt);
     }
 
-    lastWalk = await walk(driver, recorder, form, stepLimit);
+    const after = await walkOn();
+    lastWalk = after.heard;
     if (press.showedError) errorWalk ??= lastWalk;
     if (emptyOnly !== null) return end("not-tested", emptyOnly);
+    if (after.left) return leftPage([]);
     if (barred !== undefined) return end("stuck", UNREACHABLE, barred);
     if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
     const blockers = blocking(form, state);
@@ -327,9 +379,11 @@ export async function formPass(
         next,
       );
     }
-    const reached = await walk(driver, recorder, form, stepLimit, { stopAt: next.index });
+    const reached = await walkOn({ stopAt: next.index });
+    // Tab went out of the page on the way to the field: from the form's start, it never reached it.
+    if (reached.left) return end("stuck", UNREACHABLE, next);
     if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
-    if (!reached.some((entry) => entry.field === next.index)) {
+    if (!reached.heard.some((entry) => entry.field === next.index)) {
       return end("stuck", UNREACHABLE, next);
     }
     await recorder.step("fillField", () => driver.fillField(value));
@@ -408,6 +462,8 @@ export async function formsPass(
   const here = new Map<string, string>();
   // Whether the load that's open has had a form tried on it.
   let used = false;
+  // Whether a form's walk left focus in the browser's own controls on the load that's open.
+  let outside = false;
   for (const [at, form] of taken.entries()) {
     try {
       await takeForm(form);
@@ -449,6 +505,12 @@ export async function formsPass(
         return;
       }
       current = match;
+      outside = false;
+    }
+    if (outside) {
+      // No key goes to the browser's own controls, and script can't bring focus back from there.
+      outcomes.push(untested(form, LEFT_BEFORE));
+      return;
     }
     const outcome = await formPass(driver, recorder, current, options);
     outcomes.push(outcome);
@@ -456,8 +518,13 @@ export async function formsPass(
       here.set(form.signature, options.page);
     }
     if (whyNotPressed(current) === null) used = true;
+    outside = !(await driver.focusInDocument());
   }
 }
+
+/** Why a form isn't tested on a load where an earlier form's walk took focus out of the page. */
+const LEFT_BEFORE =
+  "an earlier form's walk took focus out of the page, where voicecap presses no key";
 
 /** Why the forms after one the pass ended at weren't tested. */
 const ENDED_AT_ERROR = "the pass ended at an error before it was tested";

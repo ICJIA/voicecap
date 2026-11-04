@@ -6,12 +6,15 @@ import { describe, expect, it } from "vitest";
 
 import { FORMS_DEFAULTS } from "../src/config/defaults.js";
 import { formsFlags } from "../src/flags/forms.js";
+import { formBanner } from "../src/forms/banner.js";
 import { sendsForm } from "../src/forms/press.js";
 import { keptFormsResults } from "../src/forms/result-file.js";
 import {
   DIALOG,
   fieldValueOf,
   formPass,
+  formsPass,
+  TAB_LEFT,
   UNREACHABLE,
   type FormPassOptions,
 } from "../src/passes/forms.js";
@@ -19,7 +22,7 @@ import { runPass, type PassSettings } from "../src/passes/index.js";
 import { InterruptedError, StepRecorder } from "../src/passes/steps.js";
 import { progressLine } from "../src/run/progress.js";
 import { MAIN_COMMAND, stopReasonText } from "../src/transcripts/format.js";
-import { FakeFormDriver, type FakeForm } from "./helpers/fake-form-driver.js";
+import { FakeFormDriver, LEFT_FOR_TOOLBAR, type FakeForm } from "./helpers/fake-form-driver.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
 const options: FormPassOptions = { cap: 500, settleMs: 7, values: FORMS_DEFAULTS.values };
@@ -96,18 +99,18 @@ describe("a form that can be completed", () => {
     expect(outcome.presses).toHaveLength(4);
   });
 
-  it("enters the form again at a field the page moved focus to, which the driver announces anew", async () => {
+  it("hears a field the page moved focus to at the press, though the walk's entry there is silent", async () => {
     const { driver, outcome } = await pass({ fields: THREE, validates: "aria", linksErrors: true });
     expect(outcome.result).toBe("completed");
-    // The empty press put focus on Name, and the walk after it starts there: the driver moves focus
-    // off it first, so NVDA says it, with the error the page linked to it.
+    // The empty press put focus on Name, and NVDA said it then, with the error the page linked to
+    // it. The walk after it enters the form there by script, which fires no focus event, as with
+    // real NVDA, and the field is never blurred.
+    expect(outcome.presses[0]?.spoken).toBe(
+      "Fix the fields marked. Name, edit, required, invalid entry, Name is required, blank",
+    );
     const press = driver.made.indexOf("pressSubmit 0");
-    expect(driver.made.slice(press)).toContain("refocus 0");
-    expect(outcome.errorWalk[0]).toEqual({
-      field: 0,
-      spoken: "Name, edit, required, invalid entry, Name is required, blank",
-      required: true,
-    });
+    expect(driver.made.slice(press)).toContain("focusFormField 0 0");
+    expect(outcome.errorWalk[0]).toEqual({ field: 0, spoken: "", required: true });
     expect(formsFlags([outcome]).map((flag) => flag.rule)).not.toContain("form-error-unlinked");
     expect(formsFlags([outcome])).toEqual([]);
   });
@@ -842,5 +845,88 @@ describe("runPass", () => {
       remainingMs: null,
     });
     expect(line).not.toContain("forms done");
+  });
+});
+
+/**
+ * Tab going on out of the page, into Chrome's own controls, as it did on /forms/unreachable/ in the
+ * capture of 2026-11-04. The fake refuses a key or a script focus there, as the real driver does
+ * (the page has no focus), and keeps what was tried in `outside`: the pass must try nothing.
+ */
+describe("a walk that leaves the page", () => {
+  it("ends the form at the required field Tab never reached, with no error and no key after", async () => {
+    const { driver, recorder, outcome } = await pass({
+      fields: [{ name: "Your name" }, { name: "Date of birth", tabIndex: -1 }],
+    });
+    expect(outcome.result).toBe("stuck");
+    expect(outcome.reason).toBe(UNREACHABLE);
+    expect(outcome.stoppedAt?.name).toBe("Date of birth");
+    expect(outcome.presses).toEqual([]);
+    expect(outcome.firstWalk.map((heard) => heard.field)).toEqual([0]);
+    expect(driver.outside).toEqual([]);
+    // The walk's last step is the Tab that left, which is kept, as the tab pass keeps its own.
+    const last = recorder.steps.at(-1);
+    expect(last?.spoken).toBe(LEFT_FOR_TOOLBAR);
+    expect(last?.inDocument).toBe(false);
+    expect(formsFlags([outcome]).map((flag) => flag.rule)).toEqual([
+      "form-cant-finish",
+      "form-field-unreachable",
+    ]);
+    expect(formBanner(outcome, formsFlags([outcome]))).toMatchObject({
+      kind: "cant-complete",
+      detail: "It stopped at Date of birth.",
+    });
+  });
+
+  it("ends the pass at its natural end, not at an error", async () => {
+    const driver = new FakeFormDriver({
+      fields: [{ name: "Your name" }, { name: "Date of birth", tabIndex: -1 }],
+    });
+    const recorder = new StepRecorder(1000, undefined);
+    const result = await formsPass(driver, recorder, { ...options });
+    expect(result.stopReason).toBe("forms-done");
+    expect(result.error).toBeUndefined();
+    expect(result.forms.map((form) => form.result)).toEqual(["stuck"]);
+    expect(driver.outside).toEqual([]);
+  });
+
+  it("says Tab never reached the submit control when it left the page first", async () => {
+    const { driver, outcome } = await pass({ fields: THREE, submitUntabbable: true });
+    expect(outcome.result).toBe("stuck");
+    expect(outcome.reason).toBe('Tab never reached the submit control, "Send"');
+    expect(driver.outside).toEqual([]);
+  });
+
+  it("leaves a form not tested when Tab left after every field and the submit were heard", async () => {
+    // Tabs 1-3 hear the form, 4-6 hear it after the press, and the 7th, on from the filled Name
+    // to the submit control, reaches Email; the 8th leaves the page.
+    const { driver, outcome } = await pass({ fields: THREE, tabsUntilOut: 7 });
+    expect(outcome.result).toBe("not-tested");
+    expect(outcome.reason).toBe(TAB_LEFT);
+    expect(outcome.presses).toHaveLength(1);
+    expect(driver.outside).toEqual([]);
+  });
+
+  it("stops at the submit control once every required field is heard, not on out of the page", async () => {
+    const { driver, outcome } = await pass({
+      fields: [{ name: "Name" }, { name: "Note", required: false, tabIndex: -1 }],
+    });
+    expect(outcome.result).toBe("completed");
+    expect(driver.outside).toEqual([]);
+  });
+
+  it("tests no later form on the load once focus has left it, with no load of its own", async () => {
+    class TwoForms extends FakeFormDriver {
+      override findForms() {
+        return Promise.resolve([this.info, { ...this.info, index: 1, signature: "second" }]);
+      }
+    }
+    const driver = new TwoForms({ fields: THREE, submitUntabbable: true });
+    const recorder = new StepRecorder(1000, undefined);
+    const result = await formsPass(driver, recorder, { ...options });
+    expect(result.forms.map((form) => form.result)).toEqual(["stuck", "not-tested"]);
+    expect(result.forms[1]?.reason).toContain("out of the page");
+    expect(result.stopReason).toBe("forms-done");
+    expect(driver.outside).toEqual([]);
   });
 });

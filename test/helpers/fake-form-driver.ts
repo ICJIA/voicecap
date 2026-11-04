@@ -83,12 +83,21 @@ export interface FakeForm {
   dialogOnPress?: PageDialog;
 }
 
+/**
+ * What NVDA said when Tab left the fixture's page for Chrome's own controls (the capture of
+ * 2026-11-04): the window's title, then the tab strip's first button.
+ */
+export const LEFT_FOR_TOOLBAR =
+  "Apply for a program Voicecap Test Agency - Google Chrome, region. Tab search, button, collapsed";
+
 /** The page's own host, and the form's action host, for a fake that says what it held. */
 export const FAKE_HOST = "example.illinois.gov";
 
 /** The driver side of the forms pass, over a form it models. `made` lists what the pass did. */
 export class FakeFormDriver extends ScriptedDriver {
   readonly made: string[] = [];
+  /** Keys and script focus tried with focus in the browser's own controls, which the driver refuses. */
+  readonly outside: string[] = [];
   readonly fills: FieldValue[] = [];
   readonly settles: number[] = [];
   readonly info: FormInfo;
@@ -139,14 +148,16 @@ export class FakeFormDriver extends ScriptedDriver {
   }
 
   focusFormField(form: number, field: number): Promise<Speech> {
-    // The real driver moves focus off a field that has it before focusing it, so it's announced.
-    if (this.focus === field) this.made.push(`refocus ${field}`);
+    this.refuseOutside(`focusFormField ${form} ${field}`);
     this.made.push(`focusFormField ${form} ${field}`);
+    // Focus on a field that has it already fires no focus event: real NVDA says nothing.
+    const already = this.focus === field;
     this.focus = field;
-    return Promise.resolve(this.speechAt(field));
+    return Promise.resolve(already ? "" : this.speechAt(field));
   }
 
   override nextFocusable(): Promise<Speech> {
+    this.refuseOutside("nextFocusable");
     this.made.push("nextFocusable");
     const stops = this.form.fields.flatMap((field, index) =>
       field.tabbable === false || (field.tabIndex ?? 0) < 0 ? [] : [index],
@@ -160,7 +171,17 @@ export class FakeFormDriver extends ScriptedDriver {
     else if (next === undefined) this.focus = this.form.submitUntabbable ? "out" : "submit";
     else this.focus = next;
     if (typeof this.focus === "number") return Promise.resolve(this.speechAt(this.focus));
-    return Promise.resolve(this.focus === "submit" ? "Send, button" : "");
+    return Promise.resolve(this.focus === "submit" ? "Send, button" : LEFT_FOR_TOOLBAR);
+  }
+
+  /**
+   * As the real driver does, refuse a key or script focus while focus is in the browser's own
+   * controls: the page doesn't have focus, so it fails as the foreground lost. Kept in `outside`.
+   */
+  private refuseOutside(call: string): void {
+    if (this.focus !== "out") return;
+    this.outside.push(call);
+    throw new Error("The browser lost the foreground to another window.");
   }
 
   override focusInDocument(): Promise<boolean> {
@@ -172,6 +193,7 @@ export class FakeFormDriver extends ScriptedDriver {
   }
 
   pressSubmit(form: number, settleMs: number): Promise<Speech> {
+    this.refuseOutside(`pressSubmit ${form}`);
     // The driver presses what has focus: a press from anywhere else is the pass's mistake.
     if (this.focus !== "submit") throw new Error("pressSubmit with focus off the submit control");
     this.made.push(`pressSubmit ${form}`);
@@ -215,10 +237,15 @@ export class FakeFormDriver extends ScriptedDriver {
       if (this.form.afterHeld !== undefined) this.show(this.form.afterHeld);
     }
     if (this.form.resets) this.filled.clear();
+    // NVDA says the page's alert, then the field the page moved focus to, as real NVDA did.
+    const moved =
+      this.form.linksErrors && typeof this.focus === "number" ? this.speechAt(this.focus) : null;
+    if (moved !== null) return Promise.resolve(`${this.shown.at(-1) ?? ""}. ${moved}`);
     return Promise.resolve(this.bubble ?? this.shown.at(-1) ?? "");
   }
 
   fillField(value: FieldValue): Promise<Speech> {
+    this.refuseOutside("fillField");
     this.made.push(`fillField ${String(this.focus)}`);
     this.fills.push(value);
     if (typeof this.focus === "number" && this.form.fields[this.focus]?.takes !== false) {
