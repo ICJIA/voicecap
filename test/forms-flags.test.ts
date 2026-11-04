@@ -513,7 +513,7 @@ describe("native required fields, which the scan marks invalid from load", () =>
     expect(ruleIds(flags)).not.toContain("form-error-unlinked");
   });
 
-  it("still raises it for a field that doesn't say invalid entry after the press", () => {
+  it("doesn't check a field the bubble was never shown at, nor ask any for invalid entry", () => {
     const flags = flagsOf(
       native({
         name: "Name, edit, required, blank",
@@ -521,9 +521,7 @@ describe("native required fields, which the scan marks invalid from load", () =>
         check: "Agree, check box, not checked, required",
       }),
     );
-    const found = flags.find((flag) => flag.rule === "form-error-unlinked");
-    expect(found?.message).toContain("Agree");
-    expect(found?.message).not.toContain("Size");
+    expect(ruleIds(flags)).not.toContain("form-error-unlinked");
   });
 
   it("still raises it for the bubbled field when the bubble was never spoken", () => {
@@ -635,5 +633,239 @@ describe("a structured alert", () => {
       ],
     });
     expect(ruleIds(flagsOf(outcome))).toContain("form-error-silent");
+  });
+});
+
+/**
+ * form-error-unlinked against what real NVDA 2026.2 said on the forms fixture (the capture of
+ * 2026-11-04): each press's words, and the walks', as the run recorded them.
+ */
+describe("form-error-unlinked, as real NVDA spoke the fixture's forms", () => {
+  const NAME = "main landmark. form landmark. Your name, edit, required, blank";
+
+  describe("the page's own errors, with focus moved to the first (/forms/good/)", () => {
+    const GOOD_FIELDS = [
+      field(0, "Your name"),
+      field(1, "Email", { type: "email" }),
+      field(2, "Topic", { type: "select-one" }),
+    ];
+    const NAME_ERROR = "Enter your name.";
+    const EMAIL_ERROR = "Enter an email address, such as name@example.com.";
+    const TOPIC_ERROR = "Choose a topic.";
+    const good = (firstPress: string) =>
+      outcomeOf({
+        form: formOf(GOOD_FIELDS),
+        result: "completed",
+        presses: [
+          {
+            state: stateOf({
+              focusedSubmit: false,
+              focusedField: 0,
+              invalid: [0, 1, 2],
+              emptyRequired: [0, 1, 2],
+              liveChanged: true,
+              messages: [NAME_ERROR, EMAIL_ERROR, TOPIC_ERROR, "3 fields need fixing."],
+            }),
+            spoken: firstPress,
+            axe: null,
+          },
+          {
+            state: stateOf({
+              focusedSubmit: false,
+              focusedField: 1,
+              invalid: [1, 2],
+              emptyRequired: [1, 2],
+              liveChanged: true,
+              messages: [EMAIL_ERROR, TOPIC_ERROR, "2 fields need fixing."],
+            }),
+            spoken:
+              "2 fields need fixing.. Email, edit, required, invalid entry, Enter an email address, such as name at example dot com., blank",
+            axe: null,
+          },
+          {
+            state: stateOf({
+              focusedSubmit: false,
+              focusedField: 2,
+              invalid: [2],
+              emptyRequired: [2],
+              liveChanged: true,
+              messages: [TOPIC_ERROR, "1 field needs fixing."],
+            }),
+            spoken:
+              "1 field needs fixing.. Topic, combo box, Choose one, collapsed, required, invalid entry, Choose a topic.",
+            axe: null,
+          },
+          { state: stateOf({ liveChanged: true, heldRequests: 1 }), spoken: "", axe: null },
+        ],
+        firstWalk: [
+          { field: 0, spoken: NAME, required: true },
+          { field: 1, spoken: "Email, edit, required, blank", required: true },
+          {
+            field: 2,
+            spoken: "Topic, combo box, Choose one, collapsed, required",
+            required: true,
+          },
+        ],
+        // The walk's script focus of Your name, which the press had focused already, was silent.
+        errorWalk: [
+          { field: 0, spoken: "", required: true },
+          {
+            field: 1,
+            spoken:
+              "Email, edit, required, invalid entry, Enter an email address, such as name at example dot com., blank",
+            required: true,
+          },
+          {
+            field: 2,
+            spoken:
+              "Topic, combo box, Choose one, collapsed, required, invalid entry, Choose a topic.",
+            required: true,
+          },
+        ],
+      });
+
+    it("hears the field the press moved focus to in the press's own words", () => {
+      const outcome = good(
+        "3 fields need fixing.. Your name, edit, required, invalid entry, Enter your name., blank",
+      );
+      expect(flagsOf(outcome)).toEqual([]);
+    });
+
+    it("still raises it when the press named the field but said nothing wrong with it", () => {
+      const flags = flagsOf(good("3 fields need fixing.. Your name, edit, required, blank"));
+      const found = flags.find((flag) => flag.rule === "form-error-unlinked");
+      expect(found?.message).toContain("Your name");
+      expect(found?.count).toBe(1);
+    });
+
+    it("hears an error the field says after its name, though the error holds the name too", () => {
+      const outcome = good(
+        "3 fields need fixing.. Your name, edit, required, Enter your name., blank",
+      );
+      expect(ruleIds(flagsOf(outcome))).not.toContain("form-error-unlinked");
+    });
+
+    it("doesn't take an error said before the field's name as the field's", () => {
+      const flags = flagsOf(good("Enter your name. 3 fields need fixing.. Your name, edit, blank"));
+      expect(ruleIds(flags)).toContain("form-error-unlinked");
+    });
+  });
+
+  describe("Chrome's own errors (/forms/native/)", () => {
+    const NATIVE = [field(0, "Your name"), field(1, "Email", { type: "email" })];
+    const BUBBLE = "Please fill out this field.";
+    const nativeForm = (secondPress: string) =>
+      outcomeOf({
+        form: formOf(NATIVE),
+        result: "completed",
+        baseline: { invalid: [0, 1], messages: [] },
+        presses: [
+          {
+            state: stateOf({
+              focusedSubmit: false,
+              focusedField: 0,
+              invalid: [0, 1],
+              emptyRequired: [0, 1],
+              bubble: BUBBLE,
+            }),
+            spoken: "Your name, edit, required, blank. Please fill out this field., alert",
+            axe: null,
+          },
+          {
+            state: stateOf({
+              focusedSubmit: false,
+              focusedField: 1,
+              invalid: [1],
+              emptyRequired: [1],
+              bubble: BUBBLE,
+            }),
+            spoken: secondPress,
+            axe: null,
+          },
+          { state: stateOf({ heldRequests: 1 }), spoken: "", axe: null },
+        ],
+        firstWalk: [
+          { field: 0, spoken: NAME, required: true },
+          { field: 1, spoken: "Email, edit, required, blank", required: true },
+        ],
+        // Email says "required, blank" after the press, never "invalid entry".
+        errorWalk: [
+          { field: 0, spoken: "", required: true },
+          { field: 1, spoken: "Email, edit, required, blank", required: true },
+        ],
+      });
+
+    it("counts each field linked when its press spoke the bubble there", () => {
+      const outcome = nativeForm(
+        "Email, edit, required, blank. Please fill out this field., alert",
+      );
+      expect(flagsOf(outcome)).toEqual([]);
+    });
+
+    it("raises it for a bubbled field whose press didn't speak the bubble", () => {
+      const flags = flagsOf(nativeForm("Email, edit, required, blank"));
+      const found = flags.find((flag) => flag.rule === "form-error-unlinked");
+      expect(found?.message).toContain("Email");
+      expect(found?.message).not.toContain("Your name");
+    });
+  });
+
+  describe("fields with no name (/forms/no-labels/)", () => {
+    const NAMELESS: FormField[] = [
+      { ...field(0, ""), name: null },
+      { ...field(1, "", { type: "tel" }), name: null },
+    ];
+    const noLabels = (firstPress: string) =>
+      outcomeOf({
+        form: formOf(NAMELESS),
+        result: "completed",
+        presses: [
+          {
+            state: stateOf({
+              focusedSubmit: false,
+              focusedField: 0,
+              invalid: [0, 1],
+              emptyRequired: [0, 1],
+              liveChanged: true,
+              messages: ["Enter your name.", "Enter a phone number.", "2 fields need fixing."],
+            }),
+            spoken: firstPress,
+            axe: null,
+          },
+          { state: stateOf({ liveChanged: true, heldRequests: 1 }), spoken: "", axe: null },
+        ],
+        firstWalk: [
+          {
+            field: 0,
+            spoken: "main landmark. form landmark. edit, required, blank",
+            required: true,
+          },
+          { field: 1, spoken: "edit, required, blank", required: true },
+        ],
+        errorWalk: [
+          { field: 0, spoken: "", required: true },
+          {
+            field: 1,
+            spoken: "edit, required, invalid entry, Enter a phone number., blank",
+            required: true,
+          },
+        ],
+      });
+
+    it("takes a nameless focused field's newly said invalid entry at the press", () => {
+      const flags = flagsOf(
+        noLabels("2 fields need fixing.. edit, required, invalid entry, Enter your name., blank"),
+      );
+      expect(ruleIds(flags)).not.toContain("form-error-unlinked");
+    });
+
+    it("doesn't take the page's other words at the press for a nameless field's", () => {
+      const flags = flagsOf(
+        noLabels("2 fields need fixing.. Enter your name. edit, required, blank"),
+      );
+      expect(flags.find((flag) => flag.rule === "form-error-unlinked")?.message).toContain(
+        "field 1",
+      );
+    });
   });
 });

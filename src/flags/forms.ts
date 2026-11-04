@@ -8,7 +8,9 @@
  * - `form-error-unlinked`: after the press, a field that is invalid said no more than it did before
  *   it: not that it is invalid where it hadn't said so, and not the error's own words. "Invalid
  *   entry" alone is no evidence, since NVDA says it before any press on an untouched required radio,
- *   list, and check box.
+ *   list, and check box. The field a press put focus on is heard in that press's own words; the
+ *   others on the walk after it. For Chrome's own errors, a field is linked when NVDA spoke the
+ *   bubble at a press that showed it there.
  * - `form-required-unsaid`: a field that blocked the form didn't say "required" on the first walk.
  * - `form-cant-finish`: the form never got to the point of sending by keyboard.
  * - `form-field-unreachable`: Tab never reached a required field, or its value couldn't be entered.
@@ -22,7 +24,7 @@ import { FORMS_DEFAULTS } from "../config/defaults.js";
 import type { FlagResult } from "../model.js";
 import { DIALOG, OUT_OF_STEPS, UNREACHABLE } from "../passes/forms.js";
 import { readPress } from "../forms/press.js";
-import type { FormField, FormOutcome, FormState } from "../forms/types.js";
+import type { FieldHeard, FormField, FormOutcome, FormState } from "../forms/types.js";
 import { normalizeSpeech } from "../passes/steps.js";
 
 /** The ids of the forms pass's rules, in the order they are raised. */
@@ -120,27 +122,9 @@ function findings(form: FormFlagInput): Partial<Record<FormsRule, Finding>> {
   if (shown && form.errorWalk.length > 0) {
     const errorWords = [...shown.messages, ...(shown.bubble === null ? [] : [shown.bubble])];
     const nativeError = shown.bubble !== null && shown.messages.length === 0;
-    // Every field invalid at the press, not only the newly invalid: the scan marks an empty native
-    // `required` field invalid from the page's load, so it is in the baseline.
-    const unlinked = shown.state.invalid.flatMap((index) => {
-      const after = form.errorWalk.find((heard) => heard.field === index);
-      if (!after) return [];
-      if (nativeError) {
-        // Chrome's own bubble: NVDA speaks it at the press, and says "invalid entry" at the other
-        // fields (which a radio, list, or check box says before any press too).
-        const bubbled = index === (shown.state.focusedField ?? shown.state.invalid[0]);
-        const heard =
-          bubbled && [shown.spoken, after.spoken].some((said) => contains(said, shown.bubble!));
-        return hasWord(after.spoken, words.invalid) || heard
-          ? []
-          : [{ index, spoken: after.spoken }];
-      }
-      const before = form.firstWalk.find((heard) => heard.field === index);
-      const turned =
-        hasWord(after.spoken, words.invalid) && !(before && hasWord(before.spoken, words.invalid));
-      const named = errorWords.some((text) => contains(after.spoken, text));
-      return turned || named ? [] : [{ index, spoken: after.spoken }];
-    });
+    const unlinked = nativeError
+      ? unlinkedBubbled(presses, form.errorWalk)
+      : unlinkedMarked(form, presses, shown.state.invalid, errorWords);
     if (unlinked.length > 0) {
       found["form-error-unlinked"] = {
         message: `${label}: after the press, ${names(
@@ -214,6 +198,108 @@ function findings(form: FormFlagInput): Partial<Record<FormsRule, Finding>> {
     };
   }
   return found;
+}
+
+/** A field that didn't say what was wrong with it, and what NVDA said there. */
+interface Unlinked {
+  index: number;
+  spoken: string;
+}
+
+/**
+ * Chrome's own errors: the fields its bubble was shown at, each the field a press put focus on (or
+ * the first invalid one), that NVDA didn't speak the bubble for at any such press. A field the bubble
+ * was never shown at isn't checked: it never blocked the form. A walk after the press that says the
+ * bubble's words at the field counts too, but "invalid entry" there isn't needed: real NVDA says
+ * "required, blank" at a native text field.
+ */
+function unlinkedBubbled(
+  presses: readonly ReturnType<typeof readOne>[],
+  walked: readonly FieldHeard[],
+): Unlinked[] {
+  const bubbled = new Map<number, { heard: boolean; spoken: string }>();
+  for (const press of presses) {
+    const { bubble } = press;
+    if (bubble === null) continue;
+    const index = press.state.focusedField ?? press.state.invalid[0];
+    if (index === undefined) continue;
+    const after = walked.find((one) => one.field === index)?.spoken ?? "";
+    const heard = [press.spoken, after].some((said) => contains(said, bubble));
+    const earlier = bubbled.get(index);
+    bubbled.set(index, {
+      heard: (earlier?.heard ?? false) || heard,
+      spoken: earlier?.spoken ?? press.spoken,
+    });
+  }
+  return [...bubbled].flatMap(([index, { heard, spoken }]) => (heard ? [] : [{ index, spoken }]));
+}
+
+/**
+ * The page's own errors: each field invalid at the press that showed them which said no more than it
+ * did before. The field a press put focus on (a page moves it to the first error) is heard at the
+ * press itself: NVDA announces it then, and the walk's script focus of the same field is silent. It
+ * is linked when that press's words, from its name on, turn it invalid or hold an error's words; a
+ * field with no name can't be told from the page's other words, so only "invalid entry" counts for
+ * it. Every other field is heard on the walk after the press.
+ */
+function unlinkedMarked(
+  form: FormFlagInput,
+  presses: readonly ReturnType<typeof readOne>[],
+  invalid: readonly number[],
+  errorWords: readonly string[],
+): Unlinked[] {
+  const words = FORMS_DEFAULTS.words;
+  const turnedFrom = (index: number, said: string) => {
+    const before = form.firstWalk.find((heard) => heard.field === index);
+    return hasWord(said, words.invalid) && !(before && hasWord(before.spoken, words.invalid));
+  };
+  const linkedAtPress = new Set<number>();
+  for (const press of presses) {
+    const index = press.state.focusedField;
+    if (!press.showedError || index === null) continue;
+    const name = form.form.fields[index]?.name;
+    const named = typeof name === "string" && name.trim() !== "";
+    const own = [...press.messages, ...(press.bubble === null ? [] : [press.bubble])];
+    const said = named ? spokenAfter(press.spoken, name, own) : press.spoken;
+    if (said === null) continue;
+    if (turnedFrom(index, said) || (named && own.some((text) => contains(said, text)))) {
+      linkedAtPress.add(index);
+    }
+  }
+  return invalid.flatMap((index) => {
+    if (linkedAtPress.has(index)) return [];
+    const after = form.errorWalk.find((heard) => heard.field === index);
+    if (!after) return [];
+    const named = errorWords.some((text) => contains(after.spoken, text));
+    return turnedFrom(index, after.spoken) || named ? [] : [{ index, spoken: after.spoken }];
+  });
+}
+
+/**
+ * What NVDA said after it said `name` as the field's own announcement (its words, from where the
+ * name's run of words ends), or null when it never said the name. The last time it said the name
+ * outside the page's `messages` as they were spoken: an alert ("Enter your name.") may hold the
+ * name too, before or after the field's announcement.
+ */
+function spokenAfter(spoken: string, name: string, messages: readonly string[]): string | null {
+  const said = wordsOf(spoken);
+  const wanted = wordsOf(name);
+  if (wanted.length === 0) return null;
+  const at = (run: readonly string[], start: number) =>
+    run.every((word, i) => said[start + i] === word);
+  // Which of the words are a message's, spoken whole.
+  const inMessage = new Array<boolean>(said.length).fill(false);
+  for (const message of messages) {
+    const run = wordsOf(message);
+    if (run.length === 0) continue;
+    for (let start = 0; start + run.length <= said.length; start++) {
+      if (at(run, start)) inMessage.fill(true, start, start + run.length);
+    }
+  }
+  for (let start = said.length - wanted.length; start >= 0; start--) {
+    if (at(wanted, start) && !inMessage[start]) return said.slice(start + wanted.length).join(" ");
+  }
+  return null;
 }
 
 /**
