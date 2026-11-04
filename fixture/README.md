@@ -37,7 +37,7 @@ The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 20
 The log in the fixture is the **cleaned copy**, the only copy voicecap keeps, made by `cleanNvdaLog` (`src/drivers/guidepup/nvda-log.ts`). It keeps these entries of NVDA's log, whole and in order:
 
 - NVDA's speech: the 392 `Speaking [...]` entries, kept while the last key NVDA logged was one voicecap pressed, or before any key was logged;
-- the keys voicecap pressed: the 267 `Input: kb(desktop):<gesture>` entries, every one of them a gesture in `VOICECAP_GESTURES` (`downArrow`, `h`, `tab`, `control+home`, `control+end`, `NVDA+t`, `escape`);
+- the keys voicecap pressed: the 267 `Input: kb(desktop):<gesture>` entries, every one of them a gesture in `VOICECAP_GESTURES` (`downArrow`, `h`, `tab`, `control+home`, `control+end`, `NVDA+t`, `escape`; the list also has `enter` and `space`, the forms pass's keys, which this run, made without it, never pressed);
 - NVDA's warnings and errors, with their tracebacks.
 
 It leaves out every other key, every typed word, what NVDA said after a key voicecap didn't press (NVDA speaks each character a person types), and NVDA's INFO and debugging entries, and it writes `%USERPROFILE%` for the home folder. Its first line says so, and its lines end with `\n`. Every key in this log was voicecap's, so none of its speech was left out.
