@@ -106,7 +106,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { AXE_LIMIT_MS, axeErrorReason, axeScript, keptAxeResults } from "../axe/results.js";
 import type { VoicecapConfig } from "../config/schema.js";
 import type { FieldValue, FormInfo, FormState } from "../forms/types.js";
-import type { VoiceStretch } from "../model.js";
+import type { PassName, VoiceStretch } from "../model.js";
 import { isHtmlContentType } from "../pages/url.js";
 import { redactHome, redactTemp } from "../run/failure.js";
 import { EnvironmentError, errorCode, errorMessage, withCauses } from "../util/errors.js";
@@ -521,6 +521,8 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   private recorder: Recorder | null = null;
   /** The recording neither the run nor the driver has ended yet: there's at most one. */
   private take: Take | null = null;
+  /** The pass the core said it is opening the page for: the stretches it makes are tagged with it. */
+  private passNow: PassName | undefined;
   /** The helper answers one command at a time, so each command waits for the one before it. */
   private voiceTurn: Promise<unknown> = Promise.resolve();
   /** The start of NVDA (nvdaOwner) the helper is pointed at, once it has taken the target. */
@@ -1338,7 +1340,11 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     const front = await this.windowInFront(page.session);
     this.checkLive(page.generation);
     if (!front.own || this.take !== take) return;
-    take.kept.push({ from: asked, to: this.deps.now().getTime() });
+    take.kept.push({
+      from: asked,
+      to: this.deps.now().getTime(),
+      ...(this.passNow === undefined ? {} : { pass: this.passNow }),
+    });
     take.keeping = true;
   }
 
@@ -1360,6 +1366,11 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    */
   private stopKeeping(): void {
     if (this.take !== null) this.take.keeping = false;
+  }
+
+  /** The core is opening the page for `pass`: the stretches of the recording from here are its. */
+  beginPass(pass: PassName): void {
+    this.passNow = pass;
   }
 
   private markerTitle(): string {
@@ -1900,7 +1911,7 @@ interface Take {
    * The stretches of it to keep, on the driver's clock (ms since the epoch), in order: each pass's,
    * from its confirmed title check to the end of its last step (see confirmFront). None at first.
    */
-  kept: { from: number; to: number }[];
+  kept: { from: number; to: number; pass?: PassName }[];
   /** Whether the last of `kept` is still open: its pass is under way, and each step extends it. */
   keeping: boolean;
 }
@@ -1916,7 +1927,11 @@ type TakeEnd = { stopped: RecorderStop } | { reason: string };
 function stretchesOf(take: Take, firstSampleAt: string): VoiceStretch[] {
   const first = Date.parse(firstSampleAt);
   if (Number.isNaN(first)) return [];
-  return take.kept.map(({ from, to }) => ({ startMs: from - first, endMs: to - first }));
+  return take.kept.map(({ from, to, pass }) => ({
+    startMs: from - first,
+    endMs: to - first,
+    ...(pass === undefined ? {} : { pass }),
+  }));
 }
 
 /** Delete a file if it's there. One that stays is no failure: its folder goes with the helper. */

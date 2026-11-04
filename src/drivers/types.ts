@@ -5,7 +5,7 @@
  */
 import type { AxeSummary } from "../axe/results.js";
 import type { FieldValue, FormInfo, FormState } from "../forms/types.js";
-import type { NewRunEvent, VoiceStretch } from "../model.js";
+import type { NewRunEvent, PassName, VoiceStretch } from "../model.js";
 
 /**
  * Everything the screen reader said in response to one action.
@@ -103,6 +103,11 @@ export interface ScreenReaderDriver {
    * Optional: a driver that can't record leaves it out, and its run records no voice.
    */
   recordVoice?(): Promise<VoiceRecording>;
+  /**
+   * The core is about to open the page for `pass`: the stretches of the recording the pass makes
+   * from here are its (VoiceStretch.pass), until the next call. Left out, the stretches have no pass.
+   */
+  beginPass?(pass: PassName): void;
 
   /** Move to the next line in browse mode (NVDA: Down Arrow). */
   nextLine(): Promise<Speech>;

@@ -4136,6 +4136,34 @@ describe("keeping only each pass's own stretch of a recording", () => {
     ]);
   });
 
+  it("tags each stretch with the pass the core said it was opening the page for, and none when it said none", async () => {
+    const { driver, desktop } = onDesktopTime();
+    await driver.start();
+    desktop.behind = BEHIND;
+    const recording = await driver.recordVoice();
+    // A load before any pass is named has no tag.
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    driver.beginPass("read");
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    // The forms pass makes a stretch for each load that presses a key.
+    driver.beginPass("forms");
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    const capture = await recording.stop();
+
+    expect(stretchesOf(capture).map((stretch) => (stretch as { pass?: string }).pass)).toEqual([
+      undefined,
+      "read",
+      "forms",
+      "forms",
+    ]);
+    expect(JSON.stringify(stretchesOf(capture)[0])).not.toContain("pass");
+  });
+
   it("asks Windows to confirm a check only while NVDA's voice is being recorded", async () => {
     const quiet = setup();
     await quiet.driver.start();

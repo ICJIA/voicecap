@@ -51,8 +51,6 @@ export interface PassResult {
   initialFocus?: FocusedElement | null;
   /** The forms pass only: what came of each form. */
   forms?: FormOutcome[];
-  /** The forms pass only: how many times it loaded the page. */
-  formsLoads?: number;
 }
 
 /**
@@ -74,7 +72,6 @@ export async function runPass(
   let failure: PassFailure | undefined;
   let initialFocus: FocusedElement | null | undefined;
   let forms: FormOutcome[] = [];
-  let formsLoads = 0;
   try {
     if (pass === "read") {
       stopReason = await readPass(driver, recorder, settings);
@@ -84,7 +81,6 @@ export async function runPass(
       const outcome = await formsPass(driver, recorder, { cap: settings.cap, ...settings.forms });
       stopReason = outcome.stopReason;
       forms = outcome.forms;
-      formsLoads = outcome.loads;
       warnings.push(...outcome.warnings);
     } else {
       const outcome = await tabPass(driver, recorder, settings);
@@ -109,7 +105,7 @@ export async function runPass(
     errors,
     ...(failure ? { failure } : {}),
     ...(pass === "tab" ? { initialFocus: initialFocus ?? null } : {}),
-    ...(pass === "forms" ? { forms, formsLoads } : {}),
+    ...(pass === "forms" ? { forms } : {}),
   };
 }
 

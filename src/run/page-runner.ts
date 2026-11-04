@@ -335,8 +335,10 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
   });
   // Have the driver open the page for a pass, within the time a page has to open. The forms pass's
   // loads are guarded: the driver puts the form guard's gate in front of the browser.
-  const open = (pass?: PassName): Promise<PageInfo> =>
-    withTimeout(
+  const open = (pass?: PassName): Promise<PageInfo> => {
+    // The recording's stretches that the load makes are this pass's.
+    if (pass !== undefined) session.driver.beginPass?.(pass);
+    return withTimeout(
       `Opening the page`,
       () =>
         pass === "forms"
@@ -346,6 +348,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
       signal,
       "open-timeout",
     );
+  };
   // How an attempt ends when the page wouldn't open for `pass`: it's tried again after a restart.
   // Ctrl+C isn't that: it leaves the page pending.
   const notOpened = (pass: PassName, error: unknown): Attempt => {
@@ -477,7 +480,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
             tested[outcome.form.signature] ??= displayPath(page.url);
           }
         }
-        const forms = await keepForms(ctx, dir, result.forms ?? [], result.formsLoads);
+        const forms = await keepForms(ctx, dir, result.forms ?? []);
         if (forms) loaded.forms = forms;
         // A problem in the forms pass never fails the page's other passes: it says why in its record.
         continue;
@@ -578,12 +581,11 @@ async function keepForms(
   ctx: PageContext,
   dir: string,
   outcomes: readonly FormOutcome[],
-  loads?: number,
 ): Promise<FormsRecord | null> {
   if (outcomes.length === 0) return null;
   const ranAt = isoLocalMs(ctx.now());
   try {
-    const kept = keptFormsResults(outcomes, displayPath(ctx.page.url), loads);
+    const kept = keptFormsResults(outcomes, displayPath(ctx.page.url));
     await writeFileAtomic(path.join(dir, FORMS_FILE), kept.json);
     return { ...fileHash(kept.json), ranAt, counts: kept.counts };
   } catch (error) {
@@ -768,7 +770,7 @@ async function keepVoice(
  * sample: the driver's, each cut to the recording, then shrunk by the sound the recorder lost
  * (`lostMs`) at both ends, as lost sound can shift where a moment falls in the file. So the
  * recording keeps less than the driver kept, never more. In order, with stretches that meet or
- * overlap joined; one nothing is left of, or whose ends aren't numbers, is dropped.
+ * overlap joined (those of the same pass only); one nothing is left of, or whose ends aren't numbers, is dropped.
  */
 function keptStretches(
   stretches: readonly VoiceStretch[],
@@ -779,16 +781,18 @@ function keptStretches(
   const margin = Number.isFinite(lostMs) && lostMs > 0 ? Math.ceil(lostMs) : 0;
   const shrunk = stretches
     .filter(({ startMs, endMs }) => Number.isFinite(startMs) && Number.isFinite(endMs))
-    .map(({ startMs, endMs }) => ({
+    .map(({ startMs, endMs, pass }) => ({
       startMs: Math.max(0, Math.ceil(startMs)) + margin,
       endMs: Math.min(lengthMs, Math.floor(endMs)) - margin,
+      ...(pass === undefined ? {} : { pass }),
     }))
     .filter(({ startMs, endMs }) => endMs > startMs)
     .sort((a, b) => a.startMs - b.startMs);
   const joined: VoiceStretch[] = [];
   for (const stretch of shrunk) {
     const last = joined.at(-1);
-    if (last !== undefined && stretch.startMs <= last.endMs) {
+    // Only stretches of one pass are joined: two of different passes stay apart, where they meet.
+    if (last !== undefined && stretch.startMs <= last.endMs && stretch.pass === last.pass) {
       last.endMs = Math.max(last.endMs, stretch.endMs);
     } else {
       joined.push(stretch);

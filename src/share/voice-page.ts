@@ -55,6 +55,7 @@ import {
   type PassName,
   type RunJson,
   type VoiceRecord,
+  type VoiceStretch,
 } from "../model.js";
 import { esc, idFragment } from "../report/html.js";
 import { voiceAnchor } from "./anchors.js";
@@ -276,30 +277,20 @@ function facts(record: KeptVoice): string {
 }
 
 /**
- * How many times the forms pass loaded the page, as the page's forms record counts them: its own
- * load, and one more for every form it went on to (see formsPass). Null when the page has no forms
- * pass, or its record doesn't say (one from before the count was kept), so it can't be told.
- */
-function formsLoads(page: PageRecord, passes: readonly PassName[]): number | null {
-  if (passes.at(-1) !== "forms") return null;
-  const record = page.forms;
-  if (record === undefined || !("counts" in record)) return null;
-  const { loads } = record.counts;
-  return isNumber(loads) && Number.isInteger(loads) && loads >= 1 ? loads : null;
-}
-
-/**
- * Where in a page's recording each of its passes began, in ms, by pass. The recording keeps one
- * stretch for each pass the run's record of the page has, in the passes' order (see VoiceStretch in
- * ../model.ts), and for the forms pass one for each load it made: a stretch begins with the check of
- * the window, before the pass's first key, and ends as the pass ends, so the pass began at its
- * stretch's end less its length, its last line's end (see AppendixFile's `timing`). Nothing for a
- * pass whose stretch or length isn't known, or whose start would fall before its stretch's, and
- * nothing at all when the stretches aren't as many as expected, so no line is ever outlined at
- * another's time. Stretches that meet are joined and empty ones dropped (see keptStretches), so the
- * expected count is exact: one for each pass before the forms pass and the forms record's count of
- * loads. When that count isn't known, the stretches must be as many as the passes, and the forms
- * pass gets no start. It gets one, too, only when it made a single load.
+ * Where in a page's recording each of its passes began, in ms, by pass. A stretch begins with the
+ * check of the window, before the pass's first key, and ends as the pass ends, so the pass began at
+ * its stretch's end less its length, its last line's end (see AppendixFile's `timing`). Nothing for
+ * a pass whose stretch or length isn't known, or whose start would fall before its stretch's.
+ *
+ * A recording whose stretches say which pass made each (VoiceStretch.pass) gives each pass its own
+ * first stretch, so the forms pass, which loads the page again for each form and makes a stretch for
+ * every load that presses a key (and none for one that presses none), can't shift another pass's.
+ * A pass gets a start only from a single stretch of its own: the forms pass, which may make several,
+ * gets none from several.
+ *
+ * A recording whose stretches name no pass (one from before they did) keeps the rule it had: one
+ * stretch for each pass the page's record has, in the passes' order, and nothing at all when the
+ * passes and the stretches aren't as many, so no line is ever outlined at another's time.
  */
 function passStarts(
   page: PageRecord,
@@ -309,12 +300,14 @@ function passStarts(
   const starts = new Map<PassName, number>();
   const passes = PASS_NAMES.filter((pass) => page.passes[pass] !== undefined);
   const stretches = Array.isArray(record.stretches) ? record.stretches : [];
-  const loads = formsLoads(page, passes);
-  const expected = loads === null ? passes.length : passes.length - 1 + loads;
-  if (stretches.length !== expected) return starts;
+  const tagged = stretches.length > 0 && stretches.every(({ pass }) => isPassName(pass));
+  const stretchOf = (pass: PassName, index: number): VoiceStretch | undefined => {
+    if (!tagged) return passes.length === stretches.length ? stretches[index] : undefined;
+    const own = stretches.filter((one) => one.pass === pass);
+    return own.length === 1 ? own[0] : undefined;
+  };
   passes.forEach((pass, index) => {
-    if (pass === "forms" && loads !== 1) return;
-    const stretch = stretches[index];
+    const stretch = stretchOf(pass, index);
     const length = files.find((file) => file.pass === pass)?.timing?.at(-1)?.toMs;
     if (stretch === undefined || length === undefined) return;
     if (!isNumber(stretch.startMs) || !isNumber(stretch.endMs)) return;
@@ -323,6 +316,9 @@ function passStarts(
   });
   return starts;
 }
+
+const isPassName = (value: unknown): value is PassName =>
+  typeof value === "string" && (PASS_NAMES as readonly string[]).includes(value);
 
 /**
  * A page's transcripts beside its recording, word for word, so a person can read along as it plays

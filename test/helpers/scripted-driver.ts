@@ -14,7 +14,7 @@ import type {
   VoiceCapture,
   VoiceRecording,
 } from "../../src/drivers/types.js";
-import type { VoiceStretch } from "../../src/model.js";
+import type { PassName, VoiceStretch } from "../../src/model.js";
 import { canonicalKey } from "../../src/pages/url.js";
 import { peakOf } from "../../src/voice/encode.js";
 
@@ -132,6 +132,12 @@ export class ScriptedDriver implements ScreenReaderDriver {
    * it's stopped (once it has read the file), the driver when it's discarded.
    */
   readonly pcmFiles: string[] = [];
+  /** The pass the core said it was opening the page for, each time it said so, in order. */
+  readonly begun: PassName[] = [];
+
+  beginPass(pass: PassName): void {
+    this.begun.push(pass);
+  }
 
   private readonly pages = new Map<string, ScriptedPage>();
   private page: ScriptedPage | null = null;
