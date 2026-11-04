@@ -432,6 +432,8 @@ describe("At a glance", () => {
     const glance = textOf(renderGlance(model));
     expect(glance).toContain("3 of 4 forms work with NVDA");
     expect(glance).toContain("/c/");
+    expect(glance).toContain("don't work with NVDA. Each page's card has the form's banner.");
+    expect(glance).not.toContain("yet");
     expect(glance).not.toContain("/a/");
     expect(renderGlance(model)).toMatch(/class="form-banner needs-work"/);
   });

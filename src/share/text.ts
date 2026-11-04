@@ -409,7 +409,7 @@ export const FORMS_TEXT = {
       `All ${found} ${found === 1 ? "form works" : "forms work"} with NVDA`,
     some: (working: number, found: number): string => `${working} of ${found} forms work with NVDA`,
     which: (pages: string): string =>
-      `The forms on ${pages} don't work with NVDA yet. Each page's card has the form's banner.`,
+      `The forms on ${pages} don't work with NVDA. Each page's card has the form's banner.`,
   },
 };
 

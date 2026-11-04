@@ -130,7 +130,7 @@ export interface AiFormsGlance {
   notChecked: number;
   /** The banner At a glance gives; null when the pass checked no form. */
   banner: AiFormBanner | null;
-  /** The pages with a form that does not work with NVDA yet. */
+  /** The pages with a form that does not work with NVDA. */
   pagesToFix: string[];
 }
 
