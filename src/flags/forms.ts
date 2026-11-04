@@ -260,11 +260,11 @@ function unlinkedMarked(
     const name = form.form.fields[index]?.name;
     const named = typeof name === "string" && name.trim() !== "";
     const own = [...press.messages, ...(press.bubble === null ? [] : [press.bubble])];
-    const said = named ? spokenAfter(press.spoken, name, own) : press.spoken;
-    if (said === null) continue;
-    if (turnedFrom(index, said) || (named && own.some((text) => contains(said, text)))) {
-      linkedAtPress.add(index);
-    }
+    const heard = named ? spokenAfter(press.spoken, name, own) : [press.spoken];
+    const linked = heard.some(
+      (said) => turnedFrom(index, said) || (named && own.some((text) => contains(said, text))),
+    );
+    if (linked) linkedAtPress.add(index);
   }
   return invalid.flatMap((index) => {
     if (linkedAtPress.has(index)) return [];
@@ -276,15 +276,15 @@ function unlinkedMarked(
 }
 
 /**
- * What NVDA said after it said `name` as the field's own announcement (its words, from where the
- * name's run of words ends), or null when it never said the name. The last time it said the name
- * outside the page's `messages` as they were spoken: an alert ("Enter your name.") may hold the
- * name too, before or after the field's announcement.
+ * What NVDA said after each time it said `name` as it would announce the field (its words, from
+ * where the name's run of words ends), none when it never said the name. A time the name was said
+ * inside one of the page's `messages`, as they were spoken, doesn't count: an alert ("Enter your
+ * name.") may hold the name too, before the field's announcement, or in it.
  */
-function spokenAfter(spoken: string, name: string, messages: readonly string[]): string | null {
+function spokenAfter(spoken: string, name: string, messages: readonly string[]): string[] {
   const said = wordsOf(spoken);
   const wanted = wordsOf(name);
-  if (wanted.length === 0) return null;
+  if (wanted.length === 0) return [];
   const at = (run: readonly string[], start: number) =>
     run.every((word, i) => said[start + i] === word);
   // Which of the words are a message's, spoken whole.
@@ -296,10 +296,13 @@ function spokenAfter(spoken: string, name: string, messages: readonly string[]):
       if (at(run, start)) inMessage.fill(true, start, start + run.length);
     }
   }
-  for (let start = said.length - wanted.length; start >= 0; start--) {
-    if (at(wanted, start) && !inMessage[start]) return said.slice(start + wanted.length).join(" ");
+  const after: string[] = [];
+  for (let start = 0; start + wanted.length <= said.length; start++) {
+    if (at(wanted, start) && !inMessage[start]) {
+      after.push(said.slice(start + wanted.length).join(" "));
+    }
   }
-  return null;
+  return after;
 }
 
 /**
