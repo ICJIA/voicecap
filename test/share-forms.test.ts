@@ -1,0 +1,489 @@
+/**
+ * What readers see of the forms pass on the shareable page: the banner of each form (the feature's
+ * headline, said once in src/forms/banner.ts), the card's banners in view with a fold of what
+ * happened at the form, At a glance's line, the share's record of it, and the fingerprint check of
+ * forms-result.json.
+ */
+import vm from "node:vm";
+
+import { describe, expect, it } from "vitest";
+
+import { formsFlags } from "../src/flags/forms.js";
+import { formBanner } from "../src/forms/banner.js";
+import { keptFormsResults } from "../src/forms/result-file.js";
+import type { FormInfo, FormOutcome, FormState } from "../src/forms/types.js";
+import type { FlagResult, FormsRecord, ReviewsFile, RunJson } from "../src/model.js";
+import { CHECK_LIBRARY } from "../src/share/check.js";
+import { renderSharePage } from "../src/share/html/document.js";
+import { SHARE_CSS } from "../src/share/html/style.js";
+import { renderGlance } from "../src/share/html/top.js";
+import { renderPages } from "../src/share/html/pages.js";
+import { shareResultOf } from "../src/share/shares.js";
+import { buildShareModel, type ShareModel } from "../src/share/model.js";
+import { fileHash } from "../src/transcripts/write.js";
+import { launchBrowser, violations } from "./helpers/axe.js";
+import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
+import { textOf } from "./helpers/share-html.js";
+import { inputOf, LINES, storeOf, TRANSCRIPTS } from "./helpers/share-model.js";
+
+const STATE: FormState = {
+  focused: null,
+  focusedField: null,
+  focusedSubmit: true,
+  invalid: [],
+  emptyRequired: [],
+  messages: [],
+  liveChanged: false,
+  heldRequests: 1,
+  present: true,
+  bubble: null,
+};
+
+const NAME = { index: 0, name: "Name", type: "text", required: true, tabIndex: 0 };
+const EMAIL = { index: 1, name: "Email", type: "email", required: true, tabIndex: 0 };
+const BIRTH = { index: 2, name: "Date of birth", type: "date", required: true, tabIndex: 0 };
+
+function formOf(overrides: Partial<FormInfo> = {}): FormInfo {
+  return {
+    index: 0,
+    signature: "contact",
+    kind: "test",
+    site: null,
+    fields: [NAME, EMAIL],
+    submitName: "Send",
+    sensitive: false,
+    captcha: false,
+    ...overrides,
+  };
+}
+
+/** A form that was completed by keyboard, with no flag raised on it. */
+function completed(overrides: Partial<FormOutcome> = {}): FormOutcome {
+  return {
+    form: formOf(),
+    result: "completed",
+    stoppedAt: null,
+    reason: null,
+    presses: [
+      {
+        state: { ...STATE, invalid: [0], messages: ["Name is required"], heldRequests: 0 },
+        spoken: "Name is required",
+        axe: null,
+        heldBefore: 0,
+      },
+      { state: STATE, spoken: "", axe: null, heldBefore: 0 },
+    ],
+    baseline: { invalid: [], messages: [] },
+    firstWalk: [
+      { field: 0, spoken: "Name, edit, required", required: true },
+      { field: 1, spoken: "Email, edit, required", required: true },
+    ],
+    errorWalk: [],
+    lastWalk: [],
+    ...overrides,
+  };
+}
+
+function stuck(): FormOutcome {
+  return completed({
+    form: formOf({ fields: [NAME, EMAIL, BIRTH] }),
+    result: "stuck",
+    stoppedAt: BIRTH,
+    reason: "Tab never reached it",
+  });
+}
+
+/** A form that was completed, though a press showed an error NVDA said none of. */
+function silent(): FormOutcome {
+  return completed({
+    presses: [
+      {
+        state: { ...STATE, invalid: [1], messages: ["Email is not valid"], heldRequests: 0 },
+        spoken: "",
+        axe: null,
+        heldBefore: 0,
+      },
+      { state: STATE, spoken: "", axe: null, heldBefore: 0 },
+    ],
+  });
+}
+
+/** The flags the pass raises on a form, as the report reads them. */
+const FLAG: FlagResult = formsFlags([silent()])[0] ?? { rule: "none", message: "none" };
+
+describe("formBanner", () => {
+  it("is green and definite for a form that was completed with no flag left", () => {
+    const banner = formBanner(completed(), []);
+    expect(banner.kind).toBe("works");
+    expect(banner.headline).toBe("This form works with NVDA.");
+    expect(banner.detail).toBe(
+      "NVDA reached all 2 required fields, said each one's name and that it's required, and told the user what was wrong. The form was completed by keyboard.",
+    );
+  });
+
+  it("is amber for a completed form with a flag left, and says what's wrong", () => {
+    expect(FLAG.rule).toBe("form-error-silent");
+    const banner = formBanner(silent(), [FLAG]);
+    expect(banner.kind).toBe("needs-work");
+    expect(banner.headline).toBe("This form needs work with NVDA.");
+    expect(banner.detail).toContain(FLAG.message);
+  });
+
+  it("is red for a form that never reached the point of sending, and says where it stopped", () => {
+    const banner = formBanner(stuck(), []);
+    expect(banner.kind).toBe("cant-complete");
+    expect(banner.headline).toBe("This form can't be completed with NVDA.");
+    expect(banner.detail).toContain("It stopped at Date of birth.");
+  });
+
+  it("is gray for a form that wasn't tested, and says why", () => {
+    const search = completed({
+      form: formOf({ kind: "search" }),
+      result: "not-tested",
+      reason: "it is a search form",
+    });
+    const banner = formBanner(search, []);
+    expect(banner.kind).toBe("not-checked");
+    expect(banner.headline).toBe("This form wasn't checked.");
+    expect(banner.detail).toContain("it is a search form");
+  });
+
+  it("turns green when a review settled the flags of a completed form", () => {
+    expect(formBanner(completed(), [FLAG]).kind).toBe("needs-work");
+    expect(formBanner(completed(), []).kind).toBe("works");
+  });
+
+  it("is never turned green by a review of a form that can't be completed", () => {
+    expect(formBanner(stuck(), []).kind).toBe("cant-complete");
+    expect(formBanner(stuck(), [FLAG]).kind).toBe("cant-complete");
+  });
+});
+
+// A page of the forms pass, as a run keeps it.
+
+const RAN_AT = "2026-10-30T09:00:00.000-05:00";
+
+/** A page's forms-result.json, and the page's record of it. */
+function kept(outcomes: FormOutcome[], page: string): { text: string; record: FormsRecord } {
+  const { json, counts } = keptFormsResults(outcomes, page);
+  return { text: json, record: { ...fileHash(json), counts, ranAt: RAN_AT } };
+}
+
+interface Built {
+  model: ShareModel;
+  run: RunJson;
+}
+
+const NEW = "0.25.0";
+
+/** One run of pages; each page spec may carry its forms, whose file the loader is made to hold. */
+function build(
+  pages: { path: string; forms?: FormOutcome[]; flags?: FlagResult[] }[],
+  options: {
+    passes?: ("read" | "headings" | "tab" | "forms")[];
+    version?: string;
+    /** A person's review of the first page, of the transcripts shown. */
+    review?: "reviewed" | "issue";
+  } = {},
+  overrides: Partial<Parameters<typeof inputOf>[1]> = {},
+): Built {
+  const files = new Map<string, string>();
+  const specs: SharePageSpec[] = pages.map((page) => {
+    const made = page.forms === undefined ? undefined : kept(page.forms, page.path);
+    return {
+      path: page.path,
+      title: `Page ${page.path}`,
+      files: TRANSCRIPTS,
+      passes: LINES,
+      ...(made === undefined ? {} : { forms: made.record }),
+      ...(page.flags === undefined ? {} : { flags: page.flags }),
+      __text: made?.text,
+    } as SharePageSpec;
+  });
+  const run = shareRun({
+    id: "r1",
+    voicecapVersion: options.version ?? NEW,
+    passes: options.passes ?? ["read", "headings", "tab", "forms"],
+    pages: specs,
+  });
+  pages.forEach((page, index) => {
+    const text = (specs[index] as unknown as { __text?: string }).__text;
+    const slug = run.pages[index]?.slug;
+    if (text !== undefined && slug !== undefined) files.set(`r1/${slug}`, text);
+  });
+  const first = run.pages[0];
+  const reviews: ReviewsFile =
+    options.review === undefined || first === undefined
+      ? { schemaVersion: 1, pages: {} }
+      : {
+          schemaVersion: 1,
+          pages: {
+            [first.key]: [
+              {
+                status: options.review,
+                reviewer: "Pat Lee",
+                at: "2026-10-30T10:00:00-05:00",
+                note: null,
+                run: run.id,
+                url: first.url,
+                files: {},
+                content: Object.fromEntries(
+                  Object.entries(first.passes).map(([pass, summary]) => [
+                    pass,
+                    summary.contentSha256,
+                  ]),
+                ),
+              },
+            ],
+          },
+        };
+  const model = buildShareModel(
+    inputOf([run], { transcripts: storeOf(), formsFiles: files, reviews, ...overrides }),
+  );
+  return { model, run };
+}
+
+/** A card's html outside every fold. */
+function outsideFolds(html: string): string {
+  return html.replace(/<details[\s\S]*?<\/details>/g, "");
+}
+
+describe("the page's card", () => {
+  it("shows each form's banner in view, outside any fold, with a sign that repeats its words", () => {
+    const { model } = build([{ path: "/contact/", forms: [completed()] }]);
+    const html = renderPages(model);
+    const open = outsideFolds(html);
+    expect(open).toContain('class="form-banner works"');
+    expect(textOf(open)).toContain("This form works with NVDA.");
+    expect(textOf(open)).toContain("NVDA reached all 2 required fields");
+    // The sign is the style block's, drawn with no alternative text; the words say the same.
+    expect(SHARE_CSS).toContain('.form-banner.works .headline::before { content: "✓"');
+  });
+
+  it("shows an amber, a red, and a gray banner, each with its own sign and words", () => {
+    const { model } = build([
+      { path: "/silent/", forms: [silent()] },
+      { path: "/stuck/", forms: [stuck()] },
+      {
+        path: "/search/",
+        forms: [
+          completed({
+            form: formOf({ kind: "search" }),
+            result: "not-tested",
+            reason: "it is a search form",
+          }),
+        ],
+      },
+    ]);
+    const open = outsideFolds(renderPages(model));
+    expect(open).toContain('class="form-banner needs-work"');
+    expect(textOf(open)).toContain("This form needs work with NVDA.");
+    expect(open).toContain('class="form-banner cant-complete"');
+    expect(textOf(open)).toContain("This form can't be completed with NVDA.");
+    expect(open).toContain('class="form-banner not-checked"');
+    expect(textOf(open)).toContain("This form wasn't checked.");
+    expect(SHARE_CSS).toContain('.form-banner.needs-work .headline::before { content: "⚠"');
+    expect(SHARE_CSS).toContain('.form-banner.cant-complete .headline::before { content: "⚠"');
+    expect(SHARE_CSS).toContain('.form-banner.not-checked .headline::before { content: "–"');
+  });
+
+  it("turns a flagged completed form green once a person reviewed the page with no issues", () => {
+    const flagged = build([{ path: "/silent/", forms: [silent()] }]);
+    expect(outsideFolds(renderPages(flagged.model))).toContain("form-banner needs-work");
+  });
+
+  it("has a fold, What happened at the form, with each required field, each press, and axe", () => {
+    const withAxe = completed({
+      presses: [
+        {
+          state: { ...STATE, invalid: [0], messages: ["Name is required"], heldRequests: 0 },
+          spoken: "Name is required",
+          axe: {
+            json: "{}",
+            summary: {
+              axeVersion: "4.14.0",
+              counts: { violations: 0, incomplete: 0, passes: 4, inapplicable: 1 },
+              impacts: { critical: 0, serious: 0, moderate: 0, minor: 0 },
+            },
+          },
+          heldBefore: 0,
+        },
+      ],
+    });
+    const { model } = build([{ path: "/contact/", forms: [withAxe] }]);
+    const html = renderPages(model);
+    const fold = /<details class="fold forms-fold"[\s\S]*?<\/details>/.exec(html)?.[0] ?? "";
+    expect(textOf(fold)).toContain("What happened at the form");
+    expect(textOf(fold)).toContain("Name");
+    expect(textOf(fold)).toContain("Name, edit, required");
+    expect(textOf(fold)).toContain("Email, edit, required");
+    expect(textOf(fold)).toContain("Name is required");
+    expect(textOf(fold)).toContain("axe with its errors showing: no issues");
+    // The banner is not inside the fold.
+    expect(fold).not.toContain("form-banner");
+  });
+
+  it("says nothing of forms on a page of a run with no forms pass", () => {
+    const { model } = build([{ path: "/plain/" }], { passes: ["read", "headings", "tab"] });
+    const html = renderPages(model);
+    expect(html).not.toContain("form-banner");
+    expect(html).not.toContain("What happened at the form");
+  });
+});
+
+describe("At a glance", () => {
+  it("says all the forms work, once a run has the pass", () => {
+    const { model } = build([
+      { path: "/a/", forms: [completed()] },
+      { path: "/b/", forms: [completed(), completed()] },
+      { path: "/c/", forms: [completed()] },
+    ]);
+    expect(model.forms).toMatchObject({ found: 4, working: 4 });
+    const glance = textOf(renderGlance(model));
+    expect(glance).toContain("All 4 forms work with NVDA");
+  });
+
+  it("says how many work, naming the pages of those that don't", () => {
+    const { model } = build([
+      { path: "/a/", forms: [completed()] },
+      { path: "/b/", forms: [completed(), completed()] },
+      { path: "/c/", forms: [stuck()] },
+    ]);
+    expect(model.forms).toMatchObject({ found: 4, working: 3 });
+    const glance = textOf(renderGlance(model));
+    expect(glance).toContain("3 of 4 forms work with NVDA");
+    expect(glance).toContain("/c/");
+    expect(glance).not.toContain("/a/");
+    expect(renderGlance(model)).toMatch(/class="form-banner needs-work"/);
+  });
+
+  it("records no forms when the run took the pass and found none to check, and says nothing at a glance", () => {
+    const { model } = build([{ path: "/plain/" }]);
+    expect(model.forms).toEqual({ found: 0, working: 0, broken: [] });
+    expect(model.result.forms).toEqual({ found: 0, working: 0 });
+    expect(textOf(renderGlance(model))).not.toContain("forms");
+  });
+
+  it("records the count for the website in the share's result", () => {
+    const { model } = build([
+      { path: "/a/", forms: [completed()] },
+      { path: "/c/", forms: [stuck()] },
+    ]);
+    expect(model.result.forms).toEqual({ found: 2, working: 1 });
+    const parsed = shareResultOf({ ...model.result });
+    expect(parsed?.forms).toEqual({ found: 2, working: 1 });
+  });
+
+  it("reads no forms count that can't be true from a share's record", () => {
+    const base = { pages: 3, read: 3, problems: 0, problemPages: 0 };
+    expect(shareResultOf({ ...base, forms: { found: 2, working: 3 } })).toBeNull();
+    expect(shareResultOf({ ...base, forms: { found: "2", working: 1 } })).toBeNull();
+    expect(shareResultOf(base)?.forms).toBeUndefined();
+  });
+
+  it("says nothing for a run with no forms pass", () => {
+    const { model } = build([{ path: "/plain/" }], { passes: ["read", "headings", "tab"] });
+    expect(model.forms).toBeNull();
+    expect(model.result.forms).toBeUndefined();
+    expect(textOf(renderGlance(model))).not.toContain("forms");
+  });
+
+  it("says Not recorded for a run from before the pass", () => {
+    const { model } = build([{ path: "/plain/" }], {
+      passes: ["read", "headings", "tab"],
+      version: "0.12.0",
+    });
+    expect(model.forms).toEqual({ notRecorded: "Not recorded: this run used voicecap 0.12.0." });
+    expect(model.result.forms).toBeUndefined();
+    expect(textOf(renderGlance(model))).toContain("Not recorded: this run used voicecap 0.12.0.");
+  });
+});
+
+describe("the fingerprint check", () => {
+  it("carries each forms-result.json a card shows, with its exact text", () => {
+    const { model, run } = build([{ path: "/contact/", forms: [completed()] }]);
+    const slug = run.pages[0]?.slug;
+    expect(model.check.forms).toHaveLength(1);
+    expect(model.check.forms?.[0]).toMatchObject({
+      run: "r1",
+      slug,
+      name: "forms-result.json",
+    });
+    const record = run.pages[0]?.forms;
+    expect(
+      record && "sha256" in record ? fileHash(model.check.forms?.[0]?.text ?? "").sha256 : "",
+    ).toBe(record && "sha256" in record ? record.sha256 : "x");
+  });
+
+  it("names a forms-result.json that isn't as its run recorded it, and shows no banner for it", () => {
+    const { model } = build(
+      [{ path: "/contact/", forms: [completed()] }],
+      {},
+      {
+        formsFiles: new Map(),
+      },
+    );
+    expect(model.check.forms).toEqual([]);
+    expect(textOf(renderPages(model))).toContain("forms-result.json isn't as the run recorded it");
+  });
+});
+
+describe("the fingerprint check's library", () => {
+  const library = vm.runInNewContext(CHECK_LIBRARY + ";({ checkAll })", { TextEncoder }) as {
+    checkAll: (data: unknown) => Promise<{ forms: { ok: boolean }[]; line: string }>;
+  };
+
+  it("holds a forms file to the fingerprint its run recorded, whole", async () => {
+    const { model, run } = build([{ path: "/contact/", forms: [completed()] }]);
+    const data = { ...model.check, runs: [run] };
+    const same = await library.checkAll(data);
+    expect(same.forms.map((each) => each.ok)).toEqual([true]);
+    expect(same.line).toContain("1 of 1 forms result matches its fingerprint");
+    const first = model.check.forms?.[0];
+    const changed = await library.checkAll({
+      ...data,
+      forms: [{ ...first, text: `${first?.text ?? ""} ` }],
+    });
+    expect(changed.forms.map((each) => each.ok)).toEqual([false]);
+    expect(changed.line).toContain("forms-result.json doesn't match its fingerprint.");
+  });
+});
+
+describe("accessibility, in Chromium", () => {
+  it("has no axe violations with every kind of banner, folds open, in both themes", async () => {
+    const { model } = build([
+      { path: "/ok/", forms: [completed()] },
+      { path: "/silent/", forms: [silent()] },
+      { path: "/stuck/", forms: [stuck()] },
+      {
+        path: "/search/",
+        forms: [
+          completed({
+            form: formOf({ kind: "search" }),
+            result: "not-tested",
+            reason: "it is a search form",
+          }),
+        ],
+      },
+    ]);
+    const html = renderSharePage(model, { fontCss: "" });
+    const browser = await launchBrowser();
+    try {
+      for (const scheme of ["dark", "light"] as const) {
+        const context = await browser.newContext({ colorScheme: scheme });
+        const page = await context.newPage();
+        await page.setContent(html);
+        await page.evaluate((theme) => {
+          document.documentElement.setAttribute("data-theme", theme);
+          document.querySelectorAll("details").forEach((each) => each.setAttribute("open", ""));
+        }, scheme);
+        const height = await page.evaluate(() => document.documentElement.scrollHeight);
+        await page.setViewportSize({ width: 1280, height });
+        expect(await violations(page), scheme).toEqual([]);
+        await context.close();
+      }
+    } finally {
+      await browser.close();
+    }
+  }, 120_000);
+});

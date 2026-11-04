@@ -44,7 +44,13 @@ import { listRuns } from "../run/store.js";
 import { fileHash } from "../transcripts/write.js";
 import { UsageError } from "../util/errors.js";
 import { isoLocal } from "../util/time.js";
-import { axeRecordOf, isFileHash, screenshotRecordOf, voiceRecordOf } from "./records.js";
+import {
+  axeRecordOf,
+  formsRecordOf,
+  isFileHash,
+  screenshotRecordOf,
+  voiceRecordOf,
+} from "./records.js";
 import type { GestureOf } from "./run-log-check.js";
 import { cardRecord, runBefore, standingOf, type Standing } from "./standing.js";
 
@@ -132,6 +138,13 @@ export interface ShareInput {
    * results, and the card says so.
    */
   axeFiles: Map<string, string>;
+  /**
+   * The text of the forms file (forms-result.json) of each page the page shows a form's result for,
+   * as `axeFiles` holds axe's: by run id and page slug, of the record its card speaks for, only when
+   * its record lists one and only as the record has it. Optional: a model made without it shows no
+   * form's result.
+   */
+  formsFiles?: Map<string, string>;
   /**
    * The recording of NVDA's voice (voice.webm) of each page the voice page can play one for, by run
    * id and page slug, as `screenshots` holds a picture: the file of the record its card speaks for
@@ -227,19 +240,27 @@ export async function loadShareInput(options: {
   for (const { run, page } of pagesToRead(standing)) {
     read.set(storeKey(run.id, page.slug), await readPage(siteDir, run.id, page));
   }
-  const [reviews, manual, unreadableRuns, events, nvdaLogs, screenshots, axeFiles, recordings] =
-    await Promise.all([
-      readReviews(siteDir),
-      listManualSessions(siteDir),
-      runsNotRead(siteDir, records),
-      eventLogsOf(siteDir, standing.drawnOn),
-      nvdaLogsOf(siteDir, standing.drawnOn),
-      screenshotsOf(siteDir, standing),
-      axeFilesOf(siteDir, standing),
-      options.recordings === false
-        ? new Map<string, Uint8Array>()
-        : recordingsOf(siteDir, standing),
-    ]);
+  const [
+    reviews,
+    manual,
+    unreadableRuns,
+    events,
+    nvdaLogs,
+    screenshots,
+    axeFiles,
+    formsFiles,
+    recordings,
+  ] = await Promise.all([
+    readReviews(siteDir),
+    listManualSessions(siteDir),
+    runsNotRead(siteDir, records),
+    eventLogsOf(siteDir, standing.drawnOn),
+    nvdaLogsOf(siteDir, standing.drawnOn),
+    screenshotsOf(siteDir, standing),
+    axeFilesOf(siteDir, standing),
+    formsFilesOf(siteDir, standing),
+    options.recordings === false ? new Map<string, Uint8Array>() : recordingsOf(siteDir, standing),
+  ]);
   const gestureOf = options.gestureOf ?? null;
   // The steps of every page of a run that kept copies, which its copies are checked against: read
   // only when there is a check to make.
@@ -270,6 +291,7 @@ export async function loadShareInput(options: {
     gestureOf,
     screenshots,
     axeFiles,
+    formsFiles,
     recordings,
     siteName: config.report.siteName,
     flagRules: config.flags,
@@ -484,6 +506,24 @@ async function axeFilesOf(siteDir: string, standing: Standing): Promise<ShareInp
       text = UTF8.decode(bytes);
     } catch {
       // Not UTF-8 text, so no axe results as voicecap keeps them: "", and the card says so.
+    }
+    files.set(key, text);
+  }
+  return files;
+}
+
+/**
+ * The forms file of each page, by run id and slug, as `axeFilesOf` finds axe's: only when its record
+ * lists one, as UTF-8 text exactly as its bytes are, "" for bytes that aren't.
+ */
+async function formsFilesOf(siteDir: string, standing: Standing): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  for (const [key, bytes] of await filesAsRecorded(siteDir, standing, FORMS_FILE, formsRecordOf)) {
+    let text = "";
+    try {
+      text = UTF8.decode(bytes);
+    } catch {
+      // Not UTF-8 text, so no results as voicecap keeps them.
     }
     files.set(key, text);
   }

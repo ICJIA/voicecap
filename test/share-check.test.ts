@@ -717,6 +717,7 @@ describe("checkAll", () => {
       files: [],
       screenshots: [],
       axe: [],
+      forms: [],
       recordings: [],
       runs: [],
       reviewProblems: [],

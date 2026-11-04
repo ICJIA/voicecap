@@ -175,6 +175,16 @@ export function keepsAxe(version: string | null): boolean {
 }
 
 /**
+ * Whether a run's voicecap has the forms pass, which tests each form a page has: 0.25.0 and later.
+ * A run of an earlier voicecap says "Not recorded" of forms (`notRecordedBy`); a run of this one that
+ * took no forms pass says nothing. An unknown version counts as an earlier one.
+ */
+export function keepsForms(version: string | null): boolean {
+  const match = version === null ? null : /^(\d+)\.(\d+)\./.exec(version);
+  return match !== null && (Number(match[1]) > 0 || Number(match[2]) >= 25);
+}
+
+/**
  * The first version of voicecap whose runs record what NVDA says on each page (plan 11): the one
  * constant the reasons a page has no recording go by. It is 0.18.0, not 0.17.0, since plan 6c ships
  * first, as 0.17.0. Change it here, and nowhere else, if the release order changes.

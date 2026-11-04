@@ -161,6 +161,17 @@ code { overflow-wrap: anywhere; }
 .verdict.ok::before { content: "✓"; content: "✓" / ""; color: var(--ok); }
 .verdict.warn::before { content: "⚠"; content: "⚠" / ""; color: var(--warn); }
 .verdict.bad::before { content: "⚠"; content: "⚠" / ""; color: var(--bad); }
+/* a form's banner: the forms pass's headline. Words first, in the page's own color; a sign that only repeats them, and a coloured edge, in the theme's green, amber, red, or gray. */
+.form-banner { border: 1px solid var(--line); border-left: 5px solid var(--muted); border-radius: 8px; background: var(--panel); padding: 10px 14px; display: grid; gap: 4px; min-width: 0; }
+.form-banner p { margin: 0; }
+.form-banner .form-name { font: 500 0.78rem/1.3 var(--mono); color: var(--muted); }
+.form-banner .headline { font-weight: 700; font-size: 1.05rem; }
+.form-banner .headline::before { margin-right: 0.5em; }
+.form-banner.works { border-left-color: var(--ok); } .form-banner.works .headline::before { content: "✓"; content: "✓" / ""; color: var(--ok); }
+.form-banner.needs-work { border-left-color: var(--warn); } .form-banner.needs-work .headline::before { content: "⚠"; content: "⚠" / ""; color: var(--warn); }
+.form-banner.cant-complete { border-left-color: var(--bad); } .form-banner.cant-complete .headline::before { content: "⚠"; content: "⚠" / ""; color: var(--bad); }
+.form-banner.not-checked .headline::before { content: "–"; content: "–" / ""; color: var(--muted); }
+.form-fields, .form-presses { margin: 0 0 8px; padding-left: 1.3em; display: grid; gap: 4px; }
 /* the ring of the pages, and its legend: side by side from 40em wide (which is 640 pixels at the reader's own size, as em is in a media query), one above the other below. The ring is a grid of its own: its picture over all of it, and its number and its unit one above the other in the middle, in the hole. The hole is the page's own background, and the words' boxes say so (background), above the picture (position), with a line tall enough to hold the letters whole: axe finds no background of words on a picture, and the words' contrast with the page is what it is to check. */
 .ring-row { display: grid; gap: 16px 40px; justify-items: start; align-items: center; }
 @media (min-width: 40em) { .ring-row { grid-template-columns: auto 1fr; } }

@@ -797,6 +797,11 @@ export interface ShareResult {
   read: number;
   problems: number;
   problemPages: number;
+  /**
+   * The forms the forms pass checked, and how many of them work with NVDA: recorded only for a run
+   * that took the pass, so the website says it beside the verdict. Absent for a run without it.
+   */
+  forms?: { found: number; working: number };
 }
 
 export interface SharesFile {

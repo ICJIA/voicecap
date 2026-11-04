@@ -346,6 +346,60 @@ export const SCREENSHOT_TEXT = {
 };
 
 /**
+ * What a page's card says of its forms (the forms pass), apart from the banners' words, which are
+ * decided in src/forms/banner.ts: the fold's lines, what a press did, what axe found with a form's
+ * errors showing, why a form's results aren't shown, and At a glance's line.
+ */
+export const FORMS_TEXT = {
+  /** The fold's line; for a screen reader alone, the page's address follows. */
+  fold: "What happened at the form",
+  label: (number: number): string => `Form ${number}`,
+  labelNamed: (number: number, submit: string): string => `Form ${number}, sends with "${submit}"`,
+  /** A required field that has no name. */
+  noName: "a field with no name",
+  fields: "Required fields, and what NVDA said at each",
+  presses: "Each press of the submit control",
+  /** Under a required field NVDA never said anything at. */
+  notHeard: "NVDA said nothing here.",
+  noPresses: "The submit control was not pressed.",
+  noRequired: "The form has no required fields.",
+  said: (words: string): string => `NVDA said: ${words}`,
+  saidNothing: "NVDA said nothing.",
+  did: {
+    completed: "The form reached the point of sending.",
+    error: "The page showed an error.",
+    errorWith: (words: string): string => `The page showed an error: ${words}`,
+    changed: "Something on the page changed.",
+    nothing: "Nothing changed.",
+  },
+  axe: {
+    label: "axe with its errors showing",
+    clean: "axe with its errors showing: no issues",
+    found: (issues: number, rules: string): string =>
+      `axe with its errors showing: ${issues} ${issues === 1 ? "issue" : "issues"}${rules === "" ? "" : ` (${rules})`}`,
+    none: "axe with its errors showing: not checked",
+    failed: "axe with its errors showing: axe couldn't check the form",
+  },
+  /** Said in place of a card's banners, when the file can't be shown. */
+  changed: "Not shown: forms-result.json isn't as the run recorded it; voicecap verify names it.",
+  notResults: "Not shown: forms-result.json isn't a file of the forms pass's results.",
+  unreadable: "Not shown: the run's record of this page's forms couldn't be read.",
+  failed: (reason: string): string =>
+    reason === ""
+      ? "Not shown: the forms pass couldn't keep its results."
+      : `Not shown: the forms pass couldn't keep its results (${reason}).`,
+  /** At a glance. */
+  glance: {
+    all: (found: number): string =>
+      `All ${found} ${found === 1 ? "form works" : "forms work"} with NVDA`,
+    some: (working: number, found: number): string => `${working} of ${found} forms work with NVDA`,
+    which: (pages: string): string =>
+      `The forms on ${pages} don't work with NVDA yet. Each page's card has the form's banner.`,
+    notRecorded: (why: string): string => `Forms: ${why}`,
+  },
+};
+
+/**
  * What axe found on a page (from voicecap 0.16.0): its card's chip and fold, and the line in "How
  * voicecap works". axe is called an automated checker, and voicecap never is: it's a person's
  * review, sped up. axe's own words (a rule's `help`, and its words on how to fix an element) are

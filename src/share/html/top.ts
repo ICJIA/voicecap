@@ -20,12 +20,14 @@
  */
 import { esc } from "../../report/html.js";
 import { formatDuration } from "../../util/time.js";
+import { names } from "../format.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
   ATTENTION_TEXT,
   AXE_TEXT,
   DETAILS_TEXT,
+  FORMS_TEXT,
   GLANCE_TEXT,
   HOW_STEPS,
   HOW_TEXT,
@@ -47,7 +49,16 @@ import {
   type NumberTile,
 } from "../words.js";
 import { STEP_ICONS } from "./icons.js";
-import { count, fold, lineHtml, notRecorded, ring, track, type RingPart } from "./parts.js";
+import {
+  count,
+  fold,
+  formBannerHtml,
+  lineHtml,
+  notRecorded,
+  ring,
+  track,
+  type RingPart,
+} from "./parts.js";
 
 // The top.
 
@@ -164,6 +175,29 @@ function verdict(result: ShareModel["result"]): string {
 }
 
 /**
+ * At a glance's line on the forms, once the run has the forms pass: its own banner, "All 4 forms
+ * work with NVDA" in green, or "3 of 4 forms work with NVDA" in amber with the pages of those that
+ * don't named. A run from before the pass says "Not recorded". A run with no forms pass says nothing.
+ */
+function formsLine(model: ShareModel): string[] {
+  const { forms } = model;
+  if (forms === null) return [];
+  if ("notRecorded" in forms) {
+    return [`<p class="sub">${esc(FORMS_TEXT.glance.notRecorded(forms.notRecorded))}</p>`];
+  }
+  if (forms.found === 0) return [];
+  const all = forms.working === forms.found;
+  const banner = {
+    kind: all ? ("works" as const) : ("needs-work" as const),
+    headline: all
+      ? FORMS_TEXT.glance.all(forms.found)
+      : FORMS_TEXT.glance.some(forms.working, forms.found),
+    detail: all ? "" : FORMS_TEXT.glance.which(names(forms.broken)),
+  };
+  return [formBannerHtml(banner)];
+}
+
+/**
  * The links to the page's sections: What needs attention, which is there only when there is a card,
  * Every page, and The details. Each says its section's own words, and goes to its heading's id.
  *
@@ -200,6 +234,7 @@ export function renderGlance(model: ShareModel): string {
     ...(hasPages ? [verdict(result)] : []),
     `<p class="lead">${esc(summary.sentence)}</p>`,
     ...(hasPages ? [ringRow(model), tiles(model)] : []),
+    ...formsLine(model),
     `<p class="gist">${esc(summary.second)}</p>`,
     onThisPage(model),
   ];
