@@ -76,7 +76,7 @@ describe("forms as a pass name", () => {
     });
   });
 
-  it("is accepted by --passes, and a typo is still refused with the three listed", async () => {
+  it("is accepted by --passes, and a typo is refused with all four listed", async () => {
     // Given to the program's own parser, with runAudit replaced by one that only keeps its options.
     vi.resetModules();
     let given: RunAuditOptions | undefined;
@@ -109,11 +109,20 @@ describe("forms as a pass name", () => {
       expect(given?.passes).toEqual(["read", "forms"]);
       const typo = await run("read,sing");
       expect(typo.code).toBe(1);
-      expect(typo.err).toContain("use a comma-separated list of read, headings, tab.");
+      expect(typo.err).toContain("use a comma-separated list of read, headings, tab, forms.");
     } finally {
       vi.doUnmock("../src/run/audit.js");
       vi.resetModules();
     }
+  });
+});
+
+describe("a run given an unknown pass", () => {
+  it("is refused with every pass voicecap knows listed, forms too", async () => {
+    const dir = await setup(["/"]);
+    await expect(
+      runAudit(options(dir, new ScriptedDriver(sitePages()), { passes: ["read", "form"] })),
+    ).rejects.toThrow("Unknown pass form: use read, headings, tab, and/or forms.");
   });
 });
 

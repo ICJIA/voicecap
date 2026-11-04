@@ -1022,7 +1022,7 @@ function checkPasses(passes: readonly string[]): PassName[] {
   const unknown = unique.filter((pass) => !(PASS_NAMES as readonly string[]).includes(pass));
   if (unknown.length > 0 || unique.length === 0) {
     throw new UsageError(
-      `Unknown pass${unknown.length === 1 ? "" : "es"} ${unknown.join(", ") || "(none given)"}: use read, headings, and/or tab.`,
+      `Unknown pass${unknown.length === 1 ? "" : "es"} ${unknown.join(", ") || "(none given)"}: use ${PASS_NAMES.slice(0, -1).join(", ")}, and/or ${PASS_NAMES.at(-1) ?? ""}.`,
     );
   }
   return unique as PassName[];

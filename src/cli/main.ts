@@ -12,7 +12,6 @@ import { runWizard } from "../init/wizard.js";
 import { listUrls } from "../list-urls.js";
 import { addManualSession } from "../manual-add.js";
 import {
-  DEFAULT_PASS_NAMES,
   PASS_NAMES,
   REVIEW_STATUSES,
   type PassName,
@@ -947,7 +946,7 @@ function parsePasses(list: string): PassName[] {
   const unknown = passes.filter((pass) => !(PASS_NAMES as readonly string[]).includes(pass));
   if (passes.length === 0 || unknown.length > 0) {
     throw new UsageError(
-      `--passes "${list}" isn't valid: use a comma-separated list of ${DEFAULT_PASS_NAMES.join(", ")}.`,
+      `--passes "${list}" isn't valid: use a comma-separated list of ${PASS_NAMES.join(", ")}.`,
     );
   }
   return [...new Set(passes)] as PassName[];
