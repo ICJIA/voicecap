@@ -844,6 +844,66 @@ describe("form-error-unlinked, as real NVDA spoke the fixture's forms", () => {
     });
   });
 
+  describe("names NVDA says with punctuation, or a role it names in two words", () => {
+    /** One field the press focused and marked, and what NVDA said at the press. */
+    const one = (name: string, spoken: string, type = "text") =>
+      outcomeOf({
+        form: formOf([field(0, name, { type })]),
+        result: "completed",
+        presses: [
+          {
+            state: stateOf({
+              focusedSubmit: false,
+              focusedField: 0,
+              invalid: [0],
+              emptyRequired: [0],
+              liveChanged: true,
+              messages: ["Enter something."],
+            }),
+            spoken,
+            axe: null,
+          },
+          { state: stateOf({ liveChanged: true, heldRequests: 1 }), spoken: "", axe: null },
+        ],
+        firstWalk: [{ field: 0, spoken: `${name}, edit, required, blank`, required: true }],
+        errorWalk: [{ field: 0, spoken: "", required: true }],
+      });
+    const unlinked = (outcome: FormOutcome) =>
+      ruleIds(flagsOf(outcome)).includes("form-error-unlinked");
+
+    it("hears a name that ends in a bracket, as NVDA says a label with (required)", () => {
+      // NVDA's words for a labeled textarea, as fixture/nvda-io-run's tab pass recorded them.
+      const name = "Your question (required)";
+      expect(
+        unlinked(
+          one(
+            name,
+            "Your question (required), edit, required, multi line, invalid entry, Enter something., blank",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        unlinked(one(name, "Your question (required), edit, required, multi line, blank")),
+      ).toBe(true);
+    });
+
+    it("hears a name with a star, said as the symbol or as its name", () => {
+      expect(unlinked(one("Email *", "Email *, edit, required, invalid entry, blank"))).toBe(false);
+      expect(unlinked(one("Email *", "Email star, edit, required, invalid entry, blank"))).toBe(
+        false,
+      );
+      expect(unlinked(one("Email *", "Email star, edit, required, blank"))).toBe(true);
+    });
+
+    it("hears a date field by NVDA's date edit role", () => {
+      expect(
+        unlinked(
+          one("Date of birth", "Date of birth, date edit, required, invalid entry, blank", "date"),
+        ),
+      ).toBe(false);
+    });
+  });
+
   describe("fields with no name (/forms/no-labels/)", () => {
     const NAMELESS: FormField[] = [
       { ...field(0, ""), name: null },

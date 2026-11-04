@@ -33,12 +33,26 @@ export const FORMS_DEFAULTS = {
   words: {
     required: ["required"],
     invalid: ["invalid entry"],
-    // The roles NVDA gives a form's fields, right after the name, as it announces one at focus.
-    fieldRoles: ["edit", "combo box", "check box", "radio button", "list", "spin button", "slider"],
+    // The roles NVDA gives the fields the pass fills, right after the name, as it announces one at
+    // focus: a text field, a textarea ("edit, required, multi line": multi line is a state, after
+    // the role), a list, a check box, a radio button, a number field, a range, and a date field.
+    fieldRoles: [
+      "edit",
+      "date edit",
+      "combo box",
+      "check box",
+      "radio button",
+      "list",
+      "spin button",
+      "slider",
+    ],
+    // How NVDA may say a symbol at the end of a field's name ("Email *" as "Email star").
+    spokenSymbols: ["star", "asterisk"],
   } as {
     required: readonly string[];
     invalid: readonly string[];
     fieldRoles: readonly string[];
+    spokenSymbols: readonly string[];
   },
 };
 

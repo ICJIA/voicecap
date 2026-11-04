@@ -292,8 +292,10 @@ function announcementsOf(spoken: string, name: string | null): string[] {
   const roles = FORMS_DEFAULTS.words.fieldRoles
     .map((role) => wordsOf(role).join(String.raw`\s+`))
     .join("|");
-  const lead =
-    name === null ? "" : `${wordsOf(name).join(String.raw`[^\p{L}\p{N}]+`)}${String.raw`[\s,:]*`}`;
+  // Between the name and its role: punctuation ("(required)", "*") and a symbol NVDA says by name.
+  const symbols = FORMS_DEFAULTS.words.spokenSymbols.join("|");
+  const between = String.raw`(?:[^\p{L}\p{N}]|(?:${symbols})${APART_AFTER})*`;
+  const lead = name === null ? "" : `${wordsOf(name).join(String.raw`[^\p{L}\p{N}]+`)}${between}`;
   if (name !== null && wordsOf(name).length === 0) return [];
   const start = new RegExp(`${APART_BEFORE}${lead}(?:${roles})${APART_AFTER}`, "gu");
   const stop = new RegExp(String.raw`\.\.|\.\s|,\s*(?:` + roles + ")" + APART_AFTER, "u");
