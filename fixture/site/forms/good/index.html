@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Request a grant guide | Voicecap Test Agency</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.5;
+        color: #1b1b1b;
+        background: #ffffff;
+      }
+      header,
+      main,
+      footer {
+        padding: 0.5rem 1.5rem;
+      }
+      .error {
+        color: #a10000;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Forms fixture: a good form. Each field is labeled and marked required (aria-required), and the
+      page checks the form itself (novalidate). When something is wrong, it marks each field invalid,
+      names the error in the field's description, says how many need fixing in an alert, and moves
+      focus to the first. When nothing is, the form sends to /forms/good/sent/, which a voicecap run's
+      guard holds in the browser. Expected: completed, no form flag: "This form works with NVDA."
+    -->
+    <header>
+      <a href="/">Voicecap Test Agency</a>
+    </header>
+    <main id="main">
+      <h1>Request a grant guide</h1>
+      <p>All fields are required.</p>
+      <form id="request" action="/forms/good/sent/" method="post" novalidate>
+        <div id="summary" role="alert"></div>
+        <p>
+          <label for="name">Your name</label>
+          <input id="name" name="name" aria-required="true" aria-describedby="name-error" />
+          <span id="name-error" class="error"></span>
+        </p>
+        <p>
+          <label for="email">Email</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            aria-required="true"
+            aria-describedby="email-error"
+          />
+          <span id="email-error" class="error"></span>
+        </p>
+        <p>
+          <label for="topic">Topic</label>
+          <select id="topic" name="topic" aria-required="true" aria-describedby="topic-error">
+            <option value="">Choose one</option>
+            <option>Grants</option>
+            <option>Research</option>
+          </select>
+          <span id="topic-error" class="error"></span>
+        </p>
+        <p><button type="submit">Send request</button></p>
+      </form>
+    </main>
+    <footer>
+      <p>© 2026 Voicecap Test Agency</p>
+    </footer>
+    <script>
+      (() => {
+        const form = document.getElementById("request");
+        const summary = document.getElementById("summary");
+        const checks = [
+          ["name", "Enter your name.", (value) => value.trim() !== ""],
+          ["email", "Enter an email address, such as name@example.com.", (value) => /.@./.test(value)],
+          ["topic", "Choose a topic.", (value) => value !== ""],
+        ];
+        form.addEventListener("submit", (event) => {
+          const wrong = [];
+          for (const [id, message, ok] of checks) {
+            const field = document.getElementById(id);
+            const error = document.getElementById(`${id}-error`);
+            if (ok(field.value)) {
+              field.removeAttribute("aria-invalid");
+              error.textContent = "";
+            } else {
+              field.setAttribute("aria-invalid", "true");
+              error.textContent = message;
+              wrong.push(field);
+            }
+          }
+          // Nothing wrong: the form sends.
+          if (wrong.length === 0) {
+            summary.textContent = "";
+            return;
+          }
+          event.preventDefault();
+          summary.textContent = `${wrong.length} ${wrong.length === 1 ? "field needs" : "fields need"} fixing.`;
+          wrong[0].focus();
+        });
+      })();
+    </script>
+  </body>
+</html>
