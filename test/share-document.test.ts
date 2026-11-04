@@ -934,19 +934,19 @@ describe("renderSharePage", () => {
     // The forms pass (Task 8, the report's half) re-pinned the three pages, and not the Word copies:
     // the style gained the rules of a form's banner, the fingerprint check's script gained its clause
     // for forms results, and At a glance says "Forms: Not recorded: this run used voicecap ..." for a
-    // run from before the pass. Each page grew by 2,643 characters (2,644 for the logged run, whose
+    // run from before the pass. Each page grew by 2,645 characters (2,646 for the logged run, whose
     // version name is a character longer than the others' "an earlier version of voicecap").
     const before = {
       i2i: {
-        page: [212_578, "1010fd7c900af450241567ebe6b7f8079c8b98f0bbf9ea935d7cb12d176cac99"],
+        page: [212_580, "c669b7e599d65a995300069c65b080ab32953d39a40a828d140890e0657ca887"],
         word: [53_604, "c45ccfd08d41941fb41b99aae8de31a39a8c1f4052e895fd235bcf9a089ba7f0"],
       },
       demo: {
-        page: [247_120, "4cd44f0c5af03f766a1cd2e925f31a22661d05bc65db70ec27935aeaf1a19d0e"],
+        page: [247_122, "06f1f1cd5bffdc88f5a585c8be0c6e26306ba19178aa489b29e7c37f40c16001"],
         word: [76_442, "97f1d6d72ff667120a5e4b1f2681305cdad5db11870e6860d9a2289f5e395aa9"],
       },
       logged: {
-        page: [129_536, "0018460f8cb70e63409dc5633e7fdd0b12c457436af700b47f13b73e11330a29"],
+        page: [129_538, "71d3ed8765d1bf36ed3380e63aa8f30b912f02608395a1a86d0a45c0cf6b3bec"],
         word: [35_133, "b81d7a1db95e8d96a117d212f256cb98a7c0b82b47754d99eb53b98633b7ce34"],
       },
     };

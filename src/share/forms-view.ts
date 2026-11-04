@@ -148,24 +148,28 @@ function axeOf(form: FormFlagInput): string {
 export interface FormsGlance {
   found: number;
   working: number;
+  /** The forms that weren't checked (a search form, a form on another site, one with no submit). */
+  notChecked: number;
   /** The pages with a form that doesn't work, by the name the page shows. */
   broken: string[];
 }
 
-/** The glance's counts over some cards; null where no card shows a form that was checked. */
+/** The glance's counts over some cards. */
 export function formsGlanceOf(
   cards: readonly { name: string; forms?: { forms: CardForm[] } | { notRecorded: string } }[],
-): FormsGlance | null {
+): FormsGlance {
   let found = 0;
+  let notChecked = 0;
   let working = 0;
   const broken: string[] = [];
   for (const card of cards) {
     if (card.forms === undefined || !("forms" in card.forms)) continue;
     const checked = card.forms.forms.filter((form) => form.banner.kind !== "not-checked");
     found += checked.length;
+    notChecked += card.forms.forms.length - checked.length;
     const fine = checked.filter((form) => form.banner.kind === "works").length;
     working += fine;
     if (fine < checked.length) broken.push(card.name);
   }
-  return found === 0 ? null : { found, working, broken };
+  return { found, working, notChecked, broken };
 }

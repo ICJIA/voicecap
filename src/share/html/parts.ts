@@ -319,5 +319,5 @@ export function ring(parts: RingPart[], total: number): string {
  */
 export function formBannerHtml(banner: FormBanner, label = "", after = ""): string {
   const name = label === "" ? "" : `<p class="form-name">${esc(label)}</p>`;
-  return `<div class="form-banner ${banner.kind}">${name}<p class="headline">${esc(banner.headline)}</p><p class="detail">${esc(banner.detail)}</p>${after}</div>`;
+  return `<div class="form-banner ${banner.kind}">${name}<p class="headline">${esc(banner.headline)}</p>${banner.detail === "" ? "" : `<p class="detail">${esc(banner.detail)}</p>`}${after}</div>`;
 }

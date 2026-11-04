@@ -371,7 +371,13 @@ export function buildShareModel(input: ShareInput): ShareModel {
       problemPages: summary.attention.pages,
       ...(forms === null || !("found" in forms)
         ? {}
-        : { forms: { found: forms.found, working: forms.working } }),
+        : {
+            forms: {
+              found: forms.found,
+              working: forms.working,
+              notChecked: forms.notChecked,
+            },
+          }),
     },
     forms,
     ring: ringOf(pages, attention),
@@ -868,7 +874,7 @@ function recordsOf(records: RunJson[]): (run: RunJson) => RunJson {
 function formsOf(latest: RunJson | null, pages: PageCard[]): ShareModel["forms"] {
   if (latest === null) return null;
   if (latest.settings.passes.includes("forms")) {
-    return formsGlanceOf(pages) ?? { found: 0, working: 0, broken: [] };
+    return formsGlanceOf(pages);
   }
   const version = versionOf(latest);
   return keepsForms(version) ? null : { notRecorded: notRecordedBy(version) };

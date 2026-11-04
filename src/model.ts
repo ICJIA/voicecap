@@ -798,10 +798,12 @@ export interface ShareResult {
   problems: number;
   problemPages: number;
   /**
-   * The forms the forms pass checked, and how many of them work with NVDA: recorded only for a run
+   * The forms the forms pass checked, how many of them work with NVDA, and how many it did not check
+   * (a search form, a form on another site): `found` 0 with `notChecked` 0 means the pages had no
+   * form at all. Recorded only for a run
    * that took the pass, so the website says it beside the verdict. Absent for a run without it.
    */
-  forms?: { found: number; working: number };
+  forms?: { found: number; working: number; notChecked: number };
 }
 
 export interface SharesFile {

@@ -13,6 +13,7 @@
  */
 import type { FlagResult } from "../model.js";
 import { formsFlags, type FormFlagInput } from "../flags/forms.js";
+import { readPress } from "./press.js";
 
 export type FormBannerKind = "works" | "needs-work" | "cant-complete" | "not-checked";
 
@@ -75,12 +76,26 @@ function worked(outcome: FormFlagInput, checkedOn: string | undefined): string {
   const required = outcome.form.fields.filter((field) => field.required).length;
   const flagged = formsFlags([outcome]).length > 0;
   const lead = checkedOn === undefined ? "" : `Checked ${checkedOn}: `;
+  // A press that showed an error: only then can the banner say NVDA told the user what was wrong.
+  const baseline = outcome.baseline ?? { invalid: [], messages: [] };
+  const showedError = outcome.presses.some(
+    (press) => readPress(baseline, press.heldBefore ?? 0, press.state).showedError,
+  );
+  if (flagged) {
+    // A person's review settled what voicecap flagged, so the banner claims no more than that the
+    // fields were reached and the form was completed: the card's own evidence may show less.
+    const reached =
+      required === 0
+        ? "NVDA reached the form's fields"
+        : `NVDA reached all ${requiredFields(required)}`;
+    return `${lead}${reached}, and the form was completed by keyboard. A person's review settled what voicecap had flagged.`;
+  }
+  const said = "said each one's name and that it's required";
   const reached =
     required === 0
       ? "NVDA reached the form's fields"
-      : `NVDA reached all ${requiredFields(required)}, said each one's name and that it's required, and told the user what was wrong`;
-  const settled = flagged ? " A person's review settled what voicecap had flagged." : "";
-  return `${lead}${reached}. The form was completed by keyboard.${settled}`;
+      : `NVDA reached all ${requiredFields(required)}, ${said}${showedError ? ", and told the user what was wrong" : ""}`;
+  return `${lead}${reached}. The form was completed by keyboard.`;
 }
 
 /** Where a form that can't be completed stopped. */

@@ -121,6 +121,25 @@ describe("formBanner", () => {
     );
   });
 
+  it("says NVDA told the user what was wrong only when a press showed an error", () => {
+    const quiet = completed({
+      presses: [{ state: STATE, spoken: "", axe: null, heldBefore: 0 }],
+    });
+    const banner = formBanner(quiet, []);
+    expect(banner.kind).toBe("works");
+    expect(banner.detail).toBe(
+      "NVDA reached all 2 required fields, said each one's name and that it's required. The form was completed by keyboard.",
+    );
+  });
+
+  it("claims only what was observed when a review settled the flags", () => {
+    const banner = formBanner(silent(), [], "30 October 2026");
+    expect(banner.kind).toBe("works");
+    expect(banner.detail).toBe(
+      "Checked 30 October 2026: NVDA reached all 2 required fields, and the form was completed by keyboard. A person's review settled what voicecap had flagged.",
+    );
+  });
+
   it("is amber for a completed form with a flag left, and says what's wrong", () => {
     expect(FLAG.rule).toBe("form-error-silent");
     const banner = formBanner(silent(), [FLAG]);
@@ -222,7 +241,7 @@ function build(
               {
                 status: options.review,
                 reviewer: "Pat Lee",
-                at: "2026-10-30T10:00:00-05:00",
+                at: "2026-09-27T10:00:00-05:00",
                 note: null,
                 run: run.id,
                 url: first.url,
@@ -290,6 +309,26 @@ describe("the page's card", () => {
   it("turns a flagged completed form green once a person reviewed the page with no issues", () => {
     const flagged = build([{ path: "/silent/", forms: [silent()] }]);
     expect(outsideFolds(renderPages(flagged.model))).toContain("form-banner needs-work");
+    const settled = build([{ path: "/silent/", forms: [silent()] }], { review: "reviewed" });
+    const open = outsideFolds(renderPages(settled.model));
+    expect(open).toContain("form-banner works");
+    expect(open).not.toContain("form-banner needs-work");
+    expect(textOf(open)).toContain("A person's review settled what voicecap had flagged.");
+    // The banner claims no more than the fields were reached and the form was completed.
+    expect(textOf(open)).not.toContain("told the user what was wrong");
+    expect(textOf(open)).not.toContain("said each one's name");
+  });
+
+  it("keeps a form that can't be completed red under the same review", () => {
+    const { model } = build([{ path: "/stuck/", forms: [stuck()] }], { review: "reviewed" });
+    const open = outsideFolds(renderPages(model));
+    expect(open).toContain("form-banner cant-complete");
+    expect(open).not.toContain("form-banner works");
+  });
+
+  it("leaves a flagged form amber when the review found an issue", () => {
+    const { model } = build([{ path: "/silent/", forms: [silent()] }], { review: "issue" });
+    expect(outsideFolds(renderPages(model))).toContain("form-banner needs-work");
   });
 
   it("has a fold, What happened at the form, with each required field, each press, and axe", () => {
@@ -359,9 +398,20 @@ describe("At a glance", () => {
 
   it("records no forms when the run took the pass and found none to check, and says nothing at a glance", () => {
     const { model } = build([{ path: "/plain/" }]);
-    expect(model.forms).toEqual({ found: 0, working: 0, broken: [] });
-    expect(model.result.forms).toEqual({ found: 0, working: 0 });
+    expect(model.forms).toEqual({ found: 0, working: 0, notChecked: 0, broken: [] });
+    expect(model.result.forms).toEqual({ found: 0, working: 0, notChecked: 0 });
     expect(textOf(renderGlance(model))).not.toContain("forms");
+  });
+
+  it("tells forms that weren't checked from no forms at all, in what the share records", () => {
+    const search = completed({
+      form: formOf({ kind: "search" }),
+      result: "not-tested",
+      reason: "it is a search form",
+    });
+    const { model } = build([{ path: "/search/", forms: [search] }]);
+    expect(model.result.forms).toEqual({ found: 0, working: 0, notChecked: 1 });
+    expect(textOf(renderGlance(model))).not.toContain("forms work");
   });
 
   it("records the count for the website in the share's result", () => {
@@ -369,15 +419,17 @@ describe("At a glance", () => {
       { path: "/a/", forms: [completed()] },
       { path: "/c/", forms: [stuck()] },
     ]);
-    expect(model.result.forms).toEqual({ found: 2, working: 1 });
+    expect(model.result.forms).toEqual({ found: 2, working: 1, notChecked: 0 });
     const parsed = shareResultOf({ ...model.result });
-    expect(parsed?.forms).toEqual({ found: 2, working: 1 });
+    expect(parsed?.forms).toEqual({ found: 2, working: 1, notChecked: 0 });
   });
 
   it("reads no forms count that can't be true from a share's record", () => {
     const base = { pages: 3, read: 3, problems: 0, problemPages: 0 };
-    expect(shareResultOf({ ...base, forms: { found: 2, working: 3 } })).toBeNull();
-    expect(shareResultOf({ ...base, forms: { found: "2", working: 1 } })).toBeNull();
+    expect(shareResultOf({ ...base, forms: { found: 2, working: 3, notChecked: 0 } })).toBeNull();
+    expect(shareResultOf({ ...base, forms: { found: "2", working: 1, notChecked: 0 } })).toBeNull();
+    expect(shareResultOf({ ...base, forms: { found: 2, working: 1 } })).toBeNull();
+    expect(shareResultOf({ ...base, forms: { found: 2, working: 1, notChecked: -1 } })).toBeNull();
     expect(shareResultOf(base)?.forms).toBeUndefined();
   });
 

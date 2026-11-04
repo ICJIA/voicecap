@@ -183,7 +183,7 @@ function formsLine(model: ShareModel): string[] {
   const { forms } = model;
   if (forms === null) return [];
   if ("notRecorded" in forms) {
-    return [`<p class="sub">${esc(FORMS_TEXT.glance.notRecorded(forms.notRecorded))}</p>`];
+    return [notRecorded(forms.notRecorded)];
   }
   if (forms.found === 0) return [];
   const all = forms.working === forms.found;
