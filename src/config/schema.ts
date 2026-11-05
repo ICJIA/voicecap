@@ -219,8 +219,9 @@ export const configSchema = z.strictObject({
       values: z.record(z.string(), z.string()),
       /**
        * Analytics and tracking hosts to add to voicecap's own list (FORMS_DEFAULTS.analyticsHosts),
-       * such as ["stats.example.com"]: a request to one, or to a host under one, never counts as a
-       * form sending.
+       * such as ["stats.example.com"]: a request to one, or to a host under one, doesn't count as a
+       * form sending to another host; a navigation, or a request to the page's own host or the
+       * form's action host, still counts.
        */
       analyticsHosts: z.array(
         z

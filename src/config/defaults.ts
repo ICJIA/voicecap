@@ -12,9 +12,10 @@ export const FORMS_DEFAULTS = {
   maxPerPage: 5,
   /**
    * Analytics and tracking services, by host name: a request to one of these, or to a host under
-   * one (`www.google-analytics.com` under `google-analytics.com`), never counts as a form sending,
-   * since a page sends to them on a press whether or not the form goes. A config's
-   * `forms.analyticsHosts` adds to these.
+   * one (`www.google-analytics.com` under `google-analytics.com`), doesn't count as a form sending
+   * to another host, since a page sends to them on a press whether or not the form goes. A
+   * navigation of the page, or a request to the page's own host or the form's action host, still
+   * counts, listed or not. A config's `forms.analyticsHosts` adds to these.
    */
   analyticsHosts: [
     "google-analytics.com",
