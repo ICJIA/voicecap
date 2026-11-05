@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.24.1",
+  "replayed": false,
+  "run": "2026-11-05_0845_real-nvda-forms",
+  "pass": "read",
+  "page": {
+    "url": "http://127.0.0.1:4747/forms/no-labels/",
+    "key": "http://127.0.0.1:4747/forms/no-labels",
+    "slug": "forms-no-labels-a4da074b29",
+    "finalUrl": "http://127.0.0.1:4747/forms/no-labels/"
+  },
+  "capturedAt": "2026-11-05T08:55:39-06:00",
+  "durationMs": 12755,
+  "stepCount": 10,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.36.4"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "156.0.8078.80"
+    },
+    "os": "Windows 11 Pro 26H2 (10.0.26300)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "presentation": {
+        "reportHelpBalloons": false
+      },
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "IO",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "urls",
+      "urls": [
+        "http://127.0.0.1:4747/",
+        "http://127.0.0.1:4747/forms/good/",
+        "http://127.0.0.1:4747/forms/native/",
+        "http://127.0.0.1:4747/forms/silent/",
+        "http://127.0.0.1:4747/forms/no-feedback/",
+        "http://127.0.0.1:4747/forms/no-labels/",
+        "http://127.0.0.1:4747/forms/unreachable/"
+      ]
+    },
+    "voicecap": {
+      "version": "0.24.1",
+      "configSha256": "default"
+    },
+    "runId": "2026-11-05_0845_real-nvda-forms",
+    "runStartedAt": "2026-11-05T08:45:21-06:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 26H2",
+        "build": "10.0.26300.9818",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-06:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.24.1",
+        "guidepup": "0.36.4",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, copyright 2026 Voicecap Test Agency",
+      "durationMs": 1278,
+      "offsetMs": 1278
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "banner landmark, link, Voicecap Test Agency",
+      "durationMs": 1276,
+      "offsetMs": 2555
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "main landmark, heading, level 1, Request a callback",
+      "durationMs": 1271,
+      "offsetMs": 3825
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "section, Your name, edit, required, ",
+      "durationMs": 1274,
+      "offsetMs": 5099
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "Phone, edit, required, ",
+      "durationMs": 1280,
+      "offsetMs": 6379
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "button, Call me",
+      "durationMs": 1275,
+      "offsetMs": 7655
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "out of section, content info landmark, copyright 2026 Voicecap Test Agency",
+      "durationMs": 1274,
+      "offsetMs": 8928
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "copyright 2026 Voicecap Test Agency",
+      "durationMs": 1274,
+      "offsetMs": 10202
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "copyright 2026 Voicecap Test Agency",
+      "durationMs": 1276,
+      "offsetMs": 11478
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "copyright 2026 Voicecap Test Agency",
+      "durationMs": 1276,
+      "offsetMs": 12755
+    }
+  ]
+}

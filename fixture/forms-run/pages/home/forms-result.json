@@ -1,0 +1,40 @@
+{
+  "counts": {
+    "completed": 0,
+    "forms": 1,
+    "notTested": 1,
+    "presses": 0,
+    "stuck": 0
+  },
+  "forms": [
+    {
+      "errorWalk": [],
+      "firstWalk": [],
+      "form": {
+        "captcha": false,
+        "fields": [
+          {
+            "index": 0,
+            "name": "Search this site",
+            "required": false,
+            "tabIndex": 0,
+            "type": "text"
+          }
+        ],
+        "index": 0,
+        "kind": "search",
+        "sensitive": false,
+        "signature": "45352c72dc2929a8",
+        "site": null,
+        "submitName": "Search"
+      },
+      "lastWalk": [],
+      "presses": [],
+      "reason": "it's a search form, with no required fields to learn from",
+      "result": "not-tested",
+      "stoppedAt": null
+    }
+  ],
+  "page": "/",
+  "schemaVersion": 1
+}

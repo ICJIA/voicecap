@@ -1,0 +1,150 @@
+{
+  "counts": {
+    "completed": 0,
+    "forms": 1,
+    "notTested": 0,
+    "presses": 1,
+    "stuck": 1
+  },
+  "forms": [
+    {
+      "baseline": {
+        "invalid": [],
+        "messages": []
+      },
+      "errorWalk": [
+        {
+          "field": 0,
+          "required": true,
+          "spoken": ""
+        }
+      ],
+      "firstWalk": [
+        {
+          "field": 0,
+          "required": true,
+          "spoken": "main landmark. form landmark. Your name, edit, required, blank"
+        }
+      ],
+      "form": {
+        "captcha": false,
+        "fields": [
+          {
+            "index": 0,
+            "name": "Your name",
+            "required": true,
+            "tabIndex": 0,
+            "type": "text"
+          },
+          {
+            "index": 1,
+            "name": "Date of birth",
+            "required": true,
+            "tabIndex": -1,
+            "type": "text"
+          }
+        ],
+        "index": 0,
+        "kind": "test",
+        "sensitive": false,
+        "signature": "121da301dd1f8e62",
+        "site": null,
+        "submitName": "Apply"
+      },
+      "lastWalk": [
+        {
+          "field": 0,
+          "required": true,
+          "spoken": ""
+        }
+      ],
+      "presses": [
+        {
+          "axe": {
+            "results": {
+              "axeVersion": "4.14.0",
+              "counts": {
+                "inapplicable": 71,
+                "incomplete": 0,
+                "passes": 19,
+                "violations": 0
+              },
+              "incomplete": [],
+              "schemaVersion": 1,
+              "tags": [
+                "wcag2a",
+                "wcag2aa",
+                "wcag21a",
+                "wcag21aa",
+                "wcag22aa",
+                "best-practice"
+              ],
+              "url": "http://127.0.0.1:4747/forms/unreachable/",
+              "violations": []
+            },
+            "summary": {
+              "axeVersion": "4.14.0",
+              "counts": {
+                "inapplicable": 71,
+                "incomplete": 0,
+                "passes": 19,
+                "violations": 0
+              },
+              "impacts": {
+                "critical": 0,
+                "minor": 0,
+                "moderate": 0,
+                "serious": 0
+              }
+            }
+          },
+          "heldBefore": 0,
+          "spoken": "2 fields need fixing.. Your name, edit, required, invalid entry, Enter your name., blank",
+          "state": {
+            "actionHost": "127.0.0.1",
+            "bubble": null,
+            "dialogs": [],
+            "emptyRequired": [
+              0,
+              1
+            ],
+            "focused": {
+              "href": null,
+              "inMain": true,
+              "name": "Your name",
+              "role": "textbox",
+              "tag": "input"
+            },
+            "focusedField": 0,
+            "focusedSubmit": false,
+            "held": [],
+            "heldRequests": 0,
+            "invalid": [
+              0,
+              1
+            ],
+            "liveChanged": true,
+            "messages": [
+              "Enter your name.",
+              "Choose your date of birth.",
+              "2 fields need fixing."
+            ],
+            "pageHost": "127.0.0.1",
+            "present": true
+          }
+        }
+      ],
+      "reason": "Tab never reached it",
+      "result": "stuck",
+      "stoppedAt": {
+        "index": 1,
+        "name": "Date of birth",
+        "required": true,
+        "tabIndex": -1,
+        "type": "text"
+      }
+    }
+  ],
+  "page": "/forms/unreachable/",
+  "schemaVersion": 1
+}

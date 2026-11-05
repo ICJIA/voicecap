@@ -1,0 +1,274 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.24.1",
+  "replayed": false,
+  "run": "2026-11-05_0845_real-nvda-forms",
+  "pass": "forms",
+  "page": {
+    "url": "http://127.0.0.1:4747/forms/native/",
+    "key": "http://127.0.0.1:4747/forms/native",
+    "slug": "forms-native-f9b0dd6a0c",
+    "finalUrl": "http://127.0.0.1:4747/forms/native/"
+  },
+  "capturedAt": "2026-11-05T08:51:54-06:00",
+  "durationMs": 92804,
+  "stepCount": 20,
+  "stopReason": "forms-done",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.36.4"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "156.0.8078.80"
+    },
+    "os": "Windows 11 Pro 26H2 (10.0.26300)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "presentation": {
+        "reportHelpBalloons": false
+      },
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "IO",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "urls",
+      "urls": [
+        "http://127.0.0.1:4747/",
+        "http://127.0.0.1:4747/forms/good/",
+        "http://127.0.0.1:4747/forms/native/",
+        "http://127.0.0.1:4747/forms/silent/",
+        "http://127.0.0.1:4747/forms/no-feedback/",
+        "http://127.0.0.1:4747/forms/no-labels/",
+        "http://127.0.0.1:4747/forms/unreachable/"
+      ]
+    },
+    "voicecap": {
+      "version": "0.24.1",
+      "configSha256": "default"
+    },
+    "runId": "2026-11-05_0845_real-nvda-forms",
+    "runStartedAt": "2026-11-05T08:45:21-06:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 26H2",
+        "build": "10.0.26300.9818",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-06:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.24.1",
+        "guidepup": "0.36.4",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "focusField",
+      "spoken": "main landmark. form landmark. Your name, edit, required, blank",
+      "durationMs": 1324,
+      "offsetMs": 1899,
+      "inDocument": true
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, blank",
+      "durationMs": 1319,
+      "offsetMs": 3222,
+      "inDocument": true
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "Join, button",
+      "durationMs": 1303,
+      "offsetMs": 4529,
+      "inDocument": true
+    },
+    {
+      "n": 4,
+      "command": "pressSubmit",
+      "spoken": "Your name, edit, required, blank. Please fill out this field., alert",
+      "durationMs": 5634,
+      "offsetMs": 10169
+    },
+    {
+      "n": 5,
+      "command": "focusField",
+      "spoken": "",
+      "durationMs": 2929,
+      "offsetMs": 13196,
+      "inDocument": true
+    },
+    {
+      "n": 6,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, blank",
+      "durationMs": 2312,
+      "offsetMs": 15511,
+      "inDocument": true
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "Join, button",
+      "durationMs": 1301,
+      "offsetMs": 16816,
+      "inDocument": true
+    },
+    {
+      "n": 8,
+      "command": "focusField",
+      "spoken": "Your name, edit, required, blank",
+      "durationMs": 1315,
+      "offsetMs": 18135,
+      "inDocument": true
+    },
+    {
+      "n": 9,
+      "command": "fillField",
+      "spoken": "v. o. i. c. e. c. a. p. space. t. e. s. t",
+      "durationMs": 21839,
+      "offsetMs": 39979
+    },
+    {
+      "n": 10,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, blank",
+      "durationMs": 1316,
+      "offsetMs": 41299,
+      "inDocument": true
+    },
+    {
+      "n": 11,
+      "command": "nextFocusable",
+      "spoken": "Join, button",
+      "durationMs": 1302,
+      "offsetMs": 42605,
+      "inDocument": true
+    },
+    {
+      "n": 12,
+      "command": "pressSubmit",
+      "spoken": "Email, edit, required, blank. Please fill out this field., alert",
+      "durationMs": 5628,
+      "offsetMs": 48239
+    },
+    {
+      "n": 13,
+      "command": "focusField",
+      "spoken": "Your name, edit, required, voicecap test",
+      "durationMs": 2312,
+      "offsetMs": 50602,
+      "inDocument": true
+    },
+    {
+      "n": 14,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, blank",
+      "durationMs": 1315,
+      "offsetMs": 51919,
+      "inDocument": true
+    },
+    {
+      "n": 15,
+      "command": "nextFocusable",
+      "spoken": "Join, button",
+      "durationMs": 1302,
+      "offsetMs": 53225,
+      "inDocument": true
+    },
+    {
+      "n": 16,
+      "command": "focusField",
+      "spoken": "Your name, edit, required, voicecap test",
+      "durationMs": 1313,
+      "offsetMs": 54542,
+      "inDocument": true
+    },
+    {
+      "n": 17,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, blank",
+      "durationMs": 1313,
+      "offsetMs": 55861,
+      "inDocument": true
+    },
+    {
+      "n": 18,
+      "command": "fillField",
+      "spoken": "t. e. s. t. at. e. x. a. m. p. l. e. dot. c. o. m",
+      "durationMs": 28165,
+      "offsetMs": 84029
+    },
+    {
+      "n": 19,
+      "command": "nextFocusable",
+      "spoken": "Join, button",
+      "durationMs": 1305,
+      "offsetMs": 85338,
+      "inDocument": true
+    },
+    {
+      "n": 20,
+      "command": "pressSubmit",
+      "spoken": "",
+      "durationMs": 7413,
+      "offsetMs": 92756
+    }
+  ]
+}

@@ -1,0 +1,1302 @@
+{
+  "schemaVersion": 1,
+  "id": "2026-11-05_0845_real-nvda-forms",
+  "name": "real-nvda-forms",
+  "status": "completed",
+  "createdAt": "2026-11-05T08:45:21-06:00",
+  "completedAt": "2026-11-05T08:58:38-06:00",
+  "site": "http://127.0.0.1:4747",
+  "settings": {
+    "site": "http://127.0.0.1:4747",
+    "source": {
+      "kind": "urls",
+      "urls": [
+        "http://127.0.0.1:4747/",
+        "http://127.0.0.1:4747/forms/good/",
+        "http://127.0.0.1:4747/forms/native/",
+        "http://127.0.0.1:4747/forms/silent/",
+        "http://127.0.0.1:4747/forms/no-feedback/",
+        "http://127.0.0.1:4747/forms/no-labels/",
+        "http://127.0.0.1:4747/forms/unreachable/"
+      ]
+    },
+    "passes": [
+      "read",
+      "headings",
+      "tab",
+      "forms"
+    ],
+    "include": [],
+    "exclude": [],
+    "limit": null,
+    "driver": "guidepup",
+    "replayFrom": null,
+    "capture": "complete",
+    "stepCaps": {
+      "read": 1500,
+      "headings": 500,
+      "tab": 1000,
+      "forms": 500
+    },
+    "nvdaSettings": {},
+    "browser": {
+      "channel": "chrome",
+      "fallbackToChromium": true
+    },
+    "readiness": {
+      "readySelector": null,
+      "settleMs": 500,
+      "networkIdleTimeoutMs": 15000
+    }
+  },
+  "settingsHash": "b2431dfd48f589f7a1fb12f8b9bd26f59b998545527fabc0c67e993868ad2d9d",
+  "configSha256": "default",
+  "flagRulesSha256": "d7c89563e02717f67c43b76fb918e1b9c8e681e1c3841d210eb7ca18c2ce96c1",
+  "replayed": false,
+  "source": {
+    "kind": "urls",
+    "listed": 7,
+    "duplicates": 0,
+    "invalid": [],
+    "excludedByFilter": 0,
+    "excludedByLimit": 0,
+    "warnings": []
+  },
+  "compareTo": null,
+  "sessions": [
+    {
+      "n": 1,
+      "startedAt": "2026-11-05T08:45:21-06:00",
+      "reviewer": {
+        "name": "Christopher Schweda",
+        "source": "git"
+      },
+      "endedAt": "2026-11-05T08:58:38-06:00",
+      "endReason": "completed",
+      "pagesDone": 7,
+      "environment": {
+        "driver": {
+          "name": "guidepup",
+          "version": "0.36.4"
+        },
+        "screenReader": {
+          "name": "NVDA",
+          "version": "2026.2",
+          "build": "0.2.1-2026.2",
+          "language": "en-US"
+        },
+        "capture": "complete",
+        "browser": {
+          "name": "Chrome",
+          "version": "156.0.8078.80"
+        },
+        "os": "Windows 11 Pro 26H2 (10.0.26300)",
+        "screenReaderSettings": {
+          "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+          "speech": {
+            "synth": "oneCore",
+            "oneCore": {
+              "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+              "volume": 100,
+              "rate": 100,
+              "rateBoost": true
+            }
+          },
+          "documentFormatting": {},
+          "virtualBuffers": {
+            "autoSayAllOnPageLoad": false
+          },
+          "keyboard": {},
+          "presentation": {
+            "reportHelpBalloons": false
+          },
+          "general": {
+            "showWelcomeDialogAtStartup": false,
+            "language": "Windows",
+            "saveConfigurationOnExit": false,
+            "askToExit": false,
+            "playStartAndExitSounds": false,
+            "loggingLevel": "IO",
+            "preventDisplayTurningOff": true
+          }
+        },
+        "pageSource": {
+          "kind": "urls",
+          "urls": [
+            "http://127.0.0.1:4747/",
+            "http://127.0.0.1:4747/forms/good/",
+            "http://127.0.0.1:4747/forms/native/",
+            "http://127.0.0.1:4747/forms/silent/",
+            "http://127.0.0.1:4747/forms/no-feedback/",
+            "http://127.0.0.1:4747/forms/no-labels/",
+            "http://127.0.0.1:4747/forms/unreachable/"
+          ]
+        },
+        "voicecap": {
+          "version": "0.24.1",
+          "configSha256": "default"
+        },
+        "runId": "2026-11-05_0845_real-nvda-forms",
+        "runStartedAt": "2026-11-05T08:45:21-06:00",
+        "machine": {
+          "os": {
+            "name": "Windows 11 Pro 26H2",
+            "build": "10.0.26300.9818",
+            "arch": "x64"
+          },
+          "cpu": {
+            "name": "Intel(R) Core(TM) Ultra 7 265F",
+            "baseMhz": 2400,
+            "physicalCores": 20,
+            "logicalProcessors": 20
+          },
+          "memoryBytes": 34043850752,
+          "display": {
+            "width": 3440,
+            "height": 1440,
+            "refreshHz": 59,
+            "scalePercent": 110
+          },
+          "browserWindow": {
+            "width": 1280,
+            "height": 960
+          },
+          "timeZone": "America/Chicago",
+          "utcOffset": "-06:00",
+          "language": "en-US",
+          "software": {
+            "node": "24.19.0",
+            "voicecap": "0.24.1",
+            "guidepup": "0.36.4",
+            "playwright": "1.63.0"
+          }
+        }
+      }
+    }
+  ],
+  "skipped": [],
+  "pages": [
+    {
+      "url": "http://127.0.0.1:4747/",
+      "key": "http://127.0.0.1:4747/",
+      "slug": "home",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 21,
+          "stopReason": "end-reached",
+          "durationMs": 26888,
+          "contentSha256": "52a22d52ee29b071ded19e2715625519d0d5602c9815e90f6da673deb446d6c8",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6411,
+          "contentSha256": "fe22b4623e8e03c1276bcc9b5825055c5ca571e91e0e65f64733805e3049f04d",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 11,
+          "stopReason": "left-document",
+          "durationMs": 15939,
+          "contentSha256": "daa98851c39b23549899c3fa99c41c8b3e7f04b7e72192c85af7349a8355fcc8",
+          "errors": [],
+          "warnings": []
+        },
+        "forms": {
+          "steps": 0,
+          "stopReason": "forms-done",
+          "durationMs": 10,
+          "contentSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "fe24463437a8f88aed715d18daf853d05ca76f920a274bf5c4824ff3a62be1e4",
+          "bytes": 2380
+        },
+        "read.json": {
+          "sha256": "4b786c2aeae88309799d1fd156f1802c1e5b0d84cd79408bfed9513f2910d7e4",
+          "bytes": 6747
+        },
+        "headings.txt": {
+          "sha256": "97fec54ff662b23f2f2843f4d411d261e4cf208ca0365237d459134116794a23",
+          "bytes": 1554
+        },
+        "headings.json": {
+          "sha256": "2df328d6b137f3050c75463f3b031a0f2cf0d936c72b4e1c82555576e48c9191",
+          "bytes": 3950
+        },
+        "tab.txt": {
+          "sha256": "45c3440bcedf46bccc6c63415aca94adeff8a761f9c0119d69636f414620378e",
+          "bytes": 1852
+        },
+        "tab.json": {
+          "sha256": "98ea1ad3b04b6ed2c77a1ab934d759b07c51365ffe6f89bb3cca629f572b1e77",
+          "bytes": 6963
+        },
+        "forms.txt": {
+          "sha256": "723af8c9c03a69e741197f60ec74cd3b410c005a9d880027bd7bafb5b0bee899",
+          "bytes": 1373
+        },
+        "forms.json": {
+          "sha256": "bd36adccd00a592634ff7b461bb8c8d28f8e826f8b64f22ccab9cd75b43a88d1",
+          "bytes": 3128
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-11-05T08:45:29-06:00",
+      "durationMs": 75512,
+      "screenshot": {
+        "sha256": "3afd387fe6cefb6e3cdb9e400755752339b07acd11fc01051c053019588cac61",
+        "bytes": 12225,
+        "takenAt": "2026-11-05T08:45:36.487-06:00",
+        "width": 633,
+        "height": 433
+      },
+      "axe": {
+        "sha256": "b60b577396934af4974474719cd152b4af6b1f38354f7d9aad58422d91abc1fb",
+        "bytes": 341,
+        "ranAt": "2026-11-05T08:45:36.606-06:00",
+        "axeVersion": "4.14.0",
+        "counts": {
+          "violations": 0,
+          "incomplete": 0,
+          "passes": 40,
+          "inapplicable": 51
+        },
+        "impacts": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        }
+      },
+      "forms": {
+        "sha256": "a1ae2549d1663ebed5e1ea73f738fe75e6f9941668c98e032e98f1d4e80558b5",
+        "bytes": 821,
+        "ranAt": "2026-11-05T08:46:44.112-06:00",
+        "counts": {
+          "forms": 1,
+          "completed": 0,
+          "stuck": 0,
+          "notTested": 1,
+          "presses": 0
+        }
+      },
+      "voice": {
+        "sha256": "14816e340dad7a7b96bd9c5a6a259e94adf9ea131d31d085e04e7825ef1498bb",
+        "bytes": 55611,
+        "seconds": 73.144375,
+        "lostMs": 0,
+        "startedAt": "2026-11-05T08:45:30.973-06:00",
+        "stretches": [
+          {
+            "startMs": 2145,
+            "endMs": 32526,
+            "pass": "read"
+          },
+          {
+            "startMs": 35208,
+            "endMs": 45019,
+            "pass": "headings"
+          },
+          {
+            "startMs": 47677,
+            "endMs": 67019,
+            "pass": "tab"
+          },
+          {
+            "startMs": 69719,
+            "endMs": 73120,
+            "pass": "forms"
+          }
+        ],
+        "recordedAt": "2026-11-05T08:46:44.126-06:00"
+      },
+      "finalUrl": "http://127.0.0.1:4747/",
+      "httpStatus": 200,
+      "title": "Home | Voicecap Test Agency",
+      "canonical": null
+    },
+    {
+      "url": "http://127.0.0.1:4747/forms/good/",
+      "key": "http://127.0.0.1:4747/forms/good",
+      "slug": "forms-good-9c52f83d30",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 12,
+          "stopReason": "end-reached",
+          "durationMs": 15379,
+          "contentSha256": "4471c295d376323055f7563cf4dc2d7fca733717ff3e8336a9633ab836b0f2c3",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2564,
+          "contentSha256": "3403911a490966e78a28155d77841736f54412d15e5daaf535e78f2be0b26559",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 6,
+          "stopReason": "left-document",
+          "durationMs": 9341,
+          "contentSha256": "f8d14a80c1d7bc1033eca5f320d9d432a687694217ae87197288c5224e4dbbd5",
+          "errors": [],
+          "warnings": []
+        },
+        "forms": {
+          "steps": 35,
+          "stopReason": "forms-done",
+          "durationMs": 115981,
+          "contentSha256": "b23ef39bb47038125119accab6e65b09f8829e2c0e2b2757f4559c37bb4a7eec",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "ae044070ff862b199f41afd87d5ecfae87b5fa04eb4fe0b79079896033c5802f",
+          "bytes": 1912
+        },
+        "read.json": {
+          "sha256": "76c045e4384ba5fd7c7782b1a560e1dfe4df26f7db21d8a31ce676490a14adfd",
+          "bytes": 5174
+        },
+        "headings.txt": {
+          "sha256": "42910bde17834357290d2f05a3d64d30a385a67ef4c085dc4715b7a5b789e418",
+          "bytes": 1472
+        },
+        "headings.json": {
+          "sha256": "63d674ec19f461d7bc5ff5d12ff05991ff1240dc30b14ebe873b6073e91c1916",
+          "bytes": 3514
+        },
+        "tab.txt": {
+          "sha256": "3288c261b656e6c029aab9e3cc506f82b9a7f8c39dadfff10c9a83363acc809e",
+          "bytes": 1686
+        },
+        "tab.json": {
+          "sha256": "39fd2245c31cffdf9689addc79d99627036ccc5927624cde51e4882d626ad187",
+          "bytes": 5214
+        },
+        "forms.txt": {
+          "sha256": "9356902e95b3f4e779be031ff0a6355e1e889fa082609ffa44ae837e84aaac44",
+          "bytes": 3634
+        },
+        "forms.json": {
+          "sha256": "82bab15a64e6f6813983d0971c8f9651dfafdfcb015c9f6cfa99373843b900c6",
+          "bytes": 10404
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-11-05T08:46:44-06:00",
+      "durationMs": 169259,
+      "screenshot": {
+        "sha256": "acc6f47f6d0cfa785517ac37473829d2ffd3e855bc514ef72fd8e6da55f4b7f9",
+        "bytes": 6204,
+        "takenAt": "2026-11-05T08:46:50.891-06:00",
+        "width": 633,
+        "height": 433
+      },
+      "axe": {
+        "sha256": "c91357aecb4fb045801014c9e73455d86aceaf832a2415627f9385bbbdf6a863",
+        "bytes": 352,
+        "ranAt": "2026-11-05T08:46:51.002-06:00",
+        "axeVersion": "4.14.0",
+        "counts": {
+          "violations": 0,
+          "incomplete": 0,
+          "passes": 38,
+          "inapplicable": 53
+        },
+        "impacts": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        }
+      },
+      "forms": {
+        "sha256": "c1c76c921074739cb8a0b12399a66999e93c360c3c582eb4671df383de7ff96c",
+        "bytes": 10727,
+        "ranAt": "2026-11-05T08:49:32.708-06:00",
+        "counts": {
+          "forms": 1,
+          "completed": 1,
+          "stuck": 0,
+          "notTested": 0,
+          "presses": 4
+        }
+      },
+      "voice": {
+        "sha256": "e4b047b07b51c4c780a818b5fb09b30e01966b2d063cc77b6f64c6bcdde38833",
+        "bytes": 99852,
+        "seconds": 167.8604375,
+        "lostMs": 0,
+        "startedAt": "2026-11-05T08:46:44.859-06:00",
+        "stretches": [
+          {
+            "startMs": 2669,
+            "endMs": 21528,
+            "pass": "read"
+          },
+          {
+            "startMs": 24416,
+            "endMs": 30287,
+            "pass": "headings"
+          },
+          {
+            "startMs": 32955,
+            "endMs": 45615,
+            "pass": "tab"
+          },
+          {
+            "startMs": 48290,
+            "endMs": 167770,
+            "pass": "forms"
+          }
+        ],
+        "recordedAt": "2026-11-05T08:49:32.725-06:00"
+      },
+      "finalUrl": "http://127.0.0.1:4747/forms/good/",
+      "httpStatus": 200,
+      "title": "Request a grant guide | Voicecap Test Agency",
+      "canonical": null
+    },
+    {
+      "url": "http://127.0.0.1:4747/forms/native/",
+      "key": "http://127.0.0.1:4747/forms/native",
+      "slug": "forms-native-f9b0dd6a0c",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 10,
+          "stopReason": "end-reached",
+          "durationMs": 12754,
+          "contentSha256": "e93025085d2b9b821247ec3996a211c791183188edbd14a68ccae4855f3222bf",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2546,
+          "contentSha256": "bbd7adb719681b5cc8a3641360c5d59bebaa3f543e82b3a753ea702772db29bd",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 5,
+          "stopReason": "left-document",
+          "durationMs": 8034,
+          "contentSha256": "c11ca9039e2a77fc12542420eb54e1f23ac06aae27cbfad3821f41082fc75ece",
+          "errors": [],
+          "warnings": []
+        },
+        "forms": {
+          "steps": 20,
+          "stopReason": "forms-done",
+          "durationMs": 92804,
+          "contentSha256": "db58fc316878c94c648f424dd5308c07322f98c6336ff604ab8d4c07b505c5dc",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "b257d5a3c09f4452770e44e345e28d9e741e508e6c7470567c41adbd4317a50f",
+          "bytes": 1833
+        },
+        "read.json": {
+          "sha256": "cddc259c24e19e7c8e07782a4991a3f6af64a20478cf3db873a850cd1b14e2cc",
+          "bytes": 4847
+        },
+        "headings.txt": {
+          "sha256": "1e6eab0627ab2874fa4b8b5af29b9fbd1b16b801c3acdf1bd32ebccd85543d85",
+          "bytes": 1476
+        },
+        "headings.json": {
+          "sha256": "57008adc44ebf0ca9a64ec29bc810b87661d958e146dda62666ce8612838584e",
+          "bytes": 3522
+        },
+        "tab.txt": {
+          "sha256": "15498dcd95d0ce1f035724421c3c12472e28c7f274ae428ccc51f32bba63c4ad",
+          "bytes": 1632
+        },
+        "tab.json": {
+          "sha256": "d0ef36bded03703243589f0c3c525cae8cc50316915b660fa5d196f43381ae58",
+          "bytes": 4850
+        },
+        "forms.txt": {
+          "sha256": "989d1b08ff5a2370ef7fb2be33b72e0fa6f14463e7d297cbda680467fb8ae631",
+          "bytes": 2196
+        },
+        "forms.json": {
+          "sha256": "ecfb82e7e2ec7b3e3c7e7eadfcda8a79a27729be431b05d65caca528ba92a385",
+          "bytes": 6778
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-11-05T08:49:34-06:00",
+      "durationMs": 141985,
+      "screenshot": {
+        "sha256": "cb18ed2f88a3c9e7e5dae93c6b6601ff03dc1c6f64485e29cf4b4278e744af82",
+        "bytes": 5014,
+        "takenAt": "2026-11-05T08:49:40.196-06:00",
+        "width": 633,
+        "height": 433
+      },
+      "axe": {
+        "sha256": "2e4e584167ac78ba475de396d4b62b0a4fbbb4cf9b157a2540cf8be530413461",
+        "bytes": 354,
+        "ranAt": "2026-11-05T08:49:40.311-06:00",
+        "axeVersion": "4.14.0",
+        "counts": {
+          "violations": 0,
+          "incomplete": 0,
+          "passes": 28,
+          "inapplicable": 63
+        },
+        "impacts": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        }
+      },
+      "forms": {
+        "sha256": "d81f1169796b554ac7743a7745f386d213c388e4fb80158096af1f384eedf141",
+        "bytes": 7548,
+        "ranAt": "2026-11-05T08:51:54.919-06:00",
+        "counts": {
+          "forms": 1,
+          "completed": 1,
+          "stuck": 0,
+          "notTested": 0,
+          "presses": 3
+        }
+      },
+      "voice": {
+        "sha256": "274cc96d3fa63bd337f50ae9b9deca983f2fcb5328a749873273afae1aa92ddf",
+        "bytes": 69673,
+        "seconds": 140.802625,
+        "lostMs": 0,
+        "startedAt": "2026-11-05T08:49:34.129-06:00",
+        "stretches": [
+          {
+            "startMs": 2623,
+            "endMs": 18941,
+            "pass": "read"
+          },
+          {
+            "startMs": 21649,
+            "endMs": 27670,
+            "pass": "headings"
+          },
+          {
+            "startMs": 30319,
+            "endMs": 41834,
+            "pass": "tab"
+          },
+          {
+            "startMs": 44494,
+            "endMs": 140733,
+            "pass": "forms"
+          }
+        ],
+        "recordedAt": "2026-11-05T08:51:54.935-06:00"
+      },
+      "finalUrl": "http://127.0.0.1:4747/forms/native/",
+      "httpStatus": 200,
+      "title": "Join the mailing list | Voicecap Test Agency",
+      "canonical": null
+    },
+    {
+      "url": "http://127.0.0.1:4747/forms/silent/",
+      "key": "http://127.0.0.1:4747/forms/silent",
+      "slug": "forms-silent-b1d61b18b4",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 10,
+          "stopReason": "end-reached",
+          "durationMs": 12760,
+          "contentSha256": "e00017900915bebf768c0c6e447b1e21969e4a65617381b9248d5df12178acdd",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2544,
+          "contentSha256": "edd870038d0368108a166663a8074ca4740a04d1d3491646e863258ea564795a",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 5,
+          "stopReason": "left-document",
+          "durationMs": 8043,
+          "contentSha256": "6db6f9c3538980430ee58785721adea1403f493d0ff18150b7458b872201a51b",
+          "errors": [],
+          "warnings": []
+        },
+        "forms": {
+          "steps": 20,
+          "stopReason": "forms-done",
+          "durationMs": 92913,
+          "contentSha256": "721f8205ee2787bc5d963631402001d95139b871d959ad79abced0c7d5690901",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "8f947bcea7025722025045e640491d48bc04c5b4b902e238ad0aebfd965d7770",
+          "bytes": 1837
+        },
+        "read.json": {
+          "sha256": "e899fd48ab9cf83aa4fa4578d54689843145d329c45f641d226d71cca779284e",
+          "bytes": 4851
+        },
+        "headings.txt": {
+          "sha256": "d82479627bf9f3a5bb31510a6f625318c12c501e1cf34665052e8a08143fffaf",
+          "bytes": 1476
+        },
+        "headings.json": {
+          "sha256": "1a3550152d4dc013652255ef56121365b4420132ca6a82fca185d65893cfeab4",
+          "bytes": 3522
+        },
+        "tab.txt": {
+          "sha256": "bd2bee56aacf75485d73a87d778457c60400cfbf960dbc9c5208140a01e6d563",
+          "bytes": 1636
+        },
+        "tab.json": {
+          "sha256": "fcdfa287de6fba5d5c59e53ca11f5ae3abc3e87fb32d8fc1f53072265b31d249",
+          "bytes": 4858
+        },
+        "forms.txt": {
+          "sha256": "18a53bdad4c5d82a914a596066d697a81f34bbe065acb7ca4d40d8568798cb70",
+          "bytes": 2127
+        },
+        "forms.json": {
+          "sha256": "ede1f5157b6409beaade8eaf5f3a631f810e4c77063309e18b865fa5c58e5d52",
+          "bytes": 6698
+        }
+      },
+      "flags": [
+        {
+          "rule": "form-error-silent",
+          "pass": "forms",
+          "count": 1,
+          "message": "The \"Register\" form showed an error after the press (\"Please fill in your name and your email.\"), and NVDA said none of it."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-11-05T08:51:56-06:00",
+      "durationMs": 142503,
+      "screenshot": {
+        "sha256": "ff4b717bf8c7ed39eb9cbaa675fd723a53e6d293e3043a4deac067d9f5d7b678",
+        "bytes": 5191,
+        "takenAt": "2026-11-05T08:52:02.229-06:00",
+        "width": 633,
+        "height": 433
+      },
+      "axe": {
+        "sha256": "95f0ac8942133d791d661d81d74e98879ca4487b55ef0aab22f875fc65dfca79",
+        "bytes": 354,
+        "ranAt": "2026-11-05T08:52:02.334-06:00",
+        "axeVersion": "4.14.0",
+        "counts": {
+          "violations": 0,
+          "incomplete": 0,
+          "passes": 33,
+          "inapplicable": 58
+        },
+        "impacts": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        }
+      },
+      "forms": {
+        "sha256": "1a42d7120518c755be5977c50bd3a7bc28973bb6c3657bb8915b76285a9d6587",
+        "bytes": 7435,
+        "ranAt": "2026-11-05T08:54:17.414-06:00",
+        "counts": {
+          "forms": 1,
+          "completed": 1,
+          "stuck": 0,
+          "notTested": 0,
+          "presses": 3
+        }
+      },
+      "voice": {
+        "sha256": "82187679f6a63e92715f50584c7e551df2f7e14b96144c66d7c86a8001059a7b",
+        "bytes": 68453,
+        "seconds": 141.30625,
+        "lostMs": 0,
+        "startedAt": "2026-11-05T08:51:56.119-06:00",
+        "stretches": [
+          {
+            "startMs": 2674,
+            "endMs": 18982,
+            "pass": "read"
+          },
+          {
+            "startMs": 21683,
+            "endMs": 27854,
+            "pass": "headings"
+          },
+          {
+            "startMs": 30541,
+            "endMs": 42209,
+            "pass": "tab"
+          },
+          {
+            "startMs": 44897,
+            "endMs": 141239,
+            "pass": "forms"
+          }
+        ],
+        "recordedAt": "2026-11-05T08:54:17.435-06:00"
+      },
+      "finalUrl": "http://127.0.0.1:4747/forms/silent/",
+      "httpStatus": 200,
+      "title": "Register for training | Voicecap Test Agency",
+      "canonical": null
+    },
+    {
+      "url": "http://127.0.0.1:4747/forms/no-feedback/",
+      "key": "http://127.0.0.1:4747/forms/no-feedback",
+      "slug": "forms-no-feedback-39b4ea75f0",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 11,
+          "stopReason": "end-reached",
+          "durationMs": 14028,
+          "contentSha256": "a27cb5c8c689c8192e41e7f5486cdfd6ae0d9ce68686c3d595021df9c28a0c8b",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2549,
+          "contentSha256": "c9e20062de2a9aad22b8b668a3ece0b412a6f24559f4704481d4e89e326c49c0",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 5,
+          "stopReason": "left-document",
+          "durationMs": 8022,
+          "contentSha256": "7b43eec69afc0a07dc1a2c9e8c65d5cf481e2e2915f30fc68c743620f2e24992",
+          "errors": [],
+          "warnings": []
+        },
+        "forms": {
+          "steps": 4,
+          "stopReason": "forms-done",
+          "durationMs": 11855,
+          "contentSha256": "a2e9761d65f29751f8cb1099abf3c07fd30754f542ea166419bafcfbfe70daa7",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "6a3592bb7fd480e74ac1b46604d9ba7d0625a53dfdb52d315ae4d5b44ee66edc",
+          "bytes": 1866
+        },
+        "read.json": {
+          "sha256": "b753cca829a84e0c436ea1c9d11ea833a2f165b3880396a41b43d2bab59c80c4",
+          "bytes": 5015
+        },
+        "headings.txt": {
+          "sha256": "1712eb504fd02497a7c36dce153c5b64031262284da54aa4ed270a43951717ba",
+          "bytes": 1479
+        },
+        "headings.json": {
+          "sha256": "1b2cb715cb56d272863cdbaf89515e8df3c2ee0b59b07cf256c4039a7d9c791f",
+          "bytes": 3535
+        },
+        "tab.txt": {
+          "sha256": "9fb050a797ba8adb5170fa7bb8ede5077ef586cd318d531ef97fb547e8721a16",
+          "bytes": 1654
+        },
+        "tab.json": {
+          "sha256": "d4a7ea5fef4eabbc34238b37586bf268216789508e55d3494a84fed53b8ba4cd",
+          "bytes": 4892
+        },
+        "forms.txt": {
+          "sha256": "23b4f9ae37aed33781a4b476ff91f7343ab3e9999543801d53bf74087eb0b648",
+          "bytes": 1570
+        },
+        "forms.json": {
+          "sha256": "146601a28adbfcea01b0993b086c1fa43f42fe6c6863cef4f5108cc85fd9edd5",
+          "bytes": 3925
+        }
+      },
+      "flags": [
+        {
+          "rule": "form-no-feedback",
+          "pass": "forms",
+          "count": 1,
+          "message": "The \"Ask\" form: pressing submit changed nothing, and no request was held."
+        },
+        {
+          "rule": "form-cant-finish",
+          "pass": "forms",
+          "count": 1,
+          "message": "The \"Ask\" form couldn't be completed by keyboard, stopping: pressing submit changed nothing."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-11-05T08:54:18-06:00",
+      "durationMs": 61755,
+      "screenshot": {
+        "sha256": "3ee90cb1f61bcd080df774aba0ee42f9c846ec8948f0df122e02089ee2b8f958",
+        "bytes": 4866,
+        "takenAt": "2026-11-05T08:54:24.782-06:00",
+        "width": 633,
+        "height": 433
+      },
+      "axe": {
+        "sha256": "9acc060d947f59d1d3e6025e6292cbca6d2526339a9dc6f716edde0a59e45e67",
+        "bytes": 359,
+        "ranAt": "2026-11-05T08:54:24.925-06:00",
+        "axeVersion": "4.14.0",
+        "counts": {
+          "violations": 0,
+          "incomplete": 0,
+          "passes": 33,
+          "inapplicable": 58
+        },
+        "impacts": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        }
+      },
+      "forms": {
+        "sha256": "44eff2661017f3227c0b7f0fcce52eaaab3b92dc5947597029588554071b8cb3",
+        "bytes": 3167,
+        "ranAt": "2026-11-05T08:55:19.814-06:00",
+        "counts": {
+          "forms": 1,
+          "completed": 0,
+          "stuck": 1,
+          "notTested": 0,
+          "presses": 1
+        }
+      },
+      "voice": {
+        "sha256": "44e636b55168971e0f371329cacba4c77ee51a72152f939ed5bb50f0368c9dd8",
+        "bytes": 38532,
+        "seconds": 61.1919375,
+        "lostMs": 0,
+        "startedAt": "2026-11-05T08:54:18.629-06:00",
+        "stretches": [
+          {
+            "startMs": 2636,
+            "endMs": 20330,
+            "pass": "read"
+          },
+          {
+            "startMs": 23051,
+            "endMs": 29060,
+            "pass": "headings"
+          },
+          {
+            "startMs": 31738,
+            "endMs": 43214,
+            "pass": "tab"
+          },
+          {
+            "startMs": 45872,
+            "endMs": 61082,
+            "pass": "forms"
+          }
+        ],
+        "recordedAt": "2026-11-05T08:55:19.824-06:00"
+      },
+      "finalUrl": "http://127.0.0.1:4747/forms/no-feedback/",
+      "httpStatus": 200,
+      "title": "Ask a question | Voicecap Test Agency",
+      "canonical": null
+    },
+    {
+      "url": "http://127.0.0.1:4747/forms/no-labels/",
+      "key": "http://127.0.0.1:4747/forms/no-labels",
+      "slug": "forms-no-labels-a4da074b29",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 10,
+          "stopReason": "end-reached",
+          "durationMs": 12755,
+          "contentSha256": "63c8d34b395343f75962e90e6b72673fa12eb8bf0ff2b3b2b6685be0772b86d5",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2549,
+          "contentSha256": "50d4b3565991363005ef7d0e6a5c5a12f970683fbf10d5004934aa6e629ea1a6",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 5,
+          "stopReason": "left-document",
+          "durationMs": 8016,
+          "contentSha256": "4ad31870f23e8e4248cf9c3db2cc74d548a358d95d87adf7eaa4887f379511ad",
+          "errors": [],
+          "warnings": []
+        },
+        "forms": {
+          "steps": 20,
+          "stopReason": "forms-done",
+          "durationMs": 85679,
+          "contentSha256": "bcd73e7577e13e272942e1f2682a8537b9fd0289b2d3a6701dda333f3968630e",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "684403b233aa998bcbf33537571a84940ea83f91dfd27ca0edafdcfffc73f4ed",
+          "bytes": 1839
+        },
+        "read.json": {
+          "sha256": "f0d03e1f855b439034bc4e100bfb7a897088886c165f3f479b8d68fb8e97ba6e",
+          "bytes": 4859
+        },
+        "headings.txt": {
+          "sha256": "c1fc4d9875e35af88fb3982e9a48689fde2f697136c570394ce6d3713030ee0a",
+          "bytes": 1479
+        },
+        "headings.json": {
+          "sha256": "37de837a7d975c144b265dcaf4183b362e1e330709ed2312dd347266f213cffd",
+          "bytes": 3531
+        },
+        "tab.txt": {
+          "sha256": "3a7ea8217dc6d9106f0670946ce0733e7cdc8602df45f4ddc647aa8abf2e17c1",
+          "bytes": 1620
+        },
+        "tab.json": {
+          "sha256": "a6090a5eb314898c60d4a4d1a3aad9b84a0179515fb6ac5b191d9b582bc934dd",
+          "bytes": 4833
+        },
+        "forms.txt": {
+          "sha256": "ead715298f5603999edeab96a13c9c0d41910808e2b24daf377722a2d40245cb",
+          "bytes": 2341
+        },
+        "forms.json": {
+          "sha256": "dfbc892525a486ef215fa28e944ea25faff8147e099d2e272bbde2225b27c7e1",
+          "bytes": 6929
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 2,
+          "found": [
+            {
+              "text": "edit",
+              "count": 2
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"edit\" ×2."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-11-05T08:55:20-06:00",
+      "durationMs": 134921,
+      "screenshot": {
+        "sha256": "c623b9994658b24d639f9e299a956c7b06038a7d2b5910127802546a6e82b732",
+        "bytes": 5081,
+        "takenAt": "2026-11-05T08:55:26.486-06:00",
+        "width": 633,
+        "height": 433
+      },
+      "axe": {
+        "sha256": "b3de0d8d479d75c1e0c7ff41df0465c4477dc77e3ed19ac789f4d967754a832b",
+        "bytes": 3269,
+        "ranAt": "2026-11-05T08:55:26.599-06:00",
+        "axeVersion": "4.14.0",
+        "counts": {
+          "violations": 2,
+          "incomplete": 0,
+          "passes": 35,
+          "inapplicable": 54
+        },
+        "impacts": {
+          "critical": 1,
+          "serious": 1,
+          "moderate": 0,
+          "minor": 0
+        }
+      },
+      "forms": {
+        "sha256": "84a9179b857330c31206b5e5c92e192ba3de257ca08a82ca42c91bb45390300b",
+        "bytes": 18941,
+        "ranAt": "2026-11-05T08:57:34.193-06:00",
+        "counts": {
+          "forms": 1,
+          "completed": 1,
+          "stuck": 0,
+          "notTested": 0,
+          "presses": 3
+        }
+      },
+      "voice": {
+        "sha256": "ae25e31a3dc4cf8162a64a4d17bb6fd26e9a7b455d50ead3b96bbcdd38361845",
+        "bytes": 70269,
+        "seconds": 133.822375,
+        "lostMs": 0,
+        "startedAt": "2026-11-05T08:55:20.387-06:00",
+        "stretches": [
+          {
+            "startMs": 2667,
+            "endMs": 18972,
+            "pass": "read"
+          },
+          {
+            "startMs": 21649,
+            "endMs": 27602,
+            "pass": "headings"
+          },
+          {
+            "startMs": 30273,
+            "endMs": 41927,
+            "pass": "tab"
+          },
+          {
+            "startMs": 44607,
+            "endMs": 133749,
+            "pass": "forms"
+          }
+        ],
+        "recordedAt": "2026-11-05T08:57:34.213-06:00"
+      },
+      "finalUrl": "http://127.0.0.1:4747/forms/no-labels/",
+      "httpStatus": 200,
+      "title": "Request a callback | Voicecap Test Agency",
+      "canonical": null
+    },
+    {
+      "url": "http://127.0.0.1:4747/forms/unreachable/",
+      "key": "http://127.0.0.1:4747/forms/unreachable",
+      "slug": "forms-unreachable-be806cb69d",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 10,
+          "stopReason": "end-reached",
+          "durationMs": 12765,
+          "contentSha256": "d97933803caaddd7f0cf5e8f09b39fa46646566bac67ed8a3abeb65bb2c9f41a",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2551,
+          "contentSha256": "308d42a442770974d80e6de0fb0cd058f50d823cfce70fd90b3da3b2139b1a36",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 4,
+          "stopReason": "left-document",
+          "durationMs": 6730,
+          "contentSha256": "10493dffb765176a3b079650880a808937f272a87bec5b5370ddcfa579ea467e",
+          "errors": [],
+          "warnings": []
+        },
+        "forms": {
+          "steps": 5,
+          "stopReason": "forms-done",
+          "durationMs": 14118,
+          "contentSha256": "7c7172b8400446c22c722289f223571c6fe166b01726e3d31c51ee82f82d21df",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "e866ed4ec2df0773c0a32d715558afa7f6e93122dcf59c8d90cc043bd5982d55",
+          "bytes": 1861
+        },
+        "read.json": {
+          "sha256": "adf3909f55103c5d5e3e1c83f45228a4af835ad88204f96c72ff8565970a51d3",
+          "bytes": 4885
+        },
+        "headings.txt": {
+          "sha256": "b0eaa918534e88fb6c061b99f0a6df6bd78a327348a3015fa0301c951eb2c2e8",
+          "bytes": 1484
+        },
+        "headings.json": {
+          "sha256": "dad403414078f163a684bd9b5ab0ae547236cbae964d74935e6ff5ea99caaf52",
+          "bytes": 3540
+        },
+        "tab.txt": {
+          "sha256": "59cbc1b151e15959c0290834ce375868422151661918982eca742ad2f67fac19",
+          "bytes": 1612
+        },
+        "tab.json": {
+          "sha256": "ba7026df6a6de67bf0af880dd374f3ad2ad2b0495f2d8f307d85cd4df5899534",
+          "bytes": 4537
+        },
+        "forms.txt": {
+          "sha256": "fb2757bc9141d17fee26f6bdab300d17e5a7c7171bcd10032e80a96cdb68385d",
+          "bytes": 1640
+        },
+        "forms.json": {
+          "sha256": "9b32b37c5d1bc5ff484b2d21e54b46a4cbd7044aa5d8b73b846a0e3468ca6c5f",
+          "bytes": 4134
+        }
+      },
+      "flags": [
+        {
+          "rule": "form-cant-finish",
+          "pass": "forms",
+          "count": 1,
+          "message": "The \"Apply\" form couldn't be completed by keyboard, stopping at Date of birth: Tab never reached it."
+        },
+        {
+          "rule": "form-field-unreachable",
+          "pass": "forms",
+          "count": 1,
+          "message": "The \"Apply\" form: Date of birth couldn't be reached or filled by keyboard."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-11-05T08:57:35-06:00",
+      "durationMs": 61083,
+      "screenshot": {
+        "sha256": "96970569e598d887f4aa4a1c83bfb16dc7c1d7f60fd42f0867f5ceefd352d056",
+        "bytes": 5564,
+        "takenAt": "2026-11-05T08:57:41.380-06:00",
+        "width": 633,
+        "height": 433
+      },
+      "axe": {
+        "sha256": "cf94d3c57012e4ba02b7932861177062506ad1371ccc463f50f12c0e085f75a9",
+        "bytes": 359,
+        "ranAt": "2026-11-05T08:57:41.488-06:00",
+        "axeVersion": "4.14.0",
+        "counts": {
+          "violations": 0,
+          "incomplete": 0,
+          "passes": 39,
+          "inapplicable": 52
+        },
+        "impacts": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        }
+      },
+      "forms": {
+        "sha256": "d29334018288e0f2b2e2405342a6f375504e9aa4b347d45d7d29d5438eac4f8f",
+        "bytes": 3610,
+        "ranAt": "2026-11-05T08:58:35.877-06:00",
+        "counts": {
+          "forms": 1,
+          "completed": 0,
+          "stuck": 1,
+          "notTested": 0,
+          "presses": 1
+        }
+      },
+      "voice": {
+        "sha256": "ae12a0bbd126395e01fc9be65844a76a73fb041a3b049d5624d041ed129cf182",
+        "bytes": 38792,
+        "seconds": 60.5708125,
+        "lostMs": 0,
+        "startedAt": "2026-11-05T08:57:35.313-06:00",
+        "stretches": [
+          {
+            "startMs": 2660,
+            "endMs": 18945,
+            "pass": "read"
+          },
+          {
+            "startMs": 21623,
+            "endMs": 27587,
+            "pass": "headings"
+          },
+          {
+            "startMs": 30237,
+            "endMs": 40366,
+            "pass": "tab"
+          },
+          {
+            "startMs": 43054,
+            "endMs": 60552,
+            "pass": "forms"
+          }
+        ],
+        "recordedAt": "2026-11-05T08:58:35.889-06:00"
+      },
+      "finalUrl": "http://127.0.0.1:4747/forms/unreachable/",
+      "httpStatus": 200,
+      "title": "Apply for a program | Voicecap Test Agency",
+      "canonical": null
+    }
+  ],
+  "formSignatures": {
+    "9e1c63ce4cdeac48": "/forms/good/",
+    "1c1a6f38c363d7d9": "/forms/native/",
+    "ab9afacd0faaf7b2": "/forms/silent/",
+    "c9841689d7f0f834": "/forms/no-feedback/",
+    "5d063a8743b4c4c3": "/forms/no-labels/",
+    "121da301dd1f8e62": "/forms/unreachable/"
+  },
+  "files": {
+    "events.jsonl": {
+      "sha256": "ad15a0548b30c9770a97d32fcb4eacd23dc1d3536ce8bcb3ae40bd42c0de8da4",
+      "bytes": 6640
+    },
+    "nvda-log/1-1.txt": {
+      "sha256": "b4e9b38000f24fd085535f8593a4ca7657a1b75dcc28197941553662a3a49e96",
+      "bytes": 128939
+    }
+  },
+  "seal": "59427dcb5bff81c3104cafcc9bf9503b097250deaea9975646beb5f9c7740135"
+}
