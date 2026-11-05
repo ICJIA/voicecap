@@ -46,13 +46,17 @@ const PAGES: Record<string, string> = {
     <form role="search" action="/s"><input type="search" aria-label="Find"><button>Go</button></form>
     <form action="/s" method="get"><input type="text" aria-label="Q"><button>Go</button></form>
     <form action="mailto:office@example.gov"><input aria-label="Say"><button>Mail</button></form>
-    <form action="/nothing"><input aria-label="No button"></form>
+    <form action="/nothing"><input aria-label="No button"><input aria-label="Nor this"></form>
     <form action="/login" method="post"><input aria-label="User"><input type="password" aria-label="Password" autocomplete="current-password"><button>In</button></form>
     <form action="/card" method="post"><input aria-label="Card" autocomplete="cc-number"><button>Pay</button></form>
     <form action="/c" method="post"><input aria-label="Say"><div class="g-recaptcha"></div><button>Go</button></form>
     <form action="/hidden" method="post" style="display:none"><input aria-label="Hid"><button>Go</button></form>
     <iframe src="https://docs.google.com/forms/d/e/1/viewform" width="10" height="10"></iframe>
     <input type="text" aria-label="Loose field"><div role="button">Not a submit</div>`,
+  "/searches": `${HEAD}
+    <form action="javascript:void(0)"><input type="text" aria-label="Search"><button type="reset">Clear</button><button>Go</button></form>
+    <form action="/s"><input type="search" aria-label="Search the site"></form>
+    <form action="mailto:office@example.gov"><input aria-label="Say"><button>Mail</button></form>`,
   "/hostile": `${HEAD}
     <script>
       Element.prototype.getAttribute = () => "lies";
@@ -218,6 +222,11 @@ describe.skipIf(!haveChromium)("scanForms", () => {
       ["other-site", "docs.google.com", false, false],
     ]);
     expect(forms.map((form) => form.index)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("calls a site's own search a search form, by a javascript: action or with no submit control", async () => {
+    const forms = await (await open("/searches")).scanForms();
+    expect(forms.map((form) => form.kind)).toEqual(["search", "search", "not-web"]);
   });
 
   it("counts an empty action as the page's own", async () => {

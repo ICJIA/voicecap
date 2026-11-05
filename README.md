@@ -1096,7 +1096,7 @@ Values are never set by script: a field a keyboard can't fill shows up as one, s
 | Form | What voicecap does |
 | --- | --- |
 | A form with a submit button | Tests it |
-| A search form (`role="search"`, or a GET form whose only field is a search or text field) | Doesn't test it, and says so: it has no required fields to learn from |
+| A search form (`role="search"`, or a GET form whose only field is a search or text field) | Doesn't test it, and says so: it has no required fields to learn from. It's a search form even when it has no submit button or sends by script (a `javascript:` action), as a site's own search often does, so its gray banner says "It's a search form." |
 | The same form on many pages (a sign-up in the footer) | Tests it once in the run, and later pages say where it was tested ("Checked on /about, where its result is.") |
 | A form that answers a press with a JavaScript dialog box (an alert, or "Are you sure?") | Keeps the dialog's words, dismisses it, and records the form as not tested: voicecap doesn't test dialogs yet |
 | More than 5 forms on a page (`forms.maxPerPage`) | Tests the first 5, and says how many it left |

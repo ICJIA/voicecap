@@ -38,19 +38,25 @@ export interface RawForm {
 /** What the form does when pressed, and so whether voicecap may press it. */
 export function classifyForm(raw: RawForm): FormKind {
   if (raw.frame !== null) return "other-site";
+  // A search form is one whatever it sends by or however it's sent: a site's search often runs in
+  // its own script, with a `javascript:` action or no submit control. One that sends by email isn't.
+  if (isSearch(raw) && !/^mailto:/i.test(raw.action)) return "search";
   if (!/^https?:/i.test(raw.action)) return "not-web";
   // A dialog form closes a dialog and sends nothing.
   if (raw.formless || !raw.submit || raw.method === "dialog") return "no-submit";
-  if (raw.searchRole) return "search";
-  const [only] = raw.fields;
-  if (
-    raw.fields.length === 1 &&
-    raw.method === "get" &&
-    (only?.type === "search" || only?.type === "text")
-  ) {
-    return "search";
-  }
   return "test";
+}
+
+/**
+ * A search form by the forms design's test: `role="search"` (or `<search>`) around it, or one search
+ * or text field sent by GET. Fields with no `<form>` around them are one only for a search field: a
+ * loose text field is no sign of one.
+ */
+function isSearch(raw: RawForm): boolean {
+  if (raw.searchRole) return true;
+  const [only] = raw.fields;
+  if (raw.fields.length !== 1 || raw.method !== "get") return false;
+  return only?.type === "search" || (only?.type === "text" && !raw.formless);
 }
 
 /** A password or a card number (`autocomplete="cc-number"`, `cc-csc`, and the rest). */

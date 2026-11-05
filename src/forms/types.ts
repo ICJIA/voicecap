@@ -6,7 +6,8 @@ import type { AxeCapture, FocusedElement } from "../drivers/types.js";
 
 /**
  * - test: a form with a submit control; the pass presses it.
- * - search: a search form, which has no required fields to learn from.
+ * - search: a search form, which has no required fields to learn from: before not-web and no-submit,
+ *   since a site's own search may run by script, with a `javascript:` action or no submit control.
  * - no-submit: fields with no `<form>` around them, or a form with no submit control.
  * - other-site: a form in another site's frame (Google Forms, Microsoft Forms); `site` names it.
  * - not-web: a form that sends by anything but a web address, such as `mailto:`.
