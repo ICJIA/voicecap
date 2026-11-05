@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 
 import { keptAxeResults } from "../src/axe/results.js";
 import type { FormInfo, FormOutcome, FormState } from "../src/forms/types.js";
-import { FORMS_FILE, keptFormsResults } from "../src/forms/result-file.js";
+import { FORMS_FILE, keptFormsResults, readFormsResults } from "../src/forms/result-file.js";
+import { readPress } from "../src/forms/press.js";
 import { rawAxe, rawRule } from "./helpers/raw-axe.js";
 
 const STATE: FormState = {
@@ -54,6 +55,72 @@ function outcomeOf(signature: string, overrides: Partial<FormOutcome> = {}): For
 }
 
 const found = keptAxeResults(rawAxe({ violations: [rawRule("image-alt")] }), "http://x/");
+
+describe("readFormsResults", () => {
+  const fileWith = (form: Record<string, unknown>, held: unknown[]) =>
+    JSON.stringify({
+      schemaVersion: 1,
+      forms: [
+        {
+          form: { fields: [] },
+          result: "completed",
+          ...form,
+          presses: [
+            {
+              heldBefore: 0,
+              spoken: "",
+              state: {
+                invalid: [],
+                emptyRequired: [],
+                messages: [],
+                bubble: null,
+                heldRequests: held.length,
+                held,
+                pageHost: "example.illinois.gov",
+                actionHost: "example.illinois.gov",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+  it("leaves out a held request's method, or a form's analytics hosts, that isn't what it should be", () => {
+    const read = readFormsResults(
+      fileWith({ analyticsHosts: "google-analytics.com" }, [
+        { host: "api.example.org", type: "fetch", method: 7 },
+        { host: "api.example.org", type: "fetch", method: "POST" },
+      ]),
+    );
+    const [form] = read ?? [];
+    expect(form).not.toHaveProperty("analyticsHosts");
+    const held = form?.presses[0]?.state.held;
+    expect(held?.[0]).toEqual({ host: "api.example.org", type: "fetch" });
+    expect(held?.[1]).toEqual({ host: "api.example.org", type: "fetch", method: "POST" });
+    const press = form!.presses[0]!;
+    expect(() =>
+      readPress({ invalid: [], messages: [] }, 0, press.state, form!.analyticsHosts),
+    ).not.toThrow();
+  });
+
+  it("keeps a list of analytics hosts only when each is text", () => {
+    const listed = readFormsResults(fileWith({ analyticsHosts: ["example.org"] }, []));
+    expect(listed?.[0]?.analyticsHosts).toEqual(["example.org"]);
+    const mixed = readFormsResults(fileWith({ analyticsHosts: ["example.org", 3] }, []));
+    expect(mixed?.[0]).not.toHaveProperty("analyticsHosts");
+  });
+
+  it("reads a held request with no host as text as not the form sending, and doesn't throw", () => {
+    const read = readFormsResults(fileWith({}, [{ host: 5, type: "fetch", method: "POST" }, null]));
+    const press = read![0]!.presses[0]!;
+    // Each keeps its place, as one to no host, so the press's count still lines up with the list.
+    expect(press.state.held).toEqual([
+      { host: "", type: "unknown" },
+      { host: "", type: "unknown" },
+    ]);
+    expect(readPress({ invalid: [], messages: [] }, 0, press.state).wouldSend).toBe(false);
+  });
+});
 
 describe("keptFormsResults", () => {
   it("is named forms-result.json", () => {
