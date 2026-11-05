@@ -315,8 +315,8 @@ const KEYS: Record<string, string> = {
 // src/run/page-runner.ts): a retry names its attempt, and a pass or a page that couldn't be opened
 // for one names the pass. Each puts the error's own message inside.
 const RETRY_ENTRY = /^Attempt (\d+) failed \((.*)\); retrying\.$/s;
-const PASS_ENTRY = /^(read|headings|tab) pass: (.*)$/s;
-const OPEN_ENTRY = /^Could not open the page for the (read|headings|tab) pass: (.*)$/s;
+const PASS_ENTRY = /^(read|headings|tab|forms) pass: (.*)$/s;
+const OPEN_ENTRY = /^Could not open the page for the (read|headings|tab|forms) pass: (.*)$/s;
 
 interface ParsedEntry {
   kind: ProblemKind;

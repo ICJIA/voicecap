@@ -7,6 +7,7 @@
 import type { PagePasses } from "../flags/evaluate.js";
 import {
   AXE_FILE,
+  FORMS_FILE,
   PASS_NAMES,
   SCREENSHOT_FILE,
   type FileHash,
@@ -28,7 +29,8 @@ import type { CheckData } from "./check.js";
 import { longDate, pagePath, type Shown } from "./format.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
 import { READ_STOPPED, readStoppedOf, type ProblemsSection } from "./problems.js";
-import { axeRecordOf, screenshotRecordOf, voiceRecordOf } from "./records.js";
+import { cardFormsOf, type CardForm } from "./forms-view.js";
+import { axeRecordOf, formsRecordOf, screenshotRecordOf, voiceRecordOf } from "./records.js";
 import type { PageReview } from "./review.js";
 import {
   keepsAxe,
@@ -40,7 +42,7 @@ import {
 } from "./run-evidence.js";
 import { cardRecord, type PageStanding, type Standing } from "./standing.js";
 import { SKIP_REASONS } from "./summary.js";
-import { AXE_TEXT, SCREENSHOT_TEXT, VOICE_TEXT } from "./text.js";
+import { AXE_TEXT, FORMS_TEXT, SCREENSHOT_TEXT, VOICE_TEXT } from "./text.js";
 
 export interface PageCard {
   key: string;
@@ -133,6 +135,18 @@ export interface PageCard {
     | { view: AxeView; text: string; bytes: number; sha256: string; run: string; slug: string }
     | { notRecorded: string };
   /**
+   * What the forms pass found on the page, of the record the card speaks for: each form with its
+   * banner, and what the fold "What happened at the form" shows, drawn from the page's
+   * forms-result.json (`text`, which the page's fingerprint check carries and checks, with its size
+   * and SHA-256 as its run recorded them and the run and slug that name it). Where the file can't be
+   * shown, the words that say why. Absent where the page has no forms record (the run took no forms
+   * pass, or the page had no form to test), and from a card a model didn't make: the card says
+   * nothing then.
+   */
+  forms?:
+    | { forms: CardForm[]; text: string; bytes: number; sha256: string; run: string; slug: string }
+    | { notRecorded: string };
+  /**
    * The record the card speaks for, as its files are filed: the run, and the page's slug in it. It's
    * the record whose transcripts the card shows, else a page never transcribed's latest failure's
    * (see `cardRecord`), and null for a page with neither. The card's screenshot, axe results, and
@@ -198,6 +212,8 @@ interface CardsInput {
   screenshots: ShareInput["screenshots"];
   /** The axe files the page can show (ShareInput.axeFiles). */
   axeFiles: ShareInput["axeFiles"];
+  /** The forms files the page can show (ShareInput.formsFiles). */
+  formsFiles?: ShareInput["formsFiles"];
   /** The recordings the voice page can play (ShareInput.recordings). */
   recordings: ShareInput["recordings"];
   /** The voice page's file name beside the page, or null where there is none (ShareInput.voiceName). */
@@ -268,6 +284,12 @@ export function cardsOf(input: CardsInput): PageCard[] {
       heardFirst: readShown ? firstLinesOf(readSteps) : [],
       screenshot: screenshotOf(source, version, name, input, tookAny),
       axe: axeOf(source, version, input, checkedAny),
+      ...formsFields(
+        source,
+        input,
+        reviewSettles(review),
+        flags.some((flag) => flag.rule === "unlabeled"),
+      ),
       speaksFor: source === null ? null : { run: source.run.id, slug: source.page.slug },
       voice: voiceOf(source, page, input),
       from:
@@ -400,6 +422,53 @@ function axeOf(
   const view = axeViewOf(text);
   if (view === null) return { notRecorded: AXE_TEXT.notResults };
   return { view, text, bytes: record.bytes, sha256: record.sha256, run: run.id, slug: page.slug };
+}
+
+/**
+ * Whether a person's review settles a page's flags: its latest entry is "Reviewed, no issues" or
+ * "Fixed", of the transcripts shown (no change since). An open issue settles nothing, nor does a
+ * review of transcripts that have changed.
+ */
+function reviewSettles(review: PageReview | null): boolean {
+  const status = review?.latest?.status;
+  return (status === "reviewed" || status === "fixed") && review?.changedSinceReview !== true;
+}
+
+/**
+ * What a card says of the page's forms, as `{ forms }` to spread into the card, or nothing where the
+ * record the card speaks for has no forms record. A record with the file's fingerprint is the file's
+ * forms when the loader holds the file (only as its record has it) and it's a file of the forms pass's
+ * results; otherwise the words that say why. The day is the record's own `ranAt`.
+ */
+function formsFields(
+  source: { run: RunJson; page: PageRecord } | null,
+  input: CardsInput,
+  settled: boolean,
+  unlabeled: boolean,
+): { forms?: NonNullable<PageCard["forms"]> } {
+  if (source === null) return {};
+  const { run, page } = source;
+  const record = formsRecordOf(page);
+  if (record === undefined) return {};
+  if (record === "unreadable") return { forms: { notRecorded: FORMS_TEXT.unreadable } };
+  if ("error" in record) {
+    return { forms: { notRecorded: FORMS_TEXT.failed(reasonOf(record.error, input.redact)) } };
+  }
+  const text = input.formsFiles?.get(`${run.id}/${page.slug}`);
+  if (text === undefined) return { forms: { notRecorded: FORMS_TEXT.changed } };
+  const day = typeof record.ranAt === "string" && record.ranAt !== "" ? longDate(record.ranAt) : "";
+  const forms = cardFormsOf(text, settled, day, unlabeled);
+  if (forms === null) return { forms: { notRecorded: FORMS_TEXT.notResults } };
+  return {
+    forms: {
+      forms,
+      text,
+      bytes: record.bytes,
+      sha256: record.sha256,
+      run: run.id,
+      slug: page.slug,
+    },
+  };
 }
 
 /**
@@ -540,6 +609,18 @@ export function axeCheckedOf(cards: PageCard[]): CheckData["axe"] {
   return cards.flatMap(({ axe }) =>
     axe !== undefined && "view" in axe
       ? [{ run: axe.run, slug: axe.slug, name: AXE_FILE, text: axe.text }]
+      : [],
+  );
+}
+
+/**
+ * The forms files the page carries, as its fingerprint check names them: the run and the page of each
+ * file whose forms a card shows, in the order of the cards, with the file's exact text.
+ */
+export function formsCheckedOf(cards: PageCard[]): NonNullable<CheckData["forms"]> {
+  return cards.flatMap(({ forms }) =>
+    forms !== undefined && "forms" in forms
+      ? [{ run: forms.run, slug: forms.slug, name: FORMS_FILE, text: forms.text }]
       : [],
   );
 }

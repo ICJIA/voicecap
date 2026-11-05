@@ -61,7 +61,7 @@ Then install voicecap's NVDA and check the machine (Git Bash, in the repository)
 pnpm install && pnpm build
 node dist/cli.js setup     # downloads Guidepup's portable NVDA build (about 100 MB)
 node dist/cli.js doctor    # starts NVDA and Chrome for about 20 seconds; hands off the keyboard and mouse
-pnpm test:nvda             # optional: the real-NVDA checks on the fixture site (about 5 minutes)
+pnpm test:nvda             # optional: the real-NVDA checks on the fixture site (about 10 minutes)
 ```
 
 ## 6. Phase B's brief (for reference)

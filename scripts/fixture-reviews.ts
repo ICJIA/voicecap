@@ -17,6 +17,8 @@ import { sha256 } from "../src/util/hash.js";
 
 const FIXTURE_DIR = fileURLToPath(new URL("../fixture/", import.meta.url));
 export const REPLAY_RUN_DIR = path.join(FIXTURE_DIR, "replay-run");
+/** The forms fixture's run (`pnpm fixture:capture`): the forms pages with the forms pass. */
+export const FORMS_RUN_DIR = path.join(FIXTURE_DIR, "forms-run");
 export const REVIEWS_FILE = path.join(FIXTURE_DIR, "reviews.json");
 export const SPEECH_VIEWER_FILE = path.join(FIXTURE_DIR, "manual", "speech-viewer.txt");
 

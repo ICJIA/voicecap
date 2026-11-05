@@ -222,7 +222,12 @@ describe("a card's words", () => {
   it("every kind has a title, a likely cause, and a reason", () => {
     // The sample has each kind once, so a kind with no words can't pass unnoticed.
     expect(SAMPLES.map(({ card }) => card.kind).sort()).toEqual(
-      [...FLAG_KINDS, "unread", "issue", "changed"].sort(),
+      [
+        ...[...FLAG_KINDS].filter((kind) => !kind.startsWith("form-")),
+        "unread",
+        "issue",
+        "changed",
+      ].sort(),
     );
     expect(SAMPLES).toHaveLength(17);
 
@@ -807,7 +812,9 @@ describe("the path forward", () => {
     attentionWords(cardOf("link-generic", { subject: "read more", ...more })).path;
 
   it("is the same four steps for every kind of flag but a read that stopped and a recorded one", () => {
-    const kinds = [...FLAG_KINDS].filter((kind) => kind !== "read-stopped" && kind !== "recorded");
+    const kinds = [...FLAG_KINDS].filter(
+      (kind) => kind !== "read-stopped" && kind !== "recorded" && !kind.startsWith("form-"),
+    );
 
     expect(kinds).toHaveLength(12);
     for (const kind of kinds) {

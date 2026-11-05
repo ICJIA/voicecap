@@ -7,7 +7,14 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { PASS_NAMES, type EnvironmentRecord, type PassName, type RunJson } from "../src/model.js";
+import {
+  DEFAULT_PASS_NAMES,
+  PASS_NAMES,
+  type DefaultPassName,
+  type EnvironmentRecord,
+  type PassName,
+  type RunJson,
+} from "../src/model.js";
 import {
   compareWithOriginal,
   comparisonLines,
@@ -33,10 +40,10 @@ const HEADINGS = ["heading, level 1, Home", "no next heading"];
 const TAB = ["Skip to main content, link", "Home, link"];
 
 /** What a page says in every pass, as the body lines of each pass's transcript. */
-const SAID: Record<PassName, string[]> = { read: READ, headings: HEADINGS, tab: TAB };
+const SAID: Record<DefaultPassName, string[]> = { read: READ, headings: HEADINGS, tab: TAB };
 
 /** Each pass said another way, so a pass that's changed has another fingerprint. */
-const CHANGED: Record<PassName, string[]> = {
+const CHANGED: Record<DefaultPassName, string[]> = {
   read: [...READ, "link, Grants"],
   headings: ["heading, level 1, Welcome", "no next heading"],
   tab: ["Skip to main content, link", "Grants, link"],
@@ -154,7 +161,7 @@ describe("compareWithOriginal", () => {
     [["read", "headings", "tab"]],
   ])("says a page sounds different, naming only the passes that differ: %j", (changed) => {
     const repeat = Object.fromEntries(
-      PASS_NAMES.map((pass) => [pass, changed.includes(pass) ? CHANGED[pass] : SAID[pass]]),
+      DEFAULT_PASS_NAMES.map((pass) => [pass, changed.includes(pass) ? CHANGED[pass] : SAID[pass]]),
     );
 
     const comparison = compared([{ path: "/", passes: SAID }], [{ path: "/", passes: repeat }]);

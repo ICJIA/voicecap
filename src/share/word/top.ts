@@ -13,7 +13,8 @@
  * and the stages are tables too. It has no buttons, and no links to its own sections, which follow
  * one another. Pure.
  */
-import { count } from "../format.js";
+import { count, names } from "../format.js";
+import { bannerLine, glanceBannerOf } from "../forms-view.js";
 import type { Line } from "../line.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
@@ -27,12 +28,14 @@ import {
   WHEN_TO_RUN,
   WORD_TEXT,
 } from "../text.js";
+import { wayOf } from "../way.js";
 import { verdictOf } from "../verdict.js";
 import {
   glanceNumbersOf,
   heardFirstLine,
   heardTitle,
   howLead,
+  notRecordedLine,
   sentence,
   shareOf,
   spokenDuration,
@@ -150,6 +153,23 @@ function verdictBlock(result: ShareModel["result"]): Block {
 }
 
 /**
+ * At a glance's line on the forms, once the run has the forms pass: its sign and words in bold
+ * ("✓ All 4 forms work with NVDA", or "⚠ 3 of 4 forms work with NVDA") and, when some don't, the
+ * line that names their pages; the same words as the page's banner (../forms-view.ts). A run from
+ * before the pass says "Not recorded"; a run with no forms pass, or none checked, says nothing.
+ */
+function formsGlanceBlocks({ forms }: ShareModel): Block[] {
+  if (forms === null) return [];
+  if ("notRecorded" in forms) return [para(notRecordedLine(forms.notRecorded))];
+  const banner = glanceBannerOf(forms, names);
+  if (banner === null) return [];
+  return [
+    para({ text: bannerLine(banner), bold: true }),
+    ...(banner.detail === "" ? [] : [para(banner.detail)]),
+  ];
+}
+
+/**
  * At a glance, written for a manager who reads nothing else, in the page's order: the verdict, in
  * bold; the result in a sentence; the ring of the pages and four numbers, as tables; and the line on
  * what voicecap and the person each did. A page break follows, so At a glance has the first page
@@ -169,6 +189,7 @@ export function wordGlance(model: ShareModel): Block[] {
     ...(hasPages ? [verdictBlock(result)] : []),
     para(summary.sentence),
     ...(hasPages ? [ringTable(model), numbersTable(model)] : []),
+    ...formsGlanceBlocks(model),
     para(summary.second),
     PAGE_BREAK,
   ];
@@ -275,7 +296,7 @@ function stepsTable(): Block {
 function heardBlocks(sample: ShareModel["heard"]): Block[] {
   if (sample === null) return [heading(2, HOW_TEXT.heard), para(HOW_TEXT.noSample)];
   const head = sample.passes.map(({ pass }) => {
-    const { key, words } = HOW_TEXT.ways[pass];
+    const { key, words } = wayOf(pass);
     return `${key}, ${words}`;
   });
   const longest = Math.max(...sample.passes.map(({ lines }) => lines.length));

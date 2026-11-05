@@ -5,7 +5,13 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { PassName, ReviewsFile, RunJson, TranscriptJson } from "../src/model.js";
+import type {
+  DefaultPassName,
+  PassName,
+  ReviewsFile,
+  RunJson,
+  TranscriptJson,
+} from "../src/model.js";
 import { contentSha256, extractBody, renderTranscriptTxt } from "../src/transcripts/format.js";
 import { sha256 } from "../src/util/hash.js";
 import { REPLAY_RUN_DIR, REVIEWS_FILE, SPEECH_VIEWER_FILE } from "../scripts/fixture-reviews.js";
@@ -17,7 +23,7 @@ import {
 } from "../scripts/serve-fixture.js";
 
 const SITE_DIR = fileURLToPath(new URL("../fixture/site/", import.meta.url));
-const PASSES: PassName[] = ["read", "headings", "tab"];
+const PASSES: DefaultPassName[] = ["read", "headings", "tab"];
 const FIXTURE_ORIGIN = "http://127.0.0.1:4747";
 
 async function readRun(): Promise<RunJson> {

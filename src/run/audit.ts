@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { formsSettingsOf, stepCapOf } from "../config/defaults.js";
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { VoicecapConfig } from "../config/schema.js";
 import {
@@ -25,6 +26,7 @@ import {
   type RunJson,
   type RunSettings,
   type SessionRecord,
+  type StepCaps,
 } from "../model.js";
 import { chooseCanonicalRoot, isNearbyHost, normalizeCanonical } from "../pages/canonical.js";
 import { compilePattern } from "../pages/filter.js";
@@ -255,9 +257,11 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   const config = walkthrough
     ? configOfRepeat(loaded.config, walkthrough.parsed.settings)
     : loaded.config;
-  const passes = walkthrough
-    ? [...walkthrough.parsed.settings.passes]
-    : checkPasses(options.passes ?? config.passes);
+  const passes = formsLast(
+    walkthrough
+      ? [...walkthrough.parsed.settings.passes]
+      : checkPasses(options.passes ?? config.passes),
+  );
   const limit = checkCount("--limit", options.limit);
   const maxSteps = checkCount("--max-steps", options.maxSteps);
   const include = options.include ?? [];
@@ -287,9 +291,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
     driver: selection.name,
     replayFrom: selection.replayLabel,
     capture: config.capture,
-    stepCaps: maxSteps
-      ? { read: maxSteps, headings: maxSteps, tab: maxSteps }
-      : { ...config.stepCaps },
+    stepCaps: stepCapsOf(config, passes, maxSteps),
     nvdaSettings: config.nvdaSettings,
     browser: config.browser,
     readiness: { ...config.readiness },
@@ -299,7 +301,10 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   // check this computer, with its own config, whatever a repeat's file says.
   await checkReadiness({ selection, config: loaded.config, options, logger, cwd });
   // Creating the driver first means a wrong platform fails before any folder is touched.
-  const driver = options.driver ?? (await createDriver(selection, { config, logger }));
+  // The driver is given the run's passes in its config, as --passes or a repeat gives them: the NVDA
+  // driver keeps the forms pass's keys in NVDA's cleaned log only for a run with that pass.
+  const driver =
+    options.driver ?? (await createDriver(selection, { config: { ...config, passes }, logger }));
 
   const home = resolveHome({ out: options.out, env: options.env ?? process.env, cwd });
   const outDir = siteDirFor(home, site);
@@ -454,6 +459,25 @@ function requireSite(options: RunAuditOptions): string {
     );
   }
   return options.site;
+}
+
+/**
+ * The step caps a run records: the three every run has, and `forms` only for a run that takes the
+ * forms pass, so the settings of a run without it (and their hash, which lets it resume) are what
+ * they were before the pass existed. --max-steps sets every cap it records.
+ */
+function stepCapsOf(
+  config: VoicecapConfig,
+  passes: readonly PassName[],
+  maxSteps: number | null,
+): StepCaps {
+  const cap = (pass: PassName): number => maxSteps ?? stepCapOf(config, pass);
+  return {
+    read: cap("read"),
+    headings: cap("headings"),
+    tab: cap("tab"),
+    ...(passes.includes("forms") ? { forms: cap("forms") } : {}),
+  };
 }
 
 /**
@@ -753,11 +777,12 @@ async function transcribePages(
   // Whether the person has been told that NVDA's voice isn't being recorded: once a session.
   let toldOfVoice = false;
   const passSettings = (pass: PassName): PassSettings => ({
-    cap: run.settings.stepCaps[pass],
+    cap: run.settings.stepCaps[pass] ?? stepCapOf(config, pass),
     repeatLimit: config.repeatLimit,
     endConfirmations: config.read.endConfirmations,
     noNextHeading: new RegExp(config.phrasing.noNextHeading, "i"),
     stepTimeoutMs: config.timeouts.stepMs,
+    forms: formsSettingsOf(config),
   });
 
   for (const [index, page] of todo.entries()) {
@@ -924,6 +949,9 @@ function applyOutcome(
   // The same for axe's results: an earlier attempt's axe.json was moved aside with the files.
   if (outcome.axe) page.axe = outcome.axe;
   else delete page.axe;
+  // And for the forms pass's results: an earlier attempt's forms-result.json was moved aside too.
+  if (outcome.forms) page.forms = outcome.forms;
+  else delete page.forms;
   // And for the recording of NVDA's voice: an earlier attempt's voice.webm was moved aside too.
   if (outcome.voice) page.voice = outcome.voice;
   else delete page.voice;
@@ -980,12 +1008,24 @@ function noPagesError(source: RunJson["source"], skipped: number): UsageError {
   );
 }
 
+/**
+ * The passes with `forms` last, the others in the order given. The forms pass loads the page again
+ * for each form and waits out each press, and the page's time is one for all its passes, so it
+ * mustn't use up the time of a pass after it: a problem in it never fails the page's other passes.
+ */
+function formsLast(passes: PassName[]): PassName[] {
+  return [
+    ...passes.filter((pass) => pass !== "forms"),
+    ...passes.filter((pass) => pass === "forms"),
+  ];
+}
+
 function checkPasses(passes: readonly string[]): PassName[] {
   const unique = [...new Set(passes)];
   const unknown = unique.filter((pass) => !(PASS_NAMES as readonly string[]).includes(pass));
   if (unknown.length > 0 || unique.length === 0) {
     throw new UsageError(
-      `Unknown pass${unknown.length === 1 ? "" : "es"} ${unknown.join(", ") || "(none given)"}: use read, headings, and/or tab.`,
+      `Unknown pass${unknown.length === 1 ? "" : "es"} ${unknown.join(", ") || "(none given)"}: use ${PASS_NAMES.slice(0, -1).join(", ")}, and/or ${PASS_NAMES.at(-1) ?? ""}.`,
     );
   }
   return unique as PassName[];

@@ -27,7 +27,9 @@
  * walkthrough files, and a problem's record keep the address voicecap read.
  */
 import {
+  DEFAULT_PASS_NAMES,
   PASS_NAMES,
+  type DefaultPassName,
   type FileHash,
   type PageSource,
   type PassName,
@@ -45,6 +47,7 @@ import { fileNameOf } from "../util/file-name.js";
 import { attentionCards, type AttentionCard, type AttentionPage } from "./attention.js";
 import {
   axeCheckedOf,
+  formsCheckedOf,
   cardsOf,
   embeddedOf,
   HEARD,
@@ -66,6 +69,7 @@ import {
   utcOffset,
   type Shown,
 } from "./format.js";
+import { formsGlanceOf, type FormsGlance } from "./forms-view.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
 import { nvdaLogRows } from "./nvda-log-rows.js";
 import { problemsOf, type EventRows, type ProblemsSection } from "./problems.js";
@@ -73,14 +77,17 @@ import { reviewOf, type PageReview } from "./review.js";
 import {
   eventLogGap,
   evidenceOf,
+  keepsForms,
   leftOutOf,
+  notRecordedBy,
   runEnd,
   runStart,
+  versionOf,
   type RunEvidence,
 } from "./run-evidence.js";
 import { runBefore, standingOf, type PageStanding, type Standing } from "./standing.js";
 import { summaryOf, type Summary } from "./summary.js";
-import { ownWords, TIMELINE_TEXT } from "./text.js";
+import { FORMS_TEXT, ownWords, TIMELINE_TEXT } from "./text.js";
 import {
   attemptEvents,
   eventText,
@@ -187,6 +194,14 @@ export interface ShareModel {
    * of a page whose flags a review settled, and of one that wasn't read.
    */
   ring: { noProblems: number; needAttention: number; notRead: number };
+  /**
+   * What At a glance says of the forms, once the latest run has the forms pass: how many forms the
+   * pass checked and how many work with NVDA, with the page of each that doesn't. Null for a run
+   * with no forms pass, which says nothing; found 0 for a run that took the pass and checked no
+   * form (the share records it, so the website says "No forms on these pages"); `notRecorded` for a
+   * run of a voicecap from before the pass.
+   */
+  forms: FormsGlance | { notRecorded: string } | null;
   /**
    * What needs attention: a card for each problem across the pages in scope, most pages first, from
    * the shown transcripts' flags (the current rules'), the pages the latest run couldn't read, open
@@ -310,6 +325,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
     name: nameOf,
     screenshots: input.screenshots,
     axeFiles: input.axeFiles,
+    formsFiles: input.formsFiles,
     recordings: input.recordings,
     voiceName: input.voiceName,
     screenReader: (run) => wordsFor(run).screenReader,
@@ -344,6 +360,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
   });
   const recordOf = recordsOf(input.records);
   const header = headerOf(input, standing);
+  const forms = formsOf(latest, pages);
   return {
     header,
     summary,
@@ -352,7 +369,17 @@ export function buildShareModel(input: ShareInput): ShareModel {
       read: summary.numbers.transcribed,
       problems: summary.attention.problems,
       problemPages: summary.attention.pages,
+      ...(forms === null || !("found" in forms)
+        ? {}
+        : {
+            forms: {
+              found: forms.found,
+              working: forms.working,
+              notChecked: forms.notChecked,
+            },
+          }),
     },
+    forms,
     ring: ringOf(pages, attention),
     attention,
     heard: heardOf(standing.pages, input.transcripts, nameOf),
@@ -394,6 +421,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
       ),
       screenshots: embeddedOf(standing, pages),
       axe: axeCheckedOf(pages),
+      forms: formsCheckedOf(pages),
       reviews: Object.keys(input.reviews.pages).length === 0 ? null : input.reviews.pages,
     },
     flagRulesSha256: input.flagRulesSha256,
@@ -614,7 +642,7 @@ function heardOf(
   const home = homeOf(pages);
   const shown = home?.shown;
   if (!home || !shown) return null;
-  const passes = PASS_NAMES.flatMap((pass) => {
+  const passes = DEFAULT_PASS_NAMES.flatMap((pass) => {
     if (transcripts.txt(shown.run.id, shown.page.slug, pass) === null) return [];
     const steps = transcripts.steps(shown.run.id, shown.page.slug, pass) ?? [];
     const lines = steps
@@ -627,7 +655,7 @@ function heardOf(
 }
 
 /** How each pass goes through a page, with the key NVDA's users press for it. */
-const WAYS: Record<PassName, string> = {
+const WAYS: Record<DefaultPassName, string> = {
   read: "line by line (Down Arrow)",
   headings: "heading by heading (H)",
   tab: "control by control (Tab)",
@@ -661,7 +689,7 @@ function coverageOf(
  * has fewer, and the line says so rather than claim them for it.
  */
 function passesOf(standing: Standing, latest: RunJson): string {
-  const passes = PASS_NAMES.filter((pass) => latest.settings.passes.includes(pass));
+  const passes = DEFAULT_PASS_NAMES.filter((pass) => latest.settings.passes.includes(pass));
   const fewer = standing.pages.filter(
     ({ shown }) =>
       shown !== null &&
@@ -836,4 +864,20 @@ function recordsOf(records: RunJson[]): (run: RunJson) => RunJson {
     if (record === undefined) throw new Error(`The record of run ${run.id} wasn't read.`);
     return record;
   };
+}
+
+/**
+ * At a glance's line on the forms. A latest run that took the forms pass says how many of the forms
+ * it checked work; one of a voicecap from before the pass says so ("Not recorded"); any other says
+ * nothing.
+ */
+function formsOf(latest: RunJson | null, pages: PageCard[]): ShareModel["forms"] {
+  if (latest === null) return null;
+  if (latest.settings.passes.includes("forms")) {
+    return formsGlanceOf(pages);
+  }
+  const version = versionOf(latest);
+  return keepsForms(version)
+    ? null
+    : { notRecorded: FORMS_TEXT.glance.notRecorded(notRecordedBy(version)) };
 }

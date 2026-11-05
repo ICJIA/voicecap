@@ -868,6 +868,70 @@ describe("renderSiteIndex", () => {
     );
   });
 
+  // The forms pass: the site's card says the same line as At a glance, from what the share recorded.
+  describe("the forms line on the current report's card", () => {
+    const cardWith = (forms: ShareResult["forms"]): string =>
+      articleOf(
+        frontPage({
+          demo: null,
+          sites: [
+            {
+              name: DVFR,
+              folders: [DVFR],
+              reports: [
+                {
+                  ...DVFR_NEWEST,
+                  result: {
+                    pages: 9,
+                    read: 9,
+                    problems: 0,
+                    problemPages: 0,
+                    ...(forms === undefined ? {} : { forms }),
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+        DVFR_NEWEST.id,
+      );
+    const lineOf = (card: string): string | null =>
+      /<p class="(?:verdict [^"]*forms-line|forms-note)">[\s\S]*?<\/p>/.exec(card)?.[0] ?? null;
+
+    it("says all the forms work, as a green pill, when they all do", () => {
+      const line = lineOf(cardWith({ found: 4, working: 4, notChecked: 0 }));
+      expect(line).toBe('<p class="verdict ok forms-line">All 4 forms work with NVDA</p>');
+    });
+
+    it("says how many of the forms work, as an amber pill, when some don't", () => {
+      const line = lineOf(cardWith({ found: 4, working: 3, notChecked: 1 }));
+      expect(line).toBe('<p class="verdict warn forms-line">3 of 4 forms work with NVDA</p>');
+    });
+
+    it("says a lone form works in the singular", () => {
+      expect(lineOf(cardWith({ found: 1, working: 1, notChecked: 0 }))).toContain(
+        "All 1 form works with NVDA",
+      );
+    });
+
+    it("says No forms on these pages for a site with none, in plain words that are no problem", () => {
+      const card = cardWith({ found: 0, working: 0, notChecked: 0 });
+      expect(lineOf(card)).toBe('<p class="forms-note">No forms on these pages</p>');
+    });
+
+    it("says No forms checked for a site whose forms were all left unchecked", () => {
+      expect(lineOf(cardWith({ found: 0, working: 0, notChecked: 2 }))).toBe(
+        '<p class="forms-note">No forms checked</p>',
+      );
+    });
+
+    it("says nothing of forms for a share that records no count", () => {
+      const card = cardWith(undefined);
+      expect(lineOf(card)).toBeNull();
+      expect(card).not.toMatch(/forms? (work|on these|checked)/i);
+    });
+  });
+
   // 0.12.3: what a manager asks first, "did it pass?", answered on the card, from what the share
   // recorded of its copies. From 0.13.1 the verdict's headline is a pill, and how many pages NVDA
   // read is a bar with its words beside it.

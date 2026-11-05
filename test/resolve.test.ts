@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { PASS_NAMES, type PageSource, type RunJson } from "../src/model.js";
+import { DEFAULT_PASS_NAMES, type PageSource, type RunJson } from "../src/model.js";
 import {
   describeSource,
   pageSourceFor,
@@ -876,7 +876,9 @@ describe("a run from a page list outside the working folder", () => {
     expect(run.sessions.map((session) => session.environment?.pageSource)).toEqual([listed]);
     // Every transcript says the same in its header, in the JSON and in the TXT.
     const headers = run.pages.flatMap((page) =>
-      PASS_NAMES.map((pass) => path.join(pageDir(siteDir, run.id, page.slug), `${pass}.txt`)),
+      DEFAULT_PASS_NAMES.map((pass) =>
+        path.join(pageDir(siteDir, run.id, page.slug), `${pass}.txt`),
+      ),
     );
     expect(headers).toHaveLength(6);
     for (const file of headers) {

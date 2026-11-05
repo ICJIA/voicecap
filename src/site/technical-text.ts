@@ -6,7 +6,7 @@
  *
  * Every number about voicecap in these words is taken, and none is typed here, but six that the
  * test of the page holds to where they come from (see below):
- * - from voicecap's own code, which this module imports: its passes (PASS_NAMES), its built-in flag
+ * - from voicecap's own code, which this module imports: its passes (DEFAULT_PASS_NAMES), its built-in flag
  *   rules (BUILT_IN_RULES) and their thresholds, its defaults (DEFAULT_CONFIG), the exit codes of
  *   `voicecap verify` (ExitCode), what a silent step is written as (NO_SPEECH), the name of the
  *   file a page's recording is kept in (VOICE_FILE), and the speeds the voice page plays at
@@ -41,8 +41,15 @@
  * is in backticks, which the page sets in the fixed-width font.
  */
 import { DEFAULT_CONFIG } from "../config/defaults.js";
+import { FORMS_RULES } from "../flags/forms.js";
 import { BUILT_IN_RULES, type BuiltInRule } from "../flags/evaluate.js";
-import { PASS_NAMES, type PassName, type StopReason, VOICE_FILE } from "../model.js";
+import {
+  DEFAULT_PASS_NAMES,
+  type DefaultPassName,
+  type PassName,
+  type StopReason,
+  VOICE_FILE,
+} from "../model.js";
 import { plural } from "../report/html.js";
 import { count, names } from "../share/format.js";
 import { HOW_TEXT, MAC_HASH, POWERSHELL_HASH, VOICE_TEXT } from "../share/text.js";
@@ -117,6 +124,7 @@ const STOP_REASONS = Object.keys({
   "end-reached": true,
   "no-next-heading": true,
   "left-document": true,
+  "forms-done": true,
   "repeat-limit": true,
   "step-cap": true,
   timeout: true,
@@ -124,7 +132,7 @@ const STOP_REASONS = Object.keys({
 } satisfies Record<StopReason, true>);
 
 /** How many ways NVDA goes through a page: one for each pass, in words. */
-const WAYS = inWords(PASS_NAMES.length);
+const WAYS = inWords(DEFAULT_PASS_NAMES.length);
 
 /**
  * The speeds a share's voice page plays a recording at, as its own words give them: "1×, 0.75×, 0.5×,
@@ -261,7 +269,7 @@ export const TECHNICAL_TEXT = {
             ["A new Chrome, with a new profile, opens the page, and its screenshot is taken."],
             ["The window comes to the front, and NVDA confirms it."],
             [
-              `NVDA reads the page ${names(PASS_NAMES.map((pass) => HOW_TEXT.ways[pass].words))}, and every word is saved.`,
+              `NVDA reads the page ${names(DEFAULT_PASS_NAMES.map((pass) => HOW_TEXT.ways[pass].words))}, and every word is saved.`,
             ],
           ],
         },
@@ -359,11 +367,19 @@ export const TECHNICAL_TEXT = {
             "Nothing focused. The first Tab goes to the browser itself, so a skip link isn't passed over, and the rest go through NVDA",
           end: "Focus leaves the page, which the browser reports, not NVDA's words",
         },
-      } satisfies Record<PassName, { start: string; end: string }>,
+      } satisfies Record<DefaultPassName, { start: string; end: string }>,
       stops: [
         "Every pass also stops at its step cap, or at its repeat limit, and records why it stopped. The reasons are ",
         ...codes(STOP_REASONS),
         ".",
+      ] satisfies Sentence,
+      /** The forms pass, which a run takes only when it's asked for. */
+      forms: [
+        "A fourth pass, ",
+        { code: "forms" },
+        ", runs only when a run names it in ",
+        { code: "--passes" },
+        ", and always last. On a load of its own for each form, it tabs through the form, presses Enter on the submit button with the fields empty, reads what the page did, fills the field that's keeping the form back with a plainly fake value, by keyboard, and presses again, until the form would have gone through. Nothing a form sends leaves the browser: on those loads Chrome reaches the network only through a gate of voicecap's own, shut before the first key, and no setting opens it. Each form ends with a banner: it works with NVDA, needs work, can't be completed, or wasn't checked.",
       ] satisfies Sentence,
       caught: {
         heading: "How NVDA's words are caught",
@@ -388,7 +404,12 @@ export const TECHNICAL_TEXT = {
         lead: "Each can be changed in voicecap's config, by its setting's name.",
         columns: ["Setting", "Default", "What it sets"],
         /** What a step cap sets, for the pass it's of. */
-        stepCap: (pass: PassName): string => `The most steps the ${pass} pass takes`,
+        stepCap: (pass: PassName): string =>
+          pass === "forms"
+            ? "The most steps the forms pass takes on each form"
+            : `The most steps the ${pass} pass takes`,
+        formsSettleMs: "How long the forms pass keeps listening after a press, once NVDA is quiet",
+        formsMaxPerPage: "The most forms the forms pass tests on a page",
         repeatLimit: "How many times in a row the same words stop a pass",
         stepMs: "The longest a step may take",
         pageMs: "The longest a page may take",
@@ -435,7 +456,7 @@ export const TECHNICAL_TEXT = {
                     {
                       name: "pages/<page>/",
                       words: [
-                        ...codes(PASS_NAMES.map((pass) => `${pass}.txt`)),
+                        ...codes(DEFAULT_PASS_NAMES.map((pass) => `${pass}.txt`)),
                         ", each with its ",
                         { code: ".json" },
                         " of every step (the key, the words, and their timing), ",
@@ -444,7 +465,9 @@ export const TECHNICAL_TEXT = {
                         { code: "axe.json" },
                         ", what axe-core found on the page, and ",
                         { code: VOICE_FILE },
-                        ", what NVDA said aloud while each pass read the page with voicecap's browser in front, kept only from an attempt that finished with no other window in front",
+                        ", what NVDA said aloud while each pass read the page with voicecap's browser in front, kept only from an attempt that finished with no other window in front. A run with the forms pass adds ",
+                        ...codes(["forms.txt", "forms.json", "forms-result.json"]),
+                        ", the last with what came of each form and each press of it",
                       ],
                     },
                     { name: "attempts/", words: ["The earlier tries at a page, kept"] },
@@ -515,6 +538,11 @@ export const TECHNICAL_TEXT = {
       points: [
         [
           "A rule of one's own can be added in voicecap's config: a pattern of NVDA's words, in the passes it names.",
+        ],
+        [
+          `The forms pass has ${count(FORMS_RULES.length)} rules of its own, raised from what came of each form rather than from NVDA's words alone: `,
+          ...codes(FORMS_RULES),
+          ".",
         ],
         ["Flags never fail a page or change the exit code, and they match NVDA's English wording."],
         [

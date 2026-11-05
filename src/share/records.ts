@@ -3,7 +3,14 @@
  * voicecap, or an edit, can give a field another shape than this version writes, and the page must
  * still be made, saying what it can't read, rather than stop. Pure.
  */
-import type { AxeRecord, FileHash, PageRecord, ScreenshotRecord, VoiceRecord } from "../model.js";
+import type {
+  AxeRecord,
+  FileHash,
+  FormsRecord,
+  PageRecord,
+  ScreenshotRecord,
+  VoiceRecord,
+} from "../model.js";
 
 /** Whether a value is a file's fingerprint as voicecap records one: its SHA-256 and its size. */
 export function isFileHash(value: unknown): value is FileHash {
@@ -55,5 +62,18 @@ export function voiceRecordOf(page: PageRecord): VoiceRecord | "unreadable" | un
   if (record === undefined) return undefined;
   if (typeof record !== "object" || record === null || Array.isArray(record)) return "unreadable";
   if ("error" in record || isFileHash(record)) return record as VoiceRecord;
+  return "unreadable";
+}
+
+/**
+ * A page's forms record (PageRecord.forms), read as axeRecordOf reads axe's: undefined when the page
+ * has none; the record, when it's of a kind voicecap writes (the reason the results couldn't be kept,
+ * or the file's fingerprint); "unreadable" for anything else.
+ */
+export function formsRecordOf(page: PageRecord): FormsRecord | "unreadable" | undefined {
+  const record: unknown = page.forms;
+  if (record === undefined) return undefined;
+  if (typeof record !== "object" || record === null || Array.isArray(record)) return "unreadable";
+  if ("error" in record || isFileHash(record)) return record as FormsRecord;
   return "unreadable";
 }

@@ -9,7 +9,7 @@ import vm from "node:vm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import { VOICE_FILE, type RunJson, type VoiceRecord } from "../src/model.js";
+import { VOICE_FILE, type PassName, type RunJson, type VoiceRecord } from "../src/model.js";
 import { esc } from "../src/report/html.js";
 import { UNFINISHED_ATTEMPT } from "../src/run/page-runner.js";
 import { CHECK_LIBRARY, CHECK_SCRIPT, type CheckData } from "../src/share/check.js";
@@ -1087,6 +1087,19 @@ describe("the voice page's transcripts beside each recording", () => {
     );
   });
 
+  it("builds the page, timing no line of its pass, when a recording keeps a stretch that is null", () => {
+    const stretches = [
+      null,
+      { startMs: 9000, endMs: 9000 + 3500 + 2 * 1200 },
+      { startMs: 15500, endMs: 15500 + 3500 + 2 * 1200 },
+    ] as unknown as { startMs: number; endMs: number }[];
+    const run = timedRun(stretches);
+    const model = sharedModel(run);
+    const section = sectionOf(pageOf(model, recordingsOf([run])), model.pages[0]?.slug ?? "");
+    expect(timedLines(section).filter(([from]) => from < 9000)).toEqual([]);
+    expect(shownTextsOf(section)).toHaveLength(3);
+  });
+
   it("marks no line when the recording's stretches aren't one for each pass, or a pass would begin before its stretch", () => {
     for (const stretches of [
       // Two stretches for three passes: which is which can't be said.
@@ -1121,6 +1134,101 @@ describe("the voice page's transcripts beside each recording", () => {
     const section = sectionOf(pageOf(model, recordingsOf([two])), model.pages[0]?.slug ?? "");
     expect(timedLines(section)).toEqual([]);
     expect(section).not.toContain(VOICE_TEXT.follow.outlined);
+  });
+
+  describe("the forms pass", () => {
+    const FORMS_LINES = ["Name, edit, required", "Send, button"];
+    type Stretch = { startMs: number; endMs: number; pass?: PassName };
+    /** A run whose page took the forms pass, with these stretches in its recording. */
+    const withStretches = (stretches: Stretch[]): RunJson =>
+      shareRun({
+        id: RUN,
+        createdAt: "2026-10-30T14:02:51-05:00",
+        voicecapVersion: "0.25.0",
+        pages: [
+          read(
+            "/",
+            { ...speech.record, stretches },
+            {
+              files: [...TRANSCRIPTS, "forms.txt"],
+              passes: { ...LINES, forms: FORMS_LINES },
+            },
+          ),
+        ],
+      });
+    const sectionFor = (run: RunJson): string => {
+      const model = buildShareModel(
+        inputOf([run], {
+          transcripts: storeOf(() => ({ ...LINES, forms: FORMS_LINES })),
+          recordings: recordingsOf([run]),
+          fileName: PAGE,
+          wordName: WORD,
+          voiceName: VOICE_PAGE,
+        }),
+      );
+      return sectionOf(pageOf(model, recordingsOf([run])), model.pages[0]?.slug ?? "");
+    };
+    const READ: Stretch = { startMs: 100, endMs: 100 + 3500 + 4 * 1200, pass: "read" };
+    const HEADINGS: Stretch = { startMs: 9000, endMs: 9000 + 3500 + 2 * 1200, pass: "headings" };
+    const TAB: Stretch = { startMs: 15500, endMs: 15500 + 3500 + 2 * 1200, pass: "tab" };
+    const FORMS: Stretch = { startMs: 22000, endMs: 22000 + 3500 + 2 * 1200, pass: "forms" };
+    const untagged = (stretches: Stretch[]): Stretch[] =>
+      stretches.map(({ startMs, endMs }) => ({ startMs, endMs }));
+    const wordsOf = (lines: [number, number, string][]): string[] => lines.map(([, , w]) => w);
+    const earlier = (lines: [number, number, string][]): number =>
+      lines.filter(([, , words]) => !FORMS_LINES.includes(words)).length;
+
+    it("times every pass, the forms pass included, from its own stretch", () => {
+      const lines = timedLines(sectionFor(withStretches([READ, HEADINGS, TAB, FORMS])));
+      expect(lines).toHaveLength(10);
+      expect(lines.slice(8)).toEqual([
+        [27900 - 2400, 27900 - 2400 + 1200, FORMS_LINES[0]],
+        [27900 - 2400 + 1200, 27900, FORMS_LINES[1]],
+      ]);
+    });
+
+    it("times every pass when a pressed form is followed by one that presses no key, which makes no stretch", () => {
+      // The page loaded again for the search form, but pressed no key on it: the forms pass has the
+      // one stretch it made for the pressed form, and the stretch count equals the passes.
+      const lines = timedLines(sectionFor(withStretches([READ, HEADINGS, TAB, FORMS])));
+      expect(wordsOf(lines)).toContain(FORMS_LINES[1]);
+      expect(earlier(lines)).toBe(8);
+    });
+
+    it("keeps the other passes timed when the forms pass made several stretches, and times no forms line", () => {
+      const second: Stretch = { startMs: 31000, endMs: 36000, pass: "forms" };
+      const lines = timedLines(sectionFor(withStretches([READ, HEADINGS, TAB, FORMS, second])));
+      expect(lines).toHaveLength(8);
+      expect(earlier(lines)).toBe(8);
+    });
+
+    it("times the passes whatever the number of stretches the forms pass made, as it makes none for a form with no key pressed", () => {
+      for (const forms of [[], [FORMS], [FORMS, { ...FORMS, startMs: 31000, endMs: 36000 }]]) {
+        const lines = timedLines(sectionFor(withStretches([READ, HEADINGS, TAB, ...forms])));
+        expect(earlier(lines), `${forms.length}`).toBe(8);
+      }
+    });
+
+    it("takes each pass's start from its own stretch when an earlier stretch is missing", () => {
+      // The headings stretch was dropped: the tab and forms passes are still their own.
+      const lines = timedLines(sectionFor(withStretches([READ, TAB, FORMS])));
+      expect(wordsOf(lines)).toEqual([...LINES.read, ...LINES.tab, ...FORMS_LINES]);
+    });
+
+    it("times nothing when a pass has several stretches of its own, since where it began is not known", () => {
+      const run = withStretches([{ ...READ, endMs: 4000 }, { ...READ, startMs: 5000 }, HEADINGS]);
+      expect(wordsOf(timedLines(sectionFor(run)))).not.toContain(LINES.read[0]);
+    });
+
+    it("keeps the rule an untagged recording had: a stretch for each pass, in order", () => {
+      const four = untagged([READ, HEADINGS, TAB, FORMS]);
+      expect(timedLines(sectionFor(withStretches(four)))).toHaveLength(10);
+      // Fewer or more stretches than passes time nothing, as before.
+      expect(timedLines(sectionFor(withStretches(untagged([READ, HEADINGS, TAB]))))).toEqual([]);
+      expect(
+        timedLines(sectionFor(withStretches([...four, { startMs: 31000, endMs: 36000 }]))),
+      ).toEqual([]);
+    });
   });
 
   it("has no transcripts for a page never read in full, and its recording alone", () => {

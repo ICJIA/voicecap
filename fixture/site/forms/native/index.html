@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Join the mailing list | Voicecap Test Agency</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.5;
+        color: #1b1b1b;
+        background: #ffffff;
+      }
+      header,
+      main,
+      footer {
+        padding: 0.5rem 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Forms fixture: a good form that leaves the checking to Chrome. Each field is labeled and has
+      the required attribute, and there is no script: Chrome's own bubble ("Please fill out this
+      field.") stops an empty form, and a complete one sends to /forms/native/sent/, which a voicecap
+      run's guard holds in the browser. Expected: completed, no form flag: "This form works with
+      NVDA." It checks the ruling for Chrome's own errors in form-error-unlinked.
+    -->
+    <header>
+      <a href="/">Voicecap Test Agency</a>
+    </header>
+    <main id="main">
+      <h1>Join the mailing list</h1>
+      <form action="/forms/native/sent/" method="post">
+        <p>
+          <label for="list-name">Your name</label>
+          <input id="list-name" name="list-name" required />
+        </p>
+        <p>
+          <label for="list-email">Email</label>
+          <input id="list-email" name="list-email" type="email" required />
+        </p>
+        <p><button type="submit">Join</button></p>
+      </form>
+    </main>
+    <footer>
+      <p>© 2026 Voicecap Test Agency</p>
+    </footer>
+  </body>
+</html>

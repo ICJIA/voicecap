@@ -1,0 +1,152 @@
+/**
+ * What the forms pass knows about a page's forms, shared by the browser's scan, the driver, and the
+ * pass. A form is only ever pressed when its kind is "test".
+ */
+import type { AxeCapture, FocusedElement } from "../drivers/types.js";
+
+/**
+ * - test: a form with a submit control; the pass presses it.
+ * - search: a search form, which has no required fields to learn from.
+ * - no-submit: fields with no `<form>` around them, or a form with no submit control.
+ * - other-site: a form in another site's frame (Google Forms, Microsoft Forms); `site` names it.
+ * - not-web: a form that sends by anything but a web address, such as `mailto:`.
+ */
+export type FormKind = "test" | "search" | "no-submit" | "other-site" | "not-web";
+
+export interface FormField {
+  /** Its place among the form's fields, in the order Tab visits them (a radio group is one). */
+  index: number;
+  /** The accessible name as the browser computes it; null when it has none. */
+  name: string | null;
+  /** The input's type, or "select-one", "select-multiple", or "textarea". */
+  type: string;
+  /** The `required` attribute, `aria-required="true"`, or a radio or check box required by its group. */
+  required: boolean;
+  /** Its tabIndex: below 0, Tab never reaches it. A radio group's is its most reachable radio's. */
+  tabIndex: number;
+}
+
+export interface FormInfo {
+  /** Its place among the page's forms, in the order the scan found them. */
+  index: number;
+  /** The same for one form on two pages and different for two forms: a footer's sign-up is one. */
+  signature: string;
+  kind: FormKind;
+  /** The site that holds a form in another site's frame; otherwise null. */
+  site: string | null;
+  fields: FormField[];
+  /** What the first submit control that can be pressed calls itself; null when it has no words. */
+  submitName: string | null;
+  /** A password or a card number: the pass never fills it. */
+  sensitive: boolean;
+  /** A CAPTCHA, which stops voicecap there. */
+  captcha: boolean;
+}
+
+export interface FormState {
+  focused: FocusedElement | null;
+  /** Which of the form's fields has focus: its index, by a radio group's one index for any radio. */
+  focusedField: number | null;
+  /** Whether a submit control of the form has focus. */
+  focusedSubmit: boolean;
+  /** The indexes of the fields the browser or the page calls invalid. */
+  invalid: number[];
+  /**
+   * The indexes of the required fields with no value or no choice: a radio group with nothing
+   * chosen and an unchecked check box among them. A page's script can leave these out of `invalid`.
+   */
+  emptyRequired: number[];
+  /**
+   * The message text showing now: the form's alerts and live regions, a page's alerts and status
+   * messages, what an invalid field's `aria-describedby` or `aria-errormessage` names, and text
+   * added to the form since the scan. A hint that was there before any press is in it too, so a
+   * caller compares it with the read before the first press.
+   */
+  messages: string[];
+  /** Whether a live region's text changed since the last read. */
+  liveChanged: boolean;
+  /** How many requests the guard has held: the session's count, not the page's. */
+  heldRequests: number;
+  /**
+   * Each request the guard has held, in order, as many as `heldRequests`: where it was going and what
+   * it was. Only a navigation of the page, or a request to the page's own host or the form's action
+   * host, counts as the form sending (readPress). Left out by a driver that can't say, and in a file
+   * from before voicecap kept it, where every held request counts.
+   */
+  held?: HeldRequest[];
+  /** The page's own host name, as the held requests name theirs. */
+  pageHost?: string;
+  /** The host name the form sends to; null for an action that isn't a web address. */
+  actionHost?: string | null;
+  /**
+   * Each JavaScript dialog (alert, confirm, prompt, or "leave this page?") the page has opened in the
+   * session, in order, with its words: voicecap dismissed each one. Left out by a driver that can't
+   * say.
+   */
+  dialogs?: PageDialog[];
+  /** Whether the form is still in the page. */
+  present: boolean;
+  /** The focused field's own validationMessage: Chrome's bubble, which is in no element. */
+  bubble: string | null;
+}
+
+/** A request the guard held: its host name, and what it was ("navigation", or the browser's type). */
+export interface HeldRequest {
+  host: string;
+  type: string;
+}
+
+/** A JavaScript dialog the page opened, and the words it showed. */
+export interface PageDialog {
+  /** "alert", "confirm", "prompt", or "beforeunload". */
+  type: string;
+  message: string;
+}
+
+/** What NVDA said at a field, and whether the field is required. */
+export interface FieldHeard {
+  field: number;
+  spoken: string;
+  required: boolean;
+}
+
+/** What goes into a field: typed text, the space bar (a check box or radio), or an arrow key (a list). */
+export type FieldValue = { kind: "text"; text: string } | { kind: "space" } | { kind: "arrow" };
+
+/**
+ * What came of a form: `completed`, a press that held a request with no field invalid or required
+ * and empty, and no bubble showing; `stuck`, the keyboard couldn't get it there; `not-tested`,
+ * voicecap can't say, as `reason` does. A form tested empty, for a password or a CAPTCHA, is
+ * `not-tested` with its press kept, and so is one that ran out of steps or needs a value voicecap
+ * hasn't got: nothing says a person couldn't finish those.
+ */
+export type FormResult = "completed" | "stuck" | "not-tested";
+
+export interface FormOutcome {
+  form: FormInfo;
+  result: FormResult;
+  /** The field it stopped at, when it's one field's doing. */
+  stoppedAt: FormField | null;
+  /** Why it stopped short of completed; null for a form that's completed. */
+  reason: string | null;
+  /** Each press in turn: `axe` is null where the form's errors hadn't changed, so it wasn't checked. */
+  presses: {
+    state: FormState;
+    spoken: string;
+    axe: AxeCapture | null;
+    /** The session's held-request count just before the press: what `state.heldRequests` is read against. */
+    heldBefore?: number;
+  }[];
+  /**
+   * The fields the browser called invalid and the messages showing before any press: what a later
+   * press is new against. Left out where the pass took no look at the form, and in a file from before
+   * voicecap kept it.
+   */
+  baseline?: { invalid: number[]; messages: string[] };
+  /** What NVDA said at each field before any press. */
+  firstWalk: FieldHeard[];
+  /** The same after the first press that showed an error; empty when none did. */
+  errorWalk: FieldHeard[];
+  /** The same after the last press that didn't end it; empty when no walk followed a press. */
+  lastWalk: FieldHeard[];
+}

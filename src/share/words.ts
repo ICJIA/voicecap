@@ -39,7 +39,7 @@ import {
   HOW_TEXT,
   ISSUES_URL,
   PAGES_TEXT,
-  PASS_WORDS,
+  passWords,
   PROBLEMS_TEXT,
   STORY,
   TIMELINE_TEXT,
@@ -357,7 +357,7 @@ export function originOf(card: PageCard, latest: string | null): Line | null {
  */
 export function transcriptsInside(passes: PassName[]): string {
   if (passes.length === 0) return "no transcripts";
-  return `${names(passes.map((pass) => PASS_WORDS[pass]))} ${passes.length === 1 ? "transcript" : "transcripts"}`;
+  return `${names(passes.map((pass) => passWords(pass)))} ${passes.length === 1 ? "transcript" : "transcripts"}`;
 }
 
 /**
@@ -409,7 +409,7 @@ export function sizesOf(removed: number, added: number): string {
 
 /** What heads a pass's changes, as a sentence says the pass: "The read pass", "The Tab pass". */
 export function passHeading(pass: PassName): string {
-  return `The ${PASS_WORDS[pass]} pass`;
+  return `The ${passWords(pass)} pass`;
 }
 
 /**
@@ -437,9 +437,9 @@ export function countsOf({ passes, unreadable }: PageChange): string {
   const clauses = PASS_NAMES.flatMap((pass) => {
     const change = passes.find((each) => each.pass === pass);
     if (change !== undefined) {
-      return [`${PASS_WORDS[pass]}: ${sizesOf(change.removed, change.added)}`];
+      return [`${passWords(pass)}: ${sizesOf(change.removed, change.added)}`];
     }
-    return unreadable.includes(pass) ? [`${PASS_WORDS[pass]}: couldn't be read here`] : [];
+    return unreadable.includes(pass) ? [`${passWords(pass)}: couldn't be read here`] : [];
   });
   return clauses.join("; ");
 }
@@ -520,7 +520,7 @@ export function flagsLine({
 }: PageChange["flags"]): Line | null {
   const which = (flag: FlagResult): Line => [
     { text: flag.rule, bold: true },
-    ...(flag.pass === undefined ? [] : [` (${PASS_WORDS[flag.pass]} pass)`]),
+    ...(flag.pass === undefined ? [] : [` (${passWords(flag.pass)} pass)`]),
   ];
   const clauses: Line[] = [
     ...resolved.map((flag) => [

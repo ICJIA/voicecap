@@ -743,6 +743,12 @@ describe("what needs attention, as a card for each problem", () => {
         "read-stopped",
         "custom",
         "recorded",
+        "form-error-silent",
+        "form-no-feedback",
+        "form-error-unlinked",
+        "form-required-unsaid",
+        "form-cant-finish",
+        "form-field-unreachable",
       ].sort(),
     );
   });

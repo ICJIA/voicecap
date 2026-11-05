@@ -304,9 +304,11 @@ describe("a run repeated from its walkthrough file", () => {
     expect(repeat.outcome).toBe("completed");
     const made = vi.mocked(createDriver).mock.calls;
     expect(made).toHaveLength(1);
-    // Everything but those three is this computer's, the NVDA settings and the browser included.
+    // Everything but those three, and the file's passes, which the driver is given as the run's, is
+    // this computer's, the NVDA settings and the browser included.
     expect(made[0]![1].config).toEqual({
       ...computer.config,
+      passes: ["read"],
       capture: "initial",
       stepCaps: { read: 7, headings: 8, tab: 9 },
       readiness,

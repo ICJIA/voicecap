@@ -202,7 +202,10 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
       collect,
       [],
     )
-    .option("--passes <list>", "passes to run, e.g. read,headings,tab (default: all)")
+    .option(
+      "--passes <list>",
+      "passes to run, from read, headings, tab, and forms (default: read,headings,tab)",
+    )
     .option("--max-steps <n>", "override every pass's step cap", positiveInt("--max-steps"))
     .option("--compare <run>", 'compare with a run id, or "previous"')
     .option("--fresh", "start a new run instead of resuming an interrupted one")

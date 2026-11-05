@@ -224,6 +224,17 @@ describe("ReplayDriver", () => {
     expect(await driver.focusInDocument()).toBe(false);
   });
 
+  it("takes a guarded load as any other, and has nothing to test a form with", async () => {
+    const driver = new ReplayDriver(FIXTURE_RUN, "fixture/replay-run");
+    await driver.start();
+    await expect(driver.openPage(`${SITE}/`, { guarded: true })).resolves.toMatchObject({
+      finalUrl: `${SITE}/`,
+    });
+    for (const member of ["findForms", "armFormGuard", "pressSubmit", "fillField", "formState"]) {
+      expect(driver, member).not.toHaveProperty(member);
+    }
+  });
+
   it("rejects unknown pages and missing folders", async () => {
     const driver = new ReplayDriver(FIXTURE_RUN);
     await driver.start();
@@ -260,6 +271,7 @@ describe("replaying a read pass that stopped at the repeat limit", () => {
     endConfirmations: 1,
     noNextHeading: /^no next heading$/i,
     stepTimeoutMs: 1000,
+    forms: { settleMs: 0, values: {} },
   };
 
   const folders: string[] = [];

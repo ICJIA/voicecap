@@ -19,7 +19,7 @@ import {
   type PagePasses,
 } from "../flags/evaluate.js";
 import { graphicName, insideOf, partOf, speechItems } from "../flags/speech.js";
-import { PASS_NAMES, type FlagResult, type PassName } from "../model.js";
+import { DEFAULT_PASS_NAMES, type FlagResult, type PassName } from "../model.js";
 import { normalizeSpeech } from "../passes/steps.js";
 import type { PageCard } from "./cards.js";
 import { names } from "./format.js";
@@ -43,6 +43,12 @@ const KINDS = [
   "skip-link",
   "tab-nothing",
   "repeated",
+  "form-error-silent",
+  "form-no-feedback",
+  "form-error-unlinked",
+  "form-required-unsaid",
+  "form-cant-finish",
+  "form-field-unreachable",
   "read-stopped",
   "custom",
   "recorded",
@@ -200,6 +206,12 @@ const RULE_KINDS = new Map<string, AttentionKind>([
   ["tab-before-main", "skip-link"],
   ["tab-no-stops", "tab-nothing"],
   ["repeated-phrase", "repeated"],
+  ["form-error-silent", "form-error-silent"],
+  ["form-no-feedback", "form-no-feedback"],
+  ["form-error-unlinked", "form-error-unlinked"],
+  ["form-required-unsaid", "form-required-unsaid"],
+  ["form-cant-finish", "form-cant-finish"],
+  ["form-field-unreachable", "form-field-unreachable"],
 ]);
 
 /** The rules that find items, whose lines give each card its subject. */
@@ -454,7 +466,7 @@ function placesOf(hits: Hit[], slugOf: (index: number) => string): AttentionPlac
   return [...parts].map(([part, here]) => ({
     part,
     inside: here.find(({ at }) => at.inside !== null)?.at.inside ?? null,
-    said: PASS_NAMES.flatMap((pass) => {
+    said: DEFAULT_PASS_NAMES.flatMap((pass) => {
       const said = here.find(({ at }) => at.said?.pass === pass)?.at.said;
       return said ? [said] : [];
     }),

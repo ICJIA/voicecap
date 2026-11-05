@@ -58,6 +58,12 @@ export interface CheckData {
    */
   axe: { run: string; slug: string; name: string; text: string }[];
   /**
+   * Each forms file whose forms the page shows ("forms-result.json"), as `axe` is: its run, its page's
+   * slug, its name, and its exact text, which the check holds to the fingerprint its run's record
+   * has. A page from before this has no such field, and its check is as it was.
+   */
+  forms?: { run: string; slug: string; name: string; text: string }[];
+  /**
    * Each recording the page plays ("voice.webm"), by its run, its page's slug, and its file name:
    * the fingerprint it's held to is in that run's record, which the seal covers. Each `audio` of one
    * has `data-slug` and `data-file` that name it, and holds its bytes in its address, so the data
@@ -304,6 +310,13 @@ function axeRecord(runs, item) {
   return record && typeof record.sha256 === "string" ? record : undefined;
 }
 
+// What a run's record has for a forms file the page carries, as for an axe file.
+function formsRecord(runs, item) {
+  var page = pageOf(runs, item);
+  var record = page && page.forms;
+  return record && typeof record.sha256 === "string" ? record : undefined;
+}
+
 // What a run's record has for a recording the page plays, as for a screenshot.
 function voiceRecord(runs, item) {
   var page = pageOf(runs, item);
@@ -478,6 +491,11 @@ function axePhrase(total, ok) {
   return ok + " of " + total + which;
 }
 
+function formsPhrase(total, ok) {
+  var which = total === 1 ? " forms result matches its fingerprint" : " forms results match their fingerprints";
+  return ok + " of " + total + which;
+}
+
 function recordingsPhrase(total, ok) {
   var which = total === 1 ? " recording matches its fingerprint" : " recordings match their fingerprints";
   return ok + " of " + total + which;
@@ -489,6 +507,7 @@ async function checkAll(data, digest, shown, pictures, axeShown, sounds) {
   var files = [];
   var shots = [];
   var axe = [];
+  var forms = [];
   var recordings = [];
   var sentences = [];
   // Each screenshot or recording the page shows must be there, and every copy of it must be the file
@@ -529,6 +548,14 @@ async function checkAll(data, digest, shown, pictures, axeShown, sounds) {
     if (!axeMatches) sentences.push(axeLabel + " doesn't match its fingerprint.");
     if (!axeAsShown) sentences.push(axeLabel + ": what its card shows doesn't match its file.");
   }
+  // Each forms file, by its whole text.
+  for (var formsItem of data.forms || []) {
+    var formsLabel = fileLabel(runs, formsItem);
+    var formsKept = formsRecord(runs, formsItem);
+    var formsMatches = !!formsKept && (await digest(utf8(formsItem.text))) === formsKept.sha256;
+    forms.push({ label: formsLabel, ok: formsMatches });
+    if (!formsMatches) sentences.push(formsLabel + " doesn't match its fingerprint.");
+  }
   await copiesMatch(data.recordings || [], sounds, voiceRecord, recordings);
   var seals = [];
   for (var run of runs) {
@@ -552,6 +579,10 @@ async function checkAll(data, digest, shown, pictures, axeShown, sounds) {
     var axeMatching = axe.filter(function (each) { return each.ok; }).length;
     clauses.push(axePhrase(axe.length, axeMatching));
   }
+  if (forms.length > 0) {
+    var formsMatching = forms.filter(function (each) { return each.ok; }).length;
+    clauses.push(formsPhrase(forms.length, formsMatching));
+  }
   if (recordings.length > 0) {
     var recordingsMatching = recordings.filter(function (each) { return each.ok; }).length;
     clauses.push(recordingsPhrase(recordings.length, recordingsMatching));
@@ -573,6 +604,7 @@ async function checkAll(data, digest, shown, pictures, axeShown, sounds) {
     files: files,
     screenshots: shots,
     axe: axe,
+    forms: forms,
     recordings: recordings,
     runs: seals,
     reviewProblems: reviews.problems,
@@ -813,6 +845,10 @@ export const CHECK_SCRIPT =
       });
       checked.axe.forEach(function (item, index) {
         var kept = axeRecord(runs, data.axe[index]);
+        table.push([item.label, kept ? kept.sha256 : "none recorded", item.ok]);
+      });
+      checked.forms.forEach(function (item, index) {
+        var kept = formsRecord(runs, data.forms[index]);
         table.push([item.label, kept ? kept.sha256 : "none recorded", item.ok]);
       });
       checked.recordings.forEach(function (recording, index) {

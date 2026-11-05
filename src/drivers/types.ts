@@ -4,7 +4,8 @@
  * keystrokes; the core (src/passes/) decides when a pass stops, from what a driver returns.
  */
 import type { AxeSummary } from "../axe/results.js";
-import type { NewRunEvent, VoiceStretch } from "../model.js";
+import type { FieldValue, FormInfo, FormState } from "../forms/types.js";
+import type { NewRunEvent, PassName, VoiceStretch } from "../model.js";
 
 /**
  * Everything the screen reader said in response to one action.
@@ -75,7 +76,7 @@ export interface ScreenReaderDriver {
    * A driver that takes screenshots takes one of an HTML page once it has loaded, before the screen
    * reader moves into it, and gives it in the PageInfo.
    */
-  openPage(url: string): Promise<PageInfo>;
+  openPage(url: string, options?: OpenPageOptions): Promise<PageInfo>;
 
   /**
    * Check the page that's open with axe-core, an automated checker, and give what voicecap keeps of
@@ -102,6 +103,11 @@ export interface ScreenReaderDriver {
    * Optional: a driver that can't record leaves it out, and its run records no voice.
    */
   recordVoice?(): Promise<VoiceRecording>;
+  /**
+   * The core is about to open the page for `pass`: the stretches of the recording the pass makes
+   * from here are its (VoiceStretch.pass), until the next call. Left out, the stretches have no pass.
+   */
+  beginPass?(pass: PassName): void;
 
   /** Move to the next line in browse mode (NVDA: Down Arrow). */
   nextLine(): Promise<Speech>;
@@ -118,6 +124,46 @@ export interface ScreenReaderDriver {
   focusInDocument(): Promise<boolean>;
   /** The focused element as the browser sees it; null when nothing is focused (the body). */
   focusedElement(): Promise<FocusedElement | null>;
+
+  // The forms pass's actions, which a driver has all of or none of (checkFormWithAxe aside). Without
+  // them its run's forms aren't tested, and the run says so. The core decides what to do next;
+  // `form` and `field` are places in what findForms gave.
+
+  /** Every form the page shows, sorted by what voicecap does with it. Moves no focus. */
+  findForms?(): Promise<FormInfo[]>;
+  /**
+   * Shut the guard, so nothing the page does from here reaches the network. Rejects when it can't
+   * be armed, or can't be confirmed, and the core then presses no key on the form.
+   */
+  armFormGuard?(): Promise<void>;
+  /**
+   * Move focus to one of the form's fields by script: the core asks only for its first, to enter it.
+   * A field that has focus already (a page moves focus to its first error on a press) is left as it
+   * is, and the screen reader may say nothing: it announced the field at the press.
+   */
+  focusFormField?(form: number, field: number): Promise<Speech>;
+  /**
+   * Press Enter on the submit control that has focus, where Tab has put it: the core asks for this
+   * only then, and a driver moves no focus for it. It keeps listening until the screen reader goes quiet and `settleMs` more has gone by,
+   * since many forms show their errors a moment later, and what's said by then is its answer.
+   */
+  pressSubmit?(form: number, settleMs: number): Promise<Speech>;
+  /** Put a value in the focused field by keys, never by script. */
+  fillField?(value: FieldValue): Promise<Speech>;
+  /** What the form shows now. Reading it clears `liveChanged`. */
+  formState?(form: number): Promise<FormState>;
+  /** Check the form as it stands with axe-core, limited to the form, as checkWithAxe does a page. */
+  checkFormWithAxe?(form: number): Promise<AxeCapture>;
+}
+
+/** How a load differs from the usual one. */
+export interface OpenPageOptions {
+  /**
+   * For the forms pass: the browser reaches the network only through the form guard's gate, which
+   * `armFormGuard` shuts. A driver that can't guard a load ignores this, and its forms aren't
+   * tested (it has no `armFormGuard`).
+   */
+  guarded?: boolean;
 }
 
 export interface PageInfo {

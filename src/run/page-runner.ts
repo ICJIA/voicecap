@@ -12,6 +12,7 @@ import type {
 } from "../drivers/types.js";
 import {
   AXE_FILE,
+  FORMS_FILE,
   SCREENSHOT_FILE,
   VOICE_FILE,
   type AttemptRecord,
@@ -19,6 +20,7 @@ import {
   type EnvironmentRecord,
   type FailureKind,
   type FileHash,
+  type FormsRecord,
   type PageRecord,
   type PassName,
   type PassSummary,
@@ -36,8 +38,10 @@ import {
   type PassResult,
   type PassSettings,
 } from "../passes/index.js";
+import type { FormOutcome } from "../forms/types.js";
+import { keptFormsResults } from "../forms/result-file.js";
 import { InterruptedError, StepTimeoutError, withTimeout } from "../passes/steps.js";
-import { isHtmlContentType, sameOrigin } from "../pages/url.js";
+import { displayPath, isHtmlContentType, sameOrigin } from "../pages/url.js";
 import { fileHash, writeTranscript } from "../transcripts/write.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
 import { errorCode, errorMessage } from "../util/errors.js";
@@ -116,6 +120,12 @@ export interface PageOutcome {
    */
   axe?: AxeRecord;
   /**
+   * The forms pass's results the last attempt kept in the page's folder, or why it has none. Left
+   * out for a page with no form: the pass wasn't in the run, the driver can't test forms, or the page
+   * had none. A page whose forms were all left untested (a search form) has them, with the reasons.
+   */
+  forms?: FormsRecord;
+  /**
    * The recording of NVDA's voice the last attempt kept in the page's folder, or why it has none: made
    * from the attempt's start to its end, as the screenshot is taken as the page first loads, and
    * kept only when the attempt finished (see endVoice), with only each pass's stretch of it (see
@@ -147,6 +157,8 @@ interface Loaded {
   screenshot?: ScreenshotRecord;
   /** And the check of the page with axe, if the driver makes one. */
   axe?: AxeRecord;
+  /** And the forms pass's results, once that pass has tested a form on the page. */
+  forms?: FormsRecord;
   /**
    * Whether the page is to be read: the attempt's first load wasn't skipped, and wasn't an HTTP error.
    * Left out otherwise, and then the attempt's recording of NVDA's voice isn't kept, as no one reads
@@ -237,6 +249,7 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     ...(status === "done" && result.canonical !== undefined ? { canonical: result.canonical } : {}),
     ...(result.screenshot !== undefined ? { screenshot: result.screenshot } : {}),
     ...(result.axe !== undefined ? { axe: result.axe } : {}),
+    ...(result.forms !== undefined ? { forms: result.forms } : {}),
     ...(result.voice !== undefined ? { voice: result.voice } : {}),
     ...(result.kind === "skipped" ? { skip: result.skip } : {}),
   });
@@ -314,19 +327,28 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
     ctx.pageTimeoutMs,
   );
   const loaded: Loaded = { passes: {}, results: {}, files: {} };
+  // The forms this attempt tested, by signature: kept in the run only if the attempt is done.
+  const tested: Record<string, string> = {};
   // What an attempt that fails ends with: its record, which ends now.
   const failedWith = (problem: Problem): { record: FailedAttempt } => ({
     record: { startedAt, endedAt: isoLocalMs(ctx.now()), ...problem },
   });
-  // Have the driver open the page for a pass, within the time a page has to open.
-  const open = (): Promise<PageInfo> =>
-    withTimeout(
+  // Have the driver open the page for a pass, within the time a page has to open. The forms pass's
+  // loads are guarded: the driver puts the form guard's gate in front of the browser.
+  const open = (pass?: PassName): Promise<PageInfo> => {
+    // The recording's stretches that the load makes are this pass's.
+    if (pass !== undefined) session.driver.beginPass?.(pass);
+    return withTimeout(
       `Opening the page`,
-      () => session.driver.openPage(page.url),
+      () =>
+        pass === "forms"
+          ? session.driver.openPage(page.url, { guarded: true })
+          : session.driver.openPage(page.url),
       ctx.openTimeoutMs,
       signal,
       "open-timeout",
     );
+  };
   // How an attempt ends when the page wouldn't open for `pass`: it's tried again after a restart.
   // Ctrl+C isn't that: it leaves the page pending.
   const notOpened = (pass: PassName, error: unknown): Attempt => {
@@ -350,10 +372,25 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
   try {
     for (const [index, pass] of ctx.passes.entries()) {
       let info: PageInfo;
+      // The forms pass's result when its guarded load failed: no form was reached.
+      let unguarded: PassResult | undefined;
       try {
-        info = await open();
+        info = await open(pass);
       } catch (error) {
-        return notOpened(pass, error);
+        // A guarded load can fail where an ordinary one doesn't (the gate goes straight out, not
+        // through the computer's own proxy). When the page's other passes are done, that fails the
+        // forms pass, not the page: the others' transcripts stay, and the page isn't tried again.
+        if (pass !== "forms" || index === 0 || error instanceof InterruptedError) {
+          return notOpened(pass, error);
+        }
+        info = {
+          finalUrl: loaded.finalUrl ?? page.url,
+          status: loaded.httpStatus ?? null,
+          contentType: null,
+          title: loaded.title ?? null,
+          canonical: loaded.canonical ?? null,
+        };
+        unguarded = guardedLoadFailed(error);
       }
 
       const warnings: string[] = [];
@@ -415,7 +452,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         // the one the pass reads, and the page's record keeps the check's reason.
         if (checked !== undefined && "error" in checked && checked.leftRunning === true) {
           try {
-            info = await open();
+            info = await open(pass);
           } catch (error) {
             return notOpened(pass, error);
           }
@@ -425,8 +462,23 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         warnings.push(...elsewhere(info));
       }
 
-      const result = await runPass(pass, session.driver, ctx.passSettings(pass), signal, ctx.clock);
+      const settings = ctx.passSettings(pass);
+      if (pass === "forms") {
+        // Each form gets a load of its own, so the pass opens the page again for every one after the first.
+        settings.forms = {
+          ...settings.forms,
+          page: displayPath(page.url),
+          testedOn: (signature) => ctx.run.formSignatures?.[signature] ?? null,
+          reopen: async () => {
+            warnings.push(...elsewhere(await open(pass)));
+          },
+        };
+      }
+      const result =
+        unguarded ?? (await runPass(pass, session.driver, settings, signal, ctx.clock));
       result.warnings.unshift(...warnings);
+      // A page with no forms has no forms transcripts, and that is no gap: nothing was there to test.
+      if (pass === "forms" && noForms(result)) continue;
       const written = await writeTranscript(dir, transcriptFor(ctx, pass, info, result));
       Object.assign(loaded.files, written.files);
       loaded.results[pass] = result;
@@ -438,6 +490,17 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         errors: result.errors,
         warnings: result.warnings,
       };
+      if (pass === "forms") {
+        for (const outcome of result.forms ?? []) {
+          if (outcome.form.kind === "test" && outcome.presses.length > 0) {
+            tested[outcome.form.signature] ??= displayPath(page.url);
+          }
+        }
+        const forms = await keepForms(ctx, dir, result.forms ?? []);
+        if (forms) loaded.forms = forms;
+        // A problem in the forms pass never fails the page's other passes: it says why in its record.
+        continue;
+      }
       // A pass that stopped with "timeout" or "error" has said why, in its failure.
       if (result.failure) {
         return {
@@ -449,6 +512,10 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
           ...failedWith(problemOf(pass, result.failure)),
         };
       }
+    }
+    // The page is read, so the forms it tested are tested for the rest of the run.
+    if (Object.keys(tested).length > 0) {
+      ctx.run.formSignatures = { ...ctx.run.formSignatures, ...tested };
     }
     return { ...loaded, kind: "done" };
   } finally {
@@ -519,6 +586,32 @@ async function keepAxe(
     counts: { ...counts },
     impacts: { ...impacts },
   };
+}
+
+/**
+ * Keep what the forms pass concluded on a page: the file in the page's folder (forms-result.json),
+ * and its record, with when. A file that couldn't be written is recorded as the reason, with no file:
+ * a problem in the forms pass never fails the page's other passes. Null when no form was tested.
+ */
+async function keepForms(
+  ctx: PageContext,
+  dir: string,
+  outcomes: readonly FormOutcome[],
+): Promise<FormsRecord | null> {
+  if (outcomes.length === 0) return null;
+  const ranAt = isoLocalMs(ctx.now());
+  try {
+    const kept = keptFormsResults(outcomes, displayPath(ctx.page.url));
+    await writeFileAtomic(path.join(dir, FORMS_FILE), kept.json);
+    return { ...fileHash(kept.json), ranAt, counts: kept.counts };
+  } catch (error) {
+    return {
+      error: axeErrorReason(
+        redactAccount(`Could not keep the forms results: ${errorMessage(error)}`),
+      ),
+      ranAt,
+    };
+  }
 }
 
 /**
@@ -693,7 +786,7 @@ async function keepVoice(
  * sample: the driver's, each cut to the recording, then shrunk by the sound the recorder lost
  * (`lostMs`) at both ends, as lost sound can shift where a moment falls in the file. So the
  * recording keeps less than the driver kept, never more. In order, with stretches that meet or
- * overlap joined; one nothing is left of, or whose ends aren't numbers, is dropped.
+ * overlap joined (those of the same pass only); one nothing is left of, or whose ends aren't numbers, is dropped.
  */
 function keptStretches(
   stretches: readonly VoiceStretch[],
@@ -704,16 +797,18 @@ function keptStretches(
   const margin = Number.isFinite(lostMs) && lostMs > 0 ? Math.ceil(lostMs) : 0;
   const shrunk = stretches
     .filter(({ startMs, endMs }) => Number.isFinite(startMs) && Number.isFinite(endMs))
-    .map(({ startMs, endMs }) => ({
+    .map(({ startMs, endMs, pass }) => ({
       startMs: Math.max(0, Math.ceil(startMs)) + margin,
       endMs: Math.min(lengthMs, Math.floor(endMs)) - margin,
+      ...(pass === undefined ? {} : { pass }),
     }))
     .filter(({ startMs, endMs }) => endMs > startMs)
     .sort((a, b) => a.startMs - b.startMs);
   const joined: VoiceStretch[] = [];
   for (const stretch of shrunk) {
     const last = joined.at(-1);
-    if (last !== undefined && stretch.startMs <= last.endMs) {
+    // Only stretches of one pass are joined: two of different passes stay apart, where they meet.
+    if (last !== undefined && stretch.startMs <= last.endMs && stretch.pass === last.pass) {
       last.endMs = Math.max(last.endMs, stretch.endMs);
     } else {
       joined.push(stretch);
@@ -829,4 +924,35 @@ function transcriptFor(
     environment: ctx.environment,
     steps: result.steps,
   };
+}
+
+/**
+ * Whether the forms pass found nothing to say: no form on the page, and nothing wrong, so the page
+ * keeps no forms transcripts. A driver that can't test forms says so in a warning, and is kept.
+ */
+/**
+ * The forms pass when the page couldn't be loaded behind the guard: no form was found or pressed, and
+ * its error says why, as a pass's own error does.
+ */
+function guardedLoadFailed(error: unknown): PassResult {
+  const failure = failureOf(error);
+  return {
+    pass: "forms",
+    steps: [],
+    stopReason: "error",
+    durationMs: 0,
+    warnings: [],
+    errors: [`The page couldn't be loaded behind the guard: ${failure.message}`],
+    failure,
+    forms: [],
+  };
+}
+
+function noForms(result: PassResult): boolean {
+  return (
+    result.forms?.length === 0 &&
+    result.warnings.length === 0 &&
+    result.errors.length === 0 &&
+    result.failure === undefined
+  );
 }

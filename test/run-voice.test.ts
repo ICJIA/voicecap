@@ -313,6 +313,56 @@ describe("a page's recording of NVDA's voice, in a run", () => {
       });
     });
 
+    it("tells the driver which pass each load is for, and keeps the pass each stretch names", async () => {
+      const { driver, page } = await runHome({
+        samples: LOUD,
+        stretches: [
+          { startMs: 100, endMs: 600, pass: "read" },
+          { startMs: 700, endMs: 1000, pass: "headings" },
+          { startMs: 1100, endMs: 1500, pass: "tab" },
+        ],
+      });
+      expect(driver.begun).toEqual(["read", "headings", "tab"]);
+      expect(page.voice).toMatchObject({
+        stretches: [
+          { startMs: 100, endMs: 600, pass: "read" },
+          { startMs: 700, endMs: 1000, pass: "headings" },
+          { startMs: 1100, endMs: 1500, pass: "tab" },
+        ],
+      });
+    });
+
+    it("joins stretches of one pass that meet, and never two of different passes", async () => {
+      const { page } = await runHome({
+        samples: LOUD,
+        stretches: [
+          { startMs: 200, endMs: 600, pass: "read" },
+          { startMs: 500, endMs: 800, pass: "read" },
+          // Meets the read pass's end exactly, but is the headings pass's.
+          { startMs: 800, endMs: 1000, pass: "headings" },
+          { startMs: 1000, endMs: 1300, pass: "forms" },
+          { startMs: 1300, endMs: 1500, pass: "forms" },
+        ],
+      });
+      expect(page.voice).toMatchObject({
+        stretches: [
+          { startMs: 200, endMs: 800, pass: "read" },
+          { startMs: 800, endMs: 1000, pass: "headings" },
+          { startMs: 1000, endMs: 1500, pass: "forms" },
+        ],
+      });
+    });
+
+    it("keeps a stretch with no pass as it was: no pass in the record", async () => {
+      const { page } = await runHome({
+        samples: LOUD,
+        stretches: [{ startMs: 200, endMs: 600 }],
+      });
+      expect(JSON.stringify((page.voice as { stretches: unknown }).stretches)).toBe(
+        '[{"startMs":200,"endMs":600}]',
+      );
+    });
+
     it("judges silence by what they keep: silent stretches of a page NVDA said words on are 'the recording is silent'", async () => {
       // Loud everywhere but in the one stretch kept.
       const outside = LOUD.slice();

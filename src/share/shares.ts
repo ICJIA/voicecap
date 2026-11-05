@@ -77,6 +77,15 @@ export async function appendShare(
             read: result.read,
             problems: result.problems,
             problemPages: result.problemPages,
+            ...(result.forms === undefined
+              ? {}
+              : {
+                  forms: {
+                    found: result.forms.found,
+                    working: result.forms.working,
+                    notChecked: result.forms.notChecked,
+                  },
+                }),
           },
         }),
     files: entry.files,
@@ -172,6 +181,25 @@ export function shareResultOf(value: unknown): ShareResult | null {
     return null;
   }
   const result = { pages, read, problems, problemPages } as ShareResult;
+  const forms = value.forms;
+  if (forms !== undefined) {
+    if (!isObject(forms)) return null;
+    const { found, working, notChecked } = forms;
+    if (
+      typeof found !== "number" ||
+      typeof working !== "number" ||
+      typeof notChecked !== "number" ||
+      !Number.isSafeInteger(notChecked) ||
+      notChecked < 0 ||
+      !Number.isSafeInteger(found) ||
+      !Number.isSafeInteger(working) ||
+      working < 0 ||
+      working > found
+    ) {
+      return null;
+    }
+    result.forms = { found, working, notChecked };
+  }
   const fits =
     counts.every((count) => (count as number) >= 0) &&
     result.read <= result.pages &&

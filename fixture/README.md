@@ -1,6 +1,6 @@
 # voicecap test fixture
 
-A tiny fictional agency site plus everything voicecap needs to test itself without NVDA: page lists, a run to replay, sample reviews, manual-session captures, a run with NVDA's own log, cleaned, and one attempt at a real page with that log, trimmed.
+A tiny fictional agency site plus everything voicecap needs to test itself without NVDA: page lists, a run to replay, sample reviews, manual-session captures, a run with NVDA's own log, cleaned, one attempt at a real page with that log, trimmed, and pages of forms for the forms pass.
 
 The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 2026.2 with Chrome 153 on Windows 11, captured with `pnpm fixture:capture`. Its environment record says exactly what produced it. Everything on the site itself is fictional.
 
@@ -12,6 +12,7 @@ The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 20
 | `site/duplicates/index.html` | End-of-page detection. It has two identical consecutive lines ("Applications are due October 31."). Its last line ("Back to top", at the end of the footer) also appears earlier on the page. |
 | `site/flawed/index.html` | Deliberately flawed page. No skip link, and 12 focus stops before main content. The first heading is an h2. It has three "Read more" links and one "Click here" link. It also has an image without alt, an image-only link without alt, an unlabeled text field, and an icon-only button with no name. |
 | `site/frames/` | A page with a link, a frame from the same site, a frame from another site (the same server as `localhost`, so Chrome runs it in its own process, as it does embedded videos and maps), and another link. Not in the sitemap: only `pnpm test:nvda` and the Chrome session tests use it, to check that Tab goes into and out of frames without a foreground error (focus moving into a frame blurs the page's window). |
+| `site/forms/` | One form a page, for the forms pass, each with a comment that says what it should come to. Not in the sitemap: only the capture's forms run reads them (see below). `good/` and `native/` work with NVDA, one checked by the page's script with its errors marked, described, and announced, the other by Chrome's own bubble. `silent/` writes its errors where NVDA never says them. `no-feedback/` does nothing when it's pressed. `no-labels/` has fields with no name. `unreachable/` has a required Date of birth that Tab skips and only a mouse can fill. Each sends by POST to a `sent/` page of its own, which the forms pass's guard holds in the browser. |
 | `site/files/annual-report.pdf` | A tiny valid PDF, listed in the sitemap so voicecap skips it by extension. |
 | `site/images/chart.png` | The image the flawed page uses. |
 | `site/feed/feed.xml` | Served at `/feed/` as `application/rss+xml`: a URL with no file extension whose response isn't HTML. |
@@ -19,6 +20,7 @@ The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 20
 | `site/404.html` | The server's not-found page. |
 | `pages.json`, `pages.csv`, `pages-windows-1252.csv` | Page lists covering a subset of the site. They include a relative path, labeled entries, and an invalid row. The CSV files keep Windows line endings, and the last is in Excel's Windows-1252 encoding. |
 | `replay-run/` | A real run folder, exactly as voicecap wrote it (including its `report.html` snapshot): `run.json`, then `pages/<slug>/{read,headings,tab}.{txt,json}`. The replay driver replays it (`--replay-from fixture/replay-run`). |
+| `forms-run/` | The capture's second run, of the forms pages and the home page (its search form is left untested), with `--passes read,headings,tab,forms`: `run.json`, then `pages/<slug>/` with each pass's transcripts and `forms-result.json`. `test/fixture-forms.test.ts` checks each page's result, banner, and flags against `scripts/forms-fixture.ts`. It isn't captured yet: until it is, that test skips the run's checks and says why. |
 | `reviews.json` | A sample review history for that run, built by `pnpm fixture:reviews`. The home page goes reviewed → issue → fixed. The flawed page has an open issue. The duplicates page was reviewed against an earlier, fictional run, so it shows as changed since review. |
 | `manual/speech-viewer.txt` | A real Speech Viewer capture of the home page read with Down Arrow, from Ctrl+Home through the first repeat of the last line, read from NVDA's Speech Viewer window by `pnpm fixture:capture`. Windows line endings. |
 | `manual/nvda-io-log.txt` | An NVDA log excerpt at Input/output level, written by hand in NVDA's log format, for manual-session import. It includes log noise, typing into the search field, and a session that crosses midnight. Windows line endings. |
@@ -35,7 +37,7 @@ The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 20
 The log in the fixture is the **cleaned copy**, the only copy voicecap keeps, made by `cleanNvdaLog` (`src/drivers/guidepup/nvda-log.ts`). It keeps these entries of NVDA's log, whole and in order:
 
 - NVDA's speech: the 392 `Speaking [...]` entries, kept while the last key NVDA logged was one voicecap pressed, or before any key was logged;
-- the keys voicecap pressed: the 267 `Input: kb(desktop):<gesture>` entries, every one of them a gesture in `VOICECAP_GESTURES` (`downArrow`, `h`, `tab`, `control+home`, `control+end`, `NVDA+t`, `escape`);
+- the keys voicecap pressed: the 267 `Input: kb(desktop):<gesture>` entries, every one of them a gesture in `VOICECAP_GESTURES` (`downArrow`, `h`, `tab`, `control+home`, `control+end`, `NVDA+t`, `escape`; the list also has `enter` and `space`, the forms pass's keys, which this run, made without it, never pressed);
 - NVDA's warnings and errors, with their tracebacks.
 
 It leaves out every other key, every typed word, what NVDA said after a key voicecap didn't press (NVDA speaks each character a person types), and NVDA's INFO and debugging entries, and it writes `%USERPROFILE%` for the home folder. Its first line says so, and its lines end with `\n`. Every key in this log was voicecap's, so none of its speech was left out.
@@ -83,15 +85,18 @@ pnpm fixture:capture    # the same, then replace replay-run/, reviews.json, and 
 pnpm fixture:reviews    # only rebuild reviews.json from replay-run/
 ```
 
-A capture takes about 5 minutes, during which NVDA speaks and browser windows come and go: don't use the keyboard or mouse. It serves the site itself (or uses `pnpm fixture:serve` if that's running), runs voicecap over the sitemap, then reads the home page again with NVDA's Speech Viewer open. It checks:
+A capture takes about 10 minutes, during which NVDA speaks and browser windows come and go: don't use the keyboard or mouse. It serves the site itself (or uses `pnpm fixture:serve` if that's running), runs voicecap over the sitemap, then reads the home page again with NVDA's Speech Viewer open. It checks:
 
 - every read pass ends at the end of the page, including the page with duplicate lines;
 - every headings pass ends on "no next heading";
 - the home and duplicates tab passes start at the skip link and end with focus leaving the page;
 - complete capture: Speech Viewer shows the same speech as the home page's read pass;
-- Tab on `/frames/` reaches the link before the frames, the one in each frame, and the one after them, in that order.
+- Tab on `/frames/` reaches the link before the frames, the one in each frame, and the one after them, in that order;
+- a second run, of the forms pages with `--passes read,headings,tab,forms`, ends every pass as it should, and each page's forms come to what `scripts/forms-fixture.ts` expects.
 
-If a check fails, nothing is replaced and the run is kept for inspection. `--from <run folder>` checks (and with `--write`, installs) a run made earlier instead of making a new one.
+The forms pages are a run of their own, not part of the sitemap, so the main run stays the three passes of the three pages that `test/replay.test.ts` and `test/fixture.test.ts` check step by step.
+
+If a check fails, nothing is replaced and the runs are kept for inspection. `--from <run folder>` checks (and with `--write`, installs) a run made earlier instead of making a new one, and `--forms-from <run folder>` does the same for the forms run; `--from` alone leaves the forms run out.
 
 Re-capture after upgrading Guidepup, NVDA, or Chrome, and review the transcript changes with `git diff` before committing. `test/replay.test.ts` replays the run through voicecap's core and expects the recorded stops and content, and `test/fixture.test.ts` checks the run's files, hashes, and the Speech Viewer capture.
 

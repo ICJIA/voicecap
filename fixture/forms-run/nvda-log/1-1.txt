@@ -1,0 +1,1843 @@
+# NVDA's own log of one NVDA session in this run, as voicecap keeps it: NVDA's speech, the keys voicecap pressed, and NVDA's warnings and errors. voicecap left out every other key, every typed word, and what NVDA said after a key voicecap didn't press, and wrote %USERPROFILE% for the home folder.
+WARNING - synthDriverHandler.SynthDriver.loadSettings (08:45:26.960) - MainThread (55436):
+Invalid voice: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices\Tokens\MSTTS_V110_enGB_GeorgeM
+WARNING - logging.Logger.warn (08:45:27.682) - Thread-5_connector_loop (56060):
+Skipping certificate verification for localhost:6837
+IO - speech.speech.speak (08:45:27.730) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:45:27.759) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+WARNING - logging.Logger.warn (08:45:27.783) - Thread-5_connector_loop (56060):
+Received message with unhandled type: protocol_version {'version': 2, 'origin': 2}
+IO - speech.speech.speak (08:45:27.784) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - High memory usage - 1.6 GB - Google Chrome - Chris', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:45:27.793) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:45:28.084) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:45:28.087) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:45:28.093) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:45:28.094) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:45:28.127) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:45:28.153) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Connected as controlled computer']
+IO - speech.speech.speak (08:45:32.491) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check mtatyf - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:45:32.504) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check mtatyf', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:45:32.506) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:45:33.390) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:45:33.392) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check mtatyf - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:45:35.199) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:45:35.469) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:45:35.472) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:45:36.881) - winInputHook (1704):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:45:36.883) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:45:38.163) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:45:38.165) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:45:39.441) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:39.443) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'same page', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:45:40.721) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:40.725) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Main', 'navigation landmark', 'list', 'with 4 items', 'same page', 'link', 'Home']
+IO - inputCore.InputManager.executeGesture (08:45:42.007) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:42.010) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Duplicate lines']
+IO - inputCore.InputManager.executeGesture (08:45:43.291) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:43.294) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Flawed page']
+IO - inputCore.InputManager.executeGesture (08:45:44.572) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:44.575) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Contact']
+IO - inputCore.InputManager.executeGesture (08:45:45.852) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:45.854) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'main landmark', 'heading', 'level 1', 'Welcome to the Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:45:47.129) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:47.133) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'This site is a test fixture for voicecap, which records what the NVDA screen reader says on each ']
+IO - inputCore.InputManager.executeGesture (08:45:48.408) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:48.412) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'page.']
+IO - inputCore.InputManager.executeGesture (08:45:49.687) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:49.690) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Search']
+IO - inputCore.InputManager.executeGesture (08:45:50.965) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:50.968) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'search landmark', 'Search this site', 'edit', ' ', 'button', 'Search']
+IO - inputCore.InputManager.executeGesture (08:45:52.250) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:52.253) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Latest news']
+IO - inputCore.InputManager.executeGesture (08:45:53.526) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:53.529) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 2 items', '• ', 'link', 'Grant applications open October 1']
+IO - inputCore.InputManager.executeGesture (08:45:54.809) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:54.812) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '• ', 'link', 'New research on pretrial services']
+IO - inputCore.InputManager.executeGesture (08:45:56.090) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:56.094) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'heading', 'level 2', 'About the agency']
+IO - inputCore.InputManager.executeGesture (08:45:57.371) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:57.373) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'The Voicecap Test Agency is fictional. Its pages exist only to exercise voicecap.']
+IO - inputCore.InputManager.executeGesture (08:45:58.645) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:58.649) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:45:59.928) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:45:59.931) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:46:01.205) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:46:01.208) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:46:02.484) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:46:02.487) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - speech.speech.speak (08:46:04.158) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:04.172) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:04.175) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:04.177) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:04.208) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:46:05.553) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check hluexv - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:05.566) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check hluexv', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:05.568) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:46:06.453) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:46:06.455) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check hluexv - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:46:08.309) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:46:08.565) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:46:08.568) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:46:09.848) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:46:09.851) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Welcome to the Voicecap Test Agency', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:46:11.132) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:46:11.136) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Search', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:46:12.415) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:46:12.418) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Latest news', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:46:13.697) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:46:13.700) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'About the agency', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:46:14.975) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:46:14.978) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:46:16.636) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:16.649) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:16.652) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:16.655) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:16.688) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:46:18.032) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ktygik - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:18.043) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ktygik', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:18.045) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:46:18.917) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:46:18.920) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ktygik - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:46:20.777) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:46:21.042) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:46:21.046) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - speech.speech.speak (08:46:22.353) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Skip to main content', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (08:46:23.633) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:46:23.666) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'Voicecap Test Agency', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (08:46:24.948) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:46:24.988) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Main', 'navigation landmark', 'list', 'with 4 items', 'Home', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (08:46:26.266) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:46:26.307) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Duplicate lines', 'link']
+IO - inputCore.InputManager.executeGesture (08:46:27.580) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:46:27.614) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Flawed page', 'link']
+IO - inputCore.InputManager.executeGesture (08:46:28.889) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:46:28.922) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Contact', 'link']
+IO - inputCore.InputManager.executeGesture (08:46:30.206) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:46:30.254) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:30.256) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'search landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:30.263) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Search this site', 'edit', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:46:31.531) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:46:31.560) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Search', 'button']
+IO - inputCore.InputManager.executeGesture (08:46:32.842) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:46:32.897) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 2 items', 'Grant applications open October 1', 'link']
+IO - inputCore.InputManager.executeGesture (08:46:34.177) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:46:34.218) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'New research on pretrial services', 'link']
+IO - inputCore.InputManager.executeGesture (08:46:35.503) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:46:35.524) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Home | Voicecap Test Agency - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:35.536) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:46:36.973) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:46:36.975) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check tpmafi - Google Chrome']
+IO - speech.speech.speak (08:46:38.641) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:38.655) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:38.657) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:38.660) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:38.698) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:46:40.064) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ulisea - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:40.076) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ulisea', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:40.078) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:46:40.958) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:46:40.960) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ulisea - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:46:42.812) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:46:43.082) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:46:43.085) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - speech.speech.speak (08:46:45.509) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:45.522) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:45.525) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:45.528) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:45.557) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:46:46.910) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check bjmbbn - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:46.922) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check bjmbbn', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:46:46.925) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:46:47.797) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:46:47.799) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check bjmbbn - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:46:49.607) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:46:49.870) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:46:49.874) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:46:51.272) - winInputHook (1704):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:46:51.275) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:46:52.549) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:46:52.552) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:46:53.835) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:46:53.839) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'heading', 'level 1', 'Request a grant guide']
+IO - inputCore.InputManager.executeGesture (08:46:55.126) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:46:55.129) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'All fields are required.']
+IO - inputCore.InputManager.executeGesture (08:46:56.408) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:46:56.412) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'section', 'Your name', 'edit', 'required', ' ']
+IO - inputCore.InputManager.executeGesture (08:46:57.687) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:46:57.696) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', ' ']
+IO - inputCore.InputManager.executeGesture (08:46:58.969) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:46:58.973) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Topic', 'combo box', 'collapsed', 'required', 'Choose one']
+IO - inputCore.InputManager.executeGesture (08:47:00.246) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:47:00.248) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Send request']
+IO - inputCore.InputManager.executeGesture (08:47:01.531) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:47:01.535) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'out of section', 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:47:02.810) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:47:02.814) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:47:04.090) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:47:04.093) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:47:05.377) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:47:05.380) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - speech.speech.speak (08:47:07.064) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:07.076) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:07.079) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:07.082) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:07.118) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:47:08.655) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check kmmbmp - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:08.666) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check kmmbmp', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:08.668) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:47:09.543) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:47:09.546) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check kmmbmp - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:47:11.298) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:47:11.568) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:47:11.571) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:47:12.846) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:47:12.849) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Request a grant guide', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:47:14.132) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:47:14.135) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:47:15.801) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:15.813) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:15.818) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:15.820) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:15.851) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:47:17.187) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check jqmgcm - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:17.197) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check jqmgcm', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:17.199) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:47:18.085) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:47:18.087) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check jqmgcm - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:47:19.862) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:47:20.120) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:47:20.123) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:47:21.437) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Voicecap Test Agency', 'link']
+IO - inputCore.InputManager.executeGesture (08:47:22.707) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:47:22.760) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:22.763) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:22.770) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:47:24.050) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:47:24.089) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:47:25.361) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:47:25.392) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Topic', 'combo box', 'Choose one', 'collapsed', 'required', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:47:26.674) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:47:26.709) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Send request', 'button']
+IO - inputCore.InputManager.executeGesture (08:47:27.988) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:47:28.010) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Request a grant guide | Voicecap Test Agency - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:28.018) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:47:29.458) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:47:29.460) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check weqrbn - Google Chrome']
+IO - speech.speech.speak (08:47:31.141) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:31.154) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:31.158) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:31.161) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:31.199) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:47:32.526) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check mxmumd - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:32.537) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check mxmumd', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:32.540) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:47:33.407) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:47:33.409) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check mxmumd - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:47:35.443) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:47:35.702) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:47:35.705) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:47:37.597) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:37.599) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:47:37.605) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:47:38.876) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:47:38.915) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:47:40.186) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:47:40.217) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Topic', 'combo box', 'Choose one', 'collapsed', 'required', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:47:41.496) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:47:41.530) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Send request', 'button']
+IO - inputCore.InputManager.executeGesture (08:47:42.806) - winInputHook (1704):
+Input: kb(desktop):enter
+IO - speech.speech.speak (08:47:42.844) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '3 fields need fixing. ']
+IO - speech.speech.speak (08:47:42.886) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', 'invalid entry', 'Enter your name.', CancellableSpeech (still valid), 'blank']
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:47:50.565) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+IO - inputCore.InputManager.executeGesture (08:47:52.437) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:47:52.480) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', 'invalid entry', 'Enter an email address, such as name@example.com.', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:47:53.749) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:47:53.780) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Topic', 'combo box', 'Choose one', 'collapsed', 'required', 'invalid entry', 'Choose a topic.', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:47:55.062) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:47:55.096) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Send request', 'button']
+IO - speech.speech.speak (08:47:56.422) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', 'invalid entry', 'Enter your name.', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:48:11.662) - winInputHook (1704):
+Input: kb(desktop):space
+IO - speech.speech.speak (08:48:11.671) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'space', EndUtteranceCommand()]
+IO - inputCore.InputManager.executeGesture (08:48:19.499) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:48:19.539) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', 'invalid entry', 'Enter an email address, such as name@example.com.', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:48:20.820) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:48:20.855) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Topic', 'combo box', 'Choose one', 'collapsed', 'required', 'invalid entry', 'Choose a topic.', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:48:22.131) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:48:22.166) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Send request', 'button']
+IO - inputCore.InputManager.executeGesture (08:48:23.444) - winInputHook (1704):
+Input: kb(desktop):enter
+IO - speech.speech.speak (08:48:23.475) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '2 fields need fixing. ']
+IO - speech.speech.speak (08:48:23.504) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', 'invalid entry', 'Enter an email address, such as name@example.com.', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:48:30.145) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'voicecap test']
+IO - inputCore.InputManager.executeGesture (08:48:31.424) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:48:31.464) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', 'invalid entry', 'Enter an email address, such as name@example.com.', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:48:32.737) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:48:32.768) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Topic', 'combo box', 'Choose one', 'collapsed', 'required', 'invalid entry', 'Choose a topic.', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:48:34.047) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:48:34.082) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Send request', 'button']
+IO - speech.speech.speak (08:48:35.403) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'voicecap test']
+IO - inputCore.InputManager.executeGesture (08:48:36.680) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:48:36.723) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', 'invalid entry', 'Enter an email address, such as name@example.com.', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:49:04.551) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:49:04.585) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Topic', 'combo box', 'Choose one', 'collapsed', 'required', 'invalid entry', 'Choose a topic.', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:49:05.861) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:49:05.895) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Send request', 'button']
+IO - inputCore.InputManager.executeGesture (08:49:07.171) - winInputHook (1704):
+Input: kb(desktop):enter
+IO - speech.speech.speak (08:49:07.194) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '1 field needs fixing. ']
+IO - speech.speech.speak (08:49:07.220) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Topic', 'combo box', 'Choose one', 'collapsed', 'required', 'invalid entry', 'Choose a topic.', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:13.862) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'voicecap test']
+IO - inputCore.InputManager.executeGesture (08:49:15.134) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:49:15.171) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'selected test@example.com']
+IO - inputCore.InputManager.executeGesture (08:49:16.453) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:49:16.490) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Topic', 'combo box', 'Choose one', 'collapsed', 'required', 'invalid entry', 'Choose a topic.', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:49:17.764) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:49:17.799) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Send request', 'button']
+IO - speech.speech.speak (08:49:19.114) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'voicecap test']
+IO - inputCore.InputManager.executeGesture (08:49:20.384) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:49:20.422) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'selected test@example.com']
+IO - inputCore.InputManager.executeGesture (08:49:21.699) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:49:21.732) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Topic', 'combo box', 'Choose one', 'collapsed', 'required', 'invalid entry', 'Choose a topic.', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:49:23.014) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:49:23.057) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Grants']
+IO - inputCore.InputManager.executeGesture (08:49:24.336) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:49:24.374) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Send request', 'button']
+IO - inputCore.InputManager.executeGesture (08:49:25.647) - winInputHook (1704):
+Input: kb(desktop):enter
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:49:31.948) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+IO - speech.speech.speak (08:49:34.776) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:34.789) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:34.791) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:34.794) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:34.822) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:49:36.127) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check atmsce - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:36.138) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check atmsce', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:36.140) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:49:37.019) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:49:37.021) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check atmsce - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:49:38.927) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:49:39.185) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:49:39.188) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:49:40.586) - winInputHook (1704):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:49:40.589) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:49:41.860) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:49:41.864) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:49:43.137) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:49:43.140) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'heading', 'level 1', 'Join the mailing list']
+IO - inputCore.InputManager.executeGesture (08:49:44.410) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:49:44.414) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'section', 'Your name', 'edit', 'required', ' ']
+IO - inputCore.InputManager.executeGesture (08:49:45.687) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:49:45.690) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', ' ']
+IO - inputCore.InputManager.executeGesture (08:49:46.962) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:49:46.966) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Join']
+IO - inputCore.InputManager.executeGesture (08:49:48.234) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:49:48.237) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'out of section', 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:49:49.511) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:49:49.514) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:49:50.785) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:49:50.788) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:49:52.057) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:49:52.060) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - speech.speech.speak (08:49:53.728) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:53.742) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:53.745) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:53.748) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:53.780) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:49:55.155) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check hcmoex - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:55.166) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check hcmoex', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:49:55.169) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:49:56.044) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:49:56.046) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check hcmoex - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:49:57.985) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:49:58.248) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:49:58.251) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:49:59.519) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:49:59.523) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Join the mailing list', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:50:00.790) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:50:00.793) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:50:02.448) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:02.462) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:02.465) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:02.468) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:02.498) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:50:03.823) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check jfhikj - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:03.833) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check jfhikj', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:03.835) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:50:04.717) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:50:04.719) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check jfhikj - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:50:06.660) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:50:06.916) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:50:06.920) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:50:08.234) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Voicecap Test Agency', 'link']
+IO - inputCore.InputManager.executeGesture (08:50:09.513) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:50:09.563) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:09.566) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:09.572) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:50:10.850) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:50:10.896) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:50:12.175) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:50:12.213) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Join', 'button']
+IO - inputCore.InputManager.executeGesture (08:50:13.482) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:50:13.503) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Join the mailing list | Voicecap Test Agency - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:13.513) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:50:14.950) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:50:14.953) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check jmcexf - Google Chrome']
+IO - speech.speech.speak (08:50:16.619) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:16.635) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:16.638) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:16.641) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:16.675) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:50:18.004) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check gffhbw - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:18.015) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check gffhbw', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:18.018) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:50:18.890) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:50:18.893) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check gffhbw - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:50:20.836) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:50:21.100) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:50:21.104) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:50:22.993) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:22.996) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:50:23.003) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:50:24.270) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:50:24.310) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:50:25.592) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:50:25.632) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Join', 'button']
+IO - inputCore.InputManager.executeGesture (08:50:26.897) - winInputHook (1704):
+Input: kb(desktop):enter
+IO - speech.speech.speak (08:50:26.955) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:50:26.983) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Please fill out this field. ', 'alert', CancellableSpeech (still valid)]
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:50:34.654) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+IO - inputCore.InputManager.executeGesture (08:50:36.573) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:50:36.613) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:50:37.880) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:50:37.917) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Join', 'button']
+IO - speech.speech.speak (08:50:39.227) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:50:54.255) - winInputHook (1704):
+Input: kb(desktop):space
+IO - speech.speech.speak (08:50:54.266) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'space', EndUtteranceCommand()]
+IO - inputCore.InputManager.executeGesture (08:51:02.349) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:51:02.389) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:51:03.667) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:51:03.704) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Join', 'button']
+IO - inputCore.InputManager.executeGesture (08:51:04.974) - winInputHook (1704):
+Input: kb(desktop):enter
+IO - speech.speech.speak (08:51:05.029) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:51:05.043) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Please fill out this field. ', 'alert', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:51:11.702) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'voicecap test']
+IO - inputCore.InputManager.executeGesture (08:51:12.972) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:51:13.011) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:51:14.292) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:51:14.328) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Join', 'button']
+IO - speech.speech.speak (08:51:15.631) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'voicecap test']
+IO - inputCore.InputManager.executeGesture (08:51:16.911) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:51:16.954) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:51:46.399) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:51:46.441) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Join', 'button']
+IO - inputCore.InputManager.executeGesture (08:51:47.708) - winInputHook (1704):
+Input: kb(desktop):enter
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:51:54.015) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+IO - speech.speech.speak (08:51:56.762) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:51:56.775) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:51:56.778) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:51:56.781) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:51:56.812) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:51:58.167) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check mtmiqb - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:51:58.177) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check mtmiqb', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:51:58.180) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:51:59.060) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:51:59.062) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check mtmiqb - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:52:00.950) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:52:01.218) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:52:01.221) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:52:02.607) - winInputHook (1704):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:52:02.611) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:52:03.884) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:52:03.887) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:52:05.161) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:52:05.165) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'heading', 'level 1', 'Register for training']
+IO - inputCore.InputManager.executeGesture (08:52:06.436) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:52:06.439) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'section', 'Your name', 'edit', 'required', ' ']
+IO - inputCore.InputManager.executeGesture (08:52:07.714) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:52:07.718) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', ' ']
+IO - inputCore.InputManager.executeGesture (08:52:08.990) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:52:08.994) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Register']
+IO - inputCore.InputManager.executeGesture (08:52:10.263) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:52:10.266) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'out of section', 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:52:11.539) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:52:11.542) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:52:12.816) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:52:12.819) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:52:14.092) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:52:14.096) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - speech.speech.speak (08:52:15.761) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:15.775) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:15.778) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:15.781) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:15.814) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:52:17.174) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check oqfgad - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:17.185) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check oqfgad', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:17.187) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:52:18.067) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:52:18.069) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check oqfgad - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:52:20.151) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:52:20.409) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:52:20.412) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:52:21.693) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:52:21.696) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Register for training', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:52:22.964) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:52:22.967) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:52:24.620) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:24.636) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:24.639) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:24.642) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:24.676) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:52:26.037) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check thsksi - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:26.047) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check thsksi', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:26.049) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:52:26.926) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:52:26.929) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check thsksi - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:52:29.014) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:52:29.278) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:52:29.281) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:52:30.593) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Voicecap Test Agency', 'link']
+IO - inputCore.InputManager.executeGesture (08:52:31.870) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:52:31.925) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:31.928) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:31.937) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:52:33.218) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:52:33.259) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:52:34.540) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:52:34.580) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Register', 'button']
+IO - inputCore.InputManager.executeGesture (08:52:35.864) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:52:35.886) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Register for training | Voicecap Test Agency - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:35.896) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:52:37.319) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:52:37.321) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check lerbtj - Google Chrome']
+IO - speech.speech.speak (08:52:38.995) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:39.009) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:39.012) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:39.015) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:39.052) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:52:40.388) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yxbxxw - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:40.399) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yxbxxw', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:40.401) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:52:41.286) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:52:41.289) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yxbxxw - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:52:43.223) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:52:43.481) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:52:43.485) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:52:45.394) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:45.397) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:52:45.403) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:52:46.684) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:52:46.723) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:52:47.992) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:52:48.033) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Register', 'button']
+IO - inputCore.InputManager.executeGesture (08:52:49.316) - winInputHook (1704):
+Input: kb(desktop):enter
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:52:55.615) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+IO - speech.speech.speak (08:52:57.709) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:52:58.991) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:52:59.035) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:53:00.311) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:53:00.352) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Register', 'button']
+IO - speech.speech.speak (08:53:01.672) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:53:17.122) - winInputHook (1704):
+Input: kb(desktop):space
+IO - speech.speech.speak (08:53:17.155) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'space', EndUtteranceCommand()]
+IO - inputCore.InputManager.executeGesture (08:53:25.042) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:53:25.080) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:53:26.348) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:53:26.387) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Register', 'button']
+IO - inputCore.InputManager.executeGesture (08:53:27.671) - winInputHook (1704):
+Input: kb(desktop):enter
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:53:33.973) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+IO - speech.speech.speak (08:53:35.968) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'voicecap test']
+IO - inputCore.InputManager.executeGesture (08:53:37.250) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:53:37.289) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:53:38.570) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:53:38.610) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Register', 'button']
+IO - speech.speech.speak (08:53:39.927) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'voicecap test']
+IO - inputCore.InputManager.executeGesture (08:53:41.206) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:53:41.245) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Email', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:54:09.033) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:54:09.073) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Register', 'button']
+IO - inputCore.InputManager.executeGesture (08:54:10.350) - winInputHook (1704):
+Input: kb(desktop):enter
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:54:16.660) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+IO - speech.speech.speak (08:54:19.264) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:19.277) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:19.280) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:19.283) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:19.314) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:54:20.635) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ujbuny - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:20.646) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ujbuny', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:20.649) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:54:21.536) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:54:21.538) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ujbuny - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:54:23.509) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:54:23.773) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:54:23.777) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:54:25.191) - winInputHook (1704):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:54:25.194) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:54:26.463) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:54:26.466) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:54:27.741) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:54:27.744) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'heading', 'level 1', 'Ask a question']
+IO - inputCore.InputManager.executeGesture (08:54:29.019) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:54:29.022) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'section', 'Your name', 'edit', 'required', ' ']
+IO - inputCore.InputManager.executeGesture (08:54:30.290) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:54:30.294) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your question']
+IO - inputCore.InputManager.executeGesture (08:54:31.571) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:54:31.575) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', 'multi line']
+IO - inputCore.InputManager.executeGesture (08:54:32.849) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:54:32.852) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'out of edit', 'button', 'Ask']
+IO - inputCore.InputManager.executeGesture (08:54:34.121) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:54:34.125) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'out of section', 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:54:35.401) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:54:35.404) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:54:36.677) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:54:36.680) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:54:37.947) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:54:37.951) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - speech.speech.speak (08:54:39.618) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:39.631) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:39.635) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:39.637) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:39.670) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:54:41.052) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check vfobjk - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:41.064) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check vfobjk', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:41.066) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:54:41.947) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:54:41.950) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check vfobjk - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:54:43.860) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:54:44.129) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:54:44.133) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:54:45.406) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:54:45.410) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Ask a question', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:54:46.681) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:54:46.684) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:54:48.348) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:48.364) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:48.367) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:48.370) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:48.399) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:54:49.740) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ancggj - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:49.751) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ancggj', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:49.753) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:54:50.635) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:54:50.637) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ancggj - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:54:52.549) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:54:52.814) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:54:52.817) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:54:54.126) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Voicecap Test Agency', 'link']
+IO - inputCore.InputManager.executeGesture (08:54:55.405) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:54:55.455) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:55.458) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:55.464) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:54:56.737) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:54:56.775) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your question', 'edit', 'required', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:54:58.046) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:54:58.082) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Ask', 'button']
+IO - inputCore.InputManager.executeGesture (08:54:59.354) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:54:59.374) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Ask a question | Voicecap Test Agency - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:54:59.383) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:55:00.823) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:55:00.825) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check bkcbaa - Google Chrome']
+IO - speech.speech.speak (08:55:02.496) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:02.510) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:02.513) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:02.516) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:02.552) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:55:03.875) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check qhravt - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:03.886) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check qhravt', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:03.889) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:55:04.773) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:55:04.776) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check qhravt - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:55:06.680) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:55:06.942) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:55:06.945) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:55:08.835) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:08.837) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:08.845) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:55:10.110) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:55:10.153) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your question', 'edit', 'required', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:55:11.439) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:55:11.479) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Ask', 'button']
+IO - inputCore.InputManager.executeGesture (08:55:12.752) - winInputHook (1704):
+Input: kb(desktop):enter
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:55:19.057) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+IO - speech.speech.speak (08:55:21.027) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:21.041) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:21.043) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:21.050) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:21.084) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:55:22.427) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pxjbda - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:22.439) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pxjbda', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:22.441) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:55:23.324) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:55:23.327) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pxjbda - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:55:25.219) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:55:25.476) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:55:25.479) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:55:26.862) - winInputHook (1704):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:55:26.865) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:55:28.149) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:55:28.153) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:55:29.423) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:55:29.426) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'heading', 'level 1', 'Request a callback']
+IO - inputCore.InputManager.executeGesture (08:55:30.695) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:55:30.699) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'section', 'Your name ', 'edit', 'required', ' ']
+IO - inputCore.InputManager.executeGesture (08:55:31.969) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:55:31.973) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Phone ', 'edit', 'required', ' ']
+IO - inputCore.InputManager.executeGesture (08:55:33.249) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:55:33.253) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Call me']
+IO - inputCore.InputManager.executeGesture (08:55:34.524) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:55:34.527) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'out of section', 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:55:35.799) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:55:35.802) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:55:37.071) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:55:37.074) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:55:38.347) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:55:38.350) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - speech.speech.speak (08:55:40.000) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:40.014) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:40.018) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:40.022) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:40.053) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:55:41.405) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check dfjnaq - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:41.416) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check dfjnaq', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:41.419) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:55:42.306) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:55:42.309) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check dfjnaq - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:55:44.162) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:55:44.431) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:55:44.434) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:55:45.705) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:55:45.710) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Request a callback', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:55:46.980) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:55:46.983) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:55:48.640) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:48.653) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:48.657) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:48.660) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:48.688) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:55:50.034) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check igbaiv - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:50.047) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check igbaiv', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:50.049) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:55:50.928) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:55:50.930) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check igbaiv - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:55:53.031) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:55:53.293) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:55:53.296) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:55:54.602) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Voicecap Test Agency', 'link']
+IO - inputCore.InputManager.executeGesture (08:55:55.883) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:55:55.933) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:55.936) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:55.942) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:55:57.215) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:55:57.257) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:55:58.535) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:55:58.573) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Call me', 'button']
+IO - inputCore.InputManager.executeGesture (08:55:59.839) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:55:59.859) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Request a callback | Voicecap Test Agency - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:55:59.868) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:56:01.302) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:56:01.304) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check idyimf - Google Chrome']
+IO - speech.speech.speak (08:56:02.960) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:56:02.974) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:56:02.979) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:56:02.984) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:56:03.019) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:56:04.368) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check skgwgb - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:56:04.378) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check skgwgb', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:56:04.381) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:56:05.262) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:56:05.264) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check skgwgb - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:56:07.232) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:56:07.493) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:56:07.497) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:56:09.373) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:56:09.376) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:56:09.382) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:56:10.662) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:56:10.703) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:56:11.983) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:56:12.022) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Call me', 'button']
+IO - inputCore.InputManager.executeGesture (08:56:13.307) - winInputHook (1704):
+Input: kb(desktop):enter
+IO - speech.speech.speak (08:56:13.348) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '2 fields need fixing. ']
+IO - speech.speech.speak (08:56:13.380) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', 'invalid entry', 'Enter your name.', CancellableSpeech (still valid), 'blank']
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:56:21.073) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+IO - inputCore.InputManager.executeGesture (08:56:22.991) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:56:23.032) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', 'invalid entry', 'Enter a phone number.', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:56:24.312) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:56:24.349) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Call me', 'button']
+IO - speech.speech.speak (08:56:25.656) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', 'invalid entry', 'Enter your name.', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:56:41.498) - winInputHook (1704):
+Input: kb(desktop):space
+IO - speech.speech.speak (08:56:41.517) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'space', EndUtteranceCommand()]
+IO - inputCore.InputManager.executeGesture (08:56:49.627) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:56:49.670) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', 'invalid entry', 'Enter a phone number.', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:56:50.949) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:56:50.990) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Call me', 'button']
+IO - inputCore.InputManager.executeGesture (08:56:52.270) - winInputHook (1704):
+Input: kb(desktop):enter
+IO - speech.speech.speak (08:56:52.302) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '1 field needs fixing. ']
+IO - speech.speech.speak (08:56:52.331) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', 'invalid entry', 'Enter a phone number.', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:56:58.982) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', CancellableSpeech (still valid), 'voicecap test']
+IO - inputCore.InputManager.executeGesture (08:57:00.249) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:57:00.293) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', 'invalid entry', 'Enter a phone number.', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:57:01.566) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:57:01.606) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Call me', 'button']
+IO - speech.speech.speak (08:57:02.924) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', CancellableSpeech (still valid), 'voicecap test']
+IO - inputCore.InputManager.executeGesture (08:57:04.203) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:57:04.246) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', 'invalid entry', 'Enter a phone number.', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:57:25.924) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:57:25.964) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Call me', 'button']
+IO - inputCore.InputManager.executeGesture (08:57:27.242) - winInputHook (1704):
+Input: kb(desktop):enter
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:57:33.536) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+IO - speech.speech.speak (08:57:35.951) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:35.965) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:35.967) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:35.971) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:36.001) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:57:37.346) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check uoyist - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:37.358) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check uoyist', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:37.361) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:57:38.242) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:57:38.244) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check uoyist - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:57:40.114) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:57:40.373) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:57:40.377) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:57:41.760) - winInputHook (1704):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:57:41.763) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:57:43.034) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:57:43.037) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:57:44.317) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:57:44.321) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'heading', 'level 1', 'Apply for a program']
+IO - inputCore.InputManager.executeGesture (08:57:45.594) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:57:45.597) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'section', 'Your name', 'edit', 'required', ' ']
+IO - inputCore.InputManager.executeGesture (08:57:46.870) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:57:46.873) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Date of birth', 'edit', 'read only', 'required', ' ']
+IO - inputCore.InputManager.executeGesture (08:57:48.148) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:57:48.152) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'button', 'Apply']
+IO - inputCore.InputManager.executeGesture (08:57:49.428) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:57:49.431) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'out of section', 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:57:50.699) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:57:50.702) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:57:51.974) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:57:51.977) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:57:53.247) - winInputHook (1704):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:57:53.251) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - speech.speech.speak (08:57:54.932) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:54.949) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:54.954) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:54.956) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:54.987) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:57:56.309) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check xnfmrr - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:56.320) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check xnfmrr', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:57:56.323) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:57:57.206) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:57:57.208) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check xnfmrr - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:57:59.075) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:57:59.342) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:57:59.346) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:58:00.614) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:58:00.617) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Apply for a program', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:58:01.889) - winInputHook (1704):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:58:01.891) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:58:03.552) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:03.567) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:03.570) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:03.573) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:03.603) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:58:04.924) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yhadbg - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:04.934) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yhadbg', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:04.937) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:58:05.820) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:58:05.822) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check yhadbg - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:58:07.683) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:58:07.939) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:58:07.942) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:58:09.256) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Voicecap Test Agency', 'link']
+IO - inputCore.InputManager.executeGesture (08:58:10.537) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:58:10.588) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:10.590) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:10.596) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:58:11.879) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:58:11.927) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Apply', 'button']
+IO - inputCore.InputManager.executeGesture (08:58:13.205) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:58:13.227) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Apply for a program | Voicecap Test Agency - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:13.235) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:58:14.667) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:58:14.670) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check iihzai - Google Chrome']
+IO - speech.speech.speak (08:58:16.363) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:16.378) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:16.381) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Claude Code', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:16.384) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:16.422) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Prompt', 'edit', 'multi line', CancellableSpeech (still valid), 'blank']
+IO - speech.speech.speak (08:58:17.748) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check zmmytk - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:17.759) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check zmmytk', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:17.762) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (08:58:18.626) - winInputHook (1704):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:58:18.628) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check zmmytk - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:58:20.479) - winInputHook (1704):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:58:20.740) - winInputHook (1704):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:58:20.743) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Voicecap Test Agency']
+IO - speech.speech.speak (08:58:22.619) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:22.622) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:58:22.628) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:58:23.898) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:58:23.938) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Apply', 'button']
+IO - inputCore.InputManager.executeGesture (08:58:25.205) - winInputHook (1704):
+Input: kb(desktop):enter
+IO - speech.speech.speak (08:58:25.243) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), '2 fields need fixing. ']
+IO - speech.speech.speak (08:58:25.273) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', 'required', 'invalid entry', 'Enter your name.', CancellableSpeech (still valid), 'blank']
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:58:32.935) - Thread-4 (run) (36204):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+IO - inputCore.InputManager.executeGesture (08:58:34.822) - winInputHook (1704):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:58:34.859) - MainThread (55436):
+Speaking [LangChangeCommand ('en_US'), 'Apply', 'button']

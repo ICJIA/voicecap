@@ -23,7 +23,8 @@ import {
   type RecorderStop,
 } from "../src/drivers/guidepup/voice-recorder.js";
 import { ForegroundError, type EventRecorder, type VoiceCapture } from "../src/drivers/types.js";
-import type { NewRunEvent, VoiceRecord } from "../src/model.js";
+import type { FormInfo, FormState } from "../src/forms/types.js";
+import type { NewRunEvent, PassName, VoiceRecord } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
 import { openEventLog, readEventLog } from "../src/run/events.js";
 import { EnvironmentError, errorCode } from "../src/util/errors.js";
@@ -260,7 +261,8 @@ function setup(options: Setup = {}) {
       nvdaExe: `${cacheDir}\\nvda\\all\\0.2.1-2026.2\\extracted\\nvda.exe`,
     },
     installed: () => options.installed ?? true,
-    launchBrowser: async (signal) => {
+    launchBrowser: async (signal, launch) => {
+      desktop.guardedLaunches.push(launch?.guarded === true);
       if (desktop.launchGate) {
         const launched = desktop.launchGate.wait();
         if (desktop.launchesOutliveKill) {
@@ -2552,6 +2554,32 @@ describe("NVDA's own log", () => {
       expect(copy).not.toMatch(/\bpat\b/);
     });
 
+    it("keeps Enter and Space, and what NVDA said after them, only for a run with the forms pass", async () => {
+      const ENTER_LOG = [
+        "IO - inputCore.InputManager.executeGesture (09:00:01.000) - winInputHook (5200):",
+        "Input: kb(desktop):tab",
+        "IO - inputCore.InputManager.executeGesture (09:00:02.000) - winInputHook (5200):",
+        "Input: kb(desktop):enter",
+        "IO - speech.speech.speak (09:00:02.100) - MainThread (4100):",
+        "Speaking [LangChangeCommand ('en_US'), 'Thank you', CancellableSpeech (still valid)]",
+        "",
+      ].join("\r\n");
+      const copyOf = async (passes: PassName[]) => {
+        const { driver, desktop, recorder } = recordingLogs({ config: { passes } });
+        desktop.nvdaLog = ENTER_LOG;
+        await driver.start();
+        await driver.stop();
+        return recorder.logs[0] ?? "";
+      };
+      const ordinary = await copyOf(["read", "headings", "tab"]);
+      expect(ordinary).toContain("Input: kb(desktop):tab");
+      expect(ordinary).not.toContain("Input: kb(desktop):enter");
+      expect(ordinary).not.toContain("Thank you");
+      const forms = await copyOf(["read", "forms"]);
+      expect(forms).toContain("Input: kb(desktop):enter");
+      expect(forms).toContain("Thank you");
+    });
+
     it("keeps a copy for each NVDA session, a restart's and then the final stop's, in order", async () => {
       const { driver, desktop, recorder } = recordingLogs();
       desktop.ownNvda = [OWN_NVDA];
@@ -4134,6 +4162,34 @@ describe("keeping only each pass's own stretch of a recording", () => {
     ]);
   });
 
+  it("tags each stretch with the pass the core said it was opening the page for, and none when it said none", async () => {
+    const { driver, desktop } = onDesktopTime();
+    await driver.start();
+    desktop.behind = BEHIND;
+    const recording = await driver.recordVoice();
+    // A load before any pass is named has no tag.
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    driver.beginPass("read");
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    // The forms pass makes a stretch for each load that presses a key.
+    driver.beginPass("forms");
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    const capture = await recording.stop();
+
+    expect(stretchesOf(capture).map((stretch) => (stretch as { pass?: string }).pass)).toEqual([
+      undefined,
+      "read",
+      "forms",
+      "forms",
+    ]);
+    expect(JSON.stringify(stretchesOf(capture)[0])).not.toContain("pass");
+  });
+
   it("asks Windows to confirm a check only while NVDA's voice is being recorded", async () => {
     const quiet = setup();
     await quiet.driver.start();
@@ -4634,5 +4690,109 @@ describe("Windows Search or the Start menu in front of the browser", () => {
       ESCAPE_SEARCH,
       { type: "foreground-escape", program: START_MENU },
     ]);
+  });
+});
+
+describe("the forms pass's side of the driver", () => {
+  const FORM: FormInfo = {
+    index: 0,
+    signature: "signup",
+    kind: "test",
+    site: null,
+    fields: [{ index: 0, name: "Name", type: "text", required: true, tabIndex: 0 }],
+    submitName: "Send",
+    sensitive: false,
+    captcha: false,
+  };
+  const STATE: FormState = {
+    focused: null,
+    focusedField: 0,
+    focusedSubmit: false,
+    invalid: [],
+    emptyRequired: [],
+    messages: [],
+    liveChanged: false,
+    heldRequests: 0,
+    present: true,
+    bubble: null,
+  };
+
+  /** A started driver with a guarded page open. */
+  async function guarded() {
+    const made = setup();
+    await made.driver.start();
+    await made.driver.openPage(URL_HOME, { guarded: true });
+    made.desktop.session.forms = [FORM];
+    made.desktop.session.formStateRead = STATE;
+    return made;
+  }
+
+  it("launches a browser with the form guard's gate for a guarded load, never the one it started with", async () => {
+    const { driver, desktop } = setup();
+    await driver.start();
+    expect(desktop.guardedLaunches).toEqual([false]);
+    await driver.openPage(URL_HOME, { guarded: true });
+    // The browser launched at start is closed unused, and the load has its own, with a gate.
+    expect(desktop.guardedLaunches).toEqual([false, true]);
+    expect(desktop.sessions[0]?.closed).toBe(true);
+    expect(desktop.sessions[1]?.closed).toBe(false);
+  });
+
+  it("launches an unguarded browser for any other load, and the first uses the one it started with", async () => {
+    const { driver, desktop } = setup();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    await driver.openPage(URL_HOME);
+    expect(desktop.guardedLaunches).toEqual([false, false]);
+  });
+
+  it("finds the forms, arms the guard, and reads a form's state through the browser", async () => {
+    const { driver, desktop } = await guarded();
+    expect(await driver.findForms()).toEqual([FORM]);
+    await driver.armFormGuard();
+    expect(await driver.formState(0)).toEqual(STATE);
+    expect(desktop.session.formCalls).toEqual(["scan", "arm", "state 0"]);
+  });
+
+  it("presses Enter through NVDA for a press, with the settle time, and gives what NVDA said", async () => {
+    const { driver, nvda } = await guarded();
+    await expect(driver.pressSubmit(0, 3000)).resolves.toBe("enter speech");
+    expect(nvda.formKeys).toEqual(["Enter (settle 3000)"]);
+  });
+
+  it("fills by keys through NVDA: typed text, Space, or Down Arrow, and never by script", async () => {
+    const { driver, nvda, desktop } = await guarded();
+    await driver.fillField({ kind: "text", text: "voicecap test" });
+    await driver.fillField({ kind: "space" });
+    await driver.fillField({ kind: "arrow" });
+    expect(nvda.formKeys).toEqual(["type: voicecap test", "Space", "ArrowDown"]);
+    // The browser was asked to do nothing: no focus move, no value set.
+    expect(desktop.session.formCalls).toEqual([]);
+  });
+
+  it("enters a form by moving focus to its field, and tabs on through NVDA after that", async () => {
+    const { driver, desktop } = await guarded();
+    await expect(driver.focusFormField(0, 0)).resolves.toBe("field 0 speech");
+    expect(desktop.session.formCalls).toEqual(["focus 0.0"]);
+    // The next Tab is NVDA's, not the browser's own first Tab.
+    await driver.nextFocusable();
+    expect(desktop.session.chromeTabs).toBe(0);
+  });
+
+  it("checks a form with axe, limited to the form", async () => {
+    const { driver, desktop } = await guarded();
+    const raw = rawAxe();
+    const checked = await driver.checkFormWithAxe(0);
+    expect(checked).toEqual(keptAxeResults(raw, URL_HOME));
+    expect(desktop.session.axeWithin).toEqual([{ form: 0 }]);
+    await driver.checkWithAxe();
+    expect(desktop.session.axeWithin.at(-1)).toBeUndefined();
+  });
+
+  it("refuses a key while the browser isn't in front, as every key does", async () => {
+    const { driver, desktop, nvda } = await guarded();
+    desktop.front = "other";
+    await expect(driver.pressSubmit(0, 0)).rejects.toThrow(ForegroundError);
+    expect(nvda.formKeys).toEqual([]);
   });
 });

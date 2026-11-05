@@ -21,6 +21,7 @@ import {
   type FileHash,
   type FlagResult,
   type NewRunEvent,
+  type DefaultPassName,
   type PassName,
   type ReviewsFile,
   type RunEvent,
@@ -58,7 +59,7 @@ export const NO_TRANSCRIPTS: TranscriptStore = { txt: () => null, steps: () => n
 export const TRANSCRIPTS = ["read.txt", "headings.txt", "tab.txt"];
 
 /** What NVDA said, for every page of the runs built in memory. */
-export const LINES: Record<PassName, string[]> = {
+export const LINES: Record<DefaultPassName, string[]> = {
   read: [
     "banner landmark, link, Skip to main content",
     "heading, level 1, Grants",

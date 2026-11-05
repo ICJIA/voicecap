@@ -1,4 +1,77 @@
+import type { PassName } from "../model.js";
 import type { VoicecapConfig } from "./schema.js";
+
+/**
+ * What the forms pass takes where the config sets nothing for it. They aren't in DEFAULT_CONFIG: a
+ * config's SHA-256 is that of the settings it holds, and a config that doesn't ask for the forms
+ * pass hashes as it did before the pass existed.
+ */
+export const FORMS_DEFAULTS = {
+  stepCap: 500,
+  settleMs: 3000,
+  maxPerPage: 5,
+  /**
+   * By input type, as the keys are typed; `text` is for any other typed field. A check box, radio, or
+   * list needs none. `date` is a US date: month, day, year. Types with no value here and no way to
+   * type one, such as `file`, need a config's, and a form that requires one without it isn't tested.
+   */
+  values: {
+    text: "voicecap test",
+    email: "test@example.com",
+    tel: "555-555-5555",
+    number: "1",
+    url: "https://example.org",
+    date: "01012026",
+  } as Record<string, string>,
+  /**
+   * NVDA's English words the forms pass's flag rules listen for (matched in any case, anywhere in
+   * what it said): the state it gives a required field, and the one it gives an invalid field. NVDA
+   * 2026.2 says "required" at every required field, and "invalid entry" at an invalid one, and also,
+   * before any press, at an untouched required radio button, list, and check box (the PC trial of
+   * 2026-10-30), so the rules never take "invalid entry" alone as proof of an error.
+   */
+  words: {
+    required: ["required"],
+    invalid: ["invalid entry"],
+    // The roles NVDA gives the fields the pass fills, right after the name, as it announces one at
+    // focus: a text field, a textarea ("edit, required, multi line": multi line is a state, after
+    // the role), a list, a check box, a radio button, a number field, a range, and a date field.
+    fieldRoles: [
+      "edit",
+      "date edit",
+      "combo box",
+      "check box",
+      "radio button",
+      "list",
+      "spin button",
+      "slider",
+    ],
+    // How NVDA may say a symbol at the end of a field's name ("Email *" as "Email star").
+    spokenSymbols: ["star", "asterisk"],
+  } as {
+    required: readonly string[];
+    invalid: readonly string[];
+    fieldRoles: readonly string[];
+    spokenSymbols: readonly string[];
+  },
+};
+
+/** The forms pass's settings as the config has them, with FORMS_DEFAULTS for each it leaves out. */
+export function formsSettingsOf(
+  config: VoicecapConfig,
+): Required<NonNullable<VoicecapConfig["forms"]>> {
+  const { settleMs, maxPerPage, values } = config.forms ?? {};
+  return {
+    settleMs: settleMs ?? FORMS_DEFAULTS.settleMs,
+    maxPerPage: maxPerPage ?? FORMS_DEFAULTS.maxPerPage,
+    values: values ?? FORMS_DEFAULTS.values,
+  };
+}
+
+/** The most steps a pass may take, by the config: the forms pass has FORMS_DEFAULTS' where it sets none. */
+export function stepCapOf(config: VoicecapConfig, pass: PassName): number {
+  return config.stepCaps[pass] ?? FORMS_DEFAULTS.stepCap;
+}
 
 /**
  * Defaults for every setting. The NVDA phrasing (stop detection and flag rules) assumes NVDA's

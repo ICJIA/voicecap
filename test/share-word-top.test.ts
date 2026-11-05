@@ -269,6 +269,7 @@ describe("wordGlance", () => {
       "table",
       "table",
       "para",
+      "para",
       "pageBreak",
     ]);
     expect(glance[0]).toEqual(heading(1, "At a glance"));
@@ -280,7 +281,11 @@ describe("wordGlance", () => {
     // voicecap and the person each did; then a page break, so At a glance has the first page.
     expect(glance[2]).toEqual(para(model.summary.sentence));
     expect(wordsOf(glance.slice(2, 3))).toEqual(["NVDA read all 7 pages."]);
-    expect(glance[5]).toEqual(para(model.summary.second));
+    // The demo's run is from before the forms pass: a line says it did not record the forms.
+    expect(wordsOf(glance.slice(5, 6))).toEqual([
+      "Forms: not recorded: this run used voicecap 0.4.1.",
+    ]);
+    expect(glance[6]).toEqual(para(model.summary.second));
     expect(glance.at(-1)).toEqual(PAGE_BREAK);
   });
 
@@ -450,8 +455,19 @@ describe("wordGlance", () => {
     // The verdict says "Nothing needs attention" of no page, which no one read: it isn't shown.
     expect(empty.header.tested).not.toBeNull();
     expect(empty.result.pages).toBe(0);
-    expect(glance.map(({ kind }) => kind)).toEqual(["heading", "para", "para", "pageBreak"]);
-    expect(wordsOf(glance)).toEqual(["At a glance", empty.summary.sentence, empty.summary.second]);
+    expect(glance.map(({ kind }) => kind)).toEqual([
+      "heading",
+      "para",
+      "para",
+      "para",
+      "pageBreak",
+    ]);
+    expect(wordsOf(glance)).toEqual([
+      "At a glance",
+      empty.summary.sentence,
+      expect.stringMatching(/^Forms: not recorded: this run used voicecap \d/),
+      empty.summary.second,
+    ]);
     expect(wordsOf(glance).join("\n")).not.toContain("Nothing needs attention");
   });
 

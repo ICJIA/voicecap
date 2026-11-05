@@ -1,0 +1,21 @@
+{
+  "axeVersion": "4.14.0",
+  "counts": {
+    "inapplicable": 52,
+    "incomplete": 0,
+    "passes": 39,
+    "violations": 0
+  },
+  "incomplete": [],
+  "schemaVersion": 1,
+  "tags": [
+    "wcag2a",
+    "wcag2aa",
+    "wcag21a",
+    "wcag21aa",
+    "wcag22aa",
+    "best-practice"
+  ],
+  "url": "http://127.0.0.1:4747/forms/unreachable/",
+  "violations": []
+}

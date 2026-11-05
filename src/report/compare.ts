@@ -4,7 +4,14 @@ import path from "node:path";
 
 import { createTwoFilesPatch, FILE_HEADERS_ONLY } from "diff";
 
-import type { EnvironmentRecord, PageRecord, PageRef, PassName, RunJson } from "../model.js";
+import {
+  PASS_NAMES,
+  type EnvironmentRecord,
+  type PageRecord,
+  type PageRef,
+  type PassName,
+  type RunJson,
+} from "../model.js";
 import { describePageUrls } from "../pages/describe.js";
 import { DATE_FOLDER, pageDir } from "../run/paths.js";
 import { assertRunWritable, listRuns, readRunJson } from "../run/store.js";
@@ -271,8 +278,7 @@ async function readBody(
 }
 
 function unionPasses(a: PageRecord, b: PageRecord): PassName[] {
-  const order: PassName[] = ["read", "headings", "tab"];
-  return order.filter((pass) => a.passes[pass] !== undefined || b.passes[pass] !== undefined);
+  return PASS_NAMES.filter((pass) => a.passes[pass] !== undefined || b.passes[pass] !== undefined);
 }
 
 function pageRef(page: PageRecord): PageRef {

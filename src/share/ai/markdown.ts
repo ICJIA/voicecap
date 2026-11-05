@@ -53,7 +53,9 @@ import {
   type AxeViewRule,
 } from "../axe-view.js";
 import type { DiffLine, OnlyInOnePage, PageChange } from "../changes.js";
-import { count, pagePath, pageTitle } from "../format.js";
+import { wcagOf } from "../../flags/wcag.js";
+import { count, names, pagePath, pageTitle } from "../format.js";
+import { bannerLine, formFoldWords, glanceBannerOf, showsFormName } from "../forms-view.js";
 import { firstSentenceBold, type Inline, type Line } from "../line.js";
 import type {
   AppendixFile,
@@ -72,14 +74,15 @@ import {
   ATTENTION_TEXT,
   AXE_TEXT,
   CHANGES_TEXT,
+  FORMS_TEXT,
   COVERAGE_TEXT,
   DETAILS_TEXT,
   EVIDENCE_TEXT,
   GLANCE_TEXT,
   ownWords,
   PAGES_TEXT,
-  PASS_TITLE,
-  PASS_WORDS,
+  passTitle,
+  passWords,
   PROBLEMS_TEXT,
   SUMMARY_TEXT,
   TOP_TEXT,
@@ -319,8 +322,22 @@ function glanceBlocks(model: ShareModel): Block[] {
           bullets(numbers),
         ]
       : []),
+    ...formsGlanceBlocks(model),
     paragraph(summary.second),
   ];
+}
+
+/**
+ * At a glance's line on the forms, once the run has the forms pass: its sign and words in bold, and
+ * the line that names the pages whose forms don't work. A run from before the pass says it did not
+ * record them; a run with no forms pass, or none checked, says nothing.
+ */
+function formsGlanceBlocks({ forms }: ShareModel): Block[] {
+  if (forms === null) return [];
+  if ("notRecorded" in forms) return [paragraph(notRecordedLine(ownWords(forms.notRecorded)))];
+  const banner = glanceBannerOf(forms, names);
+  if (banner === null) return [];
+  return [label(bannerLine(banner)), ...(banner.detail === "" ? [] : [paragraph(banner.detail)])];
 }
 
 // What needs attention.
@@ -417,7 +434,7 @@ function attentionBlocks(model: ShareModel, pages: Pages): Block[] {
  * (`stepsOf`). A transcript with no lines says so.
  */
 function transcriptBlocks(file: AppendixFile, path: string): Block[] {
-  const title = `${PASS_TITLE[file.pass]} ${APPENDIX_TEXT.transcriptOf} ${path}, ${lineCount(file.lines)}`;
+  const title = `${passTitle(file.pass)} ${APPENDIX_TEXT.transcriptOf} ${path}, ${lineCount(file.lines)}`;
   return [
     heading(5, title),
     lineOf(fileFingerprint(file)),
@@ -430,7 +447,7 @@ function transcriptBlocks(file: AppendixFile, path: string): Block[] {
 /** A transcript the run recorded but that couldn't be read here, said in its place. */
 function unreadableBlocks(pass: PassName, path: string): Block[] {
   return [
-    heading(5, `${PASS_TITLE[pass]} ${APPENDIX_TEXT.transcriptOf} ${path}`),
+    heading(5, `${passTitle(pass)} ${APPENDIX_TEXT.transcriptOf} ${path}`),
     paragraph(sentence(APPENDIX_TEXT.unreadable)),
   ];
 }
@@ -470,7 +487,7 @@ function flagLines(card: PageCard): string[] {
   return [
     item(`${PAGES_TEXT.flagsRaised}:`),
     ...card.flags.map((flag) => {
-      const pass = flag.pass === undefined ? "" : ` (${PASS_WORDS[flag.pass]} pass)`;
+      const pass = flag.pass === undefined ? "" : ` (${passWords(flag.pass)} pass)`;
       return `  - ${inlineCode(flag.rule)}${pass}: ${markdownInline(flag.message)}`;
     }),
     ...recorded,
@@ -609,6 +626,63 @@ function axeCounts(view: AxeView): string {
   return sentence(counts.map(([term, value]) => `${term}: ${count(value)}`).join("; "));
 }
 
+// What the forms pass found.
+
+/**
+ * Each form's banner, first among what a page says of its forms: the form's name when the page has
+ * more than one, the sign and headline in bold, its line, the flags that decided it with the WCAG
+ * criteria each may relate to (a person decides), and what axe found with its errors showing.
+ */
+function formBannerBlocks({ forms }: PageCard): Block[] {
+  if (forms === undefined || !("forms" in forms)) return [];
+  return forms.forms.flatMap((form) => [
+    ...(showsFormName(form, forms.forms.length) ? [paragraph(form.label)] : []),
+    label(bannerLine(form.banner)),
+    ...(form.banner.detail === "" ? [] : [paragraph(form.banner.detail)]),
+    ...(form.flagsLeft.length === 0
+      ? []
+      : [
+          bullets(
+            form.flagsLeft.map((flag) => {
+              const criteria = wcagOf(flag.rule);
+              const wcag = criteria.length === 0 ? "" : ` (WCAG ${names([...criteria])})`;
+              return `${flag.rule}${wcag}: ${flag.message}`;
+            }),
+          ),
+        ]),
+    paragraph(form.axe),
+  ]);
+}
+
+/** "What happened at the form", as the card's fold has it: each form's fields, presses, and axe line. */
+function formFoldBlocks({ forms }: PageCard): Block[] {
+  if (forms === undefined) return [];
+  const title = heading(4, FORMS_TEXT.fold);
+  if ("notRecorded" in forms) {
+    return [title, paragraph(notRecordedLine(ownWords(forms.notRecorded)))];
+  }
+  if (forms.forms.length === 0) return [];
+  return [
+    title,
+    ...forms.forms.flatMap((form) => {
+      const words = formFoldWords(form);
+      return [
+        label(words.label),
+        ...(words.fields.length === 0
+          ? [paragraph(words.fieldsHead)]
+          : [
+              paragraph(words.fieldsHead),
+              bullets(words.fields.map(({ name, said }) => `${name}: ${said}`)),
+            ]),
+        ...(words.presses.length === 0
+          ? [paragraph(words.pressesHead)]
+          : [paragraph(words.pressesHead), numbered(words.presses)]),
+        paragraph(words.axe),
+      ];
+    }),
+  ];
+}
+
 /**
  * What axe found on a page, as its card's fold has it: what axe is, its version and the rules it
  * ran, the counts, the issues most severe first (or that axe found none), what needs review, and the
@@ -662,7 +736,9 @@ function pageBlocks(
   return [
     heading(3, `${number}. ${card.labeled ? `${card.name} (${card.path})` : card.path}`),
     factsBlock(card),
+    ...formBannerBlocks(card),
     ...heardFirstBlocks(card),
+    ...formFoldBlocks(card),
     ...axeBlocks(card),
     ...(transcripts === undefined ? [] : saidBlocks(card, transcripts, latest)),
   ];

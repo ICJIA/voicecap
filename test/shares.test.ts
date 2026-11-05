@@ -302,6 +302,22 @@ describe("appendShare", () => {
     ]);
   });
 
+  it("records the forms a run checked and how many work, after the numbers, for the website's card", async () => {
+    const recorded = await appendShare(siteDir, {
+      ...entry,
+      result: {
+        pages: 9,
+        read: 9,
+        problems: 0,
+        problemPages: 0,
+        forms: { found: 4, working: 3, notChecked: 1 },
+      },
+    });
+    expect(recorded.result?.forms).toEqual({ found: 4, working: 3, notChecked: 1 });
+    expect(Object.keys(recorded.result?.forms ?? {})).toEqual(["found", "working", "notChecked"]);
+    expect(Object.keys(recorded.result ?? {}).at(-1)).toBe("forms");
+  });
+
   it("records no result for an entry that has none, as an entry from before 0.12.3 has none", async () => {
     const recorded = await appendShare(siteDir, entry);
     expect(recorded).not.toHaveProperty("result");

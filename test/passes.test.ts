@@ -21,6 +21,7 @@ const settings: PassSettings = {
   endConfirmations: 1,
   noNextHeading: /^no next heading$/i,
   stepTimeoutMs: 1000,
+  forms: { settleMs: 0, values: {} },
 };
 
 async function run(

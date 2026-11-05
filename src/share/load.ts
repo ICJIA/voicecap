@@ -10,6 +10,8 @@ import { lstat, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { VoicecapConfig } from "../config/schema.js";
+import { readFormsResults } from "../forms/result-file.js";
+import type { FormFlagInput } from "../flags/forms.js";
 import {
   evaluateFlags,
   flagRulesSha256,
@@ -19,6 +21,7 @@ import {
 import { listManualSessions, type ManualSessionFile } from "../manual/list.js";
 import {
   AXE_FILE,
+  FORMS_FILE,
   PASS_NAMES,
   SCREENSHOT_FILE,
   VOICE_FILE,
@@ -41,7 +44,13 @@ import { listRuns } from "../run/store.js";
 import { fileHash } from "../transcripts/write.js";
 import { UsageError } from "../util/errors.js";
 import { isoLocal } from "../util/time.js";
-import { axeRecordOf, isFileHash, screenshotRecordOf, voiceRecordOf } from "./records.js";
+import {
+  axeRecordOf,
+  formsRecordOf,
+  isFileHash,
+  screenshotRecordOf,
+  voiceRecordOf,
+} from "./records.js";
 import type { GestureOf } from "./run-log-check.js";
 import { cardRecord, runBefore, standingOf, type Standing } from "./standing.js";
 
@@ -129,6 +138,13 @@ export interface ShareInput {
    * results, and the card says so.
    */
   axeFiles: Map<string, string>;
+  /**
+   * The text of the forms file (forms-result.json) of each page the page shows a form's result for,
+   * as `axeFiles` holds axe's: by run id and page slug, of the record its card speaks for, only when
+   * its record lists one and only as the record has it. Optional: a model made without it shows no
+   * form's result.
+   */
+  formsFiles?: Map<string, string>;
   /**
    * The recording of NVDA's voice (voice.webm) of each page the voice page can play one for, by run
    * id and page slug, as `screenshots` holds a picture: the file of the record its card speaks for
@@ -224,19 +240,27 @@ export async function loadShareInput(options: {
   for (const { run, page } of pagesToRead(standing)) {
     read.set(storeKey(run.id, page.slug), await readPage(siteDir, run.id, page));
   }
-  const [reviews, manual, unreadableRuns, events, nvdaLogs, screenshots, axeFiles, recordings] =
-    await Promise.all([
-      readReviews(siteDir),
-      listManualSessions(siteDir),
-      runsNotRead(siteDir, records),
-      eventLogsOf(siteDir, standing.drawnOn),
-      nvdaLogsOf(siteDir, standing.drawnOn),
-      screenshotsOf(siteDir, standing),
-      axeFilesOf(siteDir, standing),
-      options.recordings === false
-        ? new Map<string, Uint8Array>()
-        : recordingsOf(siteDir, standing),
-    ]);
+  const [
+    reviews,
+    manual,
+    unreadableRuns,
+    events,
+    nvdaLogs,
+    screenshots,
+    axeFiles,
+    formsFiles,
+    recordings,
+  ] = await Promise.all([
+    readReviews(siteDir),
+    listManualSessions(siteDir),
+    runsNotRead(siteDir, records),
+    eventLogsOf(siteDir, standing.drawnOn),
+    nvdaLogsOf(siteDir, standing.drawnOn),
+    screenshotsOf(siteDir, standing),
+    axeFilesOf(siteDir, standing),
+    formsFilesOf(siteDir, standing),
+    options.recordings === false ? new Map<string, Uint8Array>() : recordingsOf(siteDir, standing),
+  ]);
   const gestureOf = options.gestureOf ?? null;
   // The steps of every page of a run that kept copies, which its copies are checked against: read
   // only when there is a check to make.
@@ -267,6 +291,7 @@ export async function loadShareInput(options: {
     gestureOf,
     screenshots,
     axeFiles,
+    formsFiles,
     recordings,
     siteName: config.report.siteName,
     flagRules: config.flags,
@@ -284,6 +309,11 @@ export async function loadShareInput(options: {
 interface PageTranscripts {
   txt: Partial<Record<PassName, string>>;
   json: Partial<Record<PassName, TranscriptJson>>;
+  /**
+   * The forms pass's results (forms-result.json), where the page's record lists the file and it is
+   * there as recorded and is one voicecap can read; the forms rules read them.
+   */
+  forms?: FormFlagInput[];
 }
 
 const storeKey = (run: string, slug: string): string => `${run}/${slug}`;
@@ -339,6 +369,9 @@ async function readPage(
       if (transcript !== null) read.json[pass] = transcript;
     }),
   );
+  const kept = await readAsRecorded(path.join(dir, FORMS_FILE), page.forms);
+  const forms = kept === null ? null : readFormsResults(kept.toString("utf8"));
+  if (forms !== null) read.forms = forms;
   return read;
 }
 
@@ -480,6 +513,24 @@ async function axeFilesOf(siteDir: string, standing: Standing): Promise<ShareInp
 }
 
 /**
+ * The forms file of each page, by run id and slug, as `axeFilesOf` finds axe's: only when its record
+ * lists one, as UTF-8 text exactly as its bytes are, "" for bytes that aren't.
+ */
+async function formsFilesOf(siteDir: string, standing: Standing): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  for (const [key, bytes] of await filesAsRecorded(siteDir, standing, FORMS_FILE, formsRecordOf)) {
+    let text = "";
+    try {
+      text = UTF8.decode(bytes);
+    } catch {
+      // Not UTF-8 text, so no results as voicecap keeps them.
+    }
+    files.set(key, text);
+  }
+  return files;
+}
+
+/**
  * The recording of NVDA's voice of each page, by run id and slug, as `filesAsRecorded` finds it, only
  * when its record lists one (from voicecap 0.18.0); the voice page says so for a file that isn't
  * as its record has it. The bytes are held as they are.
@@ -591,6 +642,11 @@ function flagsOf(
     const transcript = transcripts.json[pass];
     if (transcript === undefined) return null;
     passes[pass] = transcript;
+  }
+  if (passes.forms !== undefined) {
+    // The forms rules read the results beside the transcript: without them, the flags are as recorded.
+    if (transcripts.forms === undefined) return null;
+    passes.forms = { ...passes.forms, forms: transcripts.forms };
   }
   return evaluateFlags(passes, rules);
 }

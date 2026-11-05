@@ -17,6 +17,7 @@ import { voicecapVersion } from "../util/version.js";
 import type {
   EnvironmentInfo,
   FocusedElement,
+  OpenPageOptions,
   PageInfo,
   ScreenReaderDriver,
   Speech,
@@ -47,7 +48,7 @@ export class ReplayDriver implements ScreenReaderDriver {
   private loaded = false;
 
   private current: Recording | null = null;
-  private readonly cursor: Record<PassName, number> = { read: 0, headings: 0, tab: 0 };
+  private readonly cursor: Record<PassName, number> = { read: 0, headings: 0, tab: 0, forms: 0 };
   private currentLine = "";
   private focus: { inDocument: boolean; focused: FocusedElement | null } = {
     inDocument: true,
@@ -93,11 +94,17 @@ export class ReplayDriver implements ScreenReaderDriver {
     return Promise.resolve([]);
   }
 
-  openPage(url: string): Promise<PageInfo> {
+  /**
+   * A replay has no browser and no form guard, so a guarded load (the forms pass's) is the same as
+   * any other, and the driver has none of the forms pass's members: a run that replays with the pass
+   * says its forms aren't tested.
+   */
+  openPage(url: string, _options?: OpenPageOptions): Promise<PageInfo> {
     const key = canonicalKey(url);
     this.cursor.read = 0;
     this.cursor.headings = 0;
     this.cursor.tab = 0;
+    this.cursor.forms = 0;
     this.currentLine = "";
 
     const recording = this.recordings.get(key);

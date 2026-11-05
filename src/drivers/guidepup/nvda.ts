@@ -24,11 +24,12 @@
  */
 import { spawnSync } from "node:child_process";
 import net from "node:net";
+import { setTimeout as delay } from "node:timers/promises";
 
 import type * as GuidepupModule from "@guidepup/guidepup";
 
 import { EnvironmentError } from "../../util/errors.js";
-import type { NvdaControl, NvdaKey } from "../guidepup-nvda.js";
+import type { FormKey, NvdaControl, NvdaKey } from "../guidepup-nvda.js";
 import type { CaptureMode, Speech } from "../types.js";
 import type { GuidepupInstall } from "./paths.js";
 
@@ -118,6 +119,36 @@ export class GuidepupNvda implements NvdaControl {
     const spoken = await nvda.lastSpokenPhrase();
     await nvda.clearSpokenPhraseLog();
     return spoken;
+  }
+
+  /**
+   * Press a key, then keep listening for `settleMs` more. Guidepup adds a phrase to its log only
+   * for speech heard while one of its actions is under way, up to a short quiet after it, so speech
+   * that comes later is lost unless the wait is itself a capture. The wait is a second capture
+   * that holds nothing but a delay (no key goes through it, which would queue behind it), and its
+   * phrase follows the press's. It can't be called off: Ctrl+C waits out the settle.
+   */
+  async pressFormKey(key: FormKey, options: { settleMs?: number } = {}): Promise<Speech> {
+    const { nvda } = this.lib;
+    const began = this.clock();
+    await nvda.press(key);
+    this.checkCaptured(began);
+    const pressed = await nvda.lastSpokenPhrase();
+    const settleMs = options.settleMs ?? 0;
+    const late = settleMs > 0 ? (await nvda.capture(() => delay(settleMs))).spokenPhrase : "";
+    await nvda.clearSpokenPhraseLog();
+    return [pressed, late].filter((phrase) => phrase !== "").join(". ");
+  }
+
+  /** Type text a character at a time, and give what NVDA said for each (it echoes them). */
+  async typeText(text: string): Promise<Speech> {
+    const { nvda } = this.lib;
+    const began = this.clock();
+    await nvda.type(text);
+    this.checkCaptured(began);
+    const said = await nvda.spokenPhraseLog();
+    await nvda.clearSpokenPhraseLog();
+    return said.join(". ");
   }
 
   async speechDuring(action: () => Promise<void>): Promise<Speech> {

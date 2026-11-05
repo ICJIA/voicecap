@@ -26,6 +26,21 @@ export const FIXTURE_HOST = "127.0.0.1";
 export const FIXTURE_PORT = 4747;
 export const FIXTURE_SITE_DIR = fileURLToPath(new URL("../fixture/site/", import.meta.url));
 
+/**
+ * The forms fixture's pages, by path, in the order the forms run reads them: the home page, whose
+ * search form the forms pass leaves untested and says so, then a form for each of its results. Not
+ * in the sitemap, so the fixture's main run (fixture/replay-run) stays the three pages it checks.
+ */
+export const FIXTURE_FORMS_PAGES = [
+  "/",
+  "/forms/good/",
+  "/forms/native/",
+  "/forms/silent/",
+  "/forms/no-feedback/",
+  "/forms/no-labels/",
+  "/forms/unreachable/",
+] as const;
+
 /** Where /contact/ redirects: another origin, so voicecap records the page as skipped. */
 export const CONTACT_REDIRECT = "https://www.example.com/contact/";
 

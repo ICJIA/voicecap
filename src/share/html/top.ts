@@ -20,6 +20,8 @@
  */
 import { esc } from "../../report/html.js";
 import { formatDuration } from "../../util/time.js";
+import { names } from "../format.js";
+import { glanceBannerOf } from "../forms-view.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
@@ -34,6 +36,7 @@ import {
   TOP_TEXT,
   WHEN_TO_RUN,
 } from "../text.js";
+import { wayOf } from "../way.js";
 import { verdictOf } from "../verdict.js";
 import {
   glanceNumbersOf,
@@ -46,7 +49,16 @@ import {
   type NumberTile,
 } from "../words.js";
 import { STEP_ICONS } from "./icons.js";
-import { count, fold, lineHtml, notRecorded, ring, track, type RingPart } from "./parts.js";
+import {
+  count,
+  fold,
+  formBannerHtml,
+  lineHtml,
+  notRecorded,
+  ring,
+  track,
+  type RingPart,
+} from "./parts.js";
 
 // The top.
 
@@ -163,6 +175,22 @@ function verdict(result: ShareModel["result"]): string {
 }
 
 /**
+ * At a glance's line on the forms, once the run has the forms pass: its own banner, "All 4 forms
+ * work with NVDA" in green, or "3 of 4 forms work with NVDA" in amber with the pages of those that
+ * don't named. A run from before the pass says "Not recorded". A run with no forms pass says nothing.
+ */
+function formsLine(model: ShareModel): string[] {
+  const { forms } = model;
+  if (forms === null) return [];
+  if ("notRecorded" in forms) {
+    return [notRecorded(forms.notRecorded)];
+  }
+  const banner = glanceBannerOf(forms, names);
+  if (banner === null) return [];
+  return [formBannerHtml(banner)];
+}
+
+/**
  * The links to the page's sections: What needs attention, which is there only when there is a card,
  * Every page, and The details. Each says its section's own words, and goes to its heading's id.
  *
@@ -199,6 +227,7 @@ export function renderGlance(model: ShareModel): string {
     ...(hasPages ? [verdict(result)] : []),
     `<p class="lead">${esc(summary.sentence)}</p>`,
     ...(hasPages ? [ringRow(model), tiles(model)] : []),
+    ...formsLine(model),
     `<p class="gist">${esc(summary.second)}</p>`,
     onThisPage(model),
   ];
@@ -316,7 +345,7 @@ function heard(sample: ShareModel["heard"]): string {
     return `<div class="heard"><h3>${esc(HOW_TEXT.heard)}</h3>${notRecorded(HOW_TEXT.noSample)}</div>`;
   }
   const lanes = sample.passes.map(({ pass, lines }) => {
-    const { key, words } = HOW_TEXT.ways[pass];
+    const { key, words } = wayOf(pass);
     const said = lines.map(
       ({ text, took }) =>
         `<li><span>${esc(heardFirstLine(text))}</span><span class="t">${esc(took)}</span></li>`,

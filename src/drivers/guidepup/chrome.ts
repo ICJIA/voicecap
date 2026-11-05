@@ -8,7 +8,7 @@
  * speech depends on the pages loaded before it.
  */
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -18,9 +18,12 @@ import {
   chromium,
   errors,
   type Browser,
+  type BrowserContext,
   type CDPSession,
   type Page,
+  type Request as PlaywrightRequest,
   type Response,
+  type Route,
 } from "playwright";
 
 import { AXE_TAGS } from "../../axe/results.js";
@@ -29,6 +32,9 @@ import { EnvironmentError, errorMessage } from "../../util/errors.js";
 import { formatDuration } from "../../util/time.js";
 import type { BrowserSession, FocusState, LoadResult } from "../guidepup-nvda.js";
 import { BROWSER_WINDOW, type FocusedElement } from "../types.js";
+import type { FormInfo, FormState, HeldRequest, PageDialog } from "../../forms/types.js";
+import { listenForUdp, type FormGate } from "./form-gate.js";
+import { focusField, hostOf, readFormState, scanForms, selectorOf } from "./form-scan.js";
 import { envValue, PROFILE_PREFIX } from "./paths.js";
 import { closeBrowsersUsing } from "./windows.js";
 
@@ -43,6 +49,8 @@ const SCREENSHOT_SCALE = 0.5;
  */
 const LEAST_PIXEL_RATIO = 0.5;
 const MOST_PIXEL_RATIO = 4;
+/** How long the browser gets to list the page it opened with, before voicecap opens one. */
+const STARTUP_PAGE_MS = 10_000;
 /** How long the browser gets to answer before the screenshot is given up. */
 const SCREENSHOT_TIMEOUT_MS = 5_000;
 
@@ -160,6 +168,11 @@ export interface LaunchChromeOptions {
   spawnBrowser?: (file: string, args: string[]) => ChildProcess;
   /** Says that the browser handed over to a new copy of itself as it started, and starts again. */
   onRelaunch?: (notice: string) => void;
+  /**
+   * For the forms pass: the browser reaches the network only through this. The session owns it from
+   * here, and closes it; a launch that fails closes it too.
+   */
+  formGate?: FormGate;
 }
 
 /**
@@ -182,15 +195,20 @@ class HandedOver extends Error {}
  * new copy of itself as it starts is started again, once, after that copy is closed.
  */
 export async function launchChrome(options: LaunchChromeOptions): Promise<ChromeSession> {
-  const executable = resolveBrowser(options.browser, options.env);
   try {
-    return await launchOnce(executable, options, { last: false });
+    const executable = resolveBrowser(options.browser, options.env);
+    try {
+      return await launchOnce(executable, options, { last: false });
+    } catch (error) {
+      if (!(error instanceof HandedOver)) throw error;
+      options.onRelaunch?.(
+        `${executable.name} handed over to a new copy of itself as it started, as it does to finish installing an update. voicecap closed that copy and is starting ${executable.name} again.`,
+      );
+      return await launchOnce(executable, options, { last: true });
+    }
   } catch (error) {
-    if (!(error instanceof HandedOver)) throw error;
-    options.onRelaunch?.(
-      `${executable.name} handed over to a new copy of itself as it started, as it does to finish installing an update. voicecap closed that copy and is starting ${executable.name} again.`,
-    );
-    return launchOnce(executable, options, { last: true });
+    await options.formGate?.close();
+    throw error;
   }
 }
 
@@ -207,10 +225,12 @@ async function launchOnce(
   }
   const timeoutMs = options.timeoutMs ?? 30_000;
   const profileDir = mkdtempSync(path.join(os.tmpdir(), PROFILE_PREFIX));
+  if (options.formGate) writeFormGatePreferences(profileDir);
   const spawnBrowser =
     options.spawnBrowser ?? ((file, args) => spawn(file, args, { stdio: "ignore" }));
   const child = spawnBrowser(executable.path, [
     ...chromeArgs(profileDir, executable),
+    ...(options.formGate ? formGateArgs(options.formGate) : []),
     ...(options.extraArgs ?? []),
     "about:blank",
   ]);
@@ -244,10 +264,14 @@ async function launchOnce(
     // that answers with a download mustn't put files in the user's Downloads folder.
     const browserCdp = await browser.newBrowserCDPSession();
     await browserCdp.send("Browser.setDownloadBehavior", { behavior: "deny" });
-    const page = context.pages()[0] ?? (await context.newPage());
+    const page =
+      (await Promise.race([startupPage(context, timeoutMs), calledOff])) ??
+      (await context.newPage());
     const cdp = await context.newCDPSession(page);
     if (signal?.aborted) throw new Error("the launch was called off");
-    return new ChromeSession(executable, child, profileDir, browser, page, cdp);
+    return new ChromeSession(executable, child, profileDir, browser, page, cdp, {
+      formGate: options.formGate,
+    });
   } catch (error) {
     child.kill();
     // The new copy a browser handed over to has this profile open: close it, so the profile can go.
@@ -261,6 +285,21 @@ async function launchOnce(
     });
   } finally {
     signal?.removeEventListener("abort", callOff);
+  }
+}
+
+/**
+ * The page the browser opened with, or null if it lists none in time. The browser can answer before
+ * it lists that page (seen on GitHub's Windows runners), and a page opened then was a second window,
+ * the first showing after it.
+ */
+async function startupPage(context: BrowserContext, timeoutMs: number): Promise<Page | null> {
+  const until = Date.now() + Math.min(timeoutMs, STARTUP_PAGE_MS);
+  for (;;) {
+    const page = context.pages()[0];
+    if (page) return page;
+    if (Date.now() >= until) return null;
+    await delay(50);
   }
 }
 
@@ -307,6 +346,36 @@ export function chromeArgs(profileDir: string, executable: BrowserExecutable): s
     `--window-size=${BROWSER_WINDOW.width},${BROWSER_WINDOW.height}`,
     "--window-position=0,0",
   ];
+}
+
+/**
+ * What puts a browser behind a form gate: every address goes through it, loopback too, which a
+ * browser otherwise leaves out. The browser looks up no names, since the proxy does that, and it has
+ * no way out that isn't TCP through the proxy: no QUIC, and no direct UDP for WebRTC.
+ */
+export function formGateArgs(gate: Pick<FormGate, "port">): string[] {
+  return [
+    `--proxy-server=http://127.0.0.1:${gate.port}`,
+    "--proxy-bypass-list=<-loopback>",
+    "--disable-quic",
+    "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+    "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
+  ];
+}
+
+/**
+ * The profile's half of what formGateArgs does. Chrome takes its WebRTC policy from here: with only
+ * the switch, a page's STUN request still went out by UDP, past the proxy (seen on Chromium 153).
+ */
+function writeFormGatePreferences(profileDir: string): void {
+  const folder = path.join(profileDir, "Default");
+  mkdirSync(folder, { recursive: true });
+  const webrtc = {
+    ip_handling_policy: "disable_non_proxied_udp",
+    multiple_routes_enabled: false,
+    nonproxied_udp_enabled: false,
+  };
+  writeFileSync(path.join(folder, "Preferences"), JSON.stringify({ webrtc }));
 }
 
 /** Chrome writes its DevTools port to <profile>/DevToolsActivePort once it's listening. */
@@ -421,6 +490,50 @@ const RUN_AXE = `function (tags) {
   }).then((results) => JSON.stringify(results));
 }`;
 
+/** The same for a check limited to the element a CSS selector names: the forms pass checks a form. */
+const RUN_AXE_WITHIN = RUN_AXE.replace("function (tags)", "function (tags, selector)").replace(
+  "axe.run(document,",
+  "axe.run({ include: [selector] },",
+);
+
+/**
+ * The guard's confirmation asks for this. ".invalid" is a name that never resolves, so if the guard
+ * isn't there, the request reaches no one.
+ */
+const GUARD_PROBE = "https://voicecap-form-guard.invalid/";
+
+/** The isolated world the guard gathers ICE candidates in, apart from the page's own scripts. */
+const GUARD_WORLD = "voicecap-form-guard";
+
+/** How long the browser gets to finish gathering them. It's well inside GUARD_LIMIT_MS. */
+const UDP_CHECK_MS = 5_000;
+
+/**
+ * Called in the guard's world: gathers ICE candidates, with `stun` as the server, and says "none"
+ * only if the browser finished without offering a UDP or server-reflexive one. Any other answer
+ * fails the guard, and so does anything `stun`, voicecap's own listener, heard.
+ */
+const GATHER_CANDIDATES = `function (stun, limitMs) {
+  return new Promise((resolve, reject) => {
+    const peer = new RTCPeerConnection({ iceServers: [{ urls: stun }] });
+    const finish = (answer) => {
+      clearTimeout(limit);
+      peer.close();
+      resolve(answer);
+    };
+    const limit = setTimeout(() => finish("unfinished"), limitMs);
+    peer.onicecandidate = ({ candidate }) => {
+      if (!candidate) finish("none");
+      else if (/ udp | typ srflx/i.test(candidate.candidate)) finish("udp");
+    };
+    peer.createDataChannel("voicecap-form-guard");
+    peer.createOffer().then((offer) => peer.setLocalDescription(offer)).catch(reject);
+  });
+}`;
+
+/** How long arming gets, all of it: a frame that's stuck is a form not tested, not a hung run. */
+const GUARD_LIMIT_MS = 15_000;
+
 /**
  * What Playwright says when the network won't take a navigation: the first line reads "page.goto:
  * net::ERR_NAME_NOT_RESOLVED at https://example.gov/", and a call log follows.
@@ -448,6 +561,18 @@ export class ChromeSession implements BrowserSession {
   private closing: Promise<void> | null = null;
   /** Whether the page crashed (Chrome's "Aw, Snap!"). A crashed page isn't closed. */
   private crashed = false;
+  /** The guard's arming: once begun, it's never begun again, and a failure stays a failure. */
+  private guarding: Promise<void> | null = null;
+  private guardProbeSeen = false;
+  /** Each request the guard has held, with where it was going and what it was. */
+  private readonly held: HeldRequest[] = [];
+  /** Each JavaScript dialog the page opened, in a guarded session: each was dismissed. */
+  private readonly dialogs: PageDialog[] = [];
+  /** The isolated world the last scan held its forms in; null before one. */
+  private formsWorld: number | null = null;
+  /** The host name each form of the last scan sends to, by its index; null for no web address. */
+  private actionHosts = new Map<number, string | null>();
+  private unclosedWindows = 0;
 
   constructor(
     executable: BrowserExecutable,
@@ -457,13 +582,27 @@ export class ChromeSession implements BrowserSession {
     private readonly browser: Browser,
     private readonly page: Page,
     private readonly cdp: CDPSession,
-    private readonly options: { closeTimeoutMs?: number } = {},
+    private readonly options: { closeTimeoutMs?: number; formGate?: FormGate } = {},
   ) {
     this.name = executable.name;
     this.version = browser.version();
     page.on("crash", () => {
       this.crashed = true;
     });
+    // Watched from the start: a socket the page opened on load still has its say once it's armed.
+    page.on("websocket", (socket) => {
+      this.holdSocket(socket.url());
+      socket.on("framesent", () => this.holdSocket(socket.url()));
+    });
+    // A guarded session answers the page's dialogs itself, on purpose: it keeps each one's words for
+    // the forms pass, which doesn't test a form that answers with one, and dismisses it ("Cancel"
+    // for a confirm, "Stay" for a "leave this page?"), so a press isn't confirmed by voicecap.
+    if (options.formGate) {
+      page.on("dialog", (dialog) => {
+        this.dialogs.push({ type: dialog.type(), message: dialog.message() });
+        dialog.dismiss().catch(() => {});
+      });
+    }
   }
 
   /**
@@ -476,6 +615,8 @@ export class ChromeSession implements BrowserSession {
 
   load(url: string, timeoutMs: number): Promise<LoadResult> {
     return this.onPage(async () => {
+      // The gate carries nothing to this computer or a private network unless the page is there.
+      this.options.formGate?.servePage(new URL(url).hostname);
       // A download never commits, so goto() fails; the main response still tells what it was.
       let mainResponse: Response | null = null;
       const onResponse = (response: Response) => {
@@ -611,8 +752,15 @@ export class ChromeSession implements BrowserSession {
    * A script that throws, and an axe whose promise is rejected, fail with what axe's world said.
    * There's no time limit here: the driver gives axe its own.
    */
-  runAxe(script: string): Promise<unknown> {
+  runAxe(script: string, within?: { form: number }): Promise<unknown> {
     return this.onPage(async () => {
+      // A check limited to a form is run on the form the last scan numbered `within.form`.
+      let selector: string | null = null;
+      if (within !== undefined) {
+        selector = await selectorOf(this.cdp, this.formsWorld, within.form);
+        if (selector === null)
+          throw new Error("The form isn't in the page, so axe can't check it.");
+      }
       const { frameTree } = await this.cdp.send("Page.getFrameTree");
       const { executionContextId } = await this.cdp.send("Page.createIsolatedWorld", {
         frameId: frameTree.frame.id,
@@ -625,9 +773,9 @@ export class ChromeSession implements BrowserSession {
       });
       if (loaded.exceptionDetails) throw thrownIn(loaded.exceptionDetails);
       const ran = await this.cdp.send("Runtime.callFunctionOn", {
-        functionDeclaration: RUN_AXE,
+        functionDeclaration: selector === null ? RUN_AXE : RUN_AXE_WITHIN,
         executionContextId,
-        arguments: [{ value: [...AXE_TAGS] }],
+        arguments: [{ value: [...AXE_TAGS] }, ...(selector === null ? [] : [{ value: selector }])],
         awaitPromise: true,
         returnByValue: true,
       });
@@ -635,6 +783,50 @@ export class ChromeSession implements BrowserSession {
       const json: unknown = ran.result.value;
       if (typeof json !== "string") throw new Error("axe's results didn't come back");
       return JSON.parse(json) as unknown;
+    });
+  }
+
+  /**
+   * The page's forms, sorted (see classifyForm), as the browser shows them now. It goes through the
+   * DevTools connection, in an isolated world of voicecap's own on the page's main frame, and moves
+   * no focus and clicks nothing. A scan starts the world that readFormState asks.
+   */
+  scanForms(): Promise<FormInfo[]> {
+    return this.onPage(async () => {
+      const { frameTree } = await this.cdp.send("Page.getFrameTree");
+      const scanned = await scanForms(this.cdp, frameTree.frame.id);
+      this.formsWorld = scanned.contextId;
+      this.actionHosts = scanned.actionHosts;
+      return scanned.forms;
+    });
+  }
+
+  /**
+   * Move focus to one of the form's fields, by script: the one place voicecap does, to enter a form
+   * at its first field. Rejects when the field isn't there or won't take focus.
+   */
+  async focusFormField(form: number, field: number): Promise<void> {
+    const moved = await this.onPage(() => focusField(this.cdp, this.formsWorld, form, field));
+    if (!moved) throw new Error("The form's field couldn't be given focus.");
+  }
+
+  /**
+   * What the form the last scan numbered `form` shows now: focus, invalid fields, the message text
+   * showing, and the focused field's own validation message. A form that is gone, or was never
+   * found, is `present: false`. A live region's change is counted from the scan or the last read.
+   */
+  readFormState(form: number): Promise<FormState> {
+    return this.onPage(async () => {
+      const read = await readFormState(this.cdp, this.formsWorld, form);
+      return {
+        ...read,
+        focused: await this.focusedElement(),
+        heldRequests: this.heldRequests(),
+        held: this.held.map((request) => ({ ...request })),
+        pageHost: hostOf(this.page.url()),
+        actionHost: this.actionHosts.get(form) ?? null,
+        dialogs: this.dialogs.map((dialog) => ({ ...dialog })),
+      };
     });
   }
 
@@ -714,6 +906,169 @@ export class ChromeSession implements BrowserSession {
   }
 
   /**
+   * Keep whatever the page sends in the browser, from now until it closes: this shuts the session's
+   * form gate, the only way its browser reaches the network, and there's no opening that again.
+   * Rejects unless the gate is shut and confirmed, on a session launched without one too, and the
+   * caller then mustn't touch the form.
+   *
+   * The route inside the browser is no part of the wall. It keeps the page where it is, since a
+   * held navigation would otherwise end on an error page, and it counts what the page tried. It
+   * lets nothing through, so a late style sheet or icon doesn't load.
+   */
+  armFormGuard(): Promise<void> {
+    this.guarding ??= this.onPage(() =>
+      withinLimit(
+        this.armGuard(),
+        GUARD_LIMIT_MS,
+        `The form guard couldn't be confirmed within ${formatDuration(GUARD_LIMIT_MS)}.`,
+      ),
+    );
+    return this.guarding;
+  }
+
+  /**
+   * How many of the page's requests the guard has stopped, and each message on a socket. The
+   * guard's confirmation isn't one. It's what the page's tabs were seen to try, not all that's
+   * stopped: what a worker sends on a socket dies at the gate, uncounted. So the count is low,
+   * never high, except that a page that polls adds to it with no one pressing anything.
+   */
+  heldRequests(): number {
+    return this.held.length;
+  }
+
+  /** How many windows a page opened that the guard tried to close and couldn't. */
+  strayWindows(): number {
+    return this.unclosedWindows;
+  }
+
+  private holdSocket(url: string): void {
+    if (this.guarding) this.held.push({ host: hostOf(url), type: "websocket" });
+  }
+
+  private async armGuard(): Promise<void> {
+    const gate = this.options.formGate;
+    if (!gate) throw new Error("The form guard can't be armed: this session has no form gate.");
+    gate.shut();
+    const context = this.page.context();
+    await this.cdp.send("Network.setBypassServiceWorker", { bypass: true });
+    await this.closeNewWindows();
+    await context.route("**/*", (route) => this.holdRequest(route));
+    await this.confirmGuard(gate);
+  }
+
+  /**
+   * Close every window but the session's, from now on, as the browser makes it. Closing a window
+   * isn't what stops data, the gate is, but a window left open could take the foreground from the
+   * screen reader. It's asked of the browser and not of Playwright, whose page event waits for a
+   * new window's first page to commit, and the guard holds that page, so it never comes.
+   */
+  private async closeNewWindows(): Promise<void> {
+    const { targetInfo } = await this.cdp.send("Target.getTargetInfo");
+    const browser = await this.browser.newBrowserCDPSession();
+    browser.on("Target.targetCreated", ({ targetInfo: created }) => {
+      // A prerendered page is no window, and the gate keeps what it sends.
+      if (created.type !== "page" || created.subtype || created.targetId === targetInfo.targetId) {
+        return;
+      }
+      void this.closeWindow(browser, created.targetId);
+    });
+    // Reports the targets already there as created, too.
+    await browser.send("Target.setDiscoverTargets", { discover: true });
+  }
+
+  /** A close that fails is counted, so it's seen, unless the window has gone anyway. */
+  private async closeWindow(browser: CDPSession, targetId: string): Promise<void> {
+    try {
+      await browser.send("Target.closeTarget", { targetId });
+    } catch {
+      const open = await browser
+        .send("Target.getTargets")
+        .then(({ targetInfos }) => targetInfos.some((target) => target.targetId === targetId))
+        .catch(() => !this.crashed && !this.closing);
+      if (open) this.unclosedWindows += 1;
+    }
+  }
+
+  private async holdRequest(route: Route): Promise<void> {
+    const request = route.request();
+    if (request.url() === GUARD_PROBE) this.guardProbeSeen = true;
+    else this.held.push({ host: hostOf(request.url()), type: this.typeOf(request) });
+    // "aborted", which a navigation takes as called off: the page stays where it was to be read.
+    await route.abort("aborted").catch(() => {});
+  }
+
+  /**
+   * What a held request was: "navigation" for the page's own, which is what a form's ordinary sending
+   * is, and otherwise the browser's type for it (fetch, xhr, ping, document for a frame, and so on).
+   */
+  private typeOf(request: PlaywrightRequest): string {
+    try {
+      if (request.isNavigationRequest() && request.frame() === this.page.mainFrame()) {
+        return "navigation";
+      }
+    } catch {
+      // A service worker's request has no frame.
+    }
+    return request.resourceType();
+  }
+
+  /**
+   * Four things have to hold. The page's own host went through the gate, so the browser really is
+   * behind it (a machine's policy can overrule a proxy switch). The gate hangs up on a connection
+   * tried now. The browser offers no UDP, which the gate can't see. And the page is sent to the
+   * guard's own address, which the route has to stop: a navigation and not a fetch, because a
+   * page's Content Security Policy can forbid a fetch.
+   */
+  private async confirmGuard(gate: FormGate): Promise<void> {
+    if (!gate.hasServed(new URL(this.page.url()).hostname)) {
+      throw new Error("The form guard couldn't be confirmed: the page didn't load through it.");
+    }
+    if (!(await gate.refuses())) {
+      throw new Error("The form guard couldn't be confirmed: the form gate still answers.");
+    }
+    await this.confirmNoUdp();
+    const { errorText } = await this.cdp.send("Page.navigate", { url: GUARD_PROBE });
+    if (!this.guardProbeSeen || errorText !== "net::ERR_ABORTED") {
+      throw new Error("The form guard couldn't be confirmed: its own request wasn't held.");
+    }
+  }
+
+  /**
+   * Direct UDP is off only because of a preference in the profile, so it's tried, not assumed. Some
+   * policies hide a browser's candidates and still send to a STUN server, so asking for candidates
+   * isn't enough: the browser is given a STUN server of voicecap's, a UDP listener on 127.0.0.1
+   * (see listenForUdp), closed straight after, and it must send that nothing.
+   *
+   * The candidates are gathered as axe runs, in an isolated world: it has its own RTCPeerConnection,
+   * timers, and events, and the page's scripts hold no reference into it, so they can't fake one.
+   */
+  private async confirmNoUdp(): Promise<void> {
+    const listener = await listenForUdp();
+    try {
+      const { frameTree } = await this.cdp.send("Page.getFrameTree");
+      const { executionContextId } = await this.cdp.send("Page.createIsolatedWorld", {
+        frameId: frameTree.frame.id,
+        worldName: GUARD_WORLD,
+      });
+      const gathered = await this.cdp.send("Runtime.callFunctionOn", {
+        functionDeclaration: GATHER_CANDIDATES,
+        executionContextId,
+        arguments: [
+          { value: `stun:${listener.address}:${listener.port}` },
+          { value: UDP_CHECK_MS },
+        ],
+        awaitPromise: true,
+        returnByValue: true,
+      });
+      if (gathered.exceptionDetails || gathered.result.value !== "none" || listener.heard() > 0) {
+        throw new Error("The form guard couldn't confirm that direct UDP is off.");
+      }
+    } finally {
+      await listener.close();
+    }
+  }
+
+  /**
    * Do `work` on the page. When it fails because the browser has gone (its window was closed, it
    * quit or crashed, or the page crashed), the failure says so, coded "browser": Playwright's own
    * words ("Target page, context or browser has been closed", "Target crashed") would read as a
@@ -750,6 +1105,7 @@ export class ChromeSession implements BrowserSession {
   }
 
   abandon(): void {
+    this.options.formGate?.shut();
     try {
       this.child.kill();
     } catch {
@@ -758,6 +1114,9 @@ export class ChromeSession implements BrowserSession {
   }
 
   private async shutDown(): Promise<void> {
+    // Shut before the browser is told to go, and closed only once it has: nothing sent at close
+    // leaves, a page's pagehide beacon, or a fetchLater, among them.
+    this.options.formGate?.shut();
     const exited =
       this.child.exitCode !== null || this.child.signalCode !== null
         ? Promise.resolve()
@@ -776,6 +1135,7 @@ export class ChromeSession implements BrowserSession {
       this.browser.close().catch(() => {}),
       5_000,
     );
+    await this.options.formGate?.close();
     await removeProfile(this.profileDir);
   }
 }

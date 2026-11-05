@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Register for training | Voicecap Test Agency</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.5;
+        color: #1b1b1b;
+        background: #ffffff;
+      }
+      header,
+      main,
+      footer {
+        padding: 0.5rem 1.5rem;
+      }
+      .error {
+        color: #a10000;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Forms fixture: silent errors. The fields are labeled and marked required, but when one is
+      empty the page only writes a message in red: no alert or live region, no field marked
+      invalid, and focus stays on the button, so NVDA says nothing of it. Filled in, the form sends
+      to /forms/silent/sent/, which a voicecap run's guard holds in the browser. Expected: completed,
+      with form-error-silent: "This form needs work with NVDA."
+    -->
+    <header>
+      <a href="/">Voicecap Test Agency</a>
+    </header>
+    <main id="main">
+      <h1>Register for training</h1>
+      <form id="register" action="/forms/silent/sent/" method="post" novalidate>
+        <p id="problem" class="error"></p>
+        <p>
+          <label for="attendee">Your name</label>
+          <input id="attendee" name="attendee" aria-required="true" />
+        </p>
+        <p>
+          <label for="attendee-email">Email</label>
+          <input id="attendee-email" name="attendee-email" type="email" aria-required="true" />
+        </p>
+        <p><button type="submit">Register</button></p>
+      </form>
+    </main>
+    <footer>
+      <p>© 2026 Voicecap Test Agency</p>
+    </footer>
+    <script>
+      (() => {
+        const form = document.getElementById("register");
+        const problem = document.getElementById("problem");
+        form.addEventListener("submit", (event) => {
+          const empty = [
+            ["attendee", "your name"],
+            ["attendee-email", "your email"],
+          ].filter(([id]) => document.getElementById(id).value.trim() === "");
+          if (empty.length === 0) {
+            problem.textContent = "";
+            return;
+          }
+          event.preventDefault();
+          problem.textContent = `Please fill in ${empty.map(([, what]) => what).join(" and ")}.`;
+        });
+      })();
+    </script>
+  </body>
+</html>

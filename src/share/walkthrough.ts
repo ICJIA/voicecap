@@ -37,6 +37,7 @@ import {
   type RunJson,
   type RunSettings,
   type SourceDetails,
+  type StepCaps,
 } from "../model.js";
 import { isNearbyHost } from "../pages/canonical.js";
 import {
@@ -63,7 +64,7 @@ export interface WalkthroughPage {
 
 export interface WalkthroughSettings {
   passes: PassName[];
-  stepCaps: Record<PassName, number>;
+  stepCaps: StepCaps;
   capture: CaptureMode;
   /** null when the original run didn't record them. */
   readiness: {
@@ -183,7 +184,16 @@ export function walkthroughOf(run: RunJson): Walkthrough {
     pages: run.pages.map(pageOf),
     settings: {
       passes: [...run.settings.passes],
-      stepCaps: perPass((pass) => run.settings.stepCaps[pass]),
+      stepCaps: {
+        read: run.settings.stepCaps.read,
+        headings: run.settings.stepCaps.headings,
+        tab: run.settings.stepCaps.tab,
+        // Only a run that took the forms pass has a cap for it: a file for any other run reads as
+        // it always did.
+        ...(run.settings.stepCaps.forms === undefined
+          ? {}
+          : { forms: run.settings.stepCaps.forms }),
+      },
       capture: run.settings.capture,
       readiness: readinessOf(run.settings.readiness),
     },
@@ -784,7 +794,13 @@ const settingsSchema = z.strictObject({
     .refine((passes) => new Set(passes).size === passes.length, {
       error: "its settings.passes name a pass more than once",
     }),
-  stepCaps: z.strictObject(perPass(() => wholeNumber(1, MAX_STEP_LIMIT))),
+  stepCaps: z.strictObject({
+    read: wholeNumber(1, MAX_STEP_LIMIT),
+    headings: wholeNumber(1, MAX_STEP_LIMIT),
+    tab: wholeNumber(1, MAX_STEP_LIMIT),
+    // Files written before the forms pass have no cap for it.
+    forms: wholeNumber(1, MAX_STEP_LIMIT).optional(),
+  }),
   capture: z.enum(CAPTURE_MODES),
   readiness: z
     .strictObject({

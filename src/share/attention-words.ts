@@ -11,7 +11,7 @@ import { plural } from "../report/html.js";
 import { quoteArg, urlArg } from "../util/command-line.js";
 import type { AttentionCard, AttentionKind, AttentionPlace } from "./attention.js";
 import { count } from "./format.js";
-import { HOW_TEXT } from "./text.js";
+import { wayOf } from "./way.js";
 
 /**
  * Everything one card says, in the order it says it. Plain text, never markup: the page and the
@@ -382,6 +382,93 @@ const ADVICE: Record<AttentionKind, (card: AttentionCard) => Advice> = {
       path: flagPath(card),
     };
   },
+  "form-error-silent": (card) => ({
+    title: "A form shows an error that NVDA doesn't say",
+    cause:
+      "Likely an error message added to the page with no alert role or live region, and nothing marking the field invalid: it shows on the screen, and NVDA has nothing to announce.",
+    why: "A screen reader user presses submit, hears nothing, and can't tell that anything is wrong, or what.",
+    fixes: [
+      {
+        lead: "Mark the field invalid, and have the message announced when it appears:",
+        code: '<input id="email" type="email" required aria-invalid="true" aria-describedby="email-error">\n<p id="email-error" role="alert">Enter your email address</p>',
+        after: '"Email, edit, required, invalid entry, Enter your email address"',
+      },
+    ],
+    path: flagPath(card),
+  }),
+  "form-no-feedback": (card) => ({
+    title: "Pressing submit does nothing that NVDA can tell: no error, and nothing sent",
+    cause:
+      "Likely a submit button that does nothing when the form isn't ready, with no message: nothing on the page changed, so NVDA had nothing to say.",
+    why: "A screen reader user presses submit and can't tell whether the form was sent, or why it wasn't.",
+    fixes: [
+      {
+        lead: "Say what's wrong when the form can't be sent, in a message NVDA announces:",
+        code: '<button type="submit">Send</button>\n<p role="alert">Fill in your name and email address to send the form.</p>',
+        after: '"Fill in your name and email address to send the form."',
+      },
+    ],
+    path: flagPath(card),
+  }),
+  "form-error-unlinked": (card) => ({
+    title: "A form field with an error doesn't say what's wrong when NVDA reaches it",
+    cause:
+      "Likely an error message shown beside the field but not tied to it: the field is marked invalid, or isn't, and says nothing of its message when focus lands on it.",
+    why: "A screen reader user who goes back to fix the field hears its name, but not what to fix.",
+    fixes: [
+      {
+        lead: "Tie the message to its field:",
+        code: '<input id="email" type="email" required aria-invalid="true" aria-describedby="email-error">\n<p id="email-error">Enter your email address</p>',
+        after: '"Email, edit, required, invalid entry, Enter your email address"',
+      },
+    ],
+    path: flagPath(card),
+  }),
+  "form-required-unsaid": (card) => ({
+    title: 'A field that blocked the form isn\'t read as "required"',
+    cause:
+      "Likely a field the page checks for, but doesn't mark as required in its code: NVDA reads only what the code says.",
+    why: "A screen reader user doesn't know the field has to be filled in until the form refuses to go.",
+    fixes: [
+      {
+        lead: "Mark it required in the code:",
+        code: '<label for="name">Name</label>\n<input id="name" type="text" required aria-required="true">',
+        after: '"Name, edit, required"',
+      },
+    ],
+    path: flagPath(card),
+  }),
+  "form-cant-finish": (card) => ({
+    title: "A form couldn't be completed with NVDA and the keyboard",
+    cause:
+      "The keyboard never got the form to the point of sending: where it stopped is in the flag's message, and what NVDA said there is in the transcript.",
+    why: "A screen reader user who can't finish the form can't use what it's for: an application, a request, a sign-up.",
+    fixes: [
+      {
+        lead: "Use real form controls and a real submit button, so Tab reaches each one and the keys fill it:",
+        code: '<label for="email">Email</label>\n<input id="email" type="email" required>\n<button type="submit">Send</button>',
+        after: '"Email, edit, required" at the field, and "Send, button" at the submit',
+      },
+    ],
+    path: [
+      "Open the page and try the form with the keyboard alone, with NVDA on. Fill each required field, then press submit.",
+      ...flagPath(card),
+    ],
+  }),
+  "form-field-unreachable": (card) => ({
+    title: "A required form field can't be reached or filled by keyboard",
+    cause:
+      'Likely a custom control made of <div> or <span>, or a field taken out of the Tab order (tabindex="-1"), or one that needs a mouse, such as a date picker.',
+    why: "A keyboard user can't fill a field Tab can't reach, so the form can't be sent.",
+    fixes: [
+      {
+        lead: "Use a real form control, or give the custom one a keyboard:",
+        code: '<label for="dob">Date of birth</label>\n<input id="dob" type="date" required>',
+        after: '"Date of birth, edit, required"',
+      },
+    ],
+    path: flagPath(card),
+  }),
   "read-stopped": (card) => ({
     title: "The reading stopped before the page's end",
     cause:
@@ -490,7 +577,7 @@ export function attentionWords(card: AttentionCard): AttentionWords {
       .filter((place) => recorded || place.said.length > 0)
       .map((place) => ({
         lead: leadOf(card, place),
-        quotes: place.said.map(({ pass, line }) => ({ pass: HOW_TEXT.ways[pass].key, line })),
+        quotes: place.said.map(({ pass, line }) => ({ pass: wayOf(pass).key, line })),
         unavailable: !recorded ? null : place.pages.length > 1 ? UNAVAILABLE.many : UNAVAILABLE.one,
       })),
     cause,

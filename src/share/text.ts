@@ -19,7 +19,7 @@
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
  * sped up, so nothing here calls it "automated"; the word appears only for other tools.
  */
-import { VOICE_FILE, type PassName, type SessionRecord } from "../model.js";
+import { VOICE_FILE, type DefaultPassName, type PassName, type SessionRecord } from "../model.js";
 import { plural } from "../report/html.js";
 import type { OnlyInOnePage } from "./changes.js";
 import { count, seconds, sizeLine } from "./format.js";
@@ -151,7 +151,7 @@ export const HOW_TEXT = {
     read: { key: "Down Arrow", words: "line by line" },
     headings: { key: "H", words: "heading by heading" },
     tab: { key: "Tab", words: "control by control" },
-  } satisfies Record<PassName, { key: string; words: string }>,
+  } satisfies Record<DefaultPassName, { key: string; words: string }>,
   /**
    * Under the sample: what its words are, and what each time is. It names where the transcripts
    * are by their section's name, not by "above" or "below", which a change in the sections' order
@@ -241,18 +241,25 @@ export const WHEN_TO_RUN: {
 };
 
 /** What a pass is called as a heading. */
-export const PASS_TITLE: Record<PassName, string> = {
+export const PASS_TITLE: Record<DefaultPassName, string> = {
   read: "Read",
   headings: "Headings",
   tab: "Tab",
 };
 
 /** What a pass is called in a sentence. */
-export const PASS_WORDS: Record<PassName, string> = {
+export const PASS_WORDS: Record<DefaultPassName, string> = {
   read: "read",
   headings: "headings",
   tab: "Tab",
 };
+
+/** What any pass is called as a heading. The forms pass has no words of its own yet: its name. */
+export const passTitle = (pass: PassName): string =>
+  pass === "forms" ? "Forms" : PASS_TITLE[pass];
+
+/** What any pass is called in a sentence. The forms pass has no words of its own yet: its name. */
+export const passWords = (pass: PassName): string => (pass === "forms" ? pass : PASS_WORDS[pass]);
 
 /**
  * "Every page": its heading, what a card says of each pass and of the page's flags, the labels of
@@ -336,6 +343,74 @@ export const SCREENSHOT_TEXT = {
     "Not shown: the file is as the run recorded it, but it isn't a picture voicecap can show.",
   /** The page's record of its screenshot is of no kind voicecap writes: null, or a string, say. */
   unreadable: "Not shown: the run's record of this screenshot couldn't be read.",
+};
+
+/**
+ * What a page's card says of its forms (the forms pass), apart from the banners' words, which are
+ * decided in src/forms/banner.ts: the fold's lines, what a press did, what axe found with a form's
+ * errors showing, why a form's results aren't shown, and At a glance's line.
+ */
+export const FORMS_TEXT = {
+  /** The fold's line; for a screen reader alone, the page's address follows. */
+  fold: "What happened at the form",
+  label: (number: number): string => `Form ${number}`,
+  labelNamed: (number: number, submit: string): string => `Form ${number}, sends with "${submit}"`,
+  /** A required field that has no name. */
+  noName: "a field with no name",
+  fields: "Required fields, and what NVDA said at each",
+  presses: "Each press of the submit control",
+  /** Under a required field NVDA never said anything at. */
+  notHeard: "NVDA said nothing here.",
+  noPresses: "The submit control was not pressed.",
+  noRequired: "The form has no required fields.",
+  said: (words: string): string => `NVDA said: ${words}`,
+  saidNothing: "NVDA said nothing.",
+  did: {
+    completed: "The form reached the point of sending.",
+    error: "The page showed an error.",
+    errorWith: (words: string): string => `The page showed an error: ${words}`,
+    changed: "Something on the page changed.",
+    nothing: "Nothing changed.",
+  },
+  axe: {
+    label: "axe with its errors showing",
+    clean: "axe with its errors showing: no issues",
+    found: (issues: number, rules: string): string =>
+      `axe with its errors showing: ${issues} ${issues === 1 ? "issue" : "issues"}${rules === "" ? "" : ` (${rules})`}`,
+    none: "axe with its errors showing: not checked",
+    failed: "axe with its errors showing: axe couldn't check the form",
+  },
+  /** Said in place of a card's banners, when the file can't be shown. */
+  changed: "Not shown: forms-result.json isn't as the run recorded it; voicecap verify names it.",
+  notResults: "Not shown: forms-result.json isn't a file of the forms pass's results.",
+  unreadable: "Not shown: the run's record of this page's forms couldn't be read.",
+  failed: (reason: string): string =>
+    reason === ""
+      ? "Not shown: the forms pass couldn't keep its results."
+      : `Not shown: the forms pass couldn't keep its results (${reason}).`,
+  /** The sign a banner has in a copy that cannot draw one (the Word copy), repeating its words. */
+  signs: {
+    works: "✓",
+    "needs-work": "⚠",
+    "cant-complete": "⚠",
+    "not-checked": "–",
+  } satisfies Record<"works" | "needs-work" | "cant-complete" | "not-checked", string>,
+  /** At a glance. */
+  glance: {
+    /** The website card, and nowhere a problem: a site whose pages have no form, or only forms not checked. */
+    noForms: "No forms on these pages",
+    noneChecked: "No forms checked",
+    /**
+     * A run from before the forms pass: the line names what wasn't recorded, so it doesn't stand
+     * alone under the tiles ("Forms: not recorded: this run used voicecap 0.24.1.").
+     */
+    notRecorded: (line: string): string => `Forms: ${line.charAt(0).toLowerCase()}${line.slice(1)}`,
+    all: (found: number): string =>
+      `All ${found} ${found === 1 ? "form works" : "forms work"} with NVDA`,
+    some: (working: number, found: number): string => `${working} of ${found} forms work with NVDA`,
+    which: (pages: string): string =>
+      `The forms on ${pages} don't work with NVDA. Each page's card has the form's banner.`,
+  },
 };
 
 /**
@@ -521,7 +596,7 @@ export const CHANGES_TEXT = {
   rows: { same: "Same", removed: "Removed", added: "Added", collapsed: "…" },
   /** Said of a pass that sounds different but whose transcript can't be read here. */
   unreadable: (pass: PassName): string =>
-    `The ${PASS_WORDS[pass]} pass sounds different, but its transcript couldn't be read here.`,
+    `The ${passWords(pass)} pass sounds different, but its transcript couldn't be read here.`,
 };
 
 /** Where an error voicecap didn't expect is reported, which a copy links to. */
@@ -840,7 +915,7 @@ export const NVDA_LOG_TEXT = {
   },
   /** Where a line that differs is, before its words: "/about/, Read pass, step 12". */
   where: (page: string, pass: PassName, step: number): string =>
-    `${page}, ${PASS_TITLE[pass]} pass, step ${step}`,
+    `${page}, ${passTitle(pass)} pass, step ${step}`,
   /** Said when both lists are empty, always beside the three tiles. */
   same: "Every line agrees.",
   /** Said in its place when some steps weren't checked: it speaks only for the lines that were. */

@@ -38,7 +38,12 @@ export const REVIEW_LABEL: Record<ReviewStatus, string> = {
   fixed: "Fixed",
 };
 
-const PASS_LABEL: Record<PassName, string> = { read: "Read", headings: "Headings", tab: "Tab" };
+const PASS_LABEL: Record<PassName, string> = {
+  read: "Read",
+  headings: "Headings",
+  tab: "Tab",
+  forms: "Forms",
+};
 
 const SKIP_REASON: Record<SkipReason, string> = {
   "off-origin": "On a different origin from the site",

@@ -7,10 +7,40 @@ import type { CaptureMode, EnvironmentInfo, FocusedElement } from "./drivers/typ
 
 export type { CaptureMode };
 
-export const PASS_NAMES = ["read", "headings", "tab"] as const;
+/**
+ * Every pass voicecap can take. `forms` is opt-in (--passes forms, or `passes` in the config): the
+ * runs, files, and words that existed before it have only the first three, so anything that shows a
+ * reader "the passes" as a list of three, or counts on a page having all of them, goes by
+ * DEFAULT_PASS_NAMES, and anything that looks for what was saved goes by this list.
+ */
+export const PASS_NAMES = ["read", "headings", "tab", "forms"] as const;
 export type PassName = (typeof PASS_NAMES)[number];
 
-export type DriverCommand = "toTop" | "toBottom" | "nextLine" | "nextHeading" | "nextFocusable";
+/** The three passes a run takes unless it's asked for others: every run before `forms` took these. */
+export const DEFAULT_PASS_NAMES = [
+  "read",
+  "headings",
+  "tab",
+] as const satisfies readonly PassName[];
+
+export type DriverCommand =
+  | "toTop"
+  | "toBottom"
+  | "nextLine"
+  | "nextHeading"
+  | "nextFocusable"
+  | "focusField"
+  | "pressSubmit"
+  | "fillField";
+
+export type DefaultPassName = (typeof DEFAULT_PASS_NAMES)[number];
+
+/**
+ * The most steps each pass may take. `forms` is there only for a run that has the forms pass: the
+ * settings of every run before it have three, and a run's settings hash (what lets it resume) is
+ * taken over them as they are.
+ */
+export type StepCaps = Record<DefaultPassName, number> & { forms?: number };
 
 export type StopReason =
   /** read: the last line was spoken, then repeated (NVDA has no end-of-document message) */
@@ -18,6 +48,8 @@ export type StopReason =
   | "no-next-heading"
   /** tab: focus moved out of the page, into browser UI */
   | "left-document"
+  /** forms: every form found has been taken */
+  | "forms-done"
   /** safety net: the same speech too many times in a row */
   | "repeat-limit"
   | "step-cap"
@@ -152,7 +184,7 @@ export interface RunSettings {
   driver: string;
   replayFrom: string | null;
   capture: CaptureMode;
-  stepCaps: Record<PassName, number>;
+  stepCaps: StepCaps;
   nvdaSettings: Record<string, unknown>;
   browser: { channel: string; fallbackToChromium: boolean };
   /**
@@ -237,6 +269,29 @@ export const AXE_FILE = "axe.json";
 export type AxeRecord =
   (FileHash & AxeSummary & { ranAt: string }) | { error: string; ranAt: string };
 
+/** What the forms pass concluded on a page, in the page's folder (pages/<slug>/). */
+export const FORMS_FILE = "forms-result.json";
+
+/** How the forms of a page came out, as its record counts them: every form is in one of three. */
+export interface FormsCounts {
+  forms: number;
+  completed: number;
+  stuck: number;
+  notTested: number;
+  /** The presses of submit controls, across the page's forms. */
+  presses: number;
+}
+
+/**
+ * A page's forms pass, as the page's record keeps it, beside axe's. Results that were kept have the
+ * file's SHA-256 and size, and how the forms came out (see FormsCounts). Results that couldn't be
+ * written have the reason, and no file. Both have when the run recorded it (a local ISO time to the
+ * millisecond). A page with no form has neither the file nor the record, and that is no gap; a page
+ * whose forms were all left untested (a search form) has both, with the reasons.
+ */
+export type FormsRecord =
+  (FileHash & { counts: FormsCounts; ranAt: string }) | { error: string; ranAt: string };
+
 /** A page's recording of what NVDA said aloud, in the page's folder (pages/<slug>/). */
 export const VOICE_FILE = "voice.webm";
 
@@ -247,6 +302,12 @@ export const VOICE_FILE = "voice.webm";
 export interface VoiceStretch {
   startMs: number;
   endMs: number;
+  /**
+   * The pass that made the stretch, when the driver said which. A pass can make several (the forms
+   * pass loads the page again for each form), and loads that press no key make none, so the passes'
+   * stretches are told apart by this, not by counting. A recording from before this has none.
+   */
+  pass?: PassName;
 }
 
 /**
@@ -444,6 +505,13 @@ export interface PageRecord extends PageRef {
    */
   axe?: AxeRecord;
   /**
+   * What the forms pass found on the page, kept in its folder (forms-result.json), or why there is
+   * no file. Kept apart from `files`, as axe's is. Left out for a page with no form: the pass wasn't
+   * in the run, the driver can't test forms, or the page had none. A page whose forms were all left
+   * untested (a search form) has it, with the reasons.
+   */
+  forms?: FormsRecord;
+  /**
    * What NVDA said aloud while each pass read the page, recorded from the start of its last attempt
    * to its end with only each pass's stretch kept (see VoiceRecord), and kept only when that
    * attempt finished with no other window coming to the front; otherwise the reason. Kept apart
@@ -588,6 +656,9 @@ export type NewRunEvent =
  */
 export type RunEvent = NewRunEvent & { at: string };
 
+/** The forms a run has tested, by signature, with the page each was tested on. */
+export type FormSignatures = Record<string, string>;
+
 export interface RunJson {
   schemaVersion: 1;
   id: string;
@@ -629,6 +700,14 @@ export interface RunJson {
    * 0.11.0, and while a run has no file to record.
    */
   files?: Record<string, FileHash>;
+  /**
+   * The forms the run has tested (FormSignatures): each form's signature, with the page it was
+   * tested on, as a path such as "/about". The same form on another page (a footer's sign-up) is
+   * pressed no more, and says where it was tested. A page adds its forms once it is read, so a page
+   * that is tried again, or a run that is resumed, doesn't test a form twice or lose one. Absent
+   * until a form has been tested.
+   */
+  formSignatures?: FormSignatures;
   /**
    * SHA-256 seal of this record (see sealOf), set once every other field is final at completion.
    * Absent while the run is incomplete, and on runs written before this field existed.
@@ -726,6 +805,13 @@ export interface ShareResult {
   read: number;
   problems: number;
   problemPages: number;
+  /**
+   * The forms the forms pass checked, how many of them work with NVDA, and how many it did not check
+   * (a search form, a form on another site): `found` 0 with `notChecked` 0 means the pages had no
+   * form at all. Recorded only for a run
+   * that took the pass, so the website says it beside the verdict. Absent for a run without it.
+   */
+  forms?: { found: number; working: number; notChecked: number };
 }
 
 export interface SharesFile {

@@ -212,6 +212,27 @@ const AXE = either(
     file: obj({ name: str, bytes: num, sha256: str }),
   }),
 );
+const FORM_BANNER = obj({
+  kind: enumOf("works", "needs-work", "cant-complete", "not-checked"),
+  line: str,
+  headline: str,
+  detail: str,
+});
+const FORM = obj({
+  name: str,
+  banner: FORM_BANNER,
+  flags: list(obj({ rule: str, message: str, wcag: strs })),
+  requiredFields: list(obj({ name: str, said: maybe(str) })),
+  presses: list(obj({ said: str, did: str })),
+  axe: str,
+});
+const FORMS_GLANCE = obj({
+  found: num,
+  working: num,
+  notChecked: num,
+  banner: maybe(FORM_BANNER),
+  pagesToFix: strs,
+});
 const PAGE = obj({
   number: num,
   name: str,
@@ -232,6 +253,7 @@ const PAGE = obj({
   firstLines: strs,
   flags: list(FLAG),
   flagsNote: maybe(str),
+  forms: maybe(either(list(FORM), notRecorded)),
   axe: maybe(AXE),
   review: strs,
   transcriptsFrom: maybe(obj({ run: str, date: maybe(str) })),
@@ -330,6 +352,7 @@ const REPORT = obj({
     sessionsWithoutEnd: num,
     ring: obj({ readNoProblems: num, readWithProblems: num, notRead: num }),
   }),
+  forms: maybe(either(FORMS_GLANCE, notRecorded)),
   attention: list(CARD),
   pages: list(PAGE),
   noLongerListed: list(obj({ name: str, path: str, address: str, lastRun: str, lastStatus: str })),
@@ -1056,6 +1079,7 @@ describe("renderAiJson", () => {
         "verdict",
         "summary",
         "counts",
+        "forms",
         "attention",
         "pages",
         "noLongerListed",
@@ -1556,6 +1580,7 @@ describe("the pages of renderAiJson", () => {
       "firstLines",
       "flags",
       "flagsNote",
+      "forms",
       "axe",
       "review",
       "transcriptsFrom",
@@ -3248,6 +3273,9 @@ describe("the package's entry", () => {
       // Every page.
       Api.AiPage | null,
       Api.AiFlag | null,
+      Api.AiForm | null,
+      Api.AiFormBanner | null,
+      Api.AiFormsGlance | null,
       Api.AiAxeResults | null,
       Api.AiAxeRule | null,
       Api.AiAxeElement | null,
@@ -3263,9 +3291,9 @@ describe("the package's entry", () => {
       Api.AiRow | null,
       Api.AiProblem | null,
       Api.AiFingerprint | null,
-    ] = Array.from({ length: 26 }, () => null) as never;
+    ] = Array.from({ length: 29 }, () => null) as never;
 
-    expect(types).toHaveLength(26);
+    expect(types).toHaveLength(29);
   });
 
   /**
@@ -3294,8 +3322,8 @@ describe("the package's entry", () => {
       ([, name]) => name ?? "",
     );
 
-    // The file's shape is 25 types, and the entry's list names each, and its step too.
-    expect(types).toHaveLength(25);
+    // The file's shape is 28 types, and the entry's list names each, and its step too.
+    expect(types).toHaveLength(28);
     const exported = exportedFrom(entry, "./share/ai/json.js");
     for (const name of types) expect(exported, name).toContain(name);
     expect(exportedFrom(entry, "./share/ai/shared.js")).toEqual(["Step as AiStep"]);

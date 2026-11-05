@@ -1,0 +1,392 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.24.1",
+  "replayed": false,
+  "run": "2026-11-05_0845_real-nvda-forms",
+  "pass": "forms",
+  "page": {
+    "url": "http://127.0.0.1:4747/forms/good/",
+    "key": "http://127.0.0.1:4747/forms/good",
+    "slug": "forms-good-9c52f83d30",
+    "finalUrl": "http://127.0.0.1:4747/forms/good/"
+  },
+  "capturedAt": "2026-11-05T08:49:32-06:00",
+  "durationMs": 115981,
+  "stepCount": 35,
+  "stopReason": "forms-done",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.36.4"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "156.0.8078.80"
+    },
+    "os": "Windows 11 Pro 26H2 (10.0.26300)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "presentation": {
+        "reportHelpBalloons": false
+      },
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "IO",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "urls",
+      "urls": [
+        "http://127.0.0.1:4747/",
+        "http://127.0.0.1:4747/forms/good/",
+        "http://127.0.0.1:4747/forms/native/",
+        "http://127.0.0.1:4747/forms/silent/",
+        "http://127.0.0.1:4747/forms/no-feedback/",
+        "http://127.0.0.1:4747/forms/no-labels/",
+        "http://127.0.0.1:4747/forms/unreachable/"
+      ]
+    },
+    "voicecap": {
+      "version": "0.24.1",
+      "configSha256": "default"
+    },
+    "runId": "2026-11-05_0845_real-nvda-forms",
+    "runStartedAt": "2026-11-05T08:45:21-06:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 26H2",
+        "build": "10.0.26300.9818",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-06:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.24.1",
+        "guidepup": "0.36.4",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "focusField",
+      "spoken": "main landmark. form landmark. Your name, edit, required, blank",
+      "durationMs": 1326,
+      "offsetMs": 1894,
+      "inDocument": true
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, blank",
+      "durationMs": 1306,
+      "offsetMs": 3203,
+      "inDocument": true
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "Topic, combo box, Choose one, collapsed, required",
+      "durationMs": 1307,
+      "offsetMs": 4513,
+      "inDocument": true
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "Send request, button",
+      "durationMs": 1307,
+      "offsetMs": 5823,
+      "inDocument": true
+    },
+    {
+      "n": 5,
+      "command": "pressSubmit",
+      "spoken": "3 fields need fixing.. Your name, edit, required, invalid entry, Enter your name., blank",
+      "durationMs": 5631,
+      "offsetMs": 11461
+    },
+    {
+      "n": 6,
+      "command": "focusField",
+      "spoken": "",
+      "durationMs": 2887,
+      "offsetMs": 14454,
+      "inDocument": true
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, invalid entry, Enter an email address, such as name at example dot com., blank",
+      "durationMs": 2309,
+      "offsetMs": 16766,
+      "inDocument": true
+    },
+    {
+      "n": 8,
+      "command": "nextFocusable",
+      "spoken": "Topic, combo box, Choose one, collapsed, required, invalid entry, Choose a topic.",
+      "durationMs": 1310,
+      "offsetMs": 18079,
+      "inDocument": true
+    },
+    {
+      "n": 9,
+      "command": "nextFocusable",
+      "spoken": "Send request, button",
+      "durationMs": 1310,
+      "offsetMs": 19392,
+      "inDocument": true
+    },
+    {
+      "n": 10,
+      "command": "focusField",
+      "spoken": "Your name, edit, required, invalid entry, Enter your name., blank",
+      "durationMs": 1320,
+      "offsetMs": 20716,
+      "inDocument": true
+    },
+    {
+      "n": 11,
+      "command": "fillField",
+      "spoken": "v. o. i. c. e. c. a. p. space. t. e. s. t",
+      "durationMs": 21797,
+      "offsetMs": 42517
+    },
+    {
+      "n": 12,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, invalid entry, Enter an email address, such as name at example dot com., blank",
+      "durationMs": 1318,
+      "offsetMs": 43839,
+      "inDocument": true
+    },
+    {
+      "n": 13,
+      "command": "nextFocusable",
+      "spoken": "Topic, combo box, Choose one, collapsed, required, invalid entry, Choose a topic.",
+      "durationMs": 1306,
+      "offsetMs": 45149,
+      "inDocument": true
+    },
+    {
+      "n": 14,
+      "command": "nextFocusable",
+      "spoken": "Send request, button",
+      "durationMs": 1310,
+      "offsetMs": 46462,
+      "inDocument": true
+    },
+    {
+      "n": 15,
+      "command": "pressSubmit",
+      "spoken": "2 fields need fixing.. Email, edit, required, invalid entry, Enter an email address, such as name at example dot com., blank",
+      "durationMs": 5612,
+      "offsetMs": 52081
+    },
+    {
+      "n": 16,
+      "command": "focusField",
+      "spoken": "Your name, edit, required, voicecap test",
+      "durationMs": 2311,
+      "offsetMs": 54443,
+      "inDocument": true
+    },
+    {
+      "n": 17,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, invalid entry, Enter an email address, such as name at example dot com., blank",
+      "durationMs": 1308,
+      "offsetMs": 55754,
+      "inDocument": true
+    },
+    {
+      "n": 18,
+      "command": "nextFocusable",
+      "spoken": "Topic, combo box, Choose one, collapsed, required, invalid entry, Choose a topic.",
+      "durationMs": 1306,
+      "offsetMs": 57065,
+      "inDocument": true
+    },
+    {
+      "n": 19,
+      "command": "nextFocusable",
+      "spoken": "Send request, button",
+      "durationMs": 1314,
+      "offsetMs": 58383,
+      "inDocument": true
+    },
+    {
+      "n": 20,
+      "command": "focusField",
+      "spoken": "Your name, edit, required, voicecap test",
+      "durationMs": 1314,
+      "offsetMs": 59700,
+      "inDocument": true
+    },
+    {
+      "n": 21,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, invalid entry, Enter an email address, such as name at example dot com., blank",
+      "durationMs": 1320,
+      "offsetMs": 61024,
+      "inDocument": true
+    },
+    {
+      "n": 22,
+      "command": "fillField",
+      "spoken": "t. e. s. t. at. e. x. a. m. p. l. e. dot. c. o. m",
+      "durationMs": 26540,
+      "offsetMs": 87568
+    },
+    {
+      "n": 23,
+      "command": "nextFocusable",
+      "spoken": "Topic, combo box, Choose one, collapsed, required, invalid entry, Choose a topic.",
+      "durationMs": 1309,
+      "offsetMs": 88880,
+      "inDocument": true
+    },
+    {
+      "n": 24,
+      "command": "nextFocusable",
+      "spoken": "Send request, button",
+      "durationMs": 1305,
+      "offsetMs": 90188,
+      "inDocument": true
+    },
+    {
+      "n": 25,
+      "command": "pressSubmit",
+      "spoken": "1 field needs fixing.. Topic, combo box, Choose one, collapsed, required, invalid entry, Choose a topic.",
+      "durationMs": 5601,
+      "offsetMs": 95795
+    },
+    {
+      "n": 26,
+      "command": "focusField",
+      "spoken": "Your name, edit, required, voicecap test",
+      "durationMs": 2303,
+      "offsetMs": 98152,
+      "inDocument": true
+    },
+    {
+      "n": 27,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, selected test at example dot com",
+      "durationMs": 1310,
+      "offsetMs": 99465,
+      "inDocument": true
+    },
+    {
+      "n": 28,
+      "command": "nextFocusable",
+      "spoken": "Topic, combo box, Choose one, collapsed, required, invalid entry, Choose a topic.",
+      "durationMs": 1312,
+      "offsetMs": 100781,
+      "inDocument": true
+    },
+    {
+      "n": 29,
+      "command": "nextFocusable",
+      "spoken": "Send request, button",
+      "durationMs": 1309,
+      "offsetMs": 102094,
+      "inDocument": true
+    },
+    {
+      "n": 30,
+      "command": "focusField",
+      "spoken": "Your name, edit, required, voicecap test",
+      "durationMs": 1305,
+      "offsetMs": 103402,
+      "inDocument": true
+    },
+    {
+      "n": 31,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, selected test at example dot com",
+      "durationMs": 1312,
+      "offsetMs": 104716,
+      "inDocument": true
+    },
+    {
+      "n": 32,
+      "command": "nextFocusable",
+      "spoken": "Topic, combo box, Choose one, collapsed, required, invalid entry, Choose a topic.",
+      "durationMs": 1309,
+      "offsetMs": 106030,
+      "inDocument": true
+    },
+    {
+      "n": 33,
+      "command": "fillField",
+      "spoken": "Grants",
+      "durationMs": 1318,
+      "offsetMs": 107352
+    },
+    {
+      "n": 34,
+      "command": "nextFocusable",
+      "spoken": "Send request, button",
+      "durationMs": 1308,
+      "offsetMs": 108664,
+      "inDocument": true
+    },
+    {
+      "n": 35,
+      "command": "pressSubmit",
+      "spoken": "",
+      "durationMs": 7243,
+      "offsetMs": 115912
+    }
+  ]
+}

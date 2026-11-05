@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Apply for a program | Voicecap Test Agency</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.5;
+        color: #1b1b1b;
+        background: #ffffff;
+      }
+      header,
+      main,
+      footer {
+        padding: 0.5rem 1.5rem;
+      }
+      .error {
+        color: #a10000;
+      }
+      .calendar span {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #5c5c5c;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Forms fixture: a field a keyboard can't fill. Date of birth is required, but Tab skips it
+      (tabindex="-1") and only a mouse can fill it, from the calendar of clickable days under it.
+      Errors are marked and described as on the good form. Expected: can't be completed, stopping at
+      Date of birth, with form-cant-finish and form-field-unreachable: "This form can't be completed
+      with NVDA. It stopped at Date of birth."
+    -->
+    <header>
+      <a href="/">Voicecap Test Agency</a>
+    </header>
+    <main id="main">
+      <h1>Apply for a program</h1>
+      <form id="apply" action="/forms/unreachable/sent/" method="post" novalidate>
+        <div id="apply-summary" role="alert"></div>
+        <p>
+          <label for="applicant">Your name</label>
+          <input
+            id="applicant"
+            name="applicant"
+            aria-required="true"
+            aria-describedby="applicant-error"
+          />
+          <span id="applicant-error" class="error"></span>
+        </p>
+        <p>
+          <label for="birth">Date of birth</label>
+          <input
+            id="birth"
+            name="birth"
+            readonly
+            tabindex="-1"
+            aria-required="true"
+            aria-describedby="birth-error"
+          />
+          <span id="birth-error" class="error"></span>
+        </p>
+        <p class="calendar" aria-hidden="true">
+          <span data-day="2000-01-01">1</span>
+          <span data-day="2000-01-02">2</span>
+          <span data-day="2000-01-03">3</span>
+        </p>
+        <p><button type="submit">Apply</button></p>
+      </form>
+    </main>
+    <footer>
+      <p>© 2026 Voicecap Test Agency</p>
+    </footer>
+    <script>
+      (() => {
+        const form = document.getElementById("apply");
+        const summary = document.getElementById("apply-summary");
+        for (const day of document.querySelectorAll(".calendar span")) {
+          day.addEventListener("click", () => {
+            document.getElementById("birth").value = day.dataset.day;
+          });
+        }
+        const checks = [
+          ["applicant", "Enter your name."],
+          ["birth", "Choose your date of birth."],
+        ];
+        form.addEventListener("submit", (event) => {
+          const wrong = [];
+          for (const [id, message] of checks) {
+            const field = document.getElementById(id);
+            const error = document.getElementById(`${id}-error`);
+            if (field.value.trim() !== "") {
+              field.removeAttribute("aria-invalid");
+              error.textContent = "";
+            } else {
+              field.setAttribute("aria-invalid", "true");
+              error.textContent = message;
+              wrong.push(field);
+            }
+          }
+          if (wrong.length === 0) {
+            summary.textContent = "";
+            return;
+          }
+          event.preventDefault();
+          summary.textContent = `${wrong.length} ${wrong.length === 1 ? "field needs" : "fields need"} fixing.`;
+          wrong[0].focus();
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -8,6 +8,7 @@ import {
   PASS_NAMES,
   type AttemptRecord,
   type AxeRecord,
+  type FormsRecord,
   type EnvironmentRecord,
   type FileHash,
   type FlagResult,
@@ -91,6 +92,8 @@ export interface SharePageSpec {
    * Default: none, as for a run whose driver doesn't check pages with axe.
    */
   axe?: AxeRecord;
+  /** What the forms pass found on the page, as the record's `forms`. Default: none. */
+  forms?: FormsRecord;
   /**
    * What NVDA said aloud on the page, as the record's `voice` (see test/helpers/share-model.ts's
    * recordedVoice). No file is written: a test that shows the voice page gives it the file's bytes.
@@ -327,6 +330,7 @@ function sharePage(page: SharePageSpec, site: string): PageRecord {
     ),
     ...(page.screenshot === undefined ? {} : { screenshot: page.screenshot }),
     ...(page.axe === undefined ? {} : { axe: page.axe }),
+    ...(page.forms === undefined ? {} : { forms: page.forms }),
     ...(page.voice === undefined ? {} : { voice: page.voice }),
     flags: page.flags ?? [],
     errors: page.errors ?? [],

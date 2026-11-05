@@ -86,6 +86,8 @@ interface Line {
    * By default one entry, the spoken text's items.
    */
   logged?: string[][];
+  /** Keys NVDA logged inside the step that no step claims: the gestures a fill's keys come to. */
+  fillKeys?: string[];
   /** false: NVDA logged no key for the step, as for the first Tab, which goes to the browser. */
   key?: boolean;
   /** How long the step took, if not STEP_MS. */
@@ -129,6 +131,9 @@ function passAt(start: number, page: string, pass: PassName, lines: Line[]): Pas
     const durationMs = line.ms ?? STEP_MS;
     const pressed = begin + elapsed + KEY_MS + (line.later ?? 0);
     line.waited?.forEach((items, k) => entries.push(said(begin + elapsed + 600 + 9 * k, ...items)));
+    line.fillKeys?.forEach((gesture, k) => {
+      entries.push(key(begin + elapsed + 400 + 30 * k, gesture));
+    });
     if (line.key !== false) entries.push(key(pressed, gestureOf(line.command)!));
     const logged = line.logged ?? [line.spoken.split(", ")];
     logged.forEach((items, k) => {
@@ -1699,5 +1704,48 @@ describe("spokenAsLogged: what NVDA logged (its entries' items), against the tra
 
       expect(spokenAsLogged([[words]], spoken)).toBe(false);
     });
+  });
+});
+
+describe("checkAgainstLog on a forms pass", () => {
+  const FORM: Line[] = [
+    // Script moves focus to the first field: NVDA logs no key for it, and speaks.
+    { command: "focusField", spoken: "Name, edit, required, blank", key: false },
+    { command: "nextFocusable", spoken: "Send, button" },
+    // Typed text is the person's keys as far as the cleaned copy goes: it keeps none of it, nor
+    // what NVDA says after it, so the log has no speech for the step.
+    { command: "fillField", spoken: "v, o, i, c, e", key: false, logged: [] },
+    { command: "nextFocusable", spoken: "Send, button" },
+    { command: "pressSubmit", spoken: "Please fill out this field." },
+  ];
+
+  it("compares the steps with a key or speech in the log, and leaves a fill out", () => {
+    const pass = passAt(T0, HOME, "forms", FORM);
+    const result = check([copyOf(...pass.entries)], [pass]);
+
+    // Four of the five steps are compared, and agree; the fill is in no count and no list.
+    expect(result).toMatchObject({ transcriptLines: 4, logLines: 4, agree: 4, ...AGREED });
+  });
+
+  it.each([
+    ["a Space on a check box", ["space"]],
+    ["a Down Arrow in a list", ["downArrow"]],
+    ["a typed value with a space and an h", ["h", "space", "h", "h"]],
+  ])(
+    "still checks the rest of the pass when %s was logged, unclaimed, inside the fill",
+    (_, fillKeys) => {
+      const lines = FORM.map((line) =>
+        line.command === "fillField" ? { ...line, fillKeys, logged: [["v"]] } : line,
+      );
+      const pass = passAt(T0, HOME, "forms", lines);
+      const result = check([copyOf(...pass.entries)], [pass]);
+      expect(result).toMatchObject({ transcriptLines: 4, logLines: 4, agree: 4, ...AGREED });
+    },
+  );
+
+  it("keeps a typed fill's missing speech from showing as a step NVDA never said", () => {
+    const pass = passAt(T0, HOME, "forms", FORM);
+    const { onlyInTranscripts } = check([copyOf(...pass.entries)], [pass]);
+    expect(onlyInTranscripts.map((line) => line.step)).not.toContain(3);
   });
 });

@@ -199,6 +199,16 @@ const ONE_MORE_WAIT_MS = 300;
  */
 const FIRST_TAB_REACH_MS = 2 * ONE_MORE_WAIT_MS;
 
+/** Commands whose steps are never compared with the log (see checkAgainstLog). */
+const UNCHECKED_COMMANDS: ReadonlySet<DriverCommand> = new Set(["fillField"]);
+
+/**
+ * The keys of voicecap's that a fill can leave in the cleaned copy: a Space, a Down Arrow, and the
+ * letter h and space of a typed value (every other typed key is dropped from the copy). They are
+ * the pass's keys as far as a stretch goes, though no step claims them.
+ */
+const FILL_GESTURES: readonly string[] = ["space", "downArrow", "h"];
+
 /**
  * Pair the steps of a run's kept transcripts with NVDA's own log, and compare what each says. The
  * copies are those of one or more NVDA sessions; the steps are the kept attempts' passes, each with
@@ -232,6 +242,7 @@ export function checkAgainstLog(input: {
     for (const step of pass.steps) {
       const gesture = gestureOf(step.command);
       if (gesture !== null) stepKeys.add(gesture);
+      if (UNCHECKED_COMMANDS.has(step.command)) FILL_GESTURES.forEach((key) => stepKeys.add(key));
     }
   }
   const stretches = copies.flatMap((copy, index) => stretchesOf(copy, index, stepKeys));
@@ -271,6 +282,10 @@ export function checkAgainstLog(input: {
       if (keyless && speechOf(pass.steps, 0, laid, claimed) === null) return;
     }
     pass.steps.forEach((step, k) => {
+      // A fill is left out: NVDA echoes typed text a key at a time, and the cleaned copy keeps none
+      // of the person's typing, so it has nothing of what NVDA said for the step to compare. It
+      // counts as not checked, as the steps of a pass that can't be paired do.
+      if (UNCHECKED_COMMANDS.has(step.command)) return;
       check.transcriptLines += 1;
       const said = laid === null ? null : speechOf(pass.steps, k, laid, claimed);
       const spoken = normalizeSpeech(step.spoken);
@@ -385,7 +400,11 @@ function keysOf(
   gestureOf: (command: DriverCommand) => string | null,
 ): (string | null)[] {
   const firstTab = steps.findIndex((step) => step.command === "nextFocusable");
-  return steps.map((step, k) => (k === firstTab ? null : gestureOf(step.command)));
+  // The forms pass moves focus into a form by script first (focusField), and its Tabs after that
+  // are NVDA's, with keys of their own.
+  const entered = steps.findIndex((step) => step.command === "focusField");
+  const browsers = entered !== -1 && entered < firstTab ? -1 : firstTab;
+  return steps.map((step, k) => (k === browsers ? null : gestureOf(step.command)));
 }
 
 /**
@@ -509,7 +528,14 @@ function lineUp(
         placed[k] = key;
       }
     }
-    const { near, over } = inOrder(placed, keys, gestures, clock, edges);
+    const { near, over } = inOrder(
+      placed,
+      keys,
+      gestures,
+      clock,
+      edges,
+      steps.map((step) => UNCHECKED_COMMANDS.has(step.command)),
+    );
     const matched = placed.filter((key) => key !== null).length;
     const counted = matched + near;
     if (counted > (best?.counted ?? 0)) {
@@ -543,11 +569,18 @@ function lineUp(
  */
 function inOrder(
   placed: (Key | null)[],
-  keys: readonly Key[],
+  allKeys: readonly Key[],
   gestures: readonly (string | null)[],
   clock: number,
   edges: readonly number[],
+  fills: readonly boolean[],
 ): { near: number; over: boolean } {
+  // The keys a fill presses (a typed space or h, a Space, a Down Arrow) belong to a step that isn't
+  // checked: no step claims them, and they must not read as keys left over among the others.
+  const keys = allKeys.filter((key) => {
+    const k = windowAt(edges, key.at - clock);
+    return k === null || !fills[k];
+  });
   const used = new Set(placed);
   const could = (key: Key, k: number) => gestures[k] === key.gesture && key.at - clock >= edges[k]!;
   const paired = () => placed.flatMap((key, k) => (key === null ? [] : [k]));

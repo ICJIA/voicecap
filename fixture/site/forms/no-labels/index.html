@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Request a callback | Voicecap Test Agency</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.5;
+        color: #1b1b1b;
+        background: #ffffff;
+      }
+      header,
+      main,
+      footer {
+        padding: 0.5rem 1.5rem;
+      }
+      .error {
+        color: #a10000;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Forms fixture: no labels. The words beside each field aren't its label, so the fields have no
+      name. Otherwise the form is the good one: required fields, errors marked and described, an
+      alert, and focus on the first error. Expected: the unlabeled flag on the page (the Tab pass
+      hears "edit, required, blank"), and the form completed but amber, "This form needs work with
+      NVDA.", since a field with no name can't have its name said; the report names the fields
+      "a field with no name".
+    -->
+    <header>
+      <a href="/">Voicecap Test Agency</a>
+    </header>
+    <main id="main">
+      <h1>Request a callback</h1>
+      <form id="callback" action="/forms/no-labels/sent/" method="post" novalidate>
+        <div id="callback-summary" role="alert"></div>
+        <p>
+          Your name
+          <input name="caller" aria-required="true" aria-describedby="caller-error" />
+          <span id="caller-error" class="error"></span>
+        </p>
+        <p>
+          Phone
+          <input
+            name="caller-phone"
+            type="tel"
+            aria-required="true"
+            aria-describedby="caller-phone-error"
+          />
+          <span id="caller-phone-error" class="error"></span>
+        </p>
+        <p><button type="submit">Call me</button></p>
+      </form>
+    </main>
+    <footer>
+      <p>© 2026 Voicecap Test Agency</p>
+    </footer>
+    <script>
+      (() => {
+        const form = document.getElementById("callback");
+        const summary = document.getElementById("callback-summary");
+        const checks = [
+          ["caller", "Enter your name."],
+          ["caller-phone", "Enter a phone number."],
+        ];
+        form.addEventListener("submit", (event) => {
+          const wrong = [];
+          for (const [name, message] of checks) {
+            const field = form.elements[name];
+            const error = document.getElementById(`${name}-error`);
+            if (field.value.trim() !== "") {
+              field.removeAttribute("aria-invalid");
+              error.textContent = "";
+            } else {
+              field.setAttribute("aria-invalid", "true");
+              error.textContent = message;
+              wrong.push(field);
+            }
+          }
+          if (wrong.length === 0) {
+            summary.textContent = "";
+            return;
+          }
+          event.preventDefault();
+          summary.textContent = `${wrong.length} ${wrong.length === 1 ? "field needs" : "fields need"} fixing.`;
+          wrong[0].focus();
+        });
+      })();
+    </script>
+  </body>
+</html>

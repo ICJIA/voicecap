@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import type { PassName, ReviewsFile } from "../src/model.js";
+import type { DefaultPassName, PassName, ReviewsFile } from "../src/model.js";
 import { runPass } from "../src/passes/index.js";
 import {
   escapeSentence,
@@ -188,11 +188,11 @@ function isEscaped(words: string): boolean {
 const unescaped = (words: string): string => words.replace(/\\([!-/:-@[-`{-~])/g, "$1");
 
 /** What a pass's key is called, as a transcript's lines say it. */
-const KEY: Record<PassName, string> = { read: "Down Arrow", headings: "H", tab: "Tab" };
+const KEY: Record<DefaultPassName, string> = { read: "Down Arrow", headings: "H", tab: "Tab" };
 
 /** A transcript's lines as the file numbers them: a step on each line, with its key. */
 const numberedSteps = (pass: PassName, body: string[]): string[] =>
-  body.map((said, at) => `${at + 1}. ${KEY[pass]}: ${said}`);
+  body.map((said, at) => `${at + 1}. ${KEY[pass as DefaultPassName]}: ${said}`);
 
 /** The blocks that are transcripts: each sits under its heading, "Read transcript of /about/, …". */
 const transcriptsIn = (markdown: string): Fence[] =>
@@ -1763,7 +1763,9 @@ describe("renderAiMarkdown", () => {
     const markdown = renderAiMarkdown(i2i);
     const axe = markdown.match(/^Not recorded: this run used voicecap 0\.11\.0\.$/gm) ?? [];
 
+    // One for each page's axe; At a glance's line says it is about the forms.
     expect(axe).toHaveLength(32);
+    expect(markdown).toMatch(/^Forms: not recorded: this run used voicecap 0\.11\.0\.$/m);
     expect(headingsOf(markdown, 4).filter((words) => words === text.AXE_TEXT.title)).toHaveLength(
       32,
     );
@@ -1775,6 +1777,7 @@ describe("renderAiMarkdown", () => {
 
     expect(older).toContain(`- Title: ${mark}`);
     expect(older.match(/^Not recorded: this run used voicecap 0\.4\.1\.$/gm)).toHaveLength(7);
+    expect(older).toContain("Forms: not recorded: this run used voicecap 0.4.1.");
     expect(older).toContain(`- NVDA restarts: ${mark}`);
     expect(older).toContain(`- Whether NVDA was heard: ${mark}`);
     expect(older).toContain(`- Run by: ${mark}`);
@@ -2914,6 +2917,7 @@ describe("stepsOf", () => {
       endConfirmations: 1,
       noNextHeading: /^no next heading$/i,
       stepTimeoutMs: 1000,
+      forms: { settleMs: 0, values: {} },
     });
     const body = bodyLines({ steps: result.steps, pass: "read" });
 

@@ -25,6 +25,7 @@
  * transcript that couldn't be read), the words are new, and use the mockup's own classes.
  */
 import { AXE_FILE, PASS_NAMES, SCREENSHOT_FILE, type PassName } from "../../model.js";
+import { showsFormName } from "../forms-view.js";
 import { esc, idFragment } from "../../report/html.js";
 import { cardAnchor, transcriptAnchor } from "../anchors.js";
 import {
@@ -39,7 +40,7 @@ import {
   type AxeViewRule,
 } from "../axe-view.js";
 import type { AppendixFile, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, PASS_TITLE, VOICE_TEXT } from "../text.js";
+import { APPENDIX_TEXT, AXE_TEXT, FORMS_TEXT, PAGES_TEXT, passTitle, VOICE_TEXT } from "../text.js";
 import {
   axeFingerprint,
   capturedOf,
@@ -55,7 +56,16 @@ import {
   titleOf,
   transcriptsInside,
 } from "../words.js";
-import { chip, count, fold, lineHtml, notRecorded, scroll, strip } from "./parts.js";
+import {
+  chip,
+  count,
+  fold,
+  formBannerHtml,
+  lineHtml,
+  notRecorded,
+  scroll,
+  strip,
+} from "./parts.js";
 
 /** More pages than this, and the cards with nothing to note fold behind one line. */
 const MOST_PAGES_OPEN = 12;
@@ -239,11 +249,13 @@ function cardOf(
     titleLine(card),
     chipsOf(card),
     card.failure === null ? "" : `<p>${esc(card.failure)}</p>`,
+    ...formBanners(card),
     fromLine(card),
     ...manual,
     heardFirstOf(card),
     passesOf(card),
     stripOf(card),
+    formsFold(card),
     axeFold(card),
     transcripts === undefined ? "" : transcriptFold(card, transcripts, latest),
   ].filter((part) => part !== "");
@@ -441,6 +453,64 @@ function axeFold(card: PageCard): string {
   return fold(summary, body.join(""), named);
 }
 
+// What the forms pass found on a page, in a card.
+
+/**
+ * Each form's banner, in view, not in a fold: the feature's headline. Its words are decided in
+ * src/forms/banner.ts. With more than one form on the page each is named ("Form 2"), and under each
+ * banner is what axe found with that form's errors showing, which doesn't change the banner. A card
+ * whose results can't be shown has no banner (its fold says why).
+ */
+function formBanners(card: PageCard): string[] {
+  const { forms } = card;
+  if (forms === undefined || !("forms" in forms)) return [];
+  return forms.forms.map((form) =>
+    formBannerHtml(
+      form.banner,
+      showsFormName(form, forms.forms.length) ? form.label : "",
+      `<p class="sub form-axe">${esc(form.axe)}</p>`,
+    ),
+  );
+}
+
+/**
+ * "What happened at the form", folded in a card before what axe found on the page: for each form,
+ * each required field with what NVDA said at it, what each press of the submit control did, and what
+ * axe found with the form's errors showing. Where the results can't be shown, the line that says why.
+ * A card with no forms record, or a file of no forms, has none.
+ */
+function formsFold(card: PageCard): string {
+  const { forms } = card;
+  if (forms === undefined) return "";
+  const ofPage = `<span class="sr"> ${esc(onPage(card.path))}</span>`;
+  const summary = `<span class="what">${esc(FORMS_TEXT.fold)}${ofPage}</span>`;
+  const options = { id: `forms-${idFragment(card.slug)}`, className: "forms-fold" };
+  if ("notRecorded" in forms) return fold(summary, notRecorded(forms.notRecorded), options);
+  if (forms.forms.length === 0) return "";
+  const body = forms.forms.map((form) => {
+    const fields =
+      form.fields.length === 0
+        ? `<p>${esc(FORMS_TEXT.noRequired)}</p>`
+        : `<p class="sub">${esc(FORMS_TEXT.fields)}</p><ul class="form-fields">${form.fields
+            .map(
+              (field) =>
+                `<li><strong>${esc(field.name)}</strong>: ${esc(field.heard === null ? FORMS_TEXT.notHeard : FORMS_TEXT.said(field.heard))}</li>`,
+            )
+            .join("")}</ul>`;
+    const presses =
+      form.presses.length === 0
+        ? `<p>${esc(FORMS_TEXT.noPresses)}</p>`
+        : `<p class="sub">${esc(FORMS_TEXT.presses)}</p><ol class="form-presses">${form.presses
+            .map(
+              (press) =>
+                `<li>${esc(press.spoken === "" ? FORMS_TEXT.saidNothing : FORMS_TEXT.said(press.spoken))} ${esc(press.did)}</li>`,
+            )
+            .join("")}</ol>`;
+    return `<h4>${esc(form.label)}</h4>${fields}${presses}<p>${esc(form.axe)}</p>`;
+  });
+  return fold(summary, body.join(""), options);
+}
+
 // A card's full transcript.
 
 /**
@@ -450,7 +520,7 @@ function axeFold(card: PageCard): string {
  */
 function transcriptHeading(pass: PassName, path: string, sub = ""): string {
   const after = sub === "" ? "" : ` <span class="sub">${sub}</span>`;
-  return `<h4>${esc(PASS_TITLE[pass])} <span class="sr">${esc(APPENDIX_TEXT.transcriptOf)} ${esc(path)}</span>${after}</h4>`;
+  return `<h4>${esc(passTitle(pass))} <span class="sr">${esc(APPENDIX_TEXT.transcriptOf)} ${esc(path)}</span>${after}</h4>`;
 }
 
 /**
@@ -469,7 +539,7 @@ function transcriptHeading(pass: PassName, path: string, sub = ""): string {
  * `<pre>`'s text is the file's, as the fingerprint check reads it.
  */
 function transcriptOf(file: AppendixFile, path: string, boxed: boolean, at: number | null): string {
-  const title = PASS_TITLE[file.pass];
+  const title = passTitle(file.pass);
   const lead = file.text.startsWith("\n") ? "\n" : "";
   const timing = at === null ? undefined : file.timing;
   const body =

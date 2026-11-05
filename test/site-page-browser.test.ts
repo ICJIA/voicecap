@@ -122,10 +122,29 @@ function longContent(): SiteContent {
  * need attention, and pages NVDA didn't read. The first's report lists its voice page too.
  */
 function verdictContent(): SiteContent {
+  // With each kind of forms line under the verdict: all work, some don't, and none checked.
   const results: NonNullable<PublishedReport["result"]>[] = [
-    { pages: 9, read: 9, problems: 0, problemPages: 0 },
-    { pages: 32, read: 32, problems: 1, problemPages: 32 },
-    { pages: 9, read: 7, problems: 2, problemPages: 2 },
+    {
+      pages: 9,
+      read: 9,
+      problems: 0,
+      problemPages: 0,
+      forms: { found: 4, working: 4, notChecked: 0 },
+    },
+    {
+      pages: 32,
+      read: 32,
+      problems: 1,
+      problemPages: 32,
+      forms: { found: 4, working: 3, notChecked: 1 },
+    },
+    {
+      pages: 9,
+      read: 7,
+      problems: 2,
+      problemPages: 2,
+      forms: { found: 0, working: 0, notChecked: 2 },
+    },
   ];
   return {
     demo: null,
@@ -652,7 +671,11 @@ describe("the site's page", () => {
       // Closed, a fold's files aren't drawn, so axe wouldn't check them: this page has a share's voice
       // page among them, listed as NVDA's voice, and the folds are opened so that axe sees it.
       await openFolds(page);
-      expect(await page.locator("p.verdict").count()).toBe(3);
+      // Each card's verdict, and two forms lines that are pills like it, and one plain note.
+      expect(await page.locator("p.verdict:not(.forms-line)").count()).toBe(3);
+      expect(await page.locator("p.verdict.forms-line.ok").count()).toBe(1);
+      expect(await page.locator("p.verdict.forms-line.warn").count()).toBe(1);
+      expect(await page.locator("p.forms-note").count()).toBe(1);
       expect(await page.locator("li", { hasText: "NVDA's voice" }).isVisible()).toBe(true);
       // The tiles: three cards' worth, with links to every page, the whole report, and one to hear
       // NVDA, and one card with no recording.
@@ -670,7 +693,7 @@ describe("the site's page", () => {
   it("draws each kind of verdict's sign before its words, in a color of its own in both themes, which a screen reader doesn't read", async () => {
     const page = await open(files.verdicts);
     const signs = () =>
-      page.locator("p.verdict").evaluateAll((lines) =>
+      page.locator("p.verdict:not(.forms-line)").evaluateAll((lines) =>
         lines.map((line) => {
           const before = getComputedStyle(line, "::before");
           return {

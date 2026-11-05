@@ -13,6 +13,7 @@
  * what a scroll box holds); it is escaped by whoever builds it. Every other string is text, and
  * escaped here.
  */
+import type { FormBanner } from "../../forms/banner.js";
 import { esc, idFragment, plural } from "../../report/html.js";
 import { count, seconds } from "../format.js";
 import { firstSentenceBold, type Line } from "../line.js";
@@ -307,4 +308,16 @@ export function ring(parts: RingPart[], total: number): string {
   );
   const name = esc(GLANCE_TEXT.ringName(total));
   return `<div class="ring" aria-hidden="true">${picture}${middle}</div><ul class="ring-legend" role="list" aria-label="${name}">${legend.join("")}</ul>`;
+}
+
+/**
+ * A form's banner (src/forms/banner.ts decides its words): its kind as a class, which the style
+ * block draws a sign for before the headline (the sign only repeats the words, and is drawn with no
+ * alternative text, so a screen reader hears the words alone), the headline in bold, and the line
+ * under it. `label` names the form above the headline, when there is more than one to tell apart;
+ * `after` is HTML (already escaped) set under the line, such as axe's result.
+ */
+export function formBannerHtml(banner: FormBanner, label = "", after = ""): string {
+  const name = label === "" ? "" : `<p class="form-name">${esc(label)}</p>`;
+  return `<div class="form-banner ${banner.kind}">${name}<p class="headline">${esc(banner.headline)}</p>${banner.detail === "" ? "" : `<p class="detail">${esc(banner.detail)}</p>`}${after}</div>`;
 }

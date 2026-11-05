@@ -931,18 +931,27 @@ describe("renderSharePage", () => {
     // three pages once more, and not the Word copies, for the style of a card's link to its page's
     // recording (`.voice-link`, which sets the link apart under the page's name): each page grew by
     // 575 characters, all of them in that rule. These runs have no recording, so no card has one.
+    // The forms pass (Task 8, the report's half) re-pinned the three pages, and not the Word copies:
+    // the style gained the rules of a form's banner, the fingerprint check's script gained its clause
+    // for forms results, and At a glance says "Forms: Not recorded: this run used voicecap ..." for a
+    // run from before the pass. Each page grew by 2,645 characters (2,646 for the logged run, whose
+    // version name is a character longer than the others' "an earlier version of voicecap").
+    // The same task's second half re-pinned the three Word copies, and not the pages: At a glance
+    // says that the run did not record its forms (71 characters more for i2i's and the demo's, 72 for the logged
+    // run's, by the length of the version's name).
+    // At a glance's line was then labeled ("Forms: not recorded: …"), 7 characters more in each.
     const before = {
       i2i: {
-        page: [209_935, "d98f1c6b9c93757bf50a01efae2281ee67e9d091e72ceff3bde132ca20fc0554"],
-        word: [53_604, "c45ccfd08d41941fb41b99aae8de31a39a8c1f4052e895fd235bcf9a089ba7f0"],
+        page: [212_587, "850001c88ece2cb994c49fedd1bde4032aca78b0b03c8250df175c7b43d99436"],
+        word: [53_682, "b043e54a8d4557a2d033bd9a18c9f2bf04cf82abc9fe87d37f147defa11d333d"],
       },
       demo: {
-        page: [244_477, "a6f6b90ef58dc7730a575dd4823d03dce6f95818df4aee8abe38c9b878114a50"],
-        word: [76_442, "97f1d6d72ff667120a5e4b1f2681305cdad5db11870e6860d9a2289f5e395aa9"],
+        page: [247_129, "345b7663dbe23c5febee82e629015cffc909d826c6fcd041796ef0d61a36c534"],
+        word: [76_520, "7e89ea6da0b79ee763157a9b7ef0e04884c1d11d6d31edc0deb19fcdc6e00d6e"],
       },
       logged: {
-        page: [126_892, "4b980355cb341297cc15907ce713abbac48fb33496ad62500e0ed595d04c5144"],
-        word: [35_133, "b81d7a1db95e8d96a117d212f256cb98a7c0b82b47754d99eb53b98633b7ce34"],
+        page: [129_545, "54cc56fffd4daccceb0a7be4bd376de5c61aa8ca1eadf6b4c2210ebd6f1de9e3"],
+        word: [35_212, "18bb422a5ff5d74558dabc5a46f9f7871f7e4379c13e300569dc39d3351ff629"],
       },
     };
     const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };

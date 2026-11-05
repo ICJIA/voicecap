@@ -1,7 +1,5 @@
 # Plan 15: the website's sites as JSON (`sites.json`) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** `voicecap site` also writes `sites.json` at the website's top: each site's name, its address, the link to its section on the front page, and its current report's time, verdict, and page, so that another website, such as ICJIA's documentation index, can link each site's results and keep their date and verdict current.
 
 **Architecture:** A pure `renderSitesJson(content)` in `src/site/render.ts`, beside `renderLlmsTxt`, from the same `SiteContent`. The ids of the sites' sections come from one function (`withSectionIds`), shared with the front page, so a link in the file can't drift from the id on the page. The build writes the file after `llms.txt`, keeps a site folder from taking its name, and gives it the JSON type and the AI files' policy in `_headers`.
