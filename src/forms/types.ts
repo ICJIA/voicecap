@@ -69,10 +69,11 @@ export interface FormState {
   /** How many requests the guard has held: the session's count, not the page's. */
   heldRequests: number;
   /**
-   * Each request the guard has held, in order, as many as `heldRequests`: where it was going and what
-   * it was. Only a navigation of the page, or a request to the page's own host or the form's action
-   * host, counts as the form sending (readPress). Left out by a driver that can't say, and in a file
-   * from before voicecap kept it, where every held request counts.
+   * Each request the guard has held, in order, as many as `heldRequests`: where it was going, what it
+   * was, and its method. A navigation of the page, a request to the page's own host or the form's
+   * action host, or a POST, PUT, or PATCH to another host that isn't an analytics service's counts as
+   * the form sending (sentByPress). Left out by a driver that can't say, and in a file from before
+   * voicecap kept it, where every held request counts.
    */
   held?: HeldRequest[];
   /** The page's own host name, as the held requests name theirs. */
@@ -91,10 +92,16 @@ export interface FormState {
   bubble: string | null;
 }
 
-/** A request the guard held: its host name, and what it was ("navigation", or the browser's type). */
+/** A request the guard held: its host name, what it was ("navigation", or the browser's type), and its method. */
 export interface HeldRequest {
   host: string;
   type: string;
+  /**
+   * The HTTP method, in capitals ("GET", "POST"): a socket's is its opening GET. Every driver that
+   * keeps a held list must keep it; it's left out only in a file from before voicecap kept it, where
+   * a request to another host never counts as the form sending.
+   */
+  method?: string;
 }
 
 /** A JavaScript dialog the page opened, and the words it showed. */
@@ -144,6 +151,12 @@ export interface FormOutcome {
    * voicecap kept it.
    */
   baseline?: { invalid: number[]; messages: string[] };
+  /**
+   * The analytics and tracking hosts the pass counted as never the form's sending (FORMS_DEFAULTS'
+   * and the config's), kept where the form was pressed, so the file is read as the run read it.
+   * Left out in a file from before voicecap kept it, which is read with voicecap's own list.
+   */
+  analyticsHosts?: string[];
   /** What NVDA said at each field before any press. */
   firstWalk: FieldHeard[];
   /** The same after the first press that showed an error; empty when none did. */

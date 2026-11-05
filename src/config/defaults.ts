@@ -11,6 +11,47 @@ export const FORMS_DEFAULTS = {
   settleMs: 3000,
   maxPerPage: 5,
   /**
+   * Analytics and tracking services, by host name: a request to one of these, or to a host under
+   * one (`www.google-analytics.com` under `google-analytics.com`), never counts as a form sending,
+   * since a page sends to them on a press whether or not the form goes. A config's
+   * `forms.analyticsHosts` adds to these.
+   */
+  analyticsHosts: [
+    "google-analytics.com",
+    "analytics.google.com",
+    "googletagmanager.com",
+    "doubleclick.net",
+    "googleadservices.com",
+    "googlesyndication.com",
+    "facebook.com",
+    "facebook.net",
+    "clarity.ms",
+    "hotjar.com",
+    "hotjar.io",
+    "siteimprove.com",
+    "siteimproveanalytics.com",
+    "siteimproveanalytics.io",
+    "newrelic.com",
+    "nr-data.net",
+    "segment.io",
+    "segment.com",
+    "mixpanel.com",
+    "matomo.cloud",
+    "plausible.io",
+    "quantserve.com",
+    "bing.com",
+    "linkedin.com",
+    "licdn.com",
+    "twitter.com",
+    "x.com",
+    "t.co",
+    "tiktok.com",
+    "cloudflareinsights.com",
+    "sentry.io",
+    "datadoghq.com",
+    "browser-intake-datadoghq.com",
+  ] as readonly string[],
+  /**
    * By input type, as the keys are typed; `text` is for any other typed field. A check box, radio, or
    * list needs none. `date` is a US date: month, day, year. Types with no value here and no way to
    * type one, such as `file`, need a config's, and a form that requires one without it isn't tested.
@@ -60,11 +101,18 @@ export const FORMS_DEFAULTS = {
 export function formsSettingsOf(
   config: VoicecapConfig,
 ): Required<NonNullable<VoicecapConfig["forms"]>> {
-  const { settleMs, maxPerPage, values } = config.forms ?? {};
+  const { settleMs, maxPerPage, values, analyticsHosts } = config.forms ?? {};
   return {
     settleMs: settleMs ?? FORMS_DEFAULTS.settleMs,
     maxPerPage: maxPerPage ?? FORMS_DEFAULTS.maxPerPage,
     values: values ?? FORMS_DEFAULTS.values,
+    // The config's hosts are added to voicecap's own, each once, in a lower case.
+    analyticsHosts: [
+      ...new Set([
+        ...FORMS_DEFAULTS.analyticsHosts,
+        ...(analyticsHosts ?? []).map((host) => host.toLowerCase()),
+      ]),
+    ],
   };
 }
 

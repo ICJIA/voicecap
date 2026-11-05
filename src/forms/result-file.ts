@@ -45,6 +45,7 @@ export function keptFormsResults(
         axe: keptAxe(press.axe),
       })),
       ...(outcome.baseline ? { baseline: outcome.baseline } : {}),
+      ...(outcome.analyticsHosts ? { analyticsHosts: outcome.analyticsHosts } : {}),
       firstWalk: outcome.firstWalk,
       errorWalk: outcome.errorWalk,
       lastWalk: outcome.lastWalk,

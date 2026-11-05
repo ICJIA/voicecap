@@ -217,6 +217,19 @@ export const configSchema = z.strictObject({
       maxPerPage: positiveInt,
       /** Values to fill fields with, by input type, such as { "email": "someone@example.com" }; "text" is for any other typed field. */
       values: z.record(z.string(), z.string()),
+      /**
+       * Analytics and tracking hosts to add to voicecap's own list (FORMS_DEFAULTS.analyticsHosts),
+       * such as ["stats.example.com"]: a request to one, or to a host under one, never counts as a
+       * form sending.
+       */
+      analyticsHosts: z.array(
+        z
+          .string()
+          .regex(
+            /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$/i,
+            "a host name, such as stats.example.com, with no scheme, path, or port",
+          ),
+      ),
     })
     .partial()
     .optional(),

@@ -138,6 +138,7 @@ function didOf(form: FormFlagInput, press: FormFlagInput["presses"][number]): st
     form.baseline ?? { invalid: [], messages: [] },
     press.heldBefore ?? 0,
     press.state,
+    form.analyticsHosts,
   );
   if (read.completed) return FORMS_TEXT.did.completed;
   if (read.showedError) {

@@ -564,7 +564,7 @@ export class ChromeSession implements BrowserSession {
   /** The guard's arming: once begun, it's never begun again, and a failure stays a failure. */
   private guarding: Promise<void> | null = null;
   private guardProbeSeen = false;
-  /** Each request the guard has held, with where it was going and what it was. */
+  /** Each request the guard has held, with where it was going, what it was, and its method. */
   private readonly held: HeldRequest[] = [];
   /** Each JavaScript dialog the page opened, in a guarded session: each was dismissed. */
   private readonly dialogs: PageDialog[] = [];
@@ -942,7 +942,7 @@ export class ChromeSession implements BrowserSession {
   }
 
   private holdSocket(url: string): void {
-    if (this.guarding) this.held.push({ host: hostOf(url), type: "websocket" });
+    if (this.guarding) this.held.push({ host: hostOf(url), type: "websocket", method: "GET" });
   }
 
   private async armGuard(): Promise<void> {
@@ -992,7 +992,13 @@ export class ChromeSession implements BrowserSession {
   private async holdRequest(route: Route): Promise<void> {
     const request = route.request();
     if (request.url() === GUARD_PROBE) this.guardProbeSeen = true;
-    else this.held.push({ host: hostOf(request.url()), type: this.typeOf(request) });
+    else {
+      this.held.push({
+        host: hostOf(request.url()),
+        type: this.typeOf(request),
+        method: request.method().toUpperCase(),
+      });
+    }
     // "aborted", which a navigation takes as called off: the page stays where it was to be read.
     await route.abort("aborted").catch(() => {});
   }
