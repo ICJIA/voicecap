@@ -56,9 +56,15 @@ export function readPress(
 const SENDING_METHODS = new Set(["POST", "PUT", "PATCH"]);
 
 /**
+ * What a form's script sends by: a fetch, an XHR, or a beacon ("ping"). A CSP report, a frame's
+ * post, or anything else the page sends to another host is no sign of the form going.
+ */
+const SENDING_TYPES = new Set(["fetch", "xhr", "ping"]);
+
+/**
  * Whether the guard held what the form would have sent, in this press: a navigation of the page, a
  * request of any kind to the page's own host or the form's action host, or a POST, PUT, or PATCH
- * (a fetch, an XHR, or a beacon) to any other host that isn't an analytics or tracking service's
+ * by a fetch, an XHR, or a beacon (and no other kind of request) to any other host that isn't an analytics or tracking service's
  * (`analyticsHosts`, matched by the host or a host under it). A form that sends by script often
  * sends to an API on a host of its own. A GET to another host, and anything to an analytics host,
  * goes out on a press whether or not the form does, so it isn't one. A held request with no method
@@ -85,7 +91,8 @@ export function sendsForm(
   if (state.pageHost !== undefined && host === state.pageHost.toLowerCase()) return true;
   if (typeof state.actionHost === "string" && host === state.actionHost.toLowerCase()) return true;
   return (
-    request.method !== undefined &&
+    SENDING_TYPES.has(request.type) &&
+    typeof request.method === "string" &&
     SENDING_METHODS.has(request.method.toUpperCase()) &&
     host !== "" &&
     !isAnalyticsHost(host, analyticsHosts)

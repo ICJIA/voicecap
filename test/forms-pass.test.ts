@@ -378,6 +378,18 @@ describe("what counts as the form sending", () => {
     expect(to("api.example.org", "GET")).toBe(false);
     expect(to("api.example.org", "HEAD")).toBe(false);
     expect(to("api.example.org", "DELETE")).toBe(false);
+    // Only a fetch, an XHR, or a beacon: not a CSP report, a frame's post, or anything else.
+    expect(to("report-uri.example.com", "POST", "cspviolationreport")).toBe(false);
+    expect(to("api.example.org", "POST", "document")).toBe(false);
+    expect(to("api.example.org", "POST", "other")).toBe(false);
+    expect(to("api.example.org", "POST", "websocket")).toBe(false);
+    // A frame's post to the form's own action host still counts, by its host.
+    expect(
+      sendsForm(
+        { host: "forms.illinois.gov", type: "document", method: "POST" },
+        { pageHost: "example.illinois.gov", actionHost: "forms.illinois.gov" },
+      ),
+    ).toBe(true);
     // A file from before voicecap kept the method: another host never counts.
     expect(to("api.example.org")).toBe(false);
     expect(to("www.google-analytics.com", "POST", "ping")).toBe(false);
@@ -386,6 +398,31 @@ describe("what counts as the form sending", () => {
     expect(to("px.ads.linkedin.com", "POST")).toBe(false);
     expect(to("analytics.tiktok.com", "POST")).toBe(false);
     expect(to("o123.ingest.sentry.io", "POST")).toBe(false);
+    for (const host of [
+      "browser-intake-us3-datadoghq.com",
+      "browser-intake-us5-datadoghq.com",
+      "browser-intake-ap1-datadoghq.com",
+      "browser-intake-datadoghq.eu",
+      "browser-intake-ddog-gov.com",
+      "rum.ddog-gov.com",
+      "illinois.sc.omtrdc.net",
+      "illinois.122.2o7.net",
+      "edge.adobedc.net",
+      "dpm.demdex.net",
+      "static.ads-twitter.com",
+      "api2.amplitude.com",
+      "heapanalytics.com",
+      "rs.fullstory.com",
+    ]) {
+      expect(to(host, "POST"), host).toBe(false);
+    }
+    // A listed host still counts when it's the page's own, or the form's action host.
+    expect(
+      sendsForm(
+        { host: "www.linkedin.com", type: "fetch", method: "POST" },
+        { pageHost: "www.linkedin.com", actionHost: null },
+      ),
+    ).toBe(true);
     // A suffix only at a dot: notgoogle-analytics.com isn't google-analytics.com.
     expect(to("notgoogle-analytics.com", "POST")).toBe(true);
     // The page's own host, by any method.
