@@ -156,7 +156,7 @@ describe("renderVerdict", () => {
       offerSetup: true,
     });
     expect(output).toBe(
-      "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.\n" +
+      "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA.\n" +
         "Tip: turn on Do Not Disturb, so notifications don't interrupt VoiceOver.",
     );
   });

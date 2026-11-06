@@ -224,7 +224,7 @@ describe("the tour's words where it can't audit yet (a Mac)", () => {
     );
     expect(cannotAuditYet("VoiceOver")).toBe(
       [
-        "voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.",
+        "voicecap runs its audits on Windows, with NVDA.",
         "On a Windows PC, npx @icjia/voicecap demo runs this step and the next two: NVDA reads the seven",
         "demo pages, voicecap saves the transcripts, and builds the report.",
       ].join("\n"),

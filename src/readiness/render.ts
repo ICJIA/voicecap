@@ -149,7 +149,7 @@ export function renderVerdict(
   const lines = [
     options.canRunYet
       ? `Ready: this computer can run ${screenReader} for voicecap.`
-      : `Ready: this computer is set up for ${screenReader}, but voicecap runs its audits on Windows, with NVDA: a ${screenReader} version isn't planned for now.`,
+      : `Ready: this computer is set up for ${screenReader}, but voicecap runs its audits on Windows, with NVDA.`,
   ];
   if (options.tip) lines.push(options.tip);
   return lines.join("\n");

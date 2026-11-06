@@ -25,6 +25,7 @@ A run can now test each form on a page with NVDA, by keyboard, with nothing the 
 
 ### Changed
 
+- **voicecap no longer says what may or may not come for the Mac.** The README, the trust page, and the Mac's `preflight`, `doctor`, `setup`, `init`, and demo messages now say only that voicecap runs its audits on Windows, with NVDA ("Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA."). They had said a Mac version "isn't planned for now" in some places and "may come later if it's needed" in others.
 - **NVDA's own log keeps Enter and Space,** the forms pass's keys, as voicecap's own, in a run with the forms pass. An ordinary run's cleaned copy keeps the keys it always did. The check of the log against the transcripts leaves out the forms pass's fills: NVDA echoes what's typed a key at a time, and the cleaned copy keeps no typed key.
 - **`--passes`' help names every pass,** and says the default is `read,headings,tab`. The error for an unknown pass name, from the command line or a config, lists all four.
 

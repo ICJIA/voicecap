@@ -39,10 +39,10 @@ const CHECKING =
 
 /** The Mac's reason that no audit runs there: voicecap's audits run on Windows. */
 const CANNOT_RUN_YET =
-  "voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.";
+  "voicecap runs its audits on Windows, with NVDA. Run this command on a Windows computer.";
 /** A ready Mac's verdict, with CANNOT_RUN_YET. */
 const READY_NOT_YET =
-  "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.";
+  "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA.";
 
 /**
  * A scripted Mac: its quick checks answer from `script`, and it has the Mac's checking notice and

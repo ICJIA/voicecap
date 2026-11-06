@@ -58,7 +58,7 @@ function mac(overrides: Partial<PlatformReadiness> = {}): PlatformReadiness {
   return windows({
     screenReader: "VoiceOver",
     cannotRunYet:
-      "voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.",
+      "voicecap runs its audits on Windows, with NVDA. Run this command on a Windows computer.",
     readyTip: "Tip: turn on Do Not Disturb, so notifications don't interrupt VoiceOver.",
     liveTestNotice: [
       "The live test takes about 20 seconds. VoiceOver speaks and takes over the keyboard, so keep your hands off.",
@@ -587,10 +587,10 @@ describe("the tour on a Mac, where audits don't run", () => {
       "  OK    VoiceOver can be controlled by AppleScript\n  WARN  The full demo runs on a Windows PC for now: on this Mac, the tour stops after the live test\n",
     );
     expect(result.screen).toContain(
-      "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.\n",
+      "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA.\n",
     );
     expect(result.screen).toContain(
-      "voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.\nOn a Windows PC,",
+      "voicecap runs its audits on Windows, with NVDA.\nOn a Windows PC,",
     );
     expect(result.screen).toContain(
       "Press Enter for step 7 (your own site), or Ctrl+C to stop here: ",

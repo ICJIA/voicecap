@@ -2837,7 +2837,7 @@ describe("voicecap init", () => {
   it("shows cannotRunYet's reason instead of offering to run", async () => {
     // The real reason the Mac's readiness module gives (readiness-mac.ts) until its driver exists.
     const reasonText =
-      "voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.";
+      "voicecap runs its audits on Windows, with NVDA. Run this command on a Windows computer.";
     const platform = readyPlatform({ screenReader: "VoiceOver", cannotRunYet: reasonText });
     const run = await cli(
       ["init"],
@@ -2857,7 +2857,7 @@ describe("voicecap init", () => {
     expect(run.out).not.toContain("Run it now?");
     // The preflight's own verdict doesn't promise a run either.
     expect(run.out).toContain(
-      "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.",
+      "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA.",
     );
     expect(run.out).not.toContain("can run VoiceOver for voicecap");
   });
@@ -3072,8 +3072,7 @@ describe("voicecap demo", () => {
   function macLike(): PlatformReadiness {
     return readyPlatform({
       screenReader: "VoiceOver",
-      cannotRunYet:
-        "voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.",
+      cannotRunYet: "voicecap runs its audits on Windows, with NVDA.",
       liveTestNotice: ["The live test takes about 20 seconds."],
       liveTest: () =>
         Promise.resolve([{ id: "liveHear", status: "OK", summary: "VoiceOver hears the page" }]),

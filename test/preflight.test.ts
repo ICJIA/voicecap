@@ -133,11 +133,11 @@ const MAC_NOTICE =
 // doesn't print it: "run this command on a Windows computer", right after a preflight, would read
 // as "run preflight there".
 const CANNOT_RUN_YET =
-  "voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.";
+  "voicecap runs its audits on Windows, with NVDA. Run this command on a Windows computer.";
 
 // What preflight says instead, after a passing Mac's green line.
 const MAC_ENDING =
-  "voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now. To hear VoiceOver work now: npx @icjia/voicecap doctor (a 20-second live test; hands off the keyboard and mouse).";
+  "voicecap runs its audits on Windows, with NVDA. To hear VoiceOver work now: npx @icjia/voicecap doctor (a 20-second live test; hands off the keyboard and mouse).";
 
 const MAC_READY = {
   macos: [ok("macos", "macOS 26 is supported")],

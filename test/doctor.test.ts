@@ -70,7 +70,7 @@ describe("runDoctor", () => {
     expect(await runDoctor({ platform, logger, now: NOW })).toBe(0);
     const text = logger.text();
     expect(text).toContain(
-      "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.",
+      "Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA.",
     );
     expect(text).not.toContain("can run VoiceOver for voicecap");
   });

@@ -34,7 +34,7 @@ Here is the top of that report for the new version of i2i.illinois.gov, as NVDA 
 > **Status: what works where.**
 >
 > - **Windows, voicecap's focus:** everything, including full audits with NVDA and Chrome, checked end to end with real NVDA 2026.2 and Chrome 153.
-> - **Mac:** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, as groundwork. Audits run on a Windows computer: a Mac version, with VoiceOver, may come later if it's needed, and isn't part of voicecap now.
+> - **Mac:** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, as groundwork. Audits run on a Windows computer.
 > - **Any computer, Linux included:** reviews, reports, `share`, `site`, `walkthrough`, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`). Hearing pages again, with `review --replay`, needs Windows or a Mac.
 
 ## Contents
@@ -413,12 +413,12 @@ In Terminal, iTerm, or Visual Studio Code's terminal:
 1. **Set up, once:** `npx @icjia/voicecap setup` installs Guidepup's VoiceOver files, and Playwright's Chromium if Google Chrome isn't installed. It changes two VoiceOver settings, walks you through the macOS permissions voicecap needs, and ends by checking this Mac (see [Mac setup](#mac-setup)).
 2. **Check:** `npx @icjia/voicecap doctor` checks this Mac and runs a 20-second live test that starts VoiceOver, then prints a report to paste into a bug report. The report names this Mac and your user, so read it before you post it anywhere public.
 3. **Compose the run:** `npx @icjia/voicecap init` checks this Mac, asks the same questions as on Windows, and prints the run's command.
-4. **Run:** on a Windows computer. voicecap runs its audits on Windows, with NVDA, and a Mac version isn't planned for now. (A run started on a Mac stops at once, with exit code 2.)
+4. **Run:** on a Windows computer. voicecap runs its audits on Windows, with NVDA. (A run started on a Mac stops at once, with exit code 2.)
 
 On a ready Mac, the checks end with this verdict:
 
 ```
-Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA: a VoiceOver version isn't planned for now.
+Ready: this computer is set up for VoiceOver, but voicecap runs its audits on Windows, with NVDA.
 Tip: turn on Do Not Disturb, so notifications don't interrupt VoiceOver.
 ```
 
@@ -429,7 +429,7 @@ Your command:
   npx @icjia/voicecap --site https://i2i.illinois.gov --page https://i2i.illinois.gov/program-overview/
 Run the same command again later to resume where it stopped.
 
-voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.
+voicecap runs its audits on Windows, with NVDA. Run this command on a Windows computer.
 ```
 
 </details>
@@ -2161,7 +2161,7 @@ Here is the top of the page, in the dark theme it opens in. Under the top bar an
 - **The law, in three cards:** Title II of the ADA, IITAA (the Illinois Information Technology Accessibility Act), and WCAG. Each card's heading links to its source: ada.gov's page on the rule, the state's page on accessibility, and W3C's page on WCAG.
 - **How every word can be checked,** in six points: each transcript, screenshot, axe result, and recording of NVDA's voice has a SHA-256 fingerprint, each run's record is sealed, and each share and review is chained to the one before it; `voicecap verify` checks a whole record; each report checks its own fingerprints in a browser; of the files shared with its reports, the website publishes only those that still match their recorded fingerprints, and says how many; how to check a copy you downloaded, with `Get-FileHash <file>` in PowerShell, or `shasum -a 256 <file>` on a Mac, against the fingerprint the front page lists for the file; and each walkthrough file a report offers repeats its run. Five of the six link to where they're shown or described. The one on the files the website publishes has no link.
 - **How voicecap is tested.** Before the release goes out: the lint and the type checks, then its own run of every test (how many passed, how many were skipped, in how many files, and on which system), then every dependency locked in `npm-shrinkwrap.json` and audited for high or critical advisories, then a check that the package installs and runs. On every change: the same tests on each system and Node version in CI's matrix, and a run of the command line with its replay driver. The shareable page (the report you open from the website) and the website itself are checked with axe, in a real browser, in both themes and at a phone's width. A run with real NVDA at a PC comes before any release that changes how voicecap drives NVDA.
-- **What it doesn't do.** It doesn't decide what's accessible: a person does. It uses NVDA only; a Mac version, with VoiceOver, may come later if it's needed. A transcript shows what NVDA said, not what every screen reader would say. A checker such as axe finds what code can find, and a person's review finds the rest.
+- **What it doesn't do.** It doesn't decide what's accessible: a person does. It uses NVDA only. A transcript shows what NVDA said, not what every screen reader would say. A checker such as axe finds what code can find, and a person's review finds the rest.
 - **"One person built this," answered.** "Built by Christopher Schweda at ICJIA," then six cards: the code is public, on GitHub, under the MIT license; voicecap records the real screen reader; every word is on the record; anyone can check the fingerprints; the tests, with their count; and a public, dated record of every change.
 - **How it got here:** the newest five releases, each with its version as a green pill, its day, and the first line of its CHANGELOG entry. Under them, when there are more than five, is "See all N releases", a link to [What's New](#whats-new), which has every one, then "The full CHANGELOG", a link to it on GitHub. Nothing follows: the bottom bar, on each of the website's own pages, has GitHub, the CHANGELOG, and the version.
 
@@ -2750,7 +2750,7 @@ A driver owns both the screen reader and the browser, so the rest of voicecap ne
 - **`replay`**: no screen reader or browser. It plays back a run folder (`--replay-from`), matched by URL: each pass's recorded steps in order, then NVDA's end behavior (the last line repeats, "no next heading", focus leaves the page). Replayed output is labeled as such in every transcript and report.
 - **`at-driver`**: a stub for the W3C [AT Driver](https://w3c.github.io/at-driver/) protocol. Every method throws "not implemented"; the comments show how each maps to AT Driver messages. Completing it would mean installing the NVDA AT Automation add-on and server ([Prime-Access-Consulting/nvda-at-automation](https://github.com/Prime-Access-Consulting/nvda-at-automation), a WebSocket server on `ws://localhost:3031` by default), implementing `src/drivers/at-driver-nvda.ts` along its comments (browser work stays with Playwright), and running the same fixture checks.
 
-There's no VoiceOver driver: voicecap's audits run on Windows, with NVDA, and a Mac version isn't planned for now (see the status at the top). The Mac's checks and live test drive VoiceOver through Guidepup directly, in `src/drivers/voiceover/`, as groundwork.
+There's no VoiceOver driver: voicecap's audits run on Windows, with NVDA (see the status at the top). The Mac's checks and live test drive VoiceOver through Guidepup directly, in `src/drivers/voiceover/`, as groundwork.
 
 </details>
 

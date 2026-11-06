@@ -61,7 +61,7 @@ function ending(result: PreflightResult, platform: PlatformReadiness, again: str
     return {
       outcome: "pass",
       verdict: "✓ Ready: this Mac passed every check.",
-      after: `voicecap runs its audits on Windows, with NVDA: a ${screenReader} version isn't planned for now. To hear ${screenReader} work now: ${DOCTOR} (a 20-second live test; hands off the keyboard and mouse).`,
+      after: `voicecap runs its audits on Windows, with NVDA. To hear ${screenReader} work now: ${DOCTOR} (a 20-second live test; hands off the keyboard and mouse).`,
       exitCode: ExitCode.ok,
     };
   }

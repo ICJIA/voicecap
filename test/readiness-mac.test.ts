@@ -260,7 +260,7 @@ describe("Mac readiness", () => {
     const platform = mac();
     expect(platform.screenReader).toBe("VoiceOver");
     expect(platform.cannotRunYet).toBe(
-      "voicecap runs its audits on Windows, with NVDA; a Mac version isn't planned for now. Run this command on a Windows computer.",
+      "voicecap runs its audits on Windows, with NVDA. Run this command on a Windows computer.",
     );
     expect(platform.readyTip).toBe(
       "Tip: turn on Do Not Disturb, so notifications don't interrupt VoiceOver.",
