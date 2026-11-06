@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **The form guard's tunnel tests no longer hang their clean-up.** After each tunnel test, the HTTPS test server closed only once every connection to it had gone, but the clean-up destroyed only the WebSocket connections it counted. A connection Chrome still held, or one it opened just then, kept the close waiting until the hook timed out at 60 seconds, on a different runner each time. The clean-up now stops the server taking connections first, then destroys every connection it has open. The tests only; voicecap itself is unchanged.
+
 ## [0.25.0] - 2026-11-06
 
 A run can now test each form on a page with NVDA, by keyboard, with nothing the form sends ever leaving the browser, and every copy of the report says, form by form, whether it works with NVDA. On a Mac, voicecap now says only that its audits run on Windows, with NVDA.

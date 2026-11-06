@@ -828,15 +828,24 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     let tls: Server;
     let tlsUrl: string;
     const sockets = new Set<Socket>();
+    // Every connection the server has open, at the TCP level: Chrome can hold one open
+    // between tests, or be in the middle of a handshake, and the server can't close until
+    // each has gone.
+    const connections = new Set<Socket>();
 
     beforeEach(async () => {
       seen = [];
       sockets.clear();
+      connections.clear();
       tls = createTlsServer(await makeTls(), (request, response) => {
         request.resume();
         seen.push(request.url ?? "");
         response.writeHead(200, { "Content-Type": "text/html" });
         response.end(request.url === "/" ? TUNNELLED : "ok");
+      });
+      tls.on("connection", (socket: Socket) => {
+        connections.add(socket);
+        socket.on("close", () => connections.delete(socket));
       });
       countSockets(tls, seen, sockets);
       await new Promise<void>((resolve) => tls.listen(0, "127.0.0.1", resolve));
@@ -845,9 +854,13 @@ describe.skipIf(!haveChromium)("the form guard", () => {
       await start();
     });
     afterEach(async () => {
+      // Stop taking connections first, so Chrome can't open one between the destroys and the
+      // close, which would leave the close waiting on it until the hook timed out.
+      const closed = new Promise<void>((resolve) => tls.close(() => resolve()));
       for (const socket of sockets) socket.destroy();
+      for (const socket of connections) socket.destroy();
       tls.closeAllConnections();
-      await new Promise<void>((resolve) => tls.close(() => resolve()));
+      await closed;
     });
 
     it("loads an https page through the gate, by CONNECT", async () => {
