@@ -60,6 +60,15 @@ export interface FakeForm {
   afterHeld?: string;
   /** What checkFormWithAxe gives. */
   axe?: AxeCapture;
+  /**
+   * What a press with nothing to block it does, for a page whose script has the last word:
+   * - "cancelled": the page cancels the submit, and sends nothing that could be the form.
+   * - "late": the same, with a POST too long after to be the form's.
+   * - "tied": the page cancels the submit, and sends the form itself by POST.
+   * - "tied-message": the same, and a new message shows.
+   * - "stray": a POST, with no submit event at all.
+   */
+  presses?: "cancelled" | "late" | "tied" | "tied-message" | "stray";
   /** What tells this form from others, here and on other pages ("fake" unless given). */
   signature?: string;
   /** How long a fill takes for each character typed, as Guidepup's capture of each does. */
@@ -151,6 +160,9 @@ export class FakeFormDriver extends ScriptedDriver {
   /** A field's index, "submit", "out" (past the form), or null before anything is focused. */
   private focus: number | "submit" | "out" | null = null;
   private held = 0;
+  private submitEvents = 0;
+  private writes = 0;
+  private tied = 0;
   private tabs = 0;
   private presses = 0;
   private marked: number[] = [];
@@ -240,6 +252,7 @@ export class FakeFormDriver extends ScriptedDriver {
       if (this.form.afterHeld !== undefined) this.show(this.form.afterHeld);
     }
     const empty = this.emptyFields();
+    if (this.form.presses !== undefined && empty.length === 0) return this.pressByScript();
     switch (this.form.validates ?? "native") {
       case "native":
         if (empty[0] === undefined || this.form.noBubble) break;
@@ -259,6 +272,7 @@ export class FakeFormDriver extends ScriptedDriver {
       this.show("Please complete the form");
     } else if (empty.length === 0 && (this.form.validates ?? "native") !== "nothing") {
       this.held += 1;
+      this.submitEvents += 1;
       if (this.form.afterHeld !== undefined) this.show(this.form.afterHeld);
     }
     if (this.form.resets) this.filled.clear();
@@ -293,6 +307,9 @@ export class FakeFormDriver extends ScriptedDriver {
       messages: [],
       liveChanged: live,
       heldRequests: this.held,
+      submitEvents: this.submitEvents,
+      heldWrites: this.writes,
+      tiedSends: this.tied,
       present,
       bubble: null,
     };
@@ -320,6 +337,18 @@ export class FakeFormDriver extends ScriptedDriver {
   /** How many times the pass did `call`, by the start of what `made` lists. */
   count(call: string): number {
     return this.made.filter((made) => made.startsWith(call)).length;
+  }
+
+  private pressByScript(): Promise<Speech> {
+    const kind = this.form.presses;
+    if (kind !== "stray") this.submitEvents += 1;
+    if (kind !== "cancelled") this.writes += 1;
+    if (kind === "tied" || kind === "tied-message") {
+      this.tied += 1;
+      this.held += 1;
+    }
+    if (kind === "tied-message") this.show("Please enter your name");
+    return Promise.resolve(this.shown.at(-1) ?? "");
   }
 
   private emptyFields(): number[] {

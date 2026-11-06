@@ -34,6 +34,8 @@ const HEADLESS = ["--headless=new", ...(process.platform === "linux" ? ["--no-sa
 
 /** How long a request that got past the guard gets to reach the server. */
 const STRAGGLER_MS = 400;
+/** How long a form's page gets after a press, past a late send, before its state is read. */
+const WATCH_MS = 2_000;
 /** How long the page gets to try to send. */
 const SEND_LIMIT_MS = 5_000;
 
@@ -894,58 +896,98 @@ describe.skipIf(!haveChromium)("the form guard", () => {
   });
 
   describe("what stands for a form going through", () => {
-    /** Runs `act` in the page, then gives the session's count of sends that stand for the form. */
-    async function sendsAfter(act: string): Promise<number> {
-      kind = "fetch";
-      await start();
-      const page = await open();
-      await session.armFormGuard();
-      await page.evaluate(act);
-      await settled();
-      return session.formSends();
-    }
+    const NOTHING = { heldRequests: 0, submitEvents: 0, heldWrites: 0, tiedSends: 0 };
+    const CANCEL = `document.forms[0].addEventListener("submit", (event) => event.preventDefault());`;
+    const POST = `fetch("/sent", { method: "POST", body: "secret" }).catch(() => {});`;
 
-    it("counts a fetch, an XHR, and a navigation the guard holds", async () => {
-      expect(
-        await sendsAfter(`(() => {
-          fetch("/sent", { method: "POST", body: "secret" }).catch(() => {});
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", "/sent");
-          xhr.send("secret");
-          location.href = "/next";
-        })()`),
-      ).toBe(3);
-    });
-
-    it("counts a cancelled submit once the page really sends it, as a held fetch", async () => {
+    /** A form on a guarded page, `script` run in it, `#go` pressed, and the form's state after. */
+    async function stateAfter(script: string, press_ = true) {
       kind = "post form";
       await start();
       const page = await open();
       await session.scanForms();
       await session.armFormGuard();
-      await page.evaluate(`document.forms[0].addEventListener("submit", (event) => {
+      await page.evaluate(script);
+      if (press_) await press(page);
+      await delay(WATCH_MS);
+      const { heldRequests, submitEvents, heldWrites, tiedSends } = await session.readFormState(0);
+      return { heldRequests, submitEvents, heldWrites, tiedSends };
+    }
+
+    it("doesn't count a cancelled submit with a GET poll beside it", async () => {
+      const state = await stateAfter(`${CANCEL} fetch("/poll").catch(() => {});`);
+      expect(state).toEqual({ ...NOTHING, submitEvents: 1 });
+      expect(session.heldRequests()).toBeGreaterThan(0);
+    });
+
+    it("doesn't count a POST more than a second after a cancelled submit", async () => {
+      const state = await stateAfter(`document.forms[0].addEventListener("submit", (event) => {
         event.preventDefault();
-        fetch("/sent", { method: "POST", body: "secret" }).catch(() => {});
-      })`);
-      await press(page);
-      await settled();
-      expect((await session.readFormState(0)).heldRequests).toBe(1);
+        setTimeout(() => { ${POST} }, 1500);
+      });`);
+      expect(state).toEqual({ ...NOTHING, submitEvents: 1, heldWrites: 1 });
+    });
+
+    it("counts a POST within a second of a cancelled submit", async () => {
+      const state = await stateAfter(`document.forms[0].addEventListener("submit", (event) => {
+        event.preventDefault();
+        ${POST}
+      });`);
+      expect(state).toEqual({ heldRequests: 1, submitEvents: 1, heldWrites: 1, tiedSends: 1 });
+    });
+
+    it("counts an XHR that isn't a GET the same way, and not a GET", async () => {
+      const state = await stateAfter(`document.forms[0].addEventListener("submit", (event) => {
+        event.preventDefault();
+        const put = new XMLHttpRequest();
+        put.open("PUT", "/sent");
+        put.send("secret");
+        const get = new XMLHttpRequest();
+        get.open("GET", "/poll");
+        get.send();
+      });`);
+      expect(state).toEqual({ heldRequests: 1, submitEvents: 1, heldWrites: 1, tiedSends: 1 });
+    });
+
+    it("doesn't count a POST before the submit, or one with no submit event", async () => {
+      const state = await stateAfter(POST, false);
+      expect(state).toEqual({ ...NOTHING, heldWrites: 1 });
+    });
+
+    it("counts a navigation of the page itself, always", async () => {
+      expect((await stateAfter(`location.href = "/next";`, false)).heldRequests).toBe(1);
+    });
+
+    it("doesn't count a frame's navigation, such as an ad's", async () => {
+      const state = await stateAfter(
+        `const frame = document.createElement("iframe");
+        document.body.append(frame);
+        frame.contentWindow.location.href = "/ad";`,
+        false,
+      );
+      expect(state).toEqual(NOTHING);
+      expect(session.heldRequests()).toBeGreaterThan(0);
     });
 
     it("doesn't count a beacon, a ping, or an image", async () => {
-      expect(
-        await sendsAfter(`(() => {
-          navigator.sendBeacon("/beacon", "x");
-          new Image().src = "/pixel.gif";
-          const link = document.createElement("a");
-          link.href = "#here";
-          link.ping = "/ping";
-          document.body.append(link);
-          link.click();
-        })()`),
-      ).toBe(0);
-      // The guard's own count has them, for its own use.
+      const state = await stateAfter(
+        `navigator.sendBeacon("/beacon", "x");
+        new Image().src = "/pixel.gif";
+        const link = document.createElement("a");
+        link.href = "#here";
+        link.ping = "/ping";
+        document.body.append(link);
+        link.click();`,
+        false,
+      );
+      expect(state).toEqual(NOTHING);
       expect(session.heldRequests()).toBeGreaterThan(0);
+    });
+
+    it("counts a submit the page leaves alone, with what it sends", async () => {
+      const state = await stateAfter("");
+      expect(state.heldRequests).toBe(2);
+      expect(state.submitEvents).toBe(1);
     });
   });
 

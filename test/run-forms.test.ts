@@ -9,6 +9,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { FORMS_DEFAULTS, formsSettingsOf } from "../src/config/defaults.js";
+import type { PageInfo } from "../src/drivers/types.js";
 import { runPass, type PassSettings } from "../src/passes/index.js";
 import { runAudit } from "../src/run/audit.js";
 import { pageDir } from "../src/run/paths.js";
@@ -94,6 +95,21 @@ describe("a page's forms in a run", () => {
     const home = result.run.pages.find((page) => page.url === HOME)!;
     const homeFolder = pageDir(outDir(dir), result.run.id, home.slug);
     expect(existsSync(path.join(homeFolder, "forms.json"))).toBe(true);
+  });
+
+  it("keeps the transcript of a page with no forms that has a warning to give", async () => {
+    const dir = await setup(["/"]);
+    const stuck = { axe: { error: "timed out", leftRunning: true as const } };
+    const site = new FakeFormSite(sitePages({ home: stuck }), {});
+    const open = site.openPage.bind(site);
+    let loads = 0;
+    site.openPage = async (url, given) => {
+      const info = await open(url, given);
+      loads += 1;
+      return loads === 1 ? info : { ...info, finalUrl: `${HOME}elsewhere` };
+    };
+    const result = await runAudit(options(dir, site, { passes: ["forms"] }));
+    expect(result.run.pages[0]?.passes.forms?.warnings.join(" ")).toContain("elsewhere");
   });
 
   it("runs the forms pass last, whichever order it's named in", async () => {
@@ -182,6 +198,45 @@ describe("a problem at a form", () => {
     expect(home.attempts).toBe(1);
     expect(home.passes.read).toBeDefined();
     expect(home.passes.forms?.errors.join(" ")).toContain("the gate wouldn't open");
+  });
+
+  describe("a guarded load that isn't the page", () => {
+    /** A run whose guarded loads are changed by `change`: the page's plain loads are as they are. */
+    async function runChanged(change: (info: PageInfo) => PageInfo) {
+      const dir = await setup(["/"]);
+      const site = new FakeFormSite(sitePages(), { [HOME]: [form("a")] });
+      const open = site.openPage.bind(site);
+      site.openPage = async (url, given) => {
+        const info = await open(url, given);
+        return given?.formGuard ? change(info) : info;
+      };
+      const result = await runAudit(options(dir, site, { passes: ["read", "forms"] }));
+      return { dir, site, result, home: result.run.pages[0]! };
+    }
+
+    it.each([
+      ["answers 503", (info: PageInfo) => ({ ...info, status: 503 }), "503"],
+      ["answers 403", (info: PageInfo) => ({ ...info, status: 403 }), "403"],
+      ["isn't HTML", (info: PageInfo) => ({ ...info, contentType: "application/pdf" }), "HTML"],
+      [
+        "lands on another page",
+        (info: PageInfo) => ({ ...info, finalUrl: `${SITE}/login` }),
+        `${SITE}/login`,
+      ],
+    ])(
+      "tests nothing and says why when it %s, so it never reads as no forms",
+      async (_, change, why) => {
+        const { dir, site, result, home } = await runChanged(change);
+        expect(home.status).toBe("done");
+        expect(home.attempts).toBe(1);
+        expect(home.passes.read).toBeDefined();
+        expect(home.passes.forms?.errors.join(" ")).toContain(why);
+        expect(site.count(`arm ${HOME}`)).toBe(0);
+        expect(result.run.formSignatures).toBeUndefined();
+        const folder = pageDir(outDir(dir), result.run.id, home.slug);
+        expect(existsSync(path.join(folder, "forms.json"))).toBe(true);
+      },
+    );
   });
 
   it("keeps nothing of the form Ctrl+C stopped, and a retry starts it afresh", async () => {

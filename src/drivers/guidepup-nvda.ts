@@ -94,7 +94,8 @@
  *   the passes, while a browser opens or is raised (which minimizes it for a moment), the window
  *   behind it is in front, and NVDA reads it aloud: Visual Studio Code's terminal, in the r3 run of
  *   2026-10-10. A window that comes and goes between two of a pass's steps, which no check sees,
- *   can still be heard. * - Each form of the forms pass gets a fresh browser of its own, behind a form gate that goes with
+ *   can still be heard.
+ * - Each form of the forms pass gets a fresh browser of its own, behind a form gate that goes with
  *   it (openPage's formGuard); no other load has one. Its keys go through NVDA with the same checks
  *   of the foreground, and the same stretch of the recording, as any step's.
  */

@@ -20,6 +20,7 @@ import {
   type Browser,
   type CDPSession,
   type Page,
+  type Request as PlaywrightRequest,
   type Response,
   type Route,
 } from "playwright";
@@ -459,8 +460,9 @@ const AXE_WORLD = "voicecap-axe";
 
 /**
  * Called in axe's world once axe-core's script has run there: axe checks the page's document with
- * the rules of `tags`, or the part of it `selector` names. Its results come back as JSON made with that world's own JSON, which the
- * page's scripts can't reach. As one string, they come back whole, however deeply they nest.
+ * the rules of `tags`, or the part of it `selector` names. Its results come back as JSON made with
+ * that world's own JSON, which the page's scripts can't reach. As one string, they come back whole,
+ * however deeply they nest.
  */
 const RUN_AXE = `function (tags, selector) {
   return axe.run(selector === undefined ? document : { include: [selector] }, {
@@ -475,8 +477,11 @@ const RUN_AXE = `function (tags, selector) {
  */
 const GUARD_PROBE = "https://voicecap-form-guard.invalid/";
 
-/** The kinds of held request that stand for a form going through: not "ping", a beacon's kind. */
-const SEND_TYPES = new Set(["document", "fetch", "xhr"]);
+/** The kinds of held request a page's script sends a form by: not "ping", a beacon's kind. */
+const WRITE_TYPES = new Set(["fetch", "xhr"]);
+
+/** How soon after a cancelled `submit` a held write has to begin for it to be the form's. */
+const TIED_SEND_MS = 1_000;
 
 /** The isolated world the guard gathers ICE candidates in, apart from the page's own scripts. */
 const GUARD_WORLD = "voicecap-form-guard";
@@ -541,7 +546,10 @@ export class ChromeSession implements BrowserSession {
   private guarding: Promise<void> | null = null;
   private guardProbeSeen = false;
   private held = 0;
-  private sends = 0;
+  /** Held navigations of the page itself. */
+  private navigations = 0;
+  /** When each held fetch or XHR that isn't a GET was stopped. */
+  private readonly heldWrites: number[] = [];
   /** The isolated world the last scan held its forms in; null before one. */
   private formsWorld: number | null = null;
   private unclosedWindows = 0;
@@ -766,9 +774,18 @@ export class ChromeSession implements BrowserSession {
   readFormState(form: number): Promise<FormState> {
     return this.onPage(async () => {
       const read = await readFormState(this.cdp, this.formsWorld, form);
-      const { submitted, ...state } = read;
-      const focused = await this.focusedElement();
-      return { ...state, focused, heldRequests: submitted + this.sends };
+      const { submitted, cancelledAt, ...state } = read;
+      const tiedSends = this.heldWrites.filter((at) =>
+        cancelledAt.some((event) => at >= event && at - event <= TIED_SEND_MS),
+      ).length;
+      return {
+        ...state,
+        focused: await this.focusedElement(),
+        heldRequests: submitted + this.navigations + tiedSends,
+        submitEvents: submitted + cancelledAt.length,
+        heldWrites: this.heldWrites.length,
+        tiedSends,
+      };
     });
   }
 
@@ -888,15 +905,6 @@ export class ChromeSession implements BrowserSession {
     return this.held;
   }
 
-  /**
-   * How many of the requests held stand for a form going through: a navigation, a fetch, or an XHR.
-   * A ping or a beacon goes out whether or not the form did, so it isn't one, and heldRequests is
-   * for the guard's own use.
-   */
-  formSends(): number {
-    return this.sends;
-  }
-
   /** How many windows a page opened that the guard tried to close and couldn't. */
   strayWindows(): number {
     return this.unclosedWindows;
@@ -925,13 +933,29 @@ export class ChromeSession implements BrowserSession {
   }
 
   private async holdRequest(route: Route): Promise<void> {
-    if (route.request().url() === GUARD_PROBE) this.guardProbeSeen = true;
-    else {
-      this.held += 1;
-      if (SEND_TYPES.has(route.request().resourceType())) this.sends += 1;
+    try {
+      if (route.request().url() === GUARD_PROBE) this.guardProbeSeen = true;
+      else {
+        this.held += 1;
+        this.noteHeld(route.request());
+      }
+    } finally {
+      // "aborted", which a navigation takes as called off: the page stays where it was to be read.
+      // Whatever the counting did: a request is always stopped.
+      await route.abort("aborted").catch(() => {});
     }
-    // "aborted", which a navigation takes as called off: the page stays where it was to be read.
-    await route.abort("aborted").catch(() => {});
+  }
+
+  /**
+   * Keep what readFormState needs of a held request. heldRequests is the guard's own count; these
+   * are what may stand for a form going through, as a poll, a frame's ad, or a beacon doesn't.
+   */
+  private noteHeld(request: PlaywrightRequest): void {
+    if (request.isNavigationRequest()) {
+      if (request.frame() === this.page.mainFrame()) this.navigations += 1;
+    } else if (WRITE_TYPES.has(request.resourceType()) && request.method() !== "GET") {
+      this.heldWrites.push(Date.now());
+    }
   }
 
   /**

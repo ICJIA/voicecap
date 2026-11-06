@@ -138,6 +138,8 @@ export interface ScreenReaderDriver {
    * only then, and a driver moves no focus for it. It keeps listening until the screen reader goes
    * quiet and `settleMs` more has gone by, since many forms show their errors a moment later, and
    * what's said by then is its answer. A press with little of its step's time left settles for less.
+   * Its listening can have gaps, as Guidepup's does (see the Guidepup driver's pressSubmit), so words
+   * missing from its answer don't prove the screen reader never said them.
    */
   pressSubmit?(form: number, settleMs: number): Promise<Speech>;
   /** Put a value in the focused field by keys, never by script. */

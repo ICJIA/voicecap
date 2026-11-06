@@ -41,7 +41,7 @@ import { InterruptedError, StepTimeoutError, withTimeout } from "../passes/steps
 import { displayPath, isHtmlContentType, sameOrigin } from "../pages/url.js";
 import { fileHash, writeTranscript } from "../transcripts/write.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
-import { errorCode, errorMessage } from "../util/errors.js";
+import { EnvironmentError, errorCode, errorMessage } from "../util/errors.js";
 import { jpegSize } from "../util/jpeg.js";
 import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
@@ -448,9 +448,11 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         warnings.push(...elsewhere(info));
       }
 
+      // A load that isn't the page tests nothing, and mustn't read as a page with no forms.
       const reopen = async (): Promise<void> => {
         info = await open(pass);
-        warnings.push(...elsewhere(info));
+        const wrong = notThePage(info, loaded.finalUrl);
+        if (wrong !== null) throw new EnvironmentError(wrong);
       };
       const path = displayPath(page.url);
       const result = await runPass(
@@ -478,6 +480,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
       if (
         pass === "forms" &&
         result.forms?.length === 0 &&
+        result.warnings.length === 0 &&
         !result.failure &&
         session.driver.findForms !== undefined
       ) {
@@ -515,6 +518,20 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Why a load for the forms pass isn't the page the run read, or null when it is. */
+function notThePage(info: PageInfo, finalUrl: string | undefined): string | null {
+  if (info.status !== null && info.status >= 400) {
+    return `The load for the forms pass got HTTP ${info.status}, so no form was tested.`;
+  }
+  if (!isHtmlContentType(info.contentType)) {
+    return "The load for the forms pass wasn't HTML, so no form was tested.";
+  }
+  if (finalUrl !== undefined && info.finalUrl !== finalUrl) {
+    return `The load for the forms pass ended at ${info.finalUrl}, so no form was tested.`;
+  }
+  return null;
 }
 
 /** The page info of a pass that has no load of its own yet. */

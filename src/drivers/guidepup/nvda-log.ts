@@ -19,11 +19,12 @@
  * step than the log has `tab` keys: the demo run in fixture/nvda-io-run has 41 Tab steps and 34
  * `tab` keys, over seven pages.
  *
- * The forms pass's Enter, Space, and typed keys aren't kept, though they're voicecap's. Each is also
- * a key a person presses as they type, which can't be told from voicecap's, and NVDA may say the
+ * The forms pass's Enter, Space, and most typed keys aren't kept, though they're voicecap's. Each is
+ * also a key a person presses as they type, which can't be told from voicecap's, and NVDA may say the
  * word they typed after Enter or Space, which would then be kept with it. So they count as any other
  * key, and what NVDA says after them is dropped, which is why a forms pass isn't checked against
- * this log (`forms` in src/share/run-log-check.ts).
+ * this log (`forms` in src/share/run-log-check.ts). A typed key that's also one of the keys above (the
+ * h in a value such as "https://example.org") stays, with what NVDA says after it, as a person's does.
  */
 import { splitLines } from "../../manual/detect.js";
 import { splitLogEntries, type LogEntry } from "../../manual/nvda-log.js";

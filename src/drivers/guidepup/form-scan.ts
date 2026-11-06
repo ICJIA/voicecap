@@ -190,7 +190,7 @@ const SCAN = `(() => {
       // Only the latest are kept, so a busy page can't grow the list without end.
       changes.added = changes.added.slice(-200);
     }).observe(document, { subtree: true, childList: true, characterData: true });
-    window.addEventListener("submit", (event) => changes.submits.push(event), true);
+    window.addEventListener("submit", (event) => changes.submits.push({ event, at: Date.now() }), true);
   }
   world.voicecapChanges = changes;
   world.voicecapForms = entries;
@@ -203,11 +203,14 @@ const SCAN = `(() => {
     const read = {
       focusedField: null, focusedSubmit: false, invalid: [], emptyRequired: [], messages: [],
       liveChanged: now.live, present, bubble: null,
-      // Read now, so a page's handler has had its say: a submit it cancelled sent nothing.
-      submitted: entry === undefined
-        ? 0
-        : now.submits.filter((event) => event.target === entry.form && !event.defaultPrevented).length,
+      // Read now, so a page's handler has had its say: a submit it cancelled sent nothing itself.
+      submitted: 0, cancelledAt: [],
     };
+    for (const { event, at } of now.submits) {
+      if (entry === undefined || event.target !== entry.form) continue;
+      if (event.defaultPrevented) read.cancelledAt.push(at);
+      else read.submitted += 1;
+    }
     const added = now.added;
     now.live = false;
     if (!present) return read;
@@ -289,9 +292,13 @@ interface RemoteProperty {
 
 /**
  * The scan's answer, without the parts the session adds. `submitted` counts the form's `submit` events
- * left uncancelled: the half of `heldRequests` only the page can see.
+ * left uncancelled, and `cancelledAt` has when each cancelled one fired, by the clock of the computer:
+ * what only the page can see of what counts as sent.
  */
-export type FormStateRead = Omit<FormState, "focused" | "heldRequests"> & { submitted: number };
+export type FormStateRead = Omit<
+  FormState,
+  "focused" | "heldRequests" | "submitEvents" | "heldWrites" | "tiedSends"
+> & { submitted: number; cancelledAt: number[] };
 
 /**
  * Every form the page shows, sorted. The world the forms are held in is made new each time, and its
@@ -350,6 +357,7 @@ export async function readFormState(
     present: false,
     bubble: null,
     submitted: 0,
+    cancelledAt: [],
   };
   if (contextId === null) return gone;
   try {

@@ -66,10 +66,20 @@ export interface FormState {
   /** Whether a live region's text changed since the last read. */
   liveChanged: boolean;
   /**
-   * How many sends stand for the form going through, on this load: its `submit` event firing and left
-   * uncancelled, or a held navigation, fetch, or XHR. A ping, a beacon, or an image is no such send.
+   * How many sends stand for the form going through, on this load: its `submit` event left
+   * uncancelled, a held navigation of the page itself, or `tiedSends`. A GET, a frame's navigation, a
+   * ping, a beacon, or an image is no such send, as each goes out whether or not the form did.
    */
   heldRequests: number;
+  /** How many times the form's `submit` event has fired, cancelled or not. */
+  submitEvents: number;
+  /** How many fetches and XHRs that aren't GETs the guard has held, whatever they were for. */
+  heldWrites: number;
+  /**
+   * How many of those began within a moment of a cancelled `submit`: a page that sends the form
+   * itself, as far as anyone can tell from the browser. They're in `heldRequests` too.
+   */
+  tiedSends: number;
   /** Whether the form is still in the page. */
   present: boolean;
   /** The focused field's own validationMessage: Chrome's bubble, which is in no element. */

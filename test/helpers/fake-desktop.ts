@@ -674,6 +674,9 @@ export class FakeSession implements BrowserSession {
       messages: [],
       liveChanged: false,
       heldRequests: 0,
+      submitEvents: 0,
+      heldWrites: 0,
+      tiedSends: 0,
       present: true,
       bubble: null,
     });

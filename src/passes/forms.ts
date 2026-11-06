@@ -12,7 +12,7 @@ import type {
 import type { DriverCommand, FormSignatures, StopReason } from "../model.js";
 import { redactAccount } from "../run/failure.js";
 import { errorMessage } from "../util/errors.js";
-import { InterruptedError, type StepRecorder } from "./steps.js";
+import { InterruptedError, type StepRecorder, StepTimeoutError } from "./steps.js";
 
 export interface FormPassOptions {
   cap: number;
@@ -64,6 +64,12 @@ const NO_FORM_DRIVER = "this run's driver doesn't test forms";
 export const UNREACHABLE = "Tab never reached it";
 
 const OUT_OF_STEPS = "the pass ran out of steps on this form";
+
+const DOUBTFUL_MESSAGE =
+  "the page sent a request of its own and showed a message, which could be an error or its reaction to the guard";
+
+const NO_SUBMIT_EVENT =
+  "a request went out on the press with no submit event, so voicecap can't tell whether it was the form's";
 
 const STOPPED = "a problem stopped the pass before it finished this form";
 
@@ -183,21 +189,39 @@ async function walk(
 function readPress(baseline: FormState, before: FormState, state: FormState) {
   const newInvalid = state.invalid.filter((field) => !baseline.invalid.includes(field));
   const newMessages = state.messages.filter((message) => !baseline.messages.includes(message));
+  const thisPress = state.messages.filter((message) => !before.messages.includes(message));
   const wouldSend = state.heldRequests > before.heldRequests;
+  const tied = state.tiedSends > before.tiedSends;
+  // The browser went on with the form, by its own submit or by leaving the page.
+  const itWent = state.heldRequests - state.tiedSends > before.heldRequests - before.tiedSends;
+  // Nothing the browser checks is holding the form back.
+  const clear =
+    state.invalid.length === 0 && state.emptyRequired.length === 0 && state.bubble === null;
+  // The page cancelled the submit and sent something itself, and said something: an error of its
+  // own, or its reaction to the guard, which can't be told apart.
+  const worded = tied && !itWent && thisPress.length > 0;
+  const stray =
+    !wouldSend &&
+    state.heldWrites > before.heldWrites &&
+    state.submitEvents === before.submitEvents;
+  let doubt: string | null = null;
+  if (clear && worded) doubt = DOUBTFUL_MESSAGE;
+  else if (clear && stray) doubt = NO_SUBMIT_EVENT;
   return {
     // A request alone proves nothing: a click beacon goes out on a press that was blocked, by Chrome
     // or the page's script. So nothing may be left invalid or empty, and no bubble may be showing.
-    completed:
-      wouldSend &&
-      state.invalid.length === 0 &&
-      state.emptyRequired.length === 0 &&
-      state.bubble === null,
-    // The page may be reacting to the guard, so a message after a held request isn't an error.
+    completed: wouldSend && clear && !worded,
+    doubt,
+    // The page may be reacting to the guard, so a message after a form went isn't an error. One
+    // beside a send of the page's own stays one.
     showedError:
-      newInvalid.length > 0 || state.bubble !== null || (newMessages.length > 0 && !wouldSend),
+      newInvalid.length > 0 ||
+      state.bubble !== null ||
+      (newMessages.length > 0 && (!wouldSend || worded)),
     // pressSubmit leaves focus on the submit control: a field that has it was moved to by the page.
     changed:
       wouldSend ||
+      doubt !== null ||
       newInvalid.length > 0 ||
       newMessages.length > 0 ||
       state.bubble !== null ||
@@ -232,7 +256,8 @@ function nameOf(field: FormField): string {
  * `FormState.messages` is the text showing now and `heldRequests` only counts up, so messages and
  * invalid fields are new against the state before the first walk, as a page can show errors when Tab
  * leaves a field, and a held request is against the state just before its press, as a page can send
- * one while a field is typed in. A guard that refuses or never answers is an answer about the form;
+ * one while a field is typed in. A send that came with a doubt the page can't settle is `not-tested`
+ * too: a page's own request with a new message, or one with no submit event. A guard that refuses or never answers is an answer about the form;
  * any other driver error, or a timeout, ends the pass.
  */
 export async function formPass(
@@ -267,6 +292,8 @@ export async function formPass(
     await recorder.query("arming the form guard", () => driver.armFormGuard());
   } catch (error) {
     if (error instanceof InterruptedError) throw error;
+    // The page's time ran out, which says nothing of the guard.
+    if (error instanceof StepTimeoutError && error.failure === "page-timeout") throw error;
     const reason = redactAccount(errorMessage(error));
     return end("not-tested", `the guard couldn't be armed, so nothing was pressed: ${reason}`);
   }
@@ -336,6 +363,7 @@ export async function formPass(
     if (press.showedError) errorWalk ??= lastWalk;
     if (emptyOnly !== null) return end("not-tested", emptyOnly);
     if (barred !== undefined) return end("stuck", UNREACHABLE, barred);
+    if (press.doubt !== null) return end("not-tested", press.doubt);
     if (outOfSteps()) return end("not-tested", OUT_OF_STEPS);
     const blockers = blocking(form, state);
     const next = blockers.find((field) => !filled.has(field.index));

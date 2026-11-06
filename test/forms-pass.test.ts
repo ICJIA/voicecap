@@ -123,6 +123,15 @@ describe("the guard", () => {
     expect(driver.made).toEqual(["armFormGuard"]);
   });
 
+  it("doesn't blame the guard for the page running out of time", async () => {
+    const driver = new FakeFormDriver({ fields: THREE, armHangs: true });
+    const limit = new AbortController();
+    const recorder = new StepRecorder(1000, limit.signal);
+    const running = formPass(driver, recorder, driver.info, options);
+    limit.abort(new StepTimeoutError("The whole page", 5, "page-timeout"));
+    await expect(running).rejects.toBeInstanceOf(StepTimeoutError);
+  });
+
   it("lets an interruption through", async () => {
     const driver = new FakeFormDriver({ fields: THREE, armHangs: true });
     const stop = new AbortController();
@@ -295,6 +304,39 @@ describe("the keys a fill records", () => {
       .map((step) => step.command)
       .filter((c) => c.startsWith("fill") || c === "pressSpace" || c === "pressArrow");
     expect(fills).toEqual(["fillField", "pressSpace", "pressArrow"]);
+  });
+});
+
+describe("a page's script has the last word on a press", () => {
+  const OPTIONAL: FakeForm["fields"] = [{ name: "Name", required: false }];
+
+  it.each(["cancelled", "late"] as const)("isn't completed by a %s submit", async (presses) => {
+    const { outcome } = await pass({ fields: OPTIONAL, presses });
+    expect(outcome.result).not.toBe("completed");
+  });
+
+  it("is completed by a cancelled submit the page then sends", async () => {
+    const { outcome } = await pass({ fields: OPTIONAL, presses: "tied" });
+    expect(outcome.result).toBe("completed");
+  });
+
+  it("keeps a new message an error then, and can't call the form completed", async () => {
+    const { outcome } = await pass({ fields: OPTIONAL, presses: "tied-message" });
+    expect(outcome.result).toBe("not-tested");
+    expect(outcome.reason).toContain("message");
+    expect(outcome.errorWalk).toHaveLength(1);
+  });
+
+  it("says it can't tell when a POST goes with no submit event", async () => {
+    const { outcome } = await pass({ fields: OPTIONAL, presses: "stray" });
+    expect(outcome.result).toBe("not-tested");
+    expect(outcome.reason).toContain("submit");
+  });
+
+  it("goes on filling when that POST comes while a required field is empty", async () => {
+    const { driver, outcome } = await pass({ fields: [{ name: "Name" }], presses: "tied" });
+    expect(driver.count("fillField")).toBe(1);
+    expect(outcome.result).toBe("completed");
   });
 });
 
