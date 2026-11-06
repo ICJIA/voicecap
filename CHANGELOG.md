@@ -31,6 +31,10 @@ A run can now test each form on a page with NVDA, by keyboard, with nothing the 
 - **NVDA's own log keeps Enter and Space,** the forms pass's keys, as voicecap's own, in a run with the forms pass. An ordinary run's cleaned copy keeps the keys it always did. The check of the log against the transcripts leaves out the forms pass's fills: NVDA echoes what's typed a key at a time, and the cleaned copy keeps no typed key.
 - **`--passes`' help names every pass,** and says the default is `read,headings,tab`. The error for an unknown pass name, from the command line or a config, lists all four.
 
+### Fixed
+
+- **The tests that load real pages or start PowerShell give a Windows CI runner more time.** A Windows runner can pause for tens of seconds, and a different test then failed on each run: a page load past its 15 seconds, PowerShell past its 20, a test past 90 seconds. On Windows CI only, a test now has 180 seconds and a hook 120, a test's page load 45 seconds (`test/ci-timing.ts`), and the voice test's PowerShell 60. Everywhere else, the limits are as they were, and voicecap's own limits are unchanged.
+
 ## [0.24.1] - 2026-10-30
 
 The README matches voicecap as it is, and the website no longer says VoiceOver is coming.

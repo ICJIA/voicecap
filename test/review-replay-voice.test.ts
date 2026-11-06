@@ -18,6 +18,7 @@ import {
 } from "../src/review-replay/voice.js";
 import { EnvironmentError, errorMessage } from "../src/util/errors.js";
 import { fakeChild } from "./helpers/replay.js";
+import { VOICE_READY_MS } from "./ci-timing.js";
 
 type FakeChild = ReturnType<typeof fakeChild>;
 
@@ -463,7 +464,7 @@ describe.runIf(process.platform === "win32")("the real script, on Windows", () =
   async function startOrSkip(ctx: TestContext, script: string): Promise<Voice> {
     let voice: Voice;
     try {
-      voice = await windowsVoice({ script, closeMs: 10_000 });
+      voice = await windowsVoice({ script, closeMs: 10_000, readyMs: VOICE_READY_MS });
     } catch (error) {
       expect(errorMessage(error)).toBe("The computer's voice didn't start: no voice is installed.");
       ctx.skip("no voice is installed");

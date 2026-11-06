@@ -25,6 +25,7 @@ import type { AxeCapture } from "../src/drivers/types.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { jpegSize } from "../src/util/jpeg.js";
 import { startFixtureServer, type FixtureServer } from "../scripts/serve-fixture.js";
+import { LOAD_MS } from "./ci-timing.js";
 
 // Real Chromium (Playwright's build, headless) against the fixture site. The Guidepup driver runs
 // headed Chrome on Windows; everything but NVDA and the window's place on screen is the same.
@@ -76,10 +77,10 @@ async function screenshotOf(session: ChromeSession): Promise<Uint8Array> {
  */
 async function loadOf(session: ChromeSession, url: string = server.url): Promise<LoadResult> {
   try {
-    return await session.load(url, 15_000);
+    return await session.load(url, LOAD_MS);
   } catch (error) {
     if (process.platform !== "win32" || !(error instanceof errors.TimeoutError)) throw error;
-    return session.load(url, 15_000);
+    return session.load(url, LOAD_MS);
   }
 }
 

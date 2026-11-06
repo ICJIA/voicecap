@@ -27,6 +27,7 @@ import {
   type FormGate,
 } from "../src/drivers/guidepup/form-gate.js";
 import { sentByPress } from "../src/forms/press.js";
+import { LOAD_MS } from "./ci-timing.js";
 
 // Real Chromium (Playwright's build, headless) against a local server that counts every request.
 // The guard is what keeps a form's data on the computer, so nothing here is faked but the failures
@@ -590,7 +591,7 @@ describe.skipIf(!haveChromium)("the form guard", () => {
 
   /** The page's load, its setup, and its last quiet moment: what reaches the server after is sent. */
   async function open(url = server.url): Promise<Page> {
-    await session.load(url, 15_000);
+    await session.load(url, LOAD_MS);
     const page = pageOf(session);
     await page.evaluate("window.ready");
     await delay(STRAGGLER_MS);
@@ -850,7 +851,7 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     });
 
     it("loads an https page through the gate, by CONNECT", async () => {
-      const result = await session.load(tlsUrl, 15_000);
+      const result = await session.load(tlsUrl, LOAD_MS);
       expect(result.status).toBe(200);
       expect(seen).toContain("/");
       expect(gate.hasServed("127.0.0.1")).toBe(true);
@@ -1290,7 +1291,7 @@ describe.skipIf(!haveChromium)("a browser with no form gate", () => {
       },
     });
     try {
-      await session.load(server.url, 15_000);
+      await session.load(server.url, LOAD_MS);
       const page = pageOf(session);
       const apis = "[typeof RTCPeerConnection, typeof WebTransport, typeof Worker].join()";
       await expect(page.evaluate(apis)).resolves.toBe("function,function,function");
