@@ -1,12 +1,12 @@
 {
   "name": "@icjia/voicecap",
-  "version": "0.24.1",
+  "version": "0.25.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "@icjia/voicecap",
-      "version": "0.24.1",
+      "version": "0.25.0",
       "license": "MIT",
       "dependencies": {
         "@guidepup/guidepup": "0.36.4",
@@ -503,9 +503,9 @@
       "license": "ISC"
     },
     "node_modules/is-unsafe": {
-      "version": "2.0.2",
-      "resolved": "https://registry.npmjs.org/is-unsafe/-/is-unsafe-2.0.2.tgz",
-      "integrity": "sha512-HgbIHPBH0KHHCcjLfGsCvhtPTVxjaAZlXjwdz7/GQC40SjSe4sfQsar8J5VFo8JOSbarkpV0OLG95bbaNd9aAQ==",
+      "version": "2.0.3",
+      "resolved": "https://registry.npmjs.org/is-unsafe/-/is-unsafe-2.0.3.tgz",
+      "integrity": "sha512-ZBllczCCO267vgdFb6Tq3pv+LhHaCiGMdr+ZsuL+OopruAg7S+3ZDs1vD0RPC0uSrkjzbraxaGjtX1YBxjPeFQ==",
       "funding": [
         {
           "type": "github",
@@ -784,9 +784,9 @@
       }
     },
     "node_modules/semver": {
-      "version": "7.8.5",
-      "resolved": "https://registry.npmjs.org/semver/-/semver-7.8.5.tgz",
-      "integrity": "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==",
+      "version": "7.8.6",
+      "resolved": "https://registry.npmjs.org/semver/-/semver-7.8.6.tgz",
+      "integrity": "sha512-9lpSSU4Mly3mrtruwLs1eLK6+gzbzqeBFwRNjIjE+9LuDpWdYctrQlQ3ej1Ilgi7gknpsTRnPoLP8DpCHqHIJw==",
       "license": "ISC",
       "bin": {
         "semver": "bin/semver.js"
@@ -846,9 +846,9 @@
       "optional": true
     },
     "node_modules/undici": {
-      "version": "8.12.3",
-      "resolved": "https://registry.npmjs.org/undici/-/undici-8.12.3.tgz",
-      "integrity": "sha512-+fdndUTwBP86cVjihTp21hZHo7d6oj1c/47XPA3lL8mM0XHs+C4EkcjmgRsFnFk2f/UONGDy9ItBItmXsLOQHw==",
+      "version": "8.12.4",
+      "resolved": "https://registry.npmjs.org/undici/-/undici-8.12.4.tgz",
+      "integrity": "sha512-8Mx+uNKKER2bA4AdtedkqRbwUCIJFr2nJckXRe5yrDqzePqwLP7VNcctN8/XdmDSbF7mS+jJKIszlL+vbam1VA==",
       "license": "MIT",
       "engines": {
         "node": ">=22.19.0"
