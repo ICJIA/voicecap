@@ -731,7 +731,15 @@ describe("docxOf", () => {
       "NUMPAGES",
     ]);
     expect(footer).toContain('<w:jc w:val="center"/>');
-    expect(footer.match(/<w:sz w:val="18"\/>/g)).toHaveLength(4);
+    // Every run is 9 pt (18 half-points). docx 9.12 and later write each part of a page-number
+    // field (begin, instruction, separate, end) as a run of its own, each with the font size, so
+    // the count of runs isn't fixed; their size is.
+    const runs = footer.match(/<w:r>[\s\S]*?<\/w:r>/g) ?? [];
+    expect(runs.length).toBeGreaterThanOrEqual(4);
+    for (const run of runs) expect(run).toContain('<w:sz w:val="18"/>');
+    expect(footer.match(/<w:sz w:val="\d+"\/>/g)?.every((size) => size.includes('"18"'))).toBe(
+      true,
+    );
   });
 
   it("loads docx when a document is made, and not before", async () => {
