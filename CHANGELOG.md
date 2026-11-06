@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **docx 9.15.2,** from 9.8.1, for the report's Word copy. Since docx 9.12, each part of a page-number field is a run of its own, each with the font size, so the footer's test now checks that every run of the footer is 9 pt rather than counting them. The Word copy reads and looks the same.
+
 ### Fixed
 
 - **The form guard's tunnel tests no longer hang their clean-up.** After each tunnel test, the HTTPS test server closed only once every connection to it had gone, but the clean-up destroyed only the WebSocket connections it counted. A connection Chrome still held, or one it opened just then, kept the close waiting until the hook timed out at 60 seconds, on a different runner each time. The clean-up now stops the server taking connections first, then destroys every connection it has open. The tests only; voicecap itself is unchanged.
