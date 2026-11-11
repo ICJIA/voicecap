@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-11
+
 A site under a path on its host is a site of its own, the problems and their fixes lead At a glance, and a report of more than 100 pages has its voice page in parts.
 
 ### Added
@@ -934,7 +936,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.25.1...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.26.0...HEAD
+[0.26.0]: https://github.com/ICJIA/voicecap/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/ICJIA/voicecap/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/ICJIA/voicecap/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/ICJIA/voicecap/compare/v0.24.0...v0.24.1
