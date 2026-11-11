@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-11-11
+
+On the shareable page, the fold of the pages with nothing to note now starts open, so its cards show without a click.
+
 ### Changed
 
 - **The fold of the pages with nothing to note is open at first.** On the shareable page, with more than 12 pages, "Every page" still gathers the cards with nothing to note under one line, "The other 39 pages: nothing to note, all read in full", but that fold now starts open, so the cards show without a click; shut, the line was easy to miss. Each card's own folds (what axe found, the full transcript) still start shut, and the line still shuts the fold. A page shared before this keeps its fold shut until it's shared again.
@@ -919,7 +923,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.25.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.25.1...HEAD
+[0.25.1]: https://github.com/ICJIA/voicecap/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/ICJIA/voicecap/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/ICJIA/voicecap/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/ICJIA/voicecap/compare/v0.23.1...v0.24.0
