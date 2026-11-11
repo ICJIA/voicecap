@@ -4,7 +4,12 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_CONFIG, formsSettingsOf, stepCapOf } from "../src/config/defaults.js";
+import {
+  DEFAULT_CONFIG,
+  FORMS_DEFAULTS,
+  formsSettingsOf,
+  stepCapOf,
+} from "../src/config/defaults.js";
 import { resolveConfig } from "../src/config/load.js";
 import { DEFAULT_PASS_NAMES, PASS_NAMES, type RunJson, type RunSettings } from "../src/model.js";
 import { runPass } from "../src/passes/index.js";
@@ -57,6 +62,7 @@ describe("forms as a pass name", () => {
         url: "https://example.org",
         date: "01012026",
       },
+      analyticsHosts: [...FORMS_DEFAULTS.analyticsHosts],
     });
   });
 
@@ -73,7 +79,37 @@ describe("forms as a pass name", () => {
       settleMs: 3000,
       maxPerPage: 3,
       values: { Email: "someone@example.com" },
+      analyticsHosts: [...FORMS_DEFAULTS.analyticsHosts],
     });
+  });
+
+  it("adds a config's analytics hosts to voicecap's own, and refuses one that isn't a host name", () => {
+    const config = resolveConfig({
+      forms: { analyticsHosts: ["Stats.Example.org", "google-analytics.com"] },
+    });
+    expect(formsSettingsOf(config).analyticsHosts).toEqual([
+      ...FORMS_DEFAULTS.analyticsHosts,
+      "stats.example.org",
+    ]);
+    for (const listed of [
+      "google-analytics.com",
+      "googletagmanager.com",
+      "doubleclick.net",
+      "clarity.ms",
+      "siteimproveanalytics.com",
+      "nr-data.net",
+      "bing.com",
+      "linkedin.com",
+      "x.com",
+      "cloudflareinsights.com",
+      "sentry.io",
+      "datadoghq.com",
+    ]) {
+      expect(FORMS_DEFAULTS.analyticsHosts).toContain(listed);
+    }
+    for (const wrong of ["https://stats.example.org", "stats.example.org/collect", "a host", ""]) {
+      expect(() => resolveConfig({ forms: { analyticsHosts: [wrong] } })).toThrow();
+    }
   });
 
   it("is accepted by --passes, and a typo is refused with all four listed", async () => {

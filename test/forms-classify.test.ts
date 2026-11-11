@@ -88,12 +88,31 @@ describe("classifyForm", () => {
     expect(classifyForm(form({ action: "http://example.gov/send" }))).toBe("test");
   });
 
-  it("lets not-web win over no-submit, and no-submit over search", () => {
+  it("lets search win over not-web and no-submit, and not-web over no-submit", () => {
     const mail = "mailto:office@example.gov";
     expect(classifyForm(form({ action: mail, submit: false }))).toBe("not-web");
     expect(classifyForm(form({ action: mail, formless: true }))).toBe("not-web");
-    expect(classifyForm(form({ action: mail, searchRole: true }))).toBe("not-web");
-    expect(classifyForm(form({ searchRole: true, submit: false }))).toBe("no-submit");
+    // A site's own search: a javascript: action, no submit control, or a search field on its own.
+    expect(classifyForm(form({ action: "javascript:void(0)", searchRole: true }))).toBe("search");
+    const one = { method: "get", fields: [field(0, "text")] };
+    expect(classifyForm(form({ ...one, action: "javascript:void(0)" }))).toBe("search");
+    expect(classifyForm(form({ ...one, submit: false }))).toBe("search");
+    expect(classifyForm(form({ searchRole: true, submit: false }))).toBe("search");
+    expect(
+      classifyForm(form({ method: "get", formless: true, fields: [field(0, "search")] })),
+    ).toBe("search");
+  });
+
+  it("doesn't call a form that sends by email, or a loose text field, a search form", () => {
+    const one = { method: "get", fields: [field(0, "text")] };
+    expect(classifyForm(form({ ...one, action: "mailto:office@example.gov" }))).toBe("not-web");
+    expect(classifyForm(form({ action: "mailto:office@example.gov", searchRole: true }))).toBe(
+      "not-web",
+    );
+    expect(classifyForm(form({ ...one, formless: true }))).toBe("no-submit");
+    expect(
+      classifyForm(form({ ...one, submit: false, fields: [field(0, "text"), field(1, "text")] })),
+    ).toBe("no-submit");
   });
 
   it("doesn't press a dialog form", () => {

@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { FORMS_DEFAULTS } from "../src/config/defaults.js";
 import { formsFlags } from "../src/flags/forms.js";
 import { formBanner } from "../src/forms/banner.js";
-import { sendsForm } from "../src/forms/press.js";
+import { isAnalyticsHost, sendsForm } from "../src/forms/press.js";
 import { keptFormsResults } from "../src/forms/result-file.js";
 import {
   DIALOG,
@@ -321,7 +321,9 @@ describe("what counts as the form sending", () => {
       beaconHost: "www.google-analytics.com",
     });
     const [first] = outcome.presses;
-    expect(first?.state.held).toEqual([{ host: "www.google-analytics.com", type: "ping" }]);
+    expect(first?.state.held).toEqual([
+      { host: "www.google-analytics.com", type: "ping", method: "POST" },
+    ]);
     expect(first?.state).toMatchObject({ invalid: [], emptyRequired: [], bubble: null });
     expect(outcome.result).not.toBe("completed");
     expect(outcome.result).toBe("stuck");
@@ -336,31 +338,181 @@ describe("what counts as the form sending", () => {
     });
     expect(outcome.result).toBe("completed");
     expect(outcome.presses.at(-1)?.state.held).toEqual([
-      { host: "www.google-analytics.com", type: "ping" },
-      { host: "example.illinois.gov", type: "fetch" },
+      { host: "www.google-analytics.com", type: "ping", method: "POST" },
+      { host: "example.illinois.gov", type: "fetch", method: "POST" },
     ]);
   });
 
   it("is a navigation of the page, wherever it goes", async () => {
     const { outcome } = await pass({ fields: OPTIONAL, sendsBy: "navigation" });
     expect(outcome.presses.at(-1)?.state.held).toEqual([
-      { host: "elsewhere.example", type: "navigation" },
+      { host: "elsewhere.example", type: "navigation", method: "GET" },
     ]);
     expect(outcome.result).toBe("completed");
   });
 
   it("is a request to the form's action host, on another host than the page's", () => {
     const hosts = { pageHost: "example.illinois.gov", actionHost: "forms.illinois.gov" };
+    expect(sendsForm({ host: "forms.illinois.gov", type: "fetch", method: "GET" }, hosts)).toBe(
+      true,
+    );
     expect(sendsForm({ host: "forms.illinois.gov", type: "fetch" }, hosts)).toBe(true);
     expect(sendsForm({ host: "example.illinois.gov", type: "xhr" }, hosts)).toBe(true);
-    expect(sendsForm({ host: "www.google-analytics.com", type: "ping" }, hosts)).toBe(false);
+    expect(
+      sendsForm({ host: "www.google-analytics.com", type: "ping", method: "POST" }, hosts),
+    ).toBe(false);
     expect(sendsForm({ host: "cdn.example.com", type: "navigation" }, hosts)).toBe(true);
     expect(sendsForm({ host: "forms.illinois.gov", type: "fetch" }, { actionHost: null })).toBe(
       false,
     );
   });
 
-  it("keeps each held request's host and type in forms-result.json, the same each time", async () => {
+  it("is a POST, PUT, or PATCH to any host off the analytics list, matched by the host or one under it", () => {
+    const hosts = { pageHost: "example.illinois.gov", actionHost: "example.illinois.gov" };
+    const to = (host: string, method?: string, type = "fetch") =>
+      sendsForm({ host, type, ...(method === undefined ? {} : { method }) }, hosts);
+    expect(to("api.example.org", "POST")).toBe(true);
+    expect(to("api.example.org", "put", "xhr")).toBe(true);
+    expect(to("api.example.org", "PATCH")).toBe(true);
+    expect(to("collect.example.org", "POST", "ping")).toBe(true);
+    expect(to("api.example.org", "GET")).toBe(false);
+    expect(to("api.example.org", "HEAD")).toBe(false);
+    expect(to("api.example.org", "DELETE")).toBe(false);
+    // Only a fetch, an XHR, or a beacon: not a CSP report, a frame's post, or anything else.
+    expect(to("report-uri.example.com", "POST", "cspviolationreport")).toBe(false);
+    expect(to("api.example.org", "POST", "document")).toBe(false);
+    expect(to("api.example.org", "POST", "other")).toBe(false);
+    expect(to("api.example.org", "POST", "websocket")).toBe(false);
+    // A frame's post to the form's own action host still counts, by its host.
+    expect(
+      sendsForm(
+        { host: "forms.illinois.gov", type: "document", method: "POST" },
+        { pageHost: "example.illinois.gov", actionHost: "forms.illinois.gov" },
+      ),
+    ).toBe(true);
+    // A file from before voicecap kept the method: another host never counts.
+    expect(to("api.example.org")).toBe(false);
+    expect(to("www.google-analytics.com", "POST", "ping")).toBe(false);
+    expect(to("WWW.Google-Analytics.COM", "POST")).toBe(false);
+    expect(to("bat.bing.com", "POST")).toBe(false);
+    expect(to("px.ads.linkedin.com", "POST")).toBe(false);
+    expect(to("analytics.tiktok.com", "POST")).toBe(false);
+    expect(to("o123.ingest.sentry.io", "POST")).toBe(false);
+    for (const host of [
+      "browser-intake-us3-datadoghq.com",
+      "browser-intake-us5-datadoghq.com",
+      "browser-intake-ap1-datadoghq.com",
+      "browser-intake-datadoghq.eu",
+      "browser-intake-ddog-gov.com",
+      "rum.ddog-gov.com",
+      "illinois.sc.omtrdc.net",
+      "illinois.122.2o7.net",
+      "edge.adobedc.net",
+      "dpm.demdex.net",
+      "static.ads-twitter.com",
+      "api2.amplitude.com",
+      "heapanalytics.com",
+      "rs.fullstory.com",
+    ]) {
+      expect(to(host, "POST"), host).toBe(false);
+    }
+    // A listed host still counts when it's the page's own, or the form's action host.
+    expect(
+      sendsForm(
+        { host: "www.linkedin.com", type: "fetch", method: "POST" },
+        { pageHost: "www.linkedin.com", actionHost: null },
+      ),
+    ).toBe(true);
+    // A suffix only at a dot: notgoogle-analytics.com isn't google-analytics.com.
+    expect(to("notgoogle-analytics.com", "POST")).toBe(true);
+    // The page's own host, by any method.
+    expect(to("example.illinois.gov", "GET", "xhr")).toBe(true);
+    expect(isAnalyticsHost("stats.example.org", ["example.org"])).toBe(true);
+    expect(isAnalyticsHost("example.org.", ["example.org"])).toBe(true);
+  });
+
+  it("is a POST, PUT, or PATCH to another host's API, as a form that sends by script makes", async () => {
+    // ICJIA's contact form: it posts by fetch to an API on a host of its own, and to a mail host.
+    const { outcome } = await pass({
+      fields: OPTIONAL,
+      sendsBy: "fetch",
+      sendsTo: "infonet.icjia-api.cloud",
+      afterHeld: "Sorry, your message could not be submitted.",
+    });
+    expect(outcome.presses.at(-1)?.state.held).toEqual([
+      { host: "infonet.icjia-api.cloud", type: "fetch", method: "POST" },
+    ]);
+    expect(outcome.result).toBe("completed");
+    // The page's answer to the guard's refusal isn't the form's error.
+    expect(formsFlags([outcome]).map((flag) => flag.rule)).toEqual([]);
+    for (const method of ["PUT", "patch"]) {
+      const other = await pass({
+        fields: OPTIONAL,
+        sendsTo: "api.example.org",
+        sendsMethod: method,
+      });
+      expect(other.outcome.result).toBe("completed");
+    }
+  });
+
+  it("isn't a GET to another host, or anything to an analytics host", async () => {
+    const get = await pass({
+      fields: OPTIONAL,
+      validates: "message",
+      neverSends: true,
+      sendsOnPress: true,
+      beaconHost: "cdn.example.org",
+      beaconMethod: "GET",
+    });
+    expect(get.outcome.result).toBe("stuck");
+    const analytics = await pass({
+      fields: OPTIONAL,
+      sendsTo: "region1.google-analytics.com",
+      validates: "message",
+    });
+    expect(analytics.outcome.presses.at(-1)?.state.held).toEqual([
+      { host: "region1.google-analytics.com", type: "fetch", method: "POST" },
+    ]);
+    expect(analytics.outcome.result).not.toBe("completed");
+  });
+
+  it("is a POST to an unlisted host from a press beacon too, but not one to a listed host", async () => {
+    // A form the script refused still reads as sent when a press posts to an unlisted host: the cost
+    // the rule takes, and only where nothing is invalid or empty.
+    const listed = await pass({
+      fields: OPTIONAL,
+      validates: "message",
+      neverSends: true,
+      sendsOnPress: true,
+      beaconHost: "px.ads.linkedin.com",
+    });
+    expect(listed.outcome.result).toBe("stuck");
+    const unlisted = await pass({
+      fields: OPTIONAL,
+      validates: "message",
+      neverSends: true,
+      sendsOnPress: true,
+      beaconHost: "collect.example.org",
+    });
+    expect(unlisted.outcome.result).toBe("completed");
+  });
+
+  it("reads with the run's own list of analytics hosts, kept in the outcome", async () => {
+    const own = { fields: OPTIONAL, sendsTo: "stats.example.org", validates: "message" as const };
+    const plain = await pass(own);
+    expect(plain.outcome.result).toBe("completed");
+    expect(plain.outcome.analyticsHosts).toEqual([...FORMS_DEFAULTS.analyticsHosts]);
+    const listed = await pass(own, {
+      analyticsHosts: [...FORMS_DEFAULTS.analyticsHosts, "example.org"],
+    });
+    expect(listed.outcome.result).not.toBe("completed");
+    expect(listed.outcome.analyticsHosts).toContain("example.org");
+    expect(JSON.parse(keptFormsResults([listed.outcome], "/contact").json)).toMatchObject({
+      forms: [{ analyticsHosts: expect.arrayContaining(["example.org"]) as unknown }],
+    });
+  });
+
+  it("keeps each held request's host, type, and method in forms-result.json, the same each time", async () => {
     const { outcome } = await pass({
       fields: OPTIONAL,
       sendsBy: "fetch",
@@ -374,8 +526,8 @@ describe("what counts as the form sending", () => {
     };
     expect(kept.forms[0]?.presses.at(-1)?.state).toMatchObject({
       held: [
-        { host: "www.google-analytics.com", type: "ping" },
-        { host: "example.illinois.gov", type: "fetch" },
+        { host: "www.google-analytics.com", type: "ping", method: "POST" },
+        { host: "example.illinois.gov", type: "fetch", method: "POST" },
       ],
       pageHost: "example.illinois.gov",
       actionHost: "example.illinois.gov",

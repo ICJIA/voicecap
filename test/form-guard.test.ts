@@ -26,6 +26,7 @@ import {
   tunnelTarget,
   type FormGate,
 } from "../src/drivers/guidepup/form-gate.js";
+import { FORMS_DEFAULTS } from "../src/config/defaults.js";
 import { sentByPress } from "../src/forms/press.js";
 import { LOAD_MS } from "./ci-timing.js";
 
@@ -146,6 +147,12 @@ const sentBy = (kind: string, otherOrigin: string): string => {
       return `${HEAD}<form method="post" action="/sent" onsubmit='return confirm("Send this form?")'><input name="a" value="secret"><button id="go">Send</button></form>`;
     case "a third-party beacon on a form its script refused":
       return `${HEAD}<form method="post" action="/sent" onsubmit='navigator.sendBeacon("${otherOrigin}/collect", "form_submit"); return false;'><input name="a" value="secret"><button id="go">Send</button></form>`;
+    case "a third-party GET":
+      return button(`fetch("${otherOrigin}/pixel.gif?form=secret").catch(() => {})`);
+    case "a third-party PUT by XHR":
+      return button(
+        `const x = new XMLHttpRequest(); x.open("PUT", "${otherOrigin}/sent"); x.send("secret")`,
+      );
     case "a cross-origin fetch":
       return button(
         `fetch("${otherOrigin}/sent", { method: "POST", body: "secret", headers: { "x-secret": "1" } })`,
@@ -734,30 +741,64 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     });
   });
 
-  // What the guard held, and whether it's the form's own sending: a navigation, or a request to the
-  // page's own host. A beacon to another host isn't.
+  // What the guard held, and whether it's the form's own sending: a navigation, a request to the
+  // page's own host, or a POST, PUT, or PATCH to another host that isn't an analytics service's.
+  // The other host here is localhost (the page is 127.0.0.1); listed, it stands for an analytics
+  // host, which a test can't reach for real.
   describe("what it held", () => {
-    const sent = async () => {
+    const LISTED = [...FORMS_DEFAULTS.analyticsHosts, "localhost"];
+    const sent = async (analyticsHosts: readonly string[] = FORMS_DEFAULTS.analyticsHosts) => {
       await settled();
       const state = await session.readFormState(0);
-      return { state, sends: sentByPress(0, state) };
+      return { state, sends: sentByPress(0, state, analyticsHosts) };
     };
 
-    it("names a beacon to another host, which isn't the form sending", async () => {
+    it("names a beacon to an analytics host, which isn't the form sending", async () => {
       kind = "a third-party beacon on a form its script refused";
       await armAndPress();
-      const { state, sends } = await sent();
+      const { state, sends } = await sent(LISTED);
       expect(state.pageHost).toBe("127.0.0.1");
-      expect(state.held?.map((request) => request.host)).toEqual(["localhost"]);
+      expect(state.held).toEqual([{ host: "localhost", type: "ping", method: "POST" }]);
       expect(sends).toBe(false);
+      expect(server.reaches()).toBe(0);
+    });
+
+    it("names a beacon to an unlisted host, which is the form sending", async () => {
+      kind = "a third-party beacon on a form its script refused";
+      await armAndPress();
+      const { sends } = await sent();
+      expect(sends).toBe(true);
+      expect(server.reaches()).toBe(0);
+    });
+
+    it.each([
+      ["a cross-origin fetch", { host: "localhost", type: "fetch", method: "POST" }],
+      ["a third-party PUT by XHR", { host: "localhost", type: "xhr", method: "PUT" }],
+    ])("names %s to another host's API, which is the form sending", async (name, request) => {
+      kind = name;
+      await armAndPress();
+      const { state, sends } = await sent();
+      expect(state.held).toEqual([request]);
+      expect(sends).toBe(true);
+      expect(server.paths()).toEqual([]);
+      expect(server.reaches()).toBe(0);
+    });
+
+    it("names a GET to another host, which isn't the form sending", async () => {
+      kind = "a third-party GET";
+      await armAndPress();
+      const { state, sends } = await sent();
+      expect(state.held).toEqual([{ host: "localhost", type: "fetch", method: "GET" }]);
+      expect(sends).toBe(false);
+      expect(server.paths()).toEqual([]);
       expect(server.reaches()).toBe(0);
     });
 
     it("names the form's own post as a navigation, which is the form sending", async () => {
       kind = "post form";
       await armAndPress();
-      const { state, sends } = await sent();
-      expect(state.held).toContainEqual({ host: "127.0.0.1", type: "navigation" });
+      const { state, sends } = await sent(LISTED);
+      expect(state.held).toContainEqual({ host: "127.0.0.1", type: "navigation", method: "POST" });
       expect(sends).toBe(true);
       expect(server.reaches()).toBe(0);
     });
@@ -765,8 +806,8 @@ describe.skipIf(!haveChromium)("the form guard", () => {
     it("names a fetch to the page's own host, which is the form sending", async () => {
       kind = "fetch";
       await armAndPress();
-      const { state, sends } = await sent();
-      expect(state.held).toEqual([{ host: "127.0.0.1", type: "fetch" }]);
+      const { state, sends } = await sent(LISTED);
+      expect(state.held).toEqual([{ host: "127.0.0.1", type: "fetch", method: "POST" }]);
       expect(sends).toBe(true);
       expect(server.reaches()).toBe(0);
     });

@@ -4,6 +4,11 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **A form that sends by script to an API of its own counts as sent.** Only the form's own sending counts as "ready to send": a held navigation of the page, a held request of any kind to the page's own host or the form's action host, or a held `POST`, `PUT`, or `PATCH` (a fetch, an XHR, or a beacon) to any other host that isn't an analytics or tracking service's. A form that sends by script to an API on a host of its own, as ICJIA's contact form does, is completed; a `GET` to another host, and anything sent to an analytics host, goes out on a press whether or not the form does, so it can't make a form look completed. voicecap's list of analytics and tracking hosts (Google Analytics and Tag Manager, DoubleClick, Facebook, Clarity, Hotjar, Siteimprove, New Relic, Segment, Mixpanel, Matomo, Plausible, Quantcast, Bing, LinkedIn, X, TikTok, Cloudflare Insights, Sentry, Datadog, and more) matches a host and every host under it, and the config's `forms.analyticsHosts` adds to it. `forms-result.json` keeps each held request's host, type, and method, and the list the run used.
+- **A search form says it's a search form** even when it has no submit button or sends by script (a `javascript:` action), as a site's own search often does: it's sorted as a search form before voicecap asks how it sends or whether it has a submit control, and its gray banner says "It's a search form."
+
 ## [0.26.0] - 2026-11-11
 
 A site under a path on its host is a site of its own, the problems and their fixes lead At a glance, and a report of more than 100 pages has its voice page in parts.

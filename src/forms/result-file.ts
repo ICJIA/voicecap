@@ -45,6 +45,7 @@ export function keptFormsResults(
         axe: keptAxe(press.axe),
       })),
       ...(outcome.baseline ? { baseline: outcome.baseline } : {}),
+      ...(outcome.analyticsHosts ? { analyticsHosts: outcome.analyticsHosts } : {}),
       firstWalk: outcome.firstWalk,
       errorWalk: outcome.errorWalk,
       lastWalk: outcome.lastWalk,
@@ -89,8 +90,63 @@ export function readFormsResults(text: string): FormFlagInput[] | null {
   try {
     const file = JSON.parse(text) as { schemaVersion?: unknown; forms?: unknown };
     if (file.schemaVersion !== SCHEMA_VERSION || !Array.isArray(file.forms)) return null;
-    return file.forms as FormFlagInput[];
+    return (file.forms as unknown[]).map(sendingFacts) as FormFlagInput[];
   } catch {
     return null;
   }
+}
+
+/** A held request the file doesn't say enough of: to no host, so it's never the form sending. */
+const UNREADABLE_REQUEST: Record<string, unknown> = { host: "", type: "unknown" };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+/**
+ * A form read back with what says whether a press sent it made safe to read: a list of analytics
+ * hosts that isn't a list of text is left out (voicecap's own is read then), a held request that
+ * isn't one with a host and a type as text keeps its place as one to no host, which never counts
+ * as the form sending (a press reads the list from its place in it), and a method that isn't text is left off
+ * its request (which then counts only by its host). A hand-edited file reads, and doesn't throw.
+ */
+function sendingFacts(form: unknown): unknown {
+  if (!isRecord(form)) return form;
+  const copy: Record<string, unknown> = { ...form };
+  const hosts = copy.analyticsHosts;
+  if (
+    hosts !== undefined &&
+    !(Array.isArray(hosts) && hosts.every((host) => typeof host === "string"))
+  ) {
+    delete copy.analyticsHosts;
+  }
+  if (Array.isArray(copy.presses)) {
+    copy.presses = copy.presses.map((press: unknown) => {
+      if (!isRecord(press) || !isRecord(press.state) || press.state.held === undefined) {
+        return press;
+      }
+      const held = Array.isArray(press.state.held) ? press.state.held : [];
+      return {
+        ...press,
+        state: {
+          ...press.state,
+          held: held
+            .map((request: unknown) =>
+              isRecord(request) &&
+              typeof request.host === "string" &&
+              typeof request.type === "string"
+                ? request
+                : UNREADABLE_REQUEST,
+            )
+            .map((request: Record<string, unknown>) => {
+              if (request.method === undefined || typeof request.method === "string") {
+                return request;
+              }
+              const { method: _method, ...rest } = request;
+              return rest;
+            }),
+        },
+      };
+    });
+  }
+  return copy;
 }

@@ -84,6 +84,12 @@ export interface FakeForm {
    * host. Set (or `beaconHost` set), the fake says what it held, and the page's and action's hosts.
    */
   sendsBy?: "navigation" | "fetch";
+  /** The host the form's own fetch goes to, such as another host's API; the page's own when left out. */
+  sendsTo?: string;
+  /** The form's own fetch's method: POST when left out. */
+  sendsMethod?: string;
+  /** The method of a press's beacon or a fill's request: POST when left out, as a beacon's is. */
+  beaconMethod?: string;
   /** The host a request sent by a fill or a press beacon goes to; the page's own when left out. */
   beaconHost?: string;
   /** The JavaScript dialog a press opens (the page's alert, say), which voicecap dismisses. */
@@ -223,7 +229,7 @@ export class FakeFormDriver extends ScriptedDriver {
       return Promise.resolve(this.form.dialogOnPress.message);
     }
     if (this.form.sendsOnPress) {
-      this.hold("ping", this.form.beaconHost);
+      this.hold("ping", this.form.beaconHost, this.form.beaconMethod);
       if (this.form.afterHeld !== undefined) this.show(this.form.afterHeld);
     }
     const empty = this.emptyFields();
@@ -246,10 +252,8 @@ export class FakeFormDriver extends ScriptedDriver {
     if (this.form.neverSends) {
       this.show("Please complete the form");
     } else if (empty.length === 0 && (this.form.validates ?? "native") !== "nothing") {
-      this.hold(
-        this.form.sendsBy ?? "fetch",
-        this.form.sendsBy === "navigation" ? "elsewhere.example" : FAKE_HOST,
-      );
+      if (this.form.sendsBy === "navigation") this.hold("navigation", "elsewhere.example", "GET");
+      else this.hold("fetch", this.form.sendsTo, this.form.sendsMethod);
       if (this.form.afterHeld !== undefined) this.show(this.form.afterHeld);
     }
     if (this.form.resets) this.filled.clear();
@@ -267,7 +271,7 @@ export class FakeFormDriver extends ScriptedDriver {
     if (typeof this.focus === "number" && this.form.fields[this.focus]?.takes !== false) {
       this.filled.add(this.focus);
     }
-    if (this.form.sendsOnFill) this.hold("xhr", this.form.beaconHost);
+    if (this.form.sendsOnFill) this.hold("xhr", this.form.beaconHost, this.form.beaconMethod);
     return Promise.resolve("v");
   }
 
@@ -285,7 +289,9 @@ export class FakeFormDriver extends ScriptedDriver {
       messages: [],
       liveChanged: live,
       heldRequests: this.held,
-      ...(this.form.sendsBy !== undefined || this.form.beaconHost !== undefined
+      ...(this.form.sendsBy !== undefined ||
+      this.form.sendsTo !== undefined ||
+      this.form.beaconHost !== undefined
         ? { held: [...this.heldList], pageHost: FAKE_HOST, actionHost: FAKE_HOST }
         : {}),
       ...(this.form.dialogOnPress !== undefined ? { dialogs: [...this.dialogs] } : {}),
@@ -308,10 +314,10 @@ export class FakeFormDriver extends ScriptedDriver {
     });
   }
 
-  /** A request the guard holds: counted, and listed with where it was going. */
-  private hold(type: string, host: string = FAKE_HOST): void {
+  /** A request the guard holds: counted, and listed with where it was going, and its method. */
+  private hold(type: string, host: string = FAKE_HOST, method = "POST"): void {
     this.held += 1;
-    this.heldList.push({ host, type });
+    this.heldList.push({ host, type, method });
   }
 
   checkFormWithAxe(form: number): Promise<AxeCapture> {

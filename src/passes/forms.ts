@@ -21,6 +21,11 @@ export interface FormPassOptions {
   settleMs: number;
   /** What goes into a typed field, by input type (see fieldValueOf). */
   values: Record<string, string>;
+  /**
+   * Analytics and tracking hosts, whose requests never count as the form sending (sentByPress):
+   * voicecap's own where it's left out.
+   */
+  analyticsHosts?: readonly string[];
 }
 
 export interface FormsPassOutcome {
@@ -235,6 +240,7 @@ export async function formPass(
   options: FormPassOptions,
 ): Promise<FormOutcome> {
   const presses: FormOutcome["presses"] = [];
+  const analyticsHosts = options.analyticsHosts ?? FORMS_DEFAULTS.analyticsHosts;
   let firstWalk: FieldHeard[] = [];
   let errorWalk: FieldHeard[] | null = null;
   let lastWalk: FieldHeard[] = [];
@@ -250,6 +256,7 @@ export async function formPass(
     reason,
     presses,
     ...(seen.baseline ? { baseline: seen.baseline } : {}),
+    ...(presses.length > 0 ? { analyticsHosts: [...analyticsHosts] } : {}),
     firstWalk,
     errorWalk: errorWalk ?? [],
     lastWalk,
@@ -354,7 +361,7 @@ export async function formPass(
     if (axe && "leftRunning" in axe) {
       return end("not-tested", "axe was still running in the page, so voicecap pressed no more");
     }
-    const press = readPress(baseline, before.heldRequests, state);
+    const press = readPress(baseline, before.heldRequests, state, analyticsHosts);
     const finishes = emptyOnly === null && barred === undefined;
     if (finishes && press.completed) return end("completed", null);
     if (finishes && !press.changed) {

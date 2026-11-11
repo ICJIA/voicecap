@@ -15,7 +15,7 @@ export interface PassSettings {
   endConfirmations: number;
   noNextHeading: RegExp;
   stepTimeoutMs: number;
-  forms: Pick<FormPassOptions, "settleMs" | "values"> & FormsContext;
+  forms: Pick<FormPassOptions, "settleMs" | "values" | "analyticsHosts"> & FormsContext;
 }
 
 /** What a failed pass, or the opening of a page for one, says about why it failed. */

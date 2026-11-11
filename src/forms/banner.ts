@@ -84,7 +84,8 @@ function worked(outcome: FormFlagInput, checkedOn: string | undefined): string {
   // A press that showed an error: only then can the banner say NVDA told the user what was wrong.
   const baseline = outcome.baseline ?? { invalid: [], messages: [] };
   const showedError = outcome.presses.some(
-    (press) => readPress(baseline, press.heldBefore ?? 0, press.state).showedError,
+    (press) =>
+      readPress(baseline, press.heldBefore ?? 0, press.state, outcome.analyticsHosts).showedError,
   );
   if (flagged || nameless) {
     // A person's review settled what voicecap flagged, or a field has no name, so the banner claims

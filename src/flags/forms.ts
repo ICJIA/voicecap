@@ -51,7 +51,15 @@ export function isFormsRule(rule: string): rule is FormsRule {
  */
 export type FormFlagInput = Pick<
   FormOutcome,
-  "form" | "result" | "stoppedAt" | "reason" | "baseline" | "firstWalk" | "errorWalk" | "lastWalk"
+  | "form"
+  | "result"
+  | "stoppedAt"
+  | "reason"
+  | "baseline"
+  | "analyticsHosts"
+  | "firstWalk"
+  | "errorWalk"
+  | "lastWalk"
 > & { presses: readonly { state: FormState; spoken: string; heldBefore?: number }[] };
 
 /** What a rule found on one form: its message, how many times, and the lines it quotes. */
@@ -314,7 +322,7 @@ function readOne(form: FormFlagInput, i: number) {
   const { state, spoken, heldBefore } = form.presses[i]!;
   const baseline = form.baseline ?? { invalid: [], messages: [] };
   const held = heldBefore ?? (i === 0 ? 0 : form.presses[i - 1]!.state.heldRequests);
-  const read = readPress(baseline, held, state);
+  const read = readPress(baseline, held, state, form.analyticsHosts);
   return {
     state,
     spoken,
