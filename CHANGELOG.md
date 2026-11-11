@@ -6,6 +6,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ### Changed
 
+- **The fold of the pages with nothing to note is open at first.** On the shareable page, with more than 12 pages, "Every page" still gathers the cards with nothing to note under one line, "The other 39 pages: nothing to note, all read in full", but that fold now starts open, so the cards show without a click; shut, the line was easy to miss. Each card's own folds (what axe found, the full transcript) still start shut, and the line still shuts the fold. A page shared before this keeps its fold shut until it's shared again.
 - **docx 9.15.2,** from 9.8.1, for the report's Word copy. Since docx 9.12, each part of a page-number field is a run of its own, each with the font size, so the footer's test now checks that every run of the footer is 9 pt rather than counting them. The Word copy reads and looks the same.
 
 ### Fixed

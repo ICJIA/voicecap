@@ -1789,7 +1789,7 @@ Its sections, in order:
 
   A page with no screenshot says why where the picture would be (its run was made before 0.11.0, say, or the browser couldn't take one). A screenshot that's missing, or isn't the file its run recorded, isn't shown, and the page says so. A page with no transcripts, one that was never read, say, has no "Heard first" and no fold, and a page whose transcripts can't be read here has its fold, with a line that says so.
 
-  With more than 12 pages, the cards with nothing to note fold behind one line, each still holding its own folds, and the pages that need attention always show. What axe found isn't one of the things that need attention, so a card whose only note is that folds with the rest. Each page's words are in its card, and "Check the fingerprints" checks them there.
+  With more than 12 pages, the cards with nothing to note gather in one fold, open at first so they show without a click, each still holding its own folds, and the pages that need attention always show. What axe found isn't one of the things that need attention, so a card whose only note is that folds with the rest. Each page's words are in its card, and "Check the fingerprints" checks them there.
 
   Two of the i2i report's 32 page cards, for /privacy/ and /program-approach/, as a wide window shows them, two a row:
 
