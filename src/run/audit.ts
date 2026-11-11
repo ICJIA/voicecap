@@ -503,12 +503,14 @@ async function sampleOf(
   logger: Logger,
 ): Promise<SampleRecord | null> {
   if (options.sampleOf === undefined || options.sampleOf === null) return null;
+  // Its warnings are said, but not the lines that count its pages "to transcribe": the run reads
+  // its own pages, and the line below says what the sitemap lists.
   const listed = await resolvePages({
     site,
     sitemap: options.sampleOf,
     cwd,
     ...(options.fetch ? { fetch: options.fetch } : {}),
-    logger,
+    logger: { ...logger, info: () => {} },
   });
   if (listed.pageSource.kind !== "sitemap") throw new Error("--sample-of read no sitemap.");
   const record = sampleRecordOf(listed.pageSource.url, listed.pages, pages);

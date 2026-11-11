@@ -139,6 +139,9 @@ describe("--sample-of", () => {
     expect(logger.text()).toContain(
       `A sample of the 5 pages ${SITEMAP} lists: 2 pages of them, and 1 page it doesn't list.`,
     );
+    // The sitemap's own count isn't said as pages to transcribe: the run reads 3.
+    expect(logger.text()).toContain("3 pages to transcribe.");
+    expect(logger.text()).not.toContain("5 pages to transcribe.");
 
     const page = await readFile(path.join(outDir(dir), "share", "current.html"), "utf8");
     expect(page).toContain(`<h3 id="sample-h">${SAMPLE_TEXT.title}</h3>`);
