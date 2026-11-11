@@ -1989,7 +1989,8 @@ describe("Every page's cards", () => {
 
   it("lays the quiet cards' fold out the same way, two a row where there is room and one where there is not", async () => {
     const page = await open(pages.many);
-    await page.locator("#pages .folds > details > summary").click();
+    // The fold is open as the page is written.
+    expect(await page.locator("#pages .folds > details[open]").count()).toBe(1);
 
     // 13 pages: the 2 with flags are in the open, and the 11 with nothing to note in the fold.
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -2182,7 +2183,14 @@ describe("Open every section, and printing", () => {
     await writeFile(file, renderSharePage(model, { fontCss: "" }));
 
     const page = await open(file);
-    // As written, only the two flagged pages' pictures are in the open: the other 11 are folded.
+    // The fold of the quiet pages is open as the page is written; shut, only the two flagged pages'
+    // pictures are in the open, and the other 11 are folded.
+    expect(
+      await page.evaluate(
+        () => [...document.images].filter((image) => image.closest("details:not([open])")).length,
+      ),
+    ).toBe(0);
+    await page.locator("#pages .folds > details > summary").click();
     expect(
       await page.evaluate(
         () => [...document.images].filter((image) => image.closest("details:not([open])")).length,
@@ -2261,30 +2269,30 @@ describe("a link into a fold", () => {
 
   // A link to a page's transcript is an address, such as one sent in an email: no part of the page
   // links to one now that each card holds its own. On a page of 13, the cards with nothing to note
-  // are folded behind one line, each holding a fold of its own transcript.
-  it("a link to a page's transcript opens its fold, and the fold of quiet pages around it", async () => {
-    // The fold of the 11 quiet pages, and what is open as the page is written: the cards of what
-    // needs attention, which the two flagged pages make.
+  // are gathered in one fold, open at first, each holding a fold of its own transcript.
+  it("a link to a page's transcript opens its fold, inside the open fold of quiet pages", async () => {
+    // The fold of the 11 quiet pages, and what is open as the page is written: that fold, and the
+    // cards of what needs attention, which the two flagged pages make.
     const quiet = "#pages .folds > details";
     const isOpen = (fold: Element): boolean => (fold as HTMLDetailsElement).open;
     const asWritten = await open(pages.many);
     const written = await foldStates(asWritten);
     const transcripts = Object.keys(written).filter((id) => id.startsWith("tx-"));
     expect(transcripts).toHaveLength(13);
-    expect(await asWritten.locator(quiet).evaluate(isOpen)).toBe(false);
+    expect(await asWritten.locator(quiet).evaluate(isOpen)).toBe(true);
     expect(transcripts.filter((id) => written[id])).toEqual([]);
     // The fourth and the ninth page: both are among the quiet.
     const first = transcripts[3] ?? "";
     const second = transcripts[8] ?? "";
     const openCount = (states: Record<string, boolean>): number => openFolds(states).length;
 
-    // The page opened at a quiet page's transcript: that fold and the quiet fold around it open,
-    // and no other.
+    // The page opened at a quiet page's transcript: that fold opens, the quiet fold around it stays
+    // open, and no other opens.
     const page = await open(pages.many, `#${first}`);
     const afterFirst = await foldStates(page);
     expect(await page.locator(quiet).evaluate(isOpen)).toBe(true);
     expect(transcripts.filter((id) => afterFirst[id])).toEqual([first]);
-    expect(openCount(afterFirst)).toBe(openCount(written) + 2);
+    expect(openCount(afterFirst)).toBe(openCount(written) + 1);
     await expect.poll(() => inView(page, `#${first} > summary`), { timeout: 10_000 }).toBe(true);
 
     // The address changing to another quiet page's: its fold opens too, and the first stays open.
@@ -2293,7 +2301,7 @@ describe("a link into a fold", () => {
     await goTo(page, second);
     const afterSecond = await foldStates(page);
     expect(transcripts.filter((id) => afterSecond[id])).toEqual([first, second]);
-    expect(openCount(afterSecond)).toBe(openCount(written) + 3);
+    expect(openCount(afterSecond)).toBe(openCount(written) + 2);
     await expect.poll(() => inView(page, `#${second} > summary`), { timeout: 10_000 }).toBe(true);
 
     // Open every section opens every fold: the quiet one, all 13 transcripts, and the 13 folds of

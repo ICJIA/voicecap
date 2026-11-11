@@ -611,13 +611,13 @@ describe("renderPages", () => {
     expect(twelve).not.toContain('<div class="folds">');
     expect(foldLines(twelve)).toEqual(pathsOf(twelveOf).map(allThree));
 
-    // At 13, the 11 with nothing to note fold behind one line, closed, with their cards inside, and
+    // At 13, the 11 with nothing to note fold behind one line, open, with their cards inside, and
     // each card still holds its own folds: 13 of transcripts, 13 of what axe found, and the one fold
     // around 11 of the cards.
     expect(quietLines(thirteen)).toEqual(["The other 11 pages: nothing to note, all read in full"]);
     expect(foldsIn(thirteen)).toHaveLength(1 + 13 + 13);
     expect(thirteen).toContain(
-      '<div class="folds"><details class="fold"><summary><span class="what">The other 11 pages:</span> <span class="sub">nothing to note, all read in full</span></summary>',
+      '<div class="folds"><details class="fold" open><summary><span class="what">The other 11 pages:</span> <span class="sub">nothing to note, all read in full</span></summary>',
     );
     const [before, inside] = splitAtQuietFold(thirteen);
     expect(cardsIn(before)).toHaveLength(2);

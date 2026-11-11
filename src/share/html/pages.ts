@@ -309,7 +309,10 @@ export function renderPages(model: ShareModel): string {
     ...(shown.length === 0 ? [] : [cardsBox(shown.map(({ html }) => html))]),
     ...(quiet.length === 0
       ? []
-      : [`<div class="folds">${fold(summary, cardsBox(quiet.map(({ html }) => html)))}</div>`]),
+      : [
+          // Open at first: shut, the one line was easy to miss, and the cards behind it with it.
+          `<div class="folds">${fold(summary, cardsBox(quiet.map(({ html }) => html)), { open: true })}</div>`,
+        ]),
     ...noLongerListed(model),
   ];
   return `<section id="pages" aria-labelledby="pages-h">\n  ${parts.join("\n  ")}\n</section>`;
