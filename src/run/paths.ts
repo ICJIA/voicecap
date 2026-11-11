@@ -158,9 +158,10 @@ export function siteFolder(site: string | URL): string {
       `A site whose host is only dots (or has none) can't be a folder in the transcripts home (got "${url.host}").`,
     );
   }
-  if (isWindowsReservedName(folder)) {
+  // The host is checked, as it always was, and the whole name too.
+  if (isWindowsReservedName(hostFolder) || isWindowsReservedName(folder)) {
     throw new UsageError(
-      `A site whose host is "${folder}" can't be a folder: Windows keeps that name for itself.`,
+      `A site whose host is "${hostFolder}" can't be a folder: Windows keeps that name for itself.`,
     );
   }
   return folder;

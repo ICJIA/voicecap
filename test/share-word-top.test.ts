@@ -4,6 +4,8 @@
  * of 29 September 2026 (voicecap 0.4.1, in test/fixtures/share/) are the real case; runs built in
  * memory cover the rest. The blocks are plain data, so nothing here opens a .docx.
  */
+import { isDeepStrictEqual } from "node:util";
+
 import { describe, expect, it } from "vitest";
 
 import { esc } from "../src/report/html.js";
@@ -263,9 +265,20 @@ describe("wordGlance", () => {
     const model = await demoModel();
     const glance = wordGlance(model);
 
-    expect(glance.map(({ kind }) => kind)).toEqual([
-      "heading",
-      "para",
+    expect(glance[0]).toEqual(heading(1, "At a glance"));
+    // The verdict, in words, with its sign before them and the whole line in bold.
+    expect(glance[1]).toEqual(
+      para({ text: "⚠ 5 problems need attention, on 2 pages", bold: true }),
+    );
+    // Then "Fix these first": the demo has 5 problems, so 3 of them, and a line that says 2 more.
+    expect(glance[2]).toEqual(heading(2, "Fix these first"));
+    const at = glance.findIndex((block) => isDeepStrictEqual(block, para(model.summary.sentence)));
+    expect(at).toBeGreaterThan(2);
+    expect(wordsOf(glance.slice(at - 1, at))).toEqual([
+      "Each one's pages and the full fix are under What needs attention. 2 more problems are under What needs attention.",
+    ]);
+    const rest = glance.slice(at);
+    expect(rest.map(({ kind }) => kind)).toEqual([
       "para",
       "table",
       "table",
@@ -273,20 +286,14 @@ describe("wordGlance", () => {
       "para",
       "pageBreak",
     ]);
-    expect(glance[0]).toEqual(heading(1, "At a glance"));
-    // The verdict, in words, with its sign before them and the whole line in bold.
-    expect(glance[1]).toEqual(
-      para({ text: "⚠ 5 problems need attention, on 2 pages", bold: true }),
-    );
     // Then the result in a sentence, the ring and the numbers as tables, and the line on what
     // voicecap and the person each did; then a page break, so At a glance has the first page.
-    expect(glance[2]).toEqual(para(model.summary.sentence));
-    expect(wordsOf(glance.slice(2, 3))).toEqual(["NVDA read all 7 pages."]);
+    expect(wordsOf(rest.slice(0, 1))).toEqual(["NVDA read all 7 pages."]);
     // The demo's run is from before the forms pass: a line says it did not record the forms.
-    expect(wordsOf(glance.slice(5, 6))).toEqual([
+    expect(wordsOf(rest.slice(3, 4))).toEqual([
       "Forms: not recorded: this run used voicecap 0.4.1.",
     ]);
-    expect(glance[6]).toEqual(para(model.summary.second));
+    expect(rest[4]).toEqual(para(model.summary.second));
     expect(glance.at(-1)).toEqual(PAGE_BREAK);
   });
 

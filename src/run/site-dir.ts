@@ -70,8 +70,10 @@ export async function chooseSiteDir(options: {
  *    IP address or a local address, which can't be a canonical address, skips this step;
  * 3. else the folder the address would have, which a command that may make it makes.
  * A canonical address with a path, such as https://voicecap.icjia.app/demo-site/, is a site that
- * lives under its host. Folders are named after hosts, so the one named after this host holds the
- * host's own pages, and for such an address step 2 comes before step 1.
+ * lives under its host, with a folder of its own, named for its host and its path (see
+ * siteFolder): for such an address step 2 comes before step 1, since a copy read on this computer
+ * records it in the copy's folder. Before 0.26.0 such a site was filed in its host's folder, so
+ * while it has no folder of its own, that one is taken when it holds records.
  * Two folders that recorded it are a usage error: the address can't say which one is meant, so it
  * asks for the address voicecap read, which names one folder.
  */

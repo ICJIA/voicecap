@@ -932,8 +932,14 @@ describe("renderGlance", () => {
     expect(glance).toBeGreaterThan(-1);
     expect(how).toBeGreaterThan(glance);
     expect(html.match(/<h2[ >]/g)).toHaveLength(2);
-    // Its panels and bars are parts of the details: At a glance has no heading but its own.
-    expect(renderGlance(model).match(/<h[1-6][ >]/g)).toEqual(["<h2 "]);
+    // Its panels and bars are parts of the details: At a glance has no heading but its own, and
+    // "Fix these first" when something needs attention.
+    const headings = renderGlance(model).match(/<h[1-6][^>]*>/g);
+    expect(headings).toEqual(
+      model.attention.length === 0
+        ? ['<h2 id="glance-h">']
+        : ['<h2 id="glance-h">', '<h3 id="fix-first-h">'],
+    );
   });
 
   it("opens with At a glance, in its order: the verdict, the result, the ring, the numbers, the method, and the links", async () => {

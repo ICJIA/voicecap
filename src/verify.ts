@@ -10,7 +10,7 @@ import {
   type FileHash,
   type ReviewsFile,
 } from "./model.js";
-import { isWebRoot } from "./pages/canonical.js";
+import { isWebRoot, recordedCanonical } from "./pages/canonical.js";
 import { canonicalKey } from "./pages/url.js";
 import { readReviews } from "./reviews/store.js";
 import { EVENT_LOG, NVDA_LOG_FOLDER } from "./run/events.js";
@@ -214,7 +214,7 @@ async function checkRun(home: string, dir: string, site: SiteTally): Promise<voi
     return;
   }
   // No seal covers where the folder is, so a copied or moved run is caught only here.
-  if (!isWhereItBelongs(home, dir, belongs)) {
+  if (!isWhereItBelongs(home, dir, belongs) && !isItsSitesFolder(home, dir, run)) {
     site.problems.push(`${linkPath(home, dir)}: this run belongs at ${linkPath(home, belongs)}`);
   }
   if (sealed) {
@@ -254,6 +254,19 @@ function isWhereItBelongs(home: string, dir: string, belongs: string): boolean {
   if (inSite.join("/") !== inFolder.join("/") || !folder.startsWith(`${hostFolder}_`)) return false;
   const first = folder.slice(hostFolder.length + 1).split("_")[0] ?? "";
   return first !== "" && !/^\d+$/.test(first);
+}
+
+/**
+ * Whether a run in `dir` is in the folder of the site under a path that it recorded as its canonical
+ * address, on the host it read: `--site https://a.gov/2026/` files its run in `a.gov_2026`, a name
+ * that isWhereItBelongs can't tell from a port's.
+ */
+function isItsSitesFolder(home: string, dir: string, run: Record<string, unknown>): boolean {
+  if (typeof run.id !== "string" || !isUrl(run.site)) return false;
+  const root = recordedCanonical(run.canonical);
+  if (root === null || new URL(root).host !== new URL(run.site).host) return false;
+  const siteDir = siteDirOf(home, root);
+  return siteDir !== null && runDir(siteDir, run.id) === dir;
 }
 
 /** Where a run belongs, by its own id and site; null when those aren't as voicecap writes them. */

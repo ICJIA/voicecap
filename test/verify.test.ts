@@ -885,6 +885,21 @@ describe("verifyHome", () => {
     ]);
   });
 
+  it("passes a run that a --site with a path of digits filed in that path's folder, by the address it recorded", async () => {
+    // example.illinois.gov_2026 could be a port's folder by its name alone: the run's own canonical
+    // address says it's the site's.
+    const { dir, run } = await homeWithCountedRun(undefined, { site: `${EXAMPLE_SITE}/2026/` });
+    const home = path.join(dir, "transcripts");
+    expect(path.relative(home, run.siteDir)).toBe("example.illinois.gov_2026");
+
+    const { result, lines } = await verify(home);
+
+    expect(result.problems).toBe(0);
+    expect(lines).toEqual([
+      "example.illinois.gov_2026: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.",
+    ]);
+  });
+
   it("catches a run in a folder of a site under a path on another host", async () => {
     const home = await copyOfHome();
     await mkdir(at(home, "dvfr.illinois.gov_blog/2026-09-27"), { recursive: true });
