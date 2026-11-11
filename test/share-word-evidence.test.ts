@@ -827,7 +827,7 @@ describe("wordEvidence", () => {
         [latest, "2026-09-29_1402"],
         [earlier, "2026-09-29_1315"],
       ] as const) {
-        const file = `voicecap.icjia.app_${id}_walkthrough.json`;
+        const file = `voicecap.icjia.app_demo-site_${id}_walkthrough.json`;
         // Getting the file names the site as the page does, and repeating it the address that was read.
         expect(says).toContain(
           `npx @icjia/voicecap walkthrough --site ${DEMO_ROOT} --run ${id} ${file}`,

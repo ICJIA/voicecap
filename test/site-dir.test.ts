@@ -425,9 +425,10 @@ describe("chooseSiteDir, given a site's canonical address", () => {
       canonical: DVFR_ROOT,
     });
 
-    // As before: the folder the address would have, which a command that may make it makes.
+    // As before: the folder the address would have, which a command that may make it makes. A
+    // root under a path has a folder of its own, named for its host and its path.
     for (const [site, folder] of [
-      [DEMO_ROOT, "voicecap.icjia.app"],
+      [DEMO_ROOT, "voicecap.icjia.app_demo-site"],
       ["https://dev.illinois.gov/", "dev.illinois.gov"],
       ["https://dev.illinois.gov:8443/", "dev.illinois.gov_8443"],
     ] as const) {
@@ -505,10 +506,14 @@ describe("chooseSiteDir, given a site's canonical address", () => {
       canonical: DEMO_ROOT,
     });
 
-    // The website's own root isn't the demo's, and a page of the demo isn't its root.
-    for (const site of ["https://voicecap.icjia.app", `${DEMO_ROOT}the-report/`]) {
-      expect(await chooseSiteDir({ home, site })).toBe(path.join(home, "voicecap.icjia.app"));
-    }
+    // The website's own root isn't the demo's, and a page of the demo isn't its root: given as
+    // --site, it's a site under a path of its own, with a folder of its own.
+    expect(await chooseSiteDir({ home, site: "https://voicecap.icjia.app" })).toBe(
+      path.join(home, "voicecap.icjia.app"),
+    );
+    expect(await chooseSiteDir({ home, site: `${DEMO_ROOT}the-report/` })).toBe(
+      path.join(home, "voicecap.icjia.app_demo-site_the-report"),
+    );
   });
 
   it("leaves an IP address or a local address as it was: the folder named after it", async () => {
@@ -574,11 +579,11 @@ describe("chooseSiteDir, given a site's canonical address", () => {
   it("says nothing new in a home with no sites yet", async () => {
     const missing = path.join(await makeHome(), "not-made-yet");
     expect(await chooseSiteDir({ home: missing, site: DEMO_ROOT })).toBe(
-      path.join(missing, "voicecap.icjia.app"),
+      path.join(missing, "voicecap.icjia.app_demo-site"),
     );
     const empty = await makeHome();
     expect(await chooseSiteDir({ home: empty, site: DEMO_ROOT })).toBe(
-      path.join(empty, "voicecap.icjia.app"),
+      path.join(empty, "voicecap.icjia.app_demo-site"),
     );
   });
 
@@ -612,7 +617,7 @@ describe("chooseSiteDir, given a site's canonical address", () => {
         path.join(moved, "127.0.0.1_4848"),
       );
       expect(await chooseSiteDir({ home: moved, site: DEMO_ROOT })).toBe(
-        path.join(moved, "voicecap.icjia.app"),
+        path.join(moved, "voicecap.icjia.app_demo-site"),
       );
 
       // The record lists the entries out of order: seq decides which is newest, not the order.
@@ -663,9 +668,9 @@ describe("chooseSiteDir, given a site's canonical address", () => {
       await mkdir(shareDir(path.join(home, "localhost_9090")), { recursive: true });
       await writeFile(sharesPath(path.join(home, "localhost_9090")), "{ not json");
 
-      // As before: the folder the address would have.
+      // As before: the folder the address would have, its own, for it's under a path.
       expect(await chooseSiteDir({ home, site: DEMO_ROOT })).toBe(
-        path.join(home, "voicecap.icjia.app"),
+        path.join(home, "voicecap.icjia.app_demo-site"),
       );
       expect(await chooseSiteDir({ home, site: DEMO_READ })).toBe(
         path.join(home, "127.0.0.1_4848"),
@@ -700,6 +705,94 @@ describe("chooseSiteDir, given a site's canonical address", () => {
         `${DEMO_ROOT} is the canonical address of 127.0.0.1_4848 and localhost_3000: give --site the address voicecap read, http://127.0.0.1:4848 or http://localhost:3000.`,
       );
     });
+  });
+});
+
+// Added in 0.26.0. A site under a path on its host is a site of its own, with a folder of its own:
+// its host's name, then its path, each "/" a "_".
+describe("chooseSiteDir, given a site under a path on its host", () => {
+  const ROOT = "https://icjia.illinois.gov/adultredeploy/";
+
+  it("names the site's own folder, never its host's, when it holds records", async () => {
+    const home = await makeHome();
+    await recordRun(home, "icjia.illinois.gov", {
+      began: "2026-09-29 14:02",
+      site: "https://icjia.illinois.gov",
+    });
+    await recordRun(home, "icjia.illinois.gov_adultredeploy", {
+      began: "2026-09-29 15:02",
+      site: "https://icjia.illinois.gov",
+    });
+
+    expect(await chooseSiteDir({ home, site: ROOT })).toBe(
+      path.join(home, "icjia.illinois.gov_adultredeploy"),
+    );
+    // Without the slash on the end, with capitals, or with a file named last, it's the same site.
+    for (const site of [
+      "https://icjia.illinois.gov/adultredeploy",
+      "https://ICJIA.illinois.gov/AdultRedeploy/",
+      "https://icjia.illinois.gov/adultredeploy/index.html",
+    ]) {
+      expect(await chooseSiteDir({ home, site })).toBe(
+        path.join(home, "icjia.illinois.gov_adultredeploy"),
+      );
+    }
+    // The host's own site keeps its folder.
+    expect(await chooseSiteDir({ home, site: "https://icjia.illinois.gov/" })).toBe(
+      path.join(home, "icjia.illinois.gov"),
+    );
+  });
+
+  it("looks first for a folder that recorded the site's root as its canonical address", async () => {
+    const home = await makeHome();
+    await recordRun(home, "icjia.illinois.gov_adultredeploy", {
+      began: "2026-09-29 14:02",
+      site: "https://icjia.illinois.gov",
+    });
+    await recordRun(home, "localhost_3000", {
+      began: "2026-09-29 15:02",
+      site: COPY_READ,
+      canonical: ROOT,
+    });
+
+    expect(await chooseSiteDir({ home, site: ROOT })).toBe(path.join(home, "localhost_3000"));
+  });
+
+  it("looks in its host's folder, as voicecap filed it before 0.26.0, when it has no folder of its own yet", async () => {
+    const home = await makeHome();
+    await recordRun(home, "icjia.illinois.gov", {
+      began: "2026-09-29 14:02",
+      site: "https://icjia.illinois.gov",
+    });
+
+    expect(await chooseSiteDir({ home, site: ROOT })).toBe(path.join(home, "icjia.illinois.gov"));
+
+    // Once its own folder is there, that one is taken, even before it holds a record.
+    await mkdir(path.join(home, "icjia.illinois.gov_adultredeploy"));
+    expect(await chooseSiteDir({ home, site: ROOT })).toBe(
+      path.join(home, "icjia.illinois.gov_adultredeploy"),
+    );
+  });
+
+  it("names the folder the site would have when neither it nor its host's holds records", async () => {
+    const home = await makeHome();
+    // The host's folder is there, but holds nothing a site does.
+    await mkdir(path.join(home, "icjia.illinois.gov"));
+
+    expect(await chooseSiteDir({ home, site: ROOT })).toBe(
+      path.join(home, "icjia.illinois.gov_adultredeploy"),
+    );
+    expect(await chooseSiteDir({ home, site: "https://icjia.illinois.gov/a/b/" })).toBe(
+      path.join(home, "icjia.illinois.gov_a_b"),
+    );
+  });
+
+  it("names a page's host's folder for a full page URL, since a URL doesn't say where a site under a path ends", async () => {
+    const home = await makeHome();
+
+    expect(
+      await chooseSiteDir({ home, page: "https://icjia.illinois.gov/adultredeploy/about/" }),
+    ).toBe(path.join(home, "icjia.illinois.gov"));
   });
 });
 
@@ -816,7 +909,12 @@ describe("chooseSiteDirOfRun", () => {
     );
   });
 
-  it("names both for a root with a path, whose folder named after its host is another site's", async () => {
+  // Before 0.26.0 the folder named after the host of a root with a path was a candidate too, so a
+  // run of that minute in the host's own site's folder made this a usage error naming both. Since
+  // 0.26.0 a root with a path names a folder of its own (the host's name, then the path), so the
+  // host's folder, which is another site's, is no candidate: the folder that recorded the root is
+  // taken, with no error.
+  it("takes the folder that recorded a root with a path, never its host's folder, which is another site's", async () => {
     const home = await makeHome();
     await recordRun(home, "voicecap.icjia.app", {
       began: "2026-09-29 14:02",
@@ -828,11 +926,8 @@ describe("chooseSiteDirOfRun", () => {
       canonical: DEMO_ROOT,
     });
 
-    expect(
-      (await refused(chooseSiteDirOfRun({ home, site: DEMO_ROOT, run: "2026-09-29_1402" })))
-        .message,
-    ).toBe(
-      `Run 2026-09-29_1402 is in 127.0.0.1_4848 and voicecap.icjia.app: give --site the address voicecap read, http://127.0.0.1:4848 or https://voicecap.icjia.app.`,
+    expect(await chooseSiteDirOfRun({ home, site: DEMO_ROOT, run: "2026-09-29_1402" })).toBe(
+      path.join(home, "127.0.0.1_4848"),
     );
     expect(
       await chooseSiteDirOfRun({

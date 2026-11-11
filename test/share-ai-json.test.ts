@@ -1210,7 +1210,7 @@ describe("renderAiJson", () => {
   it("names no one who prepared it when the records name no one, and the voicecap of an older run", () => {
     const report = reportOf(demo);
 
-    expect(report.site).toBe("voicecap.icjia.app");
+    expect(report.site).toBe("voicecap.icjia.app/demo-site");
     expect(report.testedAt).toBe("29 September 2026, 14:02");
     expect(report.asOf).toBe("30 September 2026");
     expect(report.preparedBy).toBeNull();

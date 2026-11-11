@@ -827,16 +827,16 @@ describe("renderEvidence", () => {
 
         // The file is named for the site as the page names it, the commands' --site for the address read.
         expect(attributes(html, "download")).toEqual([
-          "voicecap.icjia.app_2026-09-29_1402_walkthrough.json",
-          "voicecap.icjia.app_2026-09-29_1315_walkthrough.json",
+          "voicecap.icjia.app_demo-site_2026-09-29_1402_walkthrough.json",
+          "voicecap.icjia.app_demo-site_2026-09-29_1315_walkthrough.json",
         ]);
         expect(
           [...html.matchAll(/<pre>(npx @icjia\/voicecap --walkthrough [^<]*)<\/pre>/g)].map(
             (found) => found[1],
           ),
         ).toEqual([
-          "npx @icjia/voicecap --walkthrough voicecap.icjia.app_2026-09-29_1402_walkthrough.json --site http://127.0.0.1:4848",
-          "npx @icjia/voicecap --walkthrough voicecap.icjia.app_2026-09-29_1315_walkthrough.json --site http://127.0.0.1:4848",
+          "npx @icjia/voicecap --walkthrough voicecap.icjia.app_demo-site_2026-09-29_1402_walkthrough.json --site http://127.0.0.1:4848",
+          "npx @icjia/voicecap --walkthrough voicecap.icjia.app_demo-site_2026-09-29_1315_walkthrough.json --site http://127.0.0.1:4848",
         ]);
       });
 

@@ -854,6 +854,88 @@ describe("verifyHome", () => {
     ]);
   });
 
+  // Since 0.26.0 a site under a path on its host has a folder of its own, named for its host, then
+  // its path: a run of http://127.0.0.1:4747 read for http://127.0.0.1:4747/blog/ is filed in
+  // 127.0.0.1_4747_blog. A record records the address voicecap read, which has no path, so that
+  // folder is where it belongs too.
+  it("passes a run and a manual session in a folder of a site under a path on their host", async () => {
+    const home = await copyOfHome();
+    await rename(at(home, FOLDER), at(home, `${FOLDER}_blog`));
+    await mkdir(at(home, `${FOLDER}_news_2026`));
+    await cp(at(home, `${FOLDER}_blog/2026-09-27`), at(home, `${FOLDER}_news_2026/2026-09-27`), {
+      recursive: true,
+    });
+
+    expect((await verify(home)).lines).toEqual([
+      MATCHES.replace(`${FOLDER}:`, `${FOLDER}_blog:`),
+      `${FOLDER}_news_2026: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.`,
+    ]);
+  });
+
+  it("passes a run that a --site with a path filed in that path's folder", async () => {
+    const { dir, run } = await homeWithCountedRun(undefined, { site: `${EXAMPLE_SITE}/blog/` });
+    const home = path.join(dir, "transcripts");
+    expect(path.relative(home, run.siteDir)).toBe("example.illinois.gov_blog");
+
+    const { result, lines } = await verify(home);
+
+    expect(result.problems).toBe(0);
+    expect(lines).toEqual([
+      "example.illinois.gov_blog: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.",
+    ]);
+  });
+
+  it("catches a run in a folder of a site under a path on another host", async () => {
+    const home = await copyOfHome();
+    await mkdir(at(home, "dvfr.illinois.gov_blog/2026-09-27"), { recursive: true });
+    await cp(at(home, RUN), at(home, "dvfr.illinois.gov_blog/2026-09-27/1102"), {
+      recursive: true,
+    });
+    // A folder whose name only starts with the host's folder's, with no "_" after it, is another
+    // host's too.
+    await mkdir(at(home, `${FOLDER}0/2026-09-27`), { recursive: true });
+    await cp(at(home, RUN), at(home, `${FOLDER}0/2026-09-27/1102`), { recursive: true });
+
+    expect((await verify(home)).lines).toEqual([
+      MATCHES,
+      `${FOLDER}0/2026-09-27/1102: this run belongs at ${RUN}`,
+      `${FOLDER}0: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 1 problem.`,
+      `dvfr.illinois.gov_blog/2026-09-27/1102: this run belongs at ${RUN}`,
+      "dvfr.illinois.gov_blog: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 1 problem.",
+    ]);
+  });
+
+  // A port is no path: the folder of http://localhost:3000 is localhost_3000, which isn't a folder
+  // of a site under a path on http://localhost. A part after the host's folder's name that is only
+  // digits is taken for a port, so a run of 127.0.0.1:4747 isn't at home in 127.0.0.1_4747_8080.
+  it("catches a run in a folder whose name adds what reads as a port to its host's folder's", async () => {
+    const home = await copyOfHome();
+    await mkdir(at(home, `${FOLDER}_8080/2026-09-27`), { recursive: true });
+    await cp(at(home, RUN), at(home, `${FOLDER}_8080/2026-09-27/1102`), { recursive: true });
+    await mkdir(at(home, `${FOLDER}_8080_blog/2026-09-27`), { recursive: true });
+    await cp(at(home, RUN), at(home, `${FOLDER}_8080_blog/2026-09-27/1102`), { recursive: true });
+
+    expect((await verify(home)).lines).toEqual([
+      MATCHES,
+      `${FOLDER}_8080/2026-09-27/1102: this run belongs at ${RUN}`,
+      `${FOLDER}_8080: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 1 problem.`,
+      `${FOLDER}_8080_blog/2026-09-27/1102: this run belongs at ${RUN}`,
+      `${FOLDER}_8080_blog: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
+  it("catches a run in its host's sub-path folder at another place than its own", async () => {
+    const home = await copyOfHome();
+    await mkdir(at(home, `${FOLDER}_blog/2026-09-28`), { recursive: true });
+    await cp(at(home, RUN), at(home, `${FOLDER}_blog/2026-09-28/1102`), { recursive: true });
+
+    expect((await verify(home)).lines).toEqual([
+      MATCHES,
+      `${FOLDER}_blog/2026-09-28/1102: this run belongs at ${RUN}`,
+      `${FOLDER}_blog: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
   it("catches a manual session renamed to another time", async () => {
     const home = await copyOfHome();
     await rename(at(home, SESSION), at(home, `${FOLDER}/2026-09-25/2358_manual_home`));
