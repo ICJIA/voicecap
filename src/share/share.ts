@@ -56,7 +56,8 @@ import path from "node:path";
 
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { ShareEntry, SharedFile } from "../model.js";
-import { isLocalHost } from "../pages/canonical.js";
+import { isLocalHost, normalizeCanonical } from "../pages/canonical.js";
+import { siteUnderAPath } from "../pages/url.js";
 import { resolveReviewer } from "../reviews/reviewer.js";
 import { ensureGitFiles } from "../run/git-files.js";
 import { resolveHome, shareDir, sharesPath, siteFolder } from "../run/paths.js";
@@ -77,6 +78,7 @@ import type { GestureOf } from "./run-log-check.js";
 import { appendShare, readShares, recordedNames } from "./shares.js";
 import { MAC_HASH, POWERSHELL_HASH } from "./text.js";
 import { renderVoicePage } from "./voice-page.js";
+import { voicePartNames } from "./voice-parts.js";
 
 export interface ShareReportOptions {
   /**
@@ -147,6 +149,31 @@ interface RunFile {
 }
 
 /**
+ * The canonical address the copies name the site by. A --site under a path on the host voicecap
+ * read (`https://icjia.illinois.gov/adultredeploy/`) says which site the person means, so it's that
+ * path's root: a run before 0.26.0 recorded the host's own root for such a site. The config's
+ * report.canonical still comes first, and a --site at another host than the one read (the address
+ * people visit, for a copy read on this computer) changes nothing.
+ */
+function namedByPath(
+  site: string | null | undefined,
+  input: Pick<ShareInput, "canonical" | "readOrigin">,
+  config: LoadedConfig["config"],
+): string | null {
+  const under = site === undefined || site === null ? null : siteUnderAPath(site);
+  if (under === null || config.report.canonical !== null) return input.canonical;
+  if (!URL.canParse(input.readOrigin) || new URL(input.readOrigin).host !== under.host) {
+    return input.canonical;
+  }
+  try {
+    return normalizeCanonical(under.href);
+  } catch (error) {
+    if (error instanceof UsageError) return input.canonical;
+    throw error;
+  }
+}
+
+/**
  * Make the dated pair of a site's shareable page and its Word copy, the voice page when a page has a
  * recording to play, the report for AI tools as Markdown and as JSON, and the walkthrough file of
  * each run the pair draws on, write them beside the page that's kept current, record them with each
@@ -173,7 +200,8 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
 
   // Every record is read here, once: it's what takes the time. The model is built from it again for
   // each pair of names tried, which is cheap.
-  const input = await loadShareInput({ siteDir, config, now, gestureOf: options.gestureOf });
+  const loaded = await loadShareInput({ siteDir, config, now, gestureOf: options.gestureOf });
+  const input = { ...loaded, canonical: namedByPath(options.site, loaded, config) };
   // The model as the current copies have it: it says whether a run counts, and it has each run's
   // walkthrough file, which no name changes.
   const current = buildShareModel(input);
@@ -221,10 +249,13 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
       bytes,
       run,
     }));
+    // A report of more than 100 pages has its voice page in parts (./voice-parts.ts), the first of
+    // them named as the one voice page is.
+    const voiceParts = voicePartNames(names.voice, current.pages.length);
     const everyName = [
       names.page,
       names.word,
-      names.voice,
+      ...voiceParts,
       names.markdown,
       names.json,
       ...walkthroughCopies.map(({ name }) => name),
@@ -243,11 +274,22 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
     const fontCss = await fontFaceCss();
     // Made from the same model, with the same fonts, and written only when a page has a recording
     // to play: the cards' lines and the details' link are there exactly then.
-    const voice = renderVoicePage(model, input.recordings, { fontCss });
+    const voices = voiceParts.flatMap((name, at): Copy[] => {
+      const html = renderVoicePage(
+        model,
+        input.recordings,
+        { fontCss },
+        {
+          number: at + 1,
+          names: voiceParts,
+        },
+      );
+      return html === null ? [] : [{ name, bytes: Buffer.from(html, "utf8") }];
+    });
     const copies: Copy[] = [
       { name: names.page, bytes: Buffer.from(renderSharePage(model, { fontCss }), "utf8") },
       { name: names.word, bytes: await renderWordCopy(model) },
-      ...(voice === null ? [] : [{ name: names.voice, bytes: Buffer.from(voice, "utf8") }]),
+      ...voices,
       { name: names.markdown, bytes: Buffer.from(renderAiMarkdown(model), "utf8") },
       { name: names.json, bytes: Buffer.from(renderAiJson(model), "utf8") },
       ...walkthroughCopies,

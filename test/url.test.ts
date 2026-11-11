@@ -13,6 +13,7 @@ import {
   resolvePageUrl,
   resolveSitemapUrl,
   sameOrigin,
+  siteUnderAPath,
   withoutCredentials,
   withoutUserInfo,
 } from "../src/pages/url.js";
@@ -134,6 +135,48 @@ describe("parseSiteUrl", () => {
     expect(parseSiteUrl("http://[::1]:4747/").href).toBe("http://[::1]:4747/");
     expect(parseSiteUrl("http://intranet").href).toBe("http://intranet/");
     expect(parseSiteUrl("HTTPS://DVFR.Illinois.GOV").href).toBe("https://dvfr.illinois.gov/");
+  });
+});
+
+describe("siteUnderAPath", () => {
+  it("is null for a site at its host's root", () => {
+    expect(siteUnderAPath("https://dvfr.illinois.gov")).toBeNull();
+    expect(siteUnderAPath("https://dvfr.illinois.gov/")).toBeNull();
+    expect(siteUnderAPath("https://dvfr.illinois.gov/?x=1#top")).toBeNull();
+    expect(siteUnderAPath("http://localhost:3000/")).toBeNull();
+  });
+
+  it("is the origin and the path, lowercased, with a slash on the end", () => {
+    expect(siteUnderAPath("https://icjia.illinois.gov/adultredeploy")?.href).toBe(
+      "https://icjia.illinois.gov/adultredeploy/",
+    );
+    expect(siteUnderAPath("  https://ICJIA.illinois.gov/AdultRedeploy/  ")?.href).toBe(
+      "https://icjia.illinois.gov/adultredeploy/",
+    );
+    expect(siteUnderAPath("https://example.gov/a/b")?.href).toBe("https://example.gov/a/b/");
+    expect(siteUnderAPath("http://localhost:3000/blog/")?.href).toBe("http://localhost:3000/blog/");
+  });
+
+  it("drops a last part with a dot in it, a file, but keeps one that ends in a slash", () => {
+    expect(siteUnderAPath("https://example.gov/faq/index.html")?.href).toBe(
+      "https://example.gov/faq/",
+    );
+    expect(siteUnderAPath("https://example.gov/index.html")).toBeNull();
+    expect(siteUnderAPath("https://example.gov/v1.2/")?.href).toBe("https://example.gov/v1.2/");
+  });
+
+  it("ignores a query and a hash", () => {
+    expect(siteUnderAPath("https://example.gov/news/?page=2#top")?.href).toBe(
+      "https://example.gov/news/",
+    );
+    expect(siteUnderAPath("https://example.gov/news#top")?.href).toBe("https://example.gov/news/");
+  });
+
+  it("is null for what isn't an http or https address", () => {
+    expect(siteUnderAPath("ftp://example.gov/news/")).toBeNull();
+    expect(siteUnderAPath("mailto:someone@example.gov")).toBeNull();
+    expect(siteUnderAPath("example.gov/news/")).toBeNull();
+    expect(siteUnderAPath("")).toBeNull();
   });
 });
 

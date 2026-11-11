@@ -14,12 +14,15 @@
  * one another. Pure.
  */
 import { count, names } from "../format.js";
+import { fixFirstOf } from "../fix-first.js";
 import { bannerLine, glanceBannerOf } from "../forms-view.js";
 import type { Line } from "../line.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
+  ATTENTION_TEXT,
   AXE_TEXT,
+  FIX_FIRST_TEXT,
   GLANCE_TEXT,
   HOW_STEPS,
   HOW_TEXT,
@@ -48,6 +51,7 @@ import {
   cell,
   heading,
   list,
+  mono,
   monoCell,
   para,
   table,
@@ -153,6 +157,37 @@ function verdictBlock(result: ShareModel["result"]): Block {
 }
 
 /**
+ * "Fix these first", under the verdict, as the page has it (../fix-first.ts): up to 3 problems,
+ * each its number, title, and count in bold, the first line NVDA said of it in the fixed-width
+ * font, and its first fix, its code in the fixed-width font; then where the rest is, and how many
+ * more problems there are. A document has no links, so the line after them names the section.
+ */
+function fixFirstBlocks(model: ShareModel): Block[] {
+  const box = fixFirstOf(model.attention);
+  if (box === null) return [];
+  const items = box.items.flatMap((item, index): Block[] => [
+    para({ text: `${index + 1}. ${item.title}`, bold: true }, ` ${item.count}`),
+    ...(item.said === null
+      ? []
+      : [mono([`${FIX_FIRST_TEXT.nvda}, ${item.said.pass}: “${item.said.line}”`])]),
+    ...(item.fix !== null
+      ? [
+          para({ text: `${FIX_FIRST_TEXT.fix}:`, bold: true }, ` ${item.fix.lead}`),
+          mono(item.fix.code.split("\n")),
+        ]
+      : item.step === null
+        ? []
+        : [para({ text: `${FIX_FIRST_TEXT.next}:`, bold: true }, ` ${item.step}`)]),
+  ]);
+  const rest = `Each one's pages and the full fix are under ${ATTENTION_TEXT.title}.`;
+  return [
+    heading(2, FIX_FIRST_TEXT.title),
+    ...items,
+    para(box.more === 0 ? rest : `${rest} ${FIX_FIRST_TEXT.more(box.more)}`),
+  ];
+}
+
+/**
  * At a glance's line on the forms, once the run has the forms pass: its sign and words in bold
  * ("✓ All 4 forms work with NVDA", or "⚠ 3 of 4 forms work with NVDA") and, when some don't, the
  * line that names their pages; the same words as the page's banner (../forms-view.ts). A run from
@@ -186,7 +221,7 @@ export function wordGlance(model: ShareModel): Block[] {
   const hasPages = result.pages > 0;
   return [
     heading(1, GLANCE_TEXT.title),
-    ...(hasPages ? [verdictBlock(result)] : []),
+    ...(hasPages ? [verdictBlock(result), ...fixFirstBlocks(model)] : []),
     para(summary.sentence),
     ...(hasPages ? [ringTable(model), numbersTable(model)] : []),
     ...formsGlanceBlocks(model),

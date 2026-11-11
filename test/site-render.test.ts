@@ -22,6 +22,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import type { ShareResult } from "../src/model.js";
 import { DEMO_CANONICAL } from "../src/demo/server.js";
+import { folderSafe } from "../src/run/paths.js";
 import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { SHARE_CSS, THEME_CSS } from "../src/share/html/style.js";
 import { VOICE_TEXT } from "../src/share/text.js";
@@ -779,7 +780,7 @@ describe("renderSiteIndex", () => {
     expect(linksOf(other)).toEqual([]);
   });
 
-  it("links a site only to the root of a web site, as a record gives one, at the host its heading names", () => {
+  it("links a site only to the root of a web site, as a record gives one, at the host and path its heading names", () => {
     const withAddress = (address: string, name = DVFR): string =>
       headOf(
         sectionOf(
@@ -787,16 +788,18 @@ describe("renderSiteIndex", () => {
             demo: null,
             sites: [{ name, folders: [DVFR], reports: [DVFR_NEWEST], address }],
           }),
-          `site-${name}`,
+          `site-${folderSafe(name)}`,
         ),
         "site",
       );
 
-    // A site at a path of its host is a root too.
+    // A site at a path of its host is a root too, and its heading names its host and its path.
     const demo = "https://voicecap.icjia.app/demo-site/";
-    expect(linksOf(withAddress(demo, "voicecap.icjia.app"))).toEqual([
+    expect(linksOf(withAddress(demo, "voicecap.icjia.app/demo-site"))).toEqual([
       { href: demo, download: false },
     ]);
+    // A heading that names only its host is the host's own site, not the one under the path.
+    expect(linksOf(withAddress(demo, "voicecap.icjia.app"))).toEqual([]);
     // A root at another host than the heading names would send its reader to another site.
     expect(linksOf(withAddress(demo))).toEqual([]);
     for (const address of [
@@ -2083,14 +2086,15 @@ describe("renderSiteIndex", () => {
     // A site's name is text, and its section's id too: made safe, as a folder's name is.
     const name = 'a"b&c<s>x</s>';
     // A second site, linked: a root may hold an ampersand, which URL leaves as it is. Its name is
-    // its host, as the build gives a site its name, since a link goes only to the heading's host.
+    // its host and its path, as the build gives a site its name, since a link goes only to the site
+    // the heading names.
     const linked = { ...report, folder: "a.example.gov", id: "report-a.example.gov-1" };
     const page = frontPage({
       demo: null,
       sites: [
         { name, folders: ['a"b&c'], reports: [report] },
         {
-          name: "a.example.gov",
+          name: "a.example.gov/a&b",
           folders: ["a.example.gov"],
           reports: [linked],
           address: "https://a.example.gov/a&b/",
@@ -2124,7 +2128,7 @@ describe("renderSiteIndex", () => {
     expect(markup).toContain(
       '<a class="visit" href="https://a.example.gov/a&amp;b/" target="_blank" rel="noopener noreferrer">',
     );
-    expect(markup).toContain('<span class="sr"> at a.example.gov, in a new tab</span>');
+    expect(markup).toContain('<span class="sr"> at a.example.gov/a&amp;b, in a new tab</span>');
     // Nothing the record holds became markup: no element it names, and no attribute it adds. The
     // page's own <b> holds a count's number, so the record's two are looked for as they'd appear.
     const { elements, attributes } = namesIn(markup);

@@ -53,8 +53,11 @@ import {
 /** The address the demo's runs read: a copy on the tester's computer. */
 const READ = "http://127.0.0.1:4848";
 
-/** What the demo's canonical address makes of it. */
-const NAME = "voicecap.icjia.app";
+/** What the demo's canonical address makes of it: its host and its path, for it's under one. */
+const NAME = "voicecap.icjia.app/demo-site";
+
+/** The demo's folder's name, which its shared files' and walkthrough files' names start with. */
+const FOLDER = "voicecap.icjia.app_demo-site";
 
 /** The address of a page of the demo, on its canonical address. */
 const on = (path: string): string => `${DEMO_ROOT}${path}`;
@@ -70,7 +73,7 @@ const LOCAL_ADDRESS = /127\.0\.0\.1|localhost/i;
  * words around it leave the address out.
  */
 const repeating = (id: string): string =>
-  `npx @icjia/voicecap --walkthrough ${NAME}_${id}_walkthrough.json --site ${READ}`;
+  `npx @icjia/voicecap --walkthrough ${FOLDER}_${id}_walkthrough.json --site ${READ}`;
 
 /** Each page the cards of what needs attention are on, once, by the name the cards give it. */
 const namesOnCards = ({ attention }: ShareModel): string[] => [
@@ -181,14 +184,14 @@ describe("loadShareInput", () => {
 });
 
 describe("the header", () => {
-  it("names the site by the host of the root report.canonical gives", async () => {
+  it("names the site by the host and path of the root report.canonical gives", async () => {
     const model = await demoModel(DEMO_ROOT);
 
     expect(model.header).toMatchObject({ name: NAME, site: DEMO_ROOT });
     expect(documentTitle(model.header)).toBe(`${NAME}: how its pages read aloud with NVDA`);
   });
 
-  it("names the site by the host of the root the latest run recorded", async () => {
+  it("names the site by the host and path of the root the latest run recorded", async () => {
     const siteDir = await tempOutDir();
     await sealedRunOf(siteDir, { id: "2026-09-26_1405", pages: [{ path: "/" }] }, DEMO_ROOT);
 
@@ -343,7 +346,7 @@ describe("the addresses a model shows", () => {
     expect(model.evidence).toHaveLength(2);
     for (const each of model.evidence) {
       const file = downloadOf(each);
-      const name = `${NAME}_${each.run.id}_walkthrough.json`;
+      const name = `${FOLDER}_${each.run.id}_walkthrough.json`;
 
       // It checks every site in the home, so it names none.
       expect(each.verify).toBe("npx @icjia/voicecap verify");
@@ -633,7 +636,7 @@ describe("the page shows no address of a copy on this computer", () => {
     expect(met).toContain(on("common-mistakes/"));
     expect(met).toContain(`7 pages from the sitemap ${on("sitemap.xml")}.`);
     expect(met).toContain("npx @icjia/voicecap verify");
-    expect(met).toContain(`${NAME}_2026-09-29_1402_walkthrough.json`);
+    expect(met).toContain(`${FOLDER}_2026-09-29_1402_walkthrough.json`);
 
     // Nothing names the address but the command that repeats each run.
     expect(met.filter((text) => LOCAL_ADDRESS.test(text))).toEqual([
@@ -659,7 +662,7 @@ describe("the page shows no address of a copy on this computer", () => {
     expect(met).toContain(`7 pages from the sitemap ${on("sitemap.xml")}.`);
     expect(met).toContain("npx @icjia/voicecap verify");
     expect(met).toContain(
-      `npx @icjia/voicecap walkthrough --site ${DEMO_ROOT} --run 2026-09-29_1402 ${NAME}_2026-09-29_1402_walkthrough.json`,
+      `npx @icjia/voicecap walkthrough --site ${DEMO_ROOT} --run 2026-09-29_1402 ${FOLDER}_2026-09-29_1402_walkthrough.json`,
     );
 
     // Nothing names the address but the command that repeats each run.

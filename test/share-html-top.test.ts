@@ -708,7 +708,7 @@ describe("renderTop", () => {
   it("leads with the canonical name and the date and time it was tested", () => {
     const html = renderTop(copyModel());
 
-    expect(html).toContain("<h1>voicecap.icjia.app</h1>");
+    expect(html).toContain("<h1>voicecap.icjia.app/demo-site</h1>");
     expect(html).toContain('<p class="mast-site">The voicecap demo</p>');
     expect(html).toContain('<p class="mast-tested">Tested 29 September 2026, 14:02</p>');
     // Top to bottom: the eyebrow, the name, the name set for the site, when it was tested, the
@@ -742,7 +742,7 @@ describe("renderTop", () => {
       words(new RegExp(`<p class="${className}">(.*?)</p>`, "s").exec(html)?.[1]);
     const meta = /<div class="mast-meta">(.*?)<\/div>\s*<\/header>/s.exec(html)?.[1] ?? "";
 
-    expect(words(/<h1>(.*?)<\/h1>/s.exec(html)?.[1])).toBe("voicecap.icjia.app");
+    expect(words(/<h1>(.*?)<\/h1>/s.exec(html)?.[1])).toBe("voicecap.icjia.app/demo-site");
     expect(paragraph("mast-site")).toBe("The voicecap demo");
     expect(paragraph("mast-tested")).toBe("Tested 29 September 2026, 14:02");
     expect(
@@ -932,8 +932,14 @@ describe("renderGlance", () => {
     expect(glance).toBeGreaterThan(-1);
     expect(how).toBeGreaterThan(glance);
     expect(html.match(/<h2[ >]/g)).toHaveLength(2);
-    // Its panels and bars are parts of the details: At a glance has no heading but its own.
-    expect(renderGlance(model).match(/<h[1-6][ >]/g)).toEqual(["<h2 "]);
+    // Its panels and bars are parts of the details: At a glance has no heading but its own, and
+    // "Fix these first" when something needs attention.
+    const headings = renderGlance(model).match(/<h[1-6][^>]*>/g);
+    expect(headings).toEqual(
+      model.attention.length === 0
+        ? ['<h2 id="glance-h">']
+        : ['<h2 id="glance-h">', '<h3 id="fix-first-h">'],
+    );
   });
 
   it("opens with At a glance, in its order: the verdict, the result, the ring, the numbers, the method, and the links", async () => {

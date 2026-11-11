@@ -118,6 +118,24 @@ export const GLANCE_TEXT = {
 };
 
 /**
+ * "Fix these first": the box of problems at the top of At a glance (../fix-first.ts). Its heading,
+ * the label before a fix, the words of each problem's link to its card ("The page and the full fix"
+ * for a problem on one page), and the line after the box when more problems follow.
+ */
+export const FIX_FIRST_TEXT = {
+  title: "Fix these first",
+  fix: "Fix",
+  next: "Next step",
+  nvda: "NVDA said",
+  link: (pages: number): string =>
+    pages === 1 ? "The page and the full fix" : "The pages and the full fix",
+  more: (more: number): string =>
+    more === 1
+      ? "1 more problem is under What needs attention."
+      : `${count(more)} more problems are under What needs attention.`,
+};
+
+/**
  * "The details, for reviewers and auditors": the section that gathers how the test was run, what it
  * covered, and the evidence behind it, after the page's cards. Its heading, the line under it that
  * says what is in it, and the words of the link to it ("The details", in the links to the page's
@@ -1005,6 +1023,15 @@ export const NVDA_LOG_TEXT = {
  * on one line, with the home folder already replaced.
  */
 export const VOICE_TEXT = {
+  /** After the voice page's title, for one in parts (../voice-parts.ts): "(part 2 of 4)". */
+  partTitle: (part: number, of: number): string => `(part ${count(part)} of ${count(of)})`,
+  /** What a part holds: "Part 2 of 4: pages 101 to 200." */
+  partHolds: (part: number, of: number, first: number, last: number): string =>
+    `Part ${count(part)} of ${count(of)}: pages ${count(first)} to ${count(last)}.`,
+  /** Before the links to the parts. */
+  partsLabel: "Parts:",
+  /** What a link to a part says to a screen reader, after its number. */
+  partLink: (part: number): string => `(part ${count(part)} of the voice page)`,
   /** The tab's title: the site's name, then when it was tested. */
   title: (site: string, when: string): string => `NVDA's voice: ${site}, ${when}`,
   /** The line above the site's name. */
@@ -1124,6 +1151,9 @@ export const VOICE_TEXT = {
    * says none of it.
    */
   details: {
+    /** After the voice page's name, for a report of more than 100 pages: "It's in 4 parts, of up to 100 pages each; the others:". */
+    parts: (parts: number): string =>
+      `It's in ${count(parts)} parts, of up to 100 pages each; the others:`,
     lead: "NVDA's voice: what NVDA said aloud on each page is recorded and sealed with the run, and the voice page plays it at slower speeds.",
     open: "Open the voice page",
     liveCopy:

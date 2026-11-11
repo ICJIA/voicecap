@@ -10,7 +10,7 @@ import {
   type FileHash,
   type ReviewsFile,
 } from "./model.js";
-import { isWebRoot } from "./pages/canonical.js";
+import { isWebRoot, recordedCanonical } from "./pages/canonical.js";
 import { canonicalKey } from "./pages/url.js";
 import { readReviews } from "./reviews/store.js";
 import { EVENT_LOG, NVDA_LOG_FOLDER } from "./run/events.js";
@@ -214,7 +214,7 @@ async function checkRun(home: string, dir: string, site: SiteTally): Promise<voi
     return;
   }
   // No seal covers where the folder is, so a copied or moved run is caught only here.
-  if (belongs !== dir) {
+  if (!isWhereItBelongs(home, dir, belongs) && !isItsSitesFolder(home, dir, run)) {
     site.problems.push(`${linkPath(home, dir)}: this run belongs at ${linkPath(home, belongs)}`);
   }
   if (sealed) {
@@ -237,6 +237,36 @@ function isIncompleteRun(run: Record<string, unknown>): boolean {
     Array.isArray(run.pages) &&
     typeof run.createdAt === "string"
   );
+}
+
+/**
+ * Whether a record in `dir` is where it belongs, given `belongs`, its place in its host's folder:
+ * there, or at the same place in the folder of a site under a path on that host (see siteFolder),
+ * whose name is the host's folder's, a "_", and the path: a run of https://icjia.illinois.gov read
+ * for https://icjia.illinois.gov/adultredeploy/ is filed in icjia.illinois.gov_adultredeploy. A
+ * record records the address voicecap read, which has no path, so either folder is its host's. A
+ * port is no path: `localhost_3000` isn't a folder of `localhost`'s.
+ */
+function isWhereItBelongs(home: string, dir: string, belongs: string): boolean {
+  if (dir === belongs) return true;
+  const [hostFolder = "", ...inSite] = path.relative(home, belongs).split(path.sep);
+  const [folder = "", ...inFolder] = path.relative(home, dir).split(path.sep);
+  if (inSite.join("/") !== inFolder.join("/") || !folder.startsWith(`${hostFolder}_`)) return false;
+  const first = folder.slice(hostFolder.length + 1).split("_")[0] ?? "";
+  return first !== "" && !/^\d+$/.test(first);
+}
+
+/**
+ * Whether a run in `dir` is in the folder of the site under a path that it recorded as its canonical
+ * address, on the host it read: `--site https://a.gov/2026/` files its run in `a.gov_2026`, a name
+ * that isWhereItBelongs can't tell from a port's.
+ */
+function isItsSitesFolder(home: string, dir: string, run: Record<string, unknown>): boolean {
+  if (typeof run.id !== "string" || !isUrl(run.site)) return false;
+  const root = recordedCanonical(run.canonical);
+  if (root === null || new URL(root).host !== new URL(run.site).host) return false;
+  const siteDir = siteDirOf(home, root);
+  return siteDir !== null && runDir(siteDir, run.id) === dir;
 }
 
 /** Where a run belongs, by its own id and site; null when those aren't as voicecap writes them. */
@@ -390,7 +420,7 @@ async function checkManualSession(
     return;
   }
   // The seal doesn't cover where the folder is, so a copied or moved session still matches it.
-  if (belongs !== dir) {
+  if (!isWhereItBelongs(home, dir, belongs)) {
     site.problems.push(
       `${linkPath(home, dir)}: this manual session belongs at ${linkPath(home, belongs)}`,
     );
@@ -426,7 +456,7 @@ function sessionBelongsAt(home: string, session: Record<string, unknown>): strin
   if (typeof session.id !== "string" || !isRecord(page) || typeof page.slug !== "string") {
     return null;
   }
-  const siteDir = siteDirOf(home, page.url);
+  const siteDir = siteDirOf(home, isUrl(page.url) ? new URL(page.url).origin : page.url);
   return siteDir === null ? null : manualSessionDir(siteDir, session.id, page.slug);
 }
 

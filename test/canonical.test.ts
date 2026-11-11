@@ -511,8 +511,20 @@ describe("toCanonical", () => {
 });
 
 describe("canonicalName", () => {
-  it("is a plain host", () => {
-    expect(canonicalName(demoRoot)).toBe("voicecap.icjia.app");
+  it("is a plain host for a root at its host's top", () => {
+    expect(canonicalName("https://voicecap.icjia.app/")).toBe("voicecap.icjia.app");
+    expect(canonicalName("https://dvfr.illinois.gov")).toBe("dvfr.illinois.gov");
+  });
+
+  // A site under a path on its host is a site of its own, so its name carries the path, without
+  // the "/" on the end, and it's never taken for the host's own site.
+  it("is the host and the path for a root under a path, without the slash on the end", () => {
+    expect(canonicalName(demoRoot)).toBe("voicecap.icjia.app/demo-site");
+    expect(canonicalName("https://icjia.illinois.gov/adultredeploy/")).toBe(
+      "icjia.illinois.gov/adultredeploy",
+    );
+    expect(canonicalName("https://icjia.illinois.gov/a/b/")).toBe("icjia.illinois.gov/a/b");
+    expect(canonicalName("https://example.org:8443/news/")).toBe("example.org:8443/news");
   });
 
   it("keeps a port", () => {

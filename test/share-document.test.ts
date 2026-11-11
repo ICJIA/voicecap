@@ -940,17 +940,20 @@ describe("renderSharePage", () => {
     // says that the run did not record its forms (71 characters more for i2i's and the demo's, 72 for the logged
     // run's, by the length of the version's name).
     // At a glance's line was then labeled ("Forms: not recorded: …"), 7 characters more in each.
+    // 0.26.0's "Fix these first" re-pinned the three pages and the Word copies of i2i and the demo,
+    // whose runs have problems: the box is under the verdict on those, and its style is in all
+    // three pages (467 characters); the logged run has no problem, so its Word copy is as it was.
     const before = {
       i2i: {
-        page: [212_587, "850001c88ece2cb994c49fedd1bde4032aca78b0b03c8250df175c7b43d99436"],
-        word: [53_682, "b043e54a8d4557a2d033bd9a18c9f2bf04cf82abc9fe87d37f147defa11d333d"],
+        page: [213_981, "19bd71b7be1e43e498b27da1185cfcc8acbbf8962e67fdfcab87140929c0401a"],
+        word: [54_399, "7fb418ec20074109d6910f3e3df0149c7a17b66af1d46c558d377d560513a823"],
       },
       demo: {
-        page: [247_129, "345b7663dbe23c5febee82e629015cffc909d826c6fcd041796ef0d61a36c534"],
-        word: [76_520, "7e89ea6da0b79ee763157a9b7ef0e04884c1d11d6d31edc0deb19fcdc6e00d6e"],
+        page: [249_565, "5dc32d944d8953c3eab6d2e7bb4a9f66580474c61181ad7ddc528696031c2189"],
+        word: [77_874, "59f9c4b15e90961eb1e84e927b64d23f976baa28de3cf64a831db35ef0d2ece6"],
       },
       logged: {
-        page: [129_545, "54cc56fffd4daccceb0a7be4bd376de5c61aa8ca1eadf6b4c2210ebd6f1de9e3"],
+        page: [130_012, "2afabb1c0e1767774b337e707b08fe8db1ea45106e0bc0334fb14b817ae4601d"],
         word: [35_212, "18bb422a5ff5d74558dabc5a46f9f7871f7e4379c13e300569dc39d3351ff629"],
       },
     };

@@ -54,6 +54,7 @@ import {
 } from "../axe-view.js";
 import type { DiffLine, OnlyInOnePage, PageChange } from "../changes.js";
 import { wcagOf } from "../../flags/wcag.js";
+import { fixFirstOf } from "../fix-first.js";
 import { count, names, pagePath, pageTitle } from "../format.js";
 import { bannerLine, formFoldWords, glanceBannerOf, showsFormName } from "../forms-view.js";
 import { firstSentenceBold, type Inline, type Line } from "../line.js";
@@ -78,6 +79,7 @@ import {
   COVERAGE_TEXT,
   DETAILS_TEXT,
   EVIDENCE_TEXT,
+  FIX_FIRST_TEXT,
   GLANCE_TEXT,
   ownWords,
   PAGES_TEXT,
@@ -291,6 +293,33 @@ function numberOf(value: NumberTile["value"]): string {
 }
 
 /**
+ * "Fix these first", under the verdict, as the page has it (../fix-first.ts): up to 3 problems,
+ * each its number, title, and count, the first line NVDA said of it in a fence, and its first fix,
+ * its code in a fence; then where the rest is, and how many more problems there are.
+ */
+function fixFirstBlocks(model: ShareModel): Block[] {
+  const box = fixFirstOf(model.attention);
+  if (box === null) return [];
+  const items = box.items.flatMap((item, index): Block[] => [
+    `**${index + 1}. ${markdownInline(item.title)}** ${markdownInline(item.count)}`,
+    ...(item.said === null
+      ? []
+      : [fenced([`${FIX_FIRST_TEXT.nvda}, ${item.said.pass}: “${item.said.line}”`])]),
+    ...(item.fix !== null
+      ? [labelled(FIX_FIRST_TEXT.fix, item.fix.lead), fenced(item.fix.code.split("\n"), "html")]
+      : item.step === null
+        ? []
+        : [labelled(FIX_FIRST_TEXT.next, item.step)]),
+  ]);
+  const rest = `Each one's pages and the full fix are under ${ATTENTION_TEXT.title}.`;
+  return [
+    heading(3, FIX_FIRST_TEXT.title),
+    ...items,
+    paragraph(box.more === 0 ? rest : `${rest} ${FIX_FIRST_TEXT.more(box.more)}`),
+  ];
+}
+
+/**
  * At a glance, in the page's order and words: the verdict, the result in a sentence, the ring of the
  * pages in its three parts, the four numbers, and the line on what voicecap and the person each did.
  * The ring's parts and the four numbers are two lists, each under a label of its own
@@ -312,7 +341,9 @@ function glanceBlocks(model: ShareModel): Block[] {
   );
   return [
     heading(2, GLANCE_TEXT.title),
-    ...(hasPages ? [`**${markdownInline(verdictOf(result).headline)}**`] : []),
+    ...(hasPages
+      ? [`**${markdownInline(verdictOf(result).headline)}**`, ...fixFirstBlocks(model)]
+      : []),
     paragraph(summary.sentence),
     ...(hasPages
       ? [

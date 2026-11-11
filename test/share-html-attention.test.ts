@@ -552,8 +552,10 @@ describe("the page with the section", () => {
       const ids = attributes(markup, "id");
       const glance = renderGlance(model);
 
-      // At a glance names no card, as a panel once did: the section has them all.
-      expect(glance).not.toMatch(/href="#need-\d+"/);
+      // At a glance links a card only from "Fix these first", up to 3 of them, the cards on the most
+      // pages: the section has them all.
+      const named = [...glance.matchAll(/href="#(need-\d+)"/g)].map(([, id]) => id);
+      expect(named).toEqual(model.attention.slice(0, 3).map(({ id }) => id));
       for (const id of ["need-h", ...model.attention.map(({ id }) => id)]) {
         expect(ids).toContain(id);
       }

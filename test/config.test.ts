@@ -101,7 +101,9 @@ describe("loadConfig", () => {
     );
     const loaded = await loadConfig({ cwd: dir, env: { VOICECAP_CONFIG: file } });
     expect(loaded.config.reviewer).toBe("Alias Test");
-  });
+    // It compiles the config's TypeScript with no node_modules, which can take over 30 s on a busy
+    // computer, under the whole suite's load.
+  }, 90_000);
 
   describe("a config written as code that no one named", () => {
     it.each(CODE_CONFIG_NAMES)(

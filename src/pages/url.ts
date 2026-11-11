@@ -136,6 +136,25 @@ export function parseSiteUrl(input: string): URL {
 }
 
 /**
+ * The site `input` names when it's under a path on its host, such as
+ * `https://icjia.illinois.gov/adultredeploy/`: its origin and that path, lowercased, with a `/` on
+ * the end, and no query or hash. A last part with a dot in it is a file (`/faq/index.html`), not
+ * part of the site's path. Null for a site at its host's root, and for what `parseSiteUrl` refuses,
+ * which it says when it's called.
+ */
+export function siteUnderAPath(input: string): URL | null {
+  if (!URL.canParse(input.trim())) return null;
+  const url = new URL(input.trim());
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  const parts = url.pathname
+    .toLowerCase()
+    .split("/")
+    .filter((part) => part !== "");
+  if (parts.at(-1)?.includes(".") && !url.pathname.endsWith("/")) parts.pop();
+  return parts.length === 0 ? null : new URL(`${url.origin}/${parts.join("/")}/`);
+}
+
+/**
  * Whether a page is given as a full URL: it starts with a scheme ("https:", even "https:/host/",
  * or "mailto:"). Anything else is a path, resolved against a site.
  */

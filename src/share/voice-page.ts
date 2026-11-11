@@ -84,6 +84,7 @@ import {
 } from "./run-evidence.js";
 import { standingOf } from "./standing.js";
 import { ABOUT, EVIDENCE_TEXT, FOOTER_TEXT, PAGES_TEXT, TOP_TEXT, VOICE_TEXT } from "./text.js";
+import { voicePartOf } from "./voice-parts.js";
 import { STRETCH_LIBRARY } from "./voice-stretch.js";
 import { generatedLine, testedLine } from "./words.js";
 
@@ -757,10 +758,39 @@ Array.prototype.forEach.call(document.querySelectorAll("fieldset.speeds"), funct
  * required, as the shareable page's is, so a page that forgot its fonts can't be written (give ""
  * for the reader's own fonts). Pure.
  */
+/**
+ * Which part of the voice page this is (../voice-parts.ts): its number, from 1, and the file names
+ * of every part, in order. A voice page of one part has no names here, or one.
+ */
+export interface VoicePart {
+  number: number;
+  names: string[];
+}
+
+/**
+ * For a voice page in parts, the line under the section's heading that says which pages this part
+ * holds and links each other part by its number, so a reader can go from one to the next. Nothing
+ * for a voice page of one part.
+ */
+function partsNav(part: VoicePart, sections: readonly Section[]): string[] {
+  if (part.names.length <= 1) return [];
+  const first = sections[0]?.number ?? 0;
+  const last = sections.at(-1)?.number ?? 0;
+  const links = part.names.map((name, at) =>
+    at + 1 === part.number
+      ? `<span aria-current="page">${at + 1}</span>`
+      : `<a href="${esc(name)}">${at + 1}<span class="sr"> ${esc(VOICE_TEXT.partLink(at + 1))}</span></a>`,
+  );
+  return [
+    `  <p class="gist">${esc(VOICE_TEXT.partHolds(part.number, part.names.length, first, last))} ${esc(VOICE_TEXT.partsLabel)} ${links.join(", ")}</p>`,
+  ];
+}
+
 export function renderVoicePage(
   model: ShareModel,
   recordings: ReadonlyMap<string, Uint8Array>,
   assets: { fontCss: string },
+  part: VoicePart = { number: 1, names: [] },
 ): string | null {
   const { sources, latest } = sourcesOf(model);
   const latestVersion = latest === null ? null : versionOf(latest);
@@ -768,14 +798,17 @@ export function renderVoicePage(
   // that read it in full, as that page's own list of transcripts says (the model's `appendix`).
   const entries = new Map(model.appendix.map((entry) => [entry.slug, entry]));
   const recordedAny = new Map<RunJson, boolean>();
-  const sections = model.pages.map((card, index): Section => {
+  const sections = model.pages.flatMap((card, index): Section[] => {
+    if (part.names.length > 1 && voicePartOf(index) !== part.number) return [];
     const source = sources.get(card.key) ?? null;
-    return {
-      card,
-      number: index + 1,
-      source,
-      voice: voiceOf(source, latestVersion, recordings, recordedAny),
-    };
+    return [
+      {
+        card,
+        number: index + 1,
+        source,
+        voice: voiceOf(source, latestVersion, recordings, recordedAny),
+      },
+    ];
   });
   const played = sections.flatMap(({ voice }) => ("why" in voice ? [] : [voice]));
   if (played.length === 0) return null;
@@ -786,7 +819,10 @@ export function renderVoicePage(
   // order). The latest run too, though every section may be from an older one: the page says what
   // it says of when the report was tested, and which run each recording is from, by that run's
   // record.
-  const { files, screenshots } = model.check;
+  // A part checks the files of its own pages: the others are another part's.
+  const ownSlugs = new Set(sections.map(({ card }) => card.slug));
+  const files = model.check.files.filter(({ slug }) => ownSlugs.has(slug));
+  const screenshots = model.check.screenshots.filter(({ slug }) => ownSlugs.has(slug));
   const used = new Set([
     ...sections.flatMap(({ source }) => (source === null ? [] : [source.run.id])),
     ...files.map(({ run }) => run),
@@ -806,11 +842,16 @@ export function renderVoicePage(
     reviews: null,
   };
   const { header } = model;
-  const title = VOICE_TEXT.title(header.name, header.testedAt ?? header.asOf);
+  const whole = VOICE_TEXT.title(header.name, header.testedAt ?? header.asOf);
+  const title =
+    part.names.length > 1
+      ? `${whole} ${VOICE_TEXT.partTitle(part.number, part.names.length)}`
+      : whole;
   const pages = [
     `<section id="pages" aria-labelledby="pages-h">`,
     `  <h2 id="pages-h">${esc(PAGES_TEXT.title)}</h2>`,
     `  <p class="gist">${esc(VOICE_TEXT.note)}</p>`,
+    ...partsNav(part, sections),
     `  <div class="cards voice-cards">`,
     sections
       .map((section) => sectionOf(section, latest, entries.get(section.card.slug)))

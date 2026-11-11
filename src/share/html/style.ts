@@ -162,6 +162,11 @@ code { overflow-wrap: anywhere; }
 .verdict.warn::before { content: "⚠"; content: "⚠" / ""; color: var(--warn); }
 .verdict.bad::before { content: "⚠"; content: "⚠" / ""; color: var(--bad); }
 /* a form's banner: the forms pass's headline. Words first, in the page's own color; a sign that only repeats them, and a coloured edge, in the theme's green, amber, red, or gray. */
+.fix-first { border: 1px solid var(--line); border-left: 5px solid var(--warn); border-radius: 10px; background: var(--panel); padding: 14px 16px; margin-bottom: 8px; display: grid; gap: 10px; min-width: 0; }
+.fix-first h3 { margin: 0; font: 700 1.15rem/1.3 var(--display); }
+.fix-first ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 16px; }
+.fix-first li { display: grid; gap: 6px; min-width: 0; }
+.fix-first li > p, .fix-first > p { margin: 0; }
 .form-banner { border: 1px solid var(--line); border-left: 5px solid var(--muted); border-radius: 8px; background: var(--panel); padding: 10px 14px; display: grid; gap: 4px; min-width: 0; }
 .form-banner p { margin: 0; }
 .form-banner .form-name { font: 500 0.78rem/1.3 var(--mono); color: var(--muted); }

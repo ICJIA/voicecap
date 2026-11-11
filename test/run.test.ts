@@ -320,7 +320,10 @@ describe("a sitemap given by name", () => {
     expect(atRoot.outcome).toBe("completed");
     expect(atRoot.run.settings.site).toBe(SITE);
     expect(atRoot.run.settings.source).toEqual({ kind: "sitemap", url: `${SITE}/sitemap.xml` });
-    expect(atRoot.siteDir).toBe(outDir(dir));
+    // A --site under a path names a site of its own: it's filed in that path's folder, and with no
+    // --canonical the reports name it by that path's root.
+    expect(atRoot.siteDir).toBe(`${outDir(dir)}_blog`);
+    expect(atRoot.run.canonical).toBe(`${SITE}/blog/`);
 
     // A subsite's sitemap is given as its path.
     const subsite = await blogRun("/blog/sitemap.xml", `${SITE}/blog/sitemap.xml`);
