@@ -1035,7 +1035,7 @@ describe("renderAiMarkdown", () => {
   it("names no one who prepared it when the records name no one, and the voicecap of an older run", () => {
     const lines = renderAiMarkdown(demo).split("\n");
 
-    expect(lines[0]).toBe("# Screen reader review: voicecap.icjia.app");
+    expect(lines[0]).toBe("# Screen reader review: voicecap.icjia.app/demo-site");
     expect(lines[2]).toBe(
       "Tested 29 September 2026, 14:02 · As of 30 September 2026 · Screen reader: NVDA · Run with voicecap 0.4.1",
     );

@@ -178,10 +178,10 @@ const DEMO_HOME = path.join(ROOT, "test", "fixtures", "share", "demo-2026-09-29"
 const DEMO_SITE = "http://127.0.0.1:4848";
 const DEMO_FOLDER = "127.0.0.1_4848";
 /**
- * The demo's first share's name, without its extension: the demo's canonical name, which
- * report.canonical gives it, then the day.
+ * The demo's first share's name, without its extension: the demo's canonical root, which
+ * report.canonical gives it, named as its folder would be (its host, then its path), then the day.
  */
-const DEMO_FIRST = "voicecap.icjia.app_2027-01-15";
+const DEMO_FIRST = "voicecap.icjia.app_demo-site_2027-01-15";
 /** The two runs that count, oldest first. */
 const RUN_1315 = "2026-09-29_1315";
 const RUN_1402 = "2026-09-29_1402";
@@ -1058,7 +1058,7 @@ describe("shareReport", () => {
   describe("the site's canonical address", () => {
     /** The day the demo is shared on, and the name its copies are given for it. */
     const ON = new Date(2026, 8, 30, 10, 0);
-    const STEM = "voicecap.icjia.app_2026-09-30";
+    const STEM = "voicecap.icjia.app_demo-site_2026-09-30";
 
     it("names the copies after the canonical name, in the site's own folder", async () => {
       const { siteDir, options } = await demoHome();
@@ -1192,7 +1192,7 @@ describe("shareReport", () => {
     });
 
     it.each([
-      ["a path", DEMO_ROOT, DEMO_ROOT, "voicecap.icjia.app"],
+      ["a path", DEMO_ROOT, DEMO_ROOT, "voicecap.icjia.app_demo-site"],
       [
         "a port",
         "https://staging.dvfr.org:8443/",
@@ -1206,13 +1206,14 @@ describe("shareReport", () => {
         "dvfr.illinois.gov",
       ],
     ])(
-      "names the copies after the host of the root the config gives, as a folder is: with %s",
+      "names the copies after the root the config gives, as a folder is: with %s",
       async (_what, given, site, prefix) => {
         const { run, options } = await homeWithRun();
 
         const { files, entry } = await shareReport({ ...options, config: configNaming(given) });
 
-        // The entry has the whole root, and the copies only its host and port.
+        // The entry has the whole root, and the copies its host, port, and path, as siteFolder
+        // names a folder.
         expect(entry.site).toBe(site);
         const stem = `${prefix}_2027-01-15`;
         expect(files.map(({ name }) => name)).toEqual(copyNames(stem, run.runId));

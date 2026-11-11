@@ -83,6 +83,7 @@ import {
   EXAMPLE_WORD,
   FIXTURE_FOLDER,
   FIXTURE_NAME,
+  FIXTURE_PREFIX,
   FIXTURE_SITE,
   homeWithShares,
   homeWithVoiceShare,
@@ -232,7 +233,7 @@ const DEMO_FILES = [
   "the-report/index.html",
 ];
 /** The first of the fixture site's two shares: its Word copy, and the line that names it. */
-const FIRST_WORD = `${FIXTURE_NAME}_2027-01-15.docx`;
+const FIRST_WORD = `${FIXTURE_PREFIX}_2027-01-15.docx`;
 const FIRST_WORD_PATH = `${FIXTURE_FOLDER}/share/${FIRST_WORD}`;
 /**
  * The files a build writes at the site's top besides each report's: its four pages, llms.txt for AI
@@ -556,32 +557,32 @@ describe("buildSite", () => {
     expect(fixture?.reports[0]?.files).toEqual([
       expect.objectContaining({
         kind: "page",
-        name: `${FIXTURE_NAME}_2027-01-15-2.html`,
-        href: `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.html`,
+        name: `${FIXTURE_PREFIX}_2027-01-15-2.html`,
+        href: `${FIXTURE_FOLDER}/${FIXTURE_PREFIX}_2027-01-15-2.html`,
         run: null,
       }),
-      expect.objectContaining({ kind: "word", name: `${FIXTURE_NAME}_2027-01-15-2.docx` }),
+      expect.objectContaining({ kind: "word", name: `${FIXTURE_PREFIX}_2027-01-15-2.docx` }),
       // The report for AI tools, as Markdown and as JSON: named for the share alone, with no run.
       expect.objectContaining({
         kind: "markdown",
-        name: `${FIXTURE_NAME}_2027-01-15-2.md`,
-        href: `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.md`,
+        name: `${FIXTURE_PREFIX}_2027-01-15-2.md`,
+        href: `${FIXTURE_FOLDER}/${FIXTURE_PREFIX}_2027-01-15-2.md`,
         run: null,
       }),
       expect.objectContaining({
         kind: "data",
-        name: `${FIXTURE_NAME}_2027-01-15-2.json`,
-        href: `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.json`,
+        name: `${FIXTURE_PREFIX}_2027-01-15-2.json`,
+        href: `${FIXTURE_FOLDER}/${FIXTURE_PREFIX}_2027-01-15-2.json`,
         run: null,
       }),
       expect.objectContaining({
         kind: "walkthrough",
-        name: `${FIXTURE_NAME}_2027-01-15-2_2026-09-29_1315_walkthrough.json`,
+        name: `${FIXTURE_PREFIX}_2027-01-15-2_2026-09-29_1315_walkthrough.json`,
         run: "2026-09-29_1315",
       }),
       expect.objectContaining({
         kind: "walkthrough",
-        name: `${FIXTURE_NAME}_2027-01-15-2_2026-09-29_1402_walkthrough.json`,
+        name: `${FIXTURE_PREFIX}_2027-01-15-2_2026-09-29_1402_walkthrough.json`,
         run: "2026-09-29_1402",
       }),
     ]);
@@ -630,12 +631,12 @@ describe("buildSite", () => {
       notPublished: [],
     });
     expect(content.demo?.files.map(({ href }) => href)).toEqual([
-      `demo/${FIXTURE_NAME}_2027-01-16.html`,
-      `demo/${FIXTURE_NAME}_2027-01-16.docx`,
-      `demo/${FIXTURE_NAME}_2027-01-16.md`,
-      `demo/${FIXTURE_NAME}_2027-01-16.json`,
-      `demo/${FIXTURE_NAME}_2027-01-16_2026-09-29_1315_walkthrough.json`,
-      `demo/${FIXTURE_NAME}_2027-01-16_2026-09-29_1402_walkthrough.json`,
+      `demo/${FIXTURE_PREFIX}_2027-01-16.html`,
+      `demo/${FIXTURE_PREFIX}_2027-01-16.docx`,
+      `demo/${FIXTURE_PREFIX}_2027-01-16.md`,
+      `demo/${FIXTURE_PREFIX}_2027-01-16.json`,
+      `demo/${FIXTURE_PREFIX}_2027-01-16_2026-09-29_1315_walkthrough.json`,
+      `demo/${FIXTURE_PREFIX}_2027-01-16_2026-09-29_1402_walkthrough.json`,
     ]);
   });
 
@@ -1248,9 +1249,13 @@ describe("buildSite", () => {
   describe("the report for AI tools", () => {
     /** The fixture's three shares: the folder of the home each is in, where it's published, and its name. */
     const SHARES = [
-      { from: FIXTURE_FOLDER, on: FIXTURE_FOLDER, stem: `${FIXTURE_NAME}_2027-01-15` },
-      { from: FIXTURE_FOLDER, on: FIXTURE_FOLDER, stem: `${FIXTURE_NAME}_2027-01-15-2` },
-      { from: path.join(DEMO_OUT, FIXTURE_FOLDER), on: "demo", stem: `${FIXTURE_NAME}_2027-01-16` },
+      { from: FIXTURE_FOLDER, on: FIXTURE_FOLDER, stem: `${FIXTURE_PREFIX}_2027-01-15` },
+      { from: FIXTURE_FOLDER, on: FIXTURE_FOLDER, stem: `${FIXTURE_PREFIX}_2027-01-15-2` },
+      {
+        from: path.join(DEMO_OUT, FIXTURE_FOLDER),
+        on: "demo",
+        stem: `${FIXTURE_PREFIX}_2027-01-16`,
+      },
     ];
     /** What a card of a share that has them says, from "For AI tools" to its end, as a reader sees it. */
     const LINE = "For AI tools such as Claude or ChatGPT: the report as Markdown, or as JSON";
@@ -1391,8 +1396,8 @@ describe("buildSite", () => {
         ),
       ].map(([, href, words]) => [href, words]);
       expect(links).toEqual([
-        [`${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.md`, "Markdown"],
-        [`${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.json`, "JSON"],
+        [`${FIXTURE_FOLDER}/${FIXTURE_PREFIX}_2027-01-15-2.md`, "Markdown"],
+        [`${FIXTURE_FOLDER}/${FIXTURE_PREFIX}_2027-01-15-2.json`, "JSON"],
       ]);
       for (const [href = ""] of links) expect(existsSync(path.join(out, href)), href).toBe(true);
     });
@@ -1421,7 +1426,7 @@ describe("buildSite", () => {
       expect(lineOf(cardOf(index, "report-demo"))).toBe(LINE);
       // The earlier share's files are published, and in the fold; llms.txt points to the current
       // report's, which has none, so the site is in it no more.
-      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_NAME}_2027-01-15.md`))).toBe(
+      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_PREFIX}_2027-01-15.md`))).toBe(
         true,
       );
       const text = await readFile(path.join(out, "llms.txt"), "utf8");
@@ -1439,7 +1444,7 @@ describe("buildSite", () => {
       expect(text).toBe(renderLlmsTxt(content));
       // The fixture site's current report is its second share; the example site's report and the
       // demo's aren't in it.
-      const current = `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2`;
+      const current = `${FIXTURE_FOLDER}/${FIXTURE_PREFIX}_2027-01-15-2`;
       const report =
         "The current report, 15 January 2027, 10:00. 5 problems need attention, on 2 pages.";
       expect(text).toBe(
@@ -1525,7 +1530,7 @@ describe("buildSite", () => {
       const fixture = sites.find(({ name }) => name === FIXTURE_NAME);
       expect(fixture?.current).toMatchObject({
         verdict: "5 problems need attention, on 2 pages",
-        page: `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.html`,
+        page: `${FIXTURE_FOLDER}/${FIXTURE_PREFIX}_2027-01-15-2.html`,
       });
       // Each link goes to a section of the page this build wrote, and each page is one it published.
       const index = await readFile(path.join(out, "index.html"), "utf8");
@@ -1581,11 +1586,11 @@ describe("buildSite", () => {
       const report = content.sites[1]?.reports.find(({ id }) => id.endsWith("-1"));
       expect(report?.notPublished).toEqual([{ name: FIRST_WORD, reason: "changed" }]);
       expect(report?.files.map(({ name }) => name)).toEqual([
-        `${FIXTURE_NAME}_2027-01-15.html`,
-        `${FIXTURE_NAME}_2027-01-15.md`,
-        `${FIXTURE_NAME}_2027-01-15.json`,
-        `${FIXTURE_NAME}_2027-01-15_2026-09-29_1315_walkthrough.json`,
-        `${FIXTURE_NAME}_2027-01-15_2026-09-29_1402_walkthrough.json`,
+        `${FIXTURE_PREFIX}_2027-01-15.html`,
+        `${FIXTURE_PREFIX}_2027-01-15.md`,
+        `${FIXTURE_PREFIX}_2027-01-15.json`,
+        `${FIXTURE_PREFIX}_2027-01-15_2026-09-29_1315_walkthrough.json`,
+        `${FIXTURE_PREFIX}_2027-01-15_2026-09-29_1402_walkthrough.json`,
       ]);
       for (const { name } of report?.files ?? []) {
         expect(existsSync(path.join(out, FIXTURE_FOLDER, name))).toBe(true);
@@ -1765,10 +1770,10 @@ describe("buildSite", () => {
       expect(warned(logger)).toEqual([line]);
       // Its site's other entry is published, and what only the left-out entry names is not.
       expect(content.sites[1]?.reports.map(({ id }) => id)).toEqual([`report-${FIXTURE_FOLDER}-2`]);
-      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_NAME}_2027-01-15-2.html`))).toBe(
-        true,
-      );
-      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_NAME}_2027-01-15.html`))).toBe(
+      expect(
+        existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_PREFIX}_2027-01-15-2.html`)),
+      ).toBe(true);
+      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_PREFIX}_2027-01-15.html`))).toBe(
         false,
       );
     });
@@ -2014,9 +2019,9 @@ describe("buildSite", () => {
       // second's missing, and the demo's changed. The records' line: the site written by hand has an
       // entry that changed since it was recorded.
       await changeAByte(path.join(share, FIRST_WORD));
-      await rm(path.join(share, `${FIXTURE_NAME}_2027-01-15-2.docx`));
+      await rm(path.join(share, `${FIXTURE_PREFIX}_2027-01-15-2.docx`));
       const demoShare = path.join(home, DEMO_OUT, FIXTURE_FOLDER, "share");
-      await changeAByte(path.join(demoShare, `${FIXTURE_NAME}_2027-01-16.docx`));
+      await changeAByte(path.join(demoShare, `${FIXTURE_PREFIX}_2027-01-16.docx`));
       const example = path.join(home, EXAMPLE_FOLDER);
       const [entry] = (await readShares(example)).shares;
       await writeRecord(example, [{ ...entry, by: "Someone Else" }]);
@@ -2026,8 +2031,8 @@ describe("buildSite", () => {
       expect(leftOut).toEqual([
         `${EXAMPLE_FOLDER}/share/shares.json: share 1 (${EXAMPLE_AT}) changed since it was recorded`,
         `${FIRST_WORD_PATH}: not published: it no longer matches its fingerprint`,
-        `${FIXTURE_FOLDER}/share/${FIXTURE_NAME}_2027-01-15-2.docx: not published: the file is missing`,
-        `${DEMO_OUT}/${FIXTURE_FOLDER}/share/${FIXTURE_NAME}_2027-01-16.docx: not published: it no longer matches its fingerprint`,
+        `${FIXTURE_FOLDER}/share/${FIXTURE_PREFIX}_2027-01-15-2.docx: not published: the file is missing`,
+        `${DEMO_OUT}/${FIXTURE_FOLDER}/share/${FIXTURE_PREFIX}_2027-01-16.docx: not published: it no longer matches its fingerprint`,
       ]);
       // Each is warned, in that order, and the summary is said after them all.
       expect(warned(logger)).toEqual(leftOut);
@@ -2233,7 +2238,7 @@ describe("buildSite", () => {
       expect(warned(logger)).toEqual([line]);
       expect(content.demo).toBeNull();
       expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
-      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_NAME}_2027-01-15.html`))).toBe(
+      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_PREFIX}_2027-01-15.html`))).toBe(
         true,
       );
       expect(existsSync(path.join(out, DEMO_SITE))).toBe(false);
@@ -4187,10 +4192,14 @@ describe("buildSite", () => {
       expect(index).not.toContain("alpha.illinois.gov");
     });
 
+    // Two roots name one site when they differ in nothing its name says. Before 0.26.0 a root under
+    // a path on the same host was one (https://dvfr.illinois.gov/old/); since then that is a site of
+    // its own, so the older root here differs in its scheme only.
     it("gives a site of two folders the root its newest share records", async () => {
+      const older = "http://dvfr.illinois.gov/";
       const home = await homeWithSites({
         [COPY_FOLDER]: [{ at: JAN_16, site: ROOT }],
-        localhost_3000: [{ at: JAN_15, site: "https://dvfr.illinois.gov/old/" }],
+        localhost_3000: [{ at: JAN_15, site: older }],
       });
 
       const { content } = await built(home);
@@ -4201,10 +4210,33 @@ describe("buildSite", () => {
       // And the other way round: the newer share is the second folder's.
       const turned = await homeWithSites({
         [COPY_FOLDER]: [{ at: JAN_15, site: ROOT }],
-        localhost_3000: [{ at: JAN_16, site: "https://dvfr.illinois.gov/old/" }],
+        localhost_3000: [{ at: JAN_16, site: older }],
       });
-      expect((await built(turned)).content.sites.map(({ address }) => address)).toEqual([
-        "https://dvfr.illinois.gov/old/",
+      expect((await built(turned)).content.sites.map(({ address }) => address)).toEqual([older]);
+    });
+
+    it("heads a site under a path on a host apart from the host's own site", async () => {
+      const home = await homeWithSites({
+        [COPY_FOLDER]: [{ at: JAN_16, site: ROOT }],
+        localhost_3000: [{ at: JAN_15, site: "https://dvfr.illinois.gov/old/" }],
+      });
+
+      const { content, index } = await built(home);
+
+      expect(
+        content.sites.map(({ name, folders, address }) => ({ name, folders, address })),
+      ).toEqual([
+        { name: NAME, folders: [COPY_FOLDER], address: ROOT },
+        {
+          name: "dvfr.illinois.gov/old",
+          folders: ["localhost_3000"],
+          address: "https://dvfr.illinois.gov/old/",
+        },
+      ]);
+      // Its section's id is its name made safe as a folder's name is.
+      expect(sitesOn(index)).toEqual([
+        [`site-${NAME}`, NAME],
+        ["site-dvfr.illinois.gov_old", "dvfr.illinois.gov/old"],
       ]);
     });
 
@@ -4484,7 +4516,7 @@ describe("buildSite", () => {
         { at: JAN_17, site: NAME, by: "Sam Rivera", href: `${COPY_FOLDER}/${COPY_FOLDER}_1.html` },
         {
           at: JAN_16,
-          site: "voicecap.icjia.app",
+          site: "voicecap.icjia.app/demo-site",
           by: "Sam Rivera",
           href: "localhost_3000/localhost_3000_1.html",
         },
@@ -4501,8 +4533,9 @@ describe("buildSite", () => {
           href: "example.illinois.gov/example.illinois.gov_1.html",
         },
       ]);
-      // A name with a port is a section's id made safe as a folder's name is.
+      // A name with a port, or a path, is a section's id made safe as a folder's name is.
       expect(sitesOn(index).map(([id]) => id)).toContain("site-staging.illinois.gov_8443");
+      expect(sitesOn(index).map(([id]) => id)).toContain("site-voicecap.icjia.app_demo-site");
       expect(repeatedIds(index)).toEqual([]);
     });
 

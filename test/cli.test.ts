@@ -2110,7 +2110,7 @@ describe("--site takes a site's canonical address", () => {
     const siteDir = path.join(home, "127.0.0.1_4848");
     const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as SharesFile;
     const word = shares[0]!.files[1]!;
-    expect(word.name).toMatch(/^voicecap\.icjia\.app_\d{4}-\d{2}-\d{2}\.docx$/);
+    expect(word.name).toMatch(/^voicecap\.icjia\.app_demo-site_\d{4}-\d{2}-\d{2}\.docx$/);
 
     // The commands, as the Word copy prints them: one for each run the copy draws on, the latest
     // first.
@@ -2121,7 +2121,7 @@ describe("--site takes a site's canonical address", () => {
     expect(commands).toEqual(
       ["2026-09-29_1402", "2026-09-29_1315"].map(
         (run) =>
-          `npx @icjia/voicecap walkthrough --site https://voicecap.icjia.app/demo-site/ --run ${run} voicecap.icjia.app_${run}_walkthrough.json`,
+          `npx @icjia/voicecap walkthrough --site https://voicecap.icjia.app/demo-site/ --run ${run} voicecap.icjia.app_demo-site_${run}_walkthrough.json`,
       ),
     );
 
@@ -2138,7 +2138,8 @@ describe("--site takes a site's canonical address", () => {
       const file = path.join(work, args.at(-1)!);
       expect(parseWalkthrough(await readFile(file, "utf8"), file).original.run).toBe(run);
     }
-    // Nothing was made in the folder the canonical name would have.
+    // Nothing was made in the folder the canonical name would have, nor in its host's.
+    expect(existsSync(path.join(home, "voicecap.icjia.app_demo-site"))).toBe(false);
     expect(existsSync(path.join(home, "voicecap.icjia.app"))).toBe(false);
   });
 

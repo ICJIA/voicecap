@@ -17,13 +17,36 @@ import {
 import { UsageError } from "../src/util/errors.js";
 
 describe("siteFolder", () => {
-  it("names a site's folder after its host", () => {
+  it("names a site's folder after its host, and its path when it's under one", () => {
     expect(siteFolder("https://dvfr.illinois.gov")).toBe("dvfr.illinois.gov");
     expect(siteFolder("http://127.0.0.1:4747/")).toBe("127.0.0.1_4747");
-    expect(siteFolder("https://WWW.Example.gov/news/")).toBe("www.example.gov");
-    expect(siteFolder(new URL("https://www.example.gov/x"))).toBe("www.example.gov");
+    expect(siteFolder("https://WWW.Example.gov/news/")).toBe("www.example.gov_news");
+    expect(siteFolder(new URL("https://www.example.gov/x"))).toBe("www.example.gov_x");
     expect(siteFolder("http://[::1]:4747/")).toBe("___1__4747");
     expect(siteFolder(new URL("http://127.0.0.1:4747/"))).toBe("127.0.0.1_4747");
+  });
+
+  // A site under a path on its host has a folder of its own: its host's name, then each part of
+  // its path, each joined by "_", all lowercased, with no "_" for the slash on the end.
+  it("gives a site under a path a folder of its own, lowercased, with or without a slash on the end", () => {
+    expect(siteFolder("https://voicecap.icjia.app/demo-site/")).toBe(
+      "voicecap.icjia.app_demo-site",
+    );
+    expect(siteFolder("https://icjia.illinois.gov/adultredeploy")).toBe(
+      "icjia.illinois.gov_adultredeploy",
+    );
+    expect(siteFolder("https://icjia.illinois.gov/adultredeploy/")).toBe(
+      "icjia.illinois.gov_adultredeploy",
+    );
+    expect(siteFolder("https://ICJIA.illinois.gov/AdultRedeploy/")).toBe(
+      "icjia.illinois.gov_adultredeploy",
+    );
+    expect(siteFolder("https://example.gov/a/b/")).toBe("example.gov_a_b");
+    expect(siteFolder(new URL("https://example.gov/a/b"))).toBe("example.gov_a_b");
+    expect(siteFolder("http://localhost:3000/blog/")).toBe("localhost_3000_blog");
+    expect(siteDirFor("home", "https://example.gov/a/b/")).toBe(
+      path.join("home", "example.gov_a_b"),
+    );
   });
 
   // A folder named only of dots is the home or the folder that holds it, and Windows keeps some

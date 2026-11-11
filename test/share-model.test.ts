@@ -3369,8 +3369,14 @@ describe("the walkthrough file each run's evidence offers", () => {
   it.each([
     ["https://example.illinois.gov/", "example.illinois.gov", ""],
     ["http://127.0.0.1:4848", "127.0.0.1_4848", " --site http://127.0.0.1:4848"],
-    // The command names the site's origin, as the program reads it, whatever the record wrote.
-    ["http://Localhost:3000/some/path", "localhost_3000", " --site http://localhost:3000"],
+    // The command that repeats the run names the site's origin, as the program reads it, whatever
+    // the record wrote. The file is named as siteFolder names the folder of the address given, which
+    // has its path in it, since 0.26.0 gives a site under a path a folder of its own.
+    [
+      "http://Localhost:3000/some/path",
+      "localhost_3000_some_path",
+      " --site http://localhost:3000",
+    ],
   ])("names the file for the site's folder, as siteFolder does: %s", (site, folder, siteOption) => {
     // A run of that site, whose page is on it, as a walkthrough file needs.
     const home = new URL("/", site).href;
@@ -3419,7 +3425,8 @@ describe("the walkthrough file each run's evidence offers", () => {
     const run = shareRun({ id: "2026-09-26_1405", canonical, pages: [{ path: "/" }] });
     const file = downloadOf(latestEvidence(buildShareModel(inputOf([run], { canonical }))));
 
-    expect(file.fileName).toBe("x.org_2026-09-26_1405_walkthrough.json");
+    // The site is under a path, so the file is named for its host and that path, as its folder is.
+    expect(file.fileName).toBe("x.org_o_brien_2026-09-26_1405_walkthrough.json");
     expect(file.get).toBe(
       `npx @icjia/voicecap walkthrough --site https://x.org/o%27brien/ --run 2026-09-26_1405 ${file.fileName}`,
     );

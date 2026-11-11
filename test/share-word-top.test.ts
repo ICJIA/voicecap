@@ -124,7 +124,7 @@ describe("wordTop", () => {
     const top = wordTop(model);
 
     expect(top[0]).toEqual({ kind: "title", text: TOP_TEXT.eyebrow });
-    expect(top[1]).toEqual(para({ text: "voicecap.icjia.app", bold: true }));
+    expect(top[1]).toEqual(para({ text: "voicecap.icjia.app/demo-site", bold: true }));
     expect(wordsOf(top)[2]).toBe(
       "Tested 29 September 2026, 14:02. This copy was made 30 September 2026.",
     );
@@ -153,7 +153,7 @@ describe("wordTop", () => {
     expect(top.map(({ kind }) => kind)).toEqual(["title", "para", "para", "para", "para", "para"]);
     expect(wordsOf(top)).toEqual([
       "Screen reader test results",
-      "voicecap.icjia.app",
+      "voicecap.icjia.app/demo-site",
       "Tested 29 September 2026, 14:02. This copy was made 30 September 2026.",
       "How its pages read aloud with NVDA, a free screen reader, tested on 29 September 2026. voicecap took NVDA through every page, pressing its keys the way a person would. Every word shown here is what NVDA said.",
       "Made with voicecap.",
@@ -167,7 +167,7 @@ describe("wordTop", () => {
 
     expect(wordsOf(named).slice(0, 4)).toEqual([
       "Screen reader test results",
-      "voicecap.icjia.app",
+      "voicecap.icjia.app/demo-site",
       "The voicecap demo",
       "Tested 29 September 2026, 14:02. This copy was made 30 September 2026.",
     ]);
@@ -190,12 +190,13 @@ describe("wordTop", () => {
     // The name isn't followed by its address: the lines that come first say none.
     expect(wordsOf(top).slice(0, 3).join("\n")).not.toContain("Site address");
 
-    // Named by its canonical address, the name is its host, and the address last is its root.
+    // Named by its canonical address, the name is its host and path, and the address last is its
+    // root.
     const canonical = wordTop(copyModel());
-    expect(wordsOf(canonical)[1]).toBe("voicecap.icjia.app");
+    expect(wordsOf(canonical)[1]).toBe("voicecap.icjia.app/demo-site");
     expect(wordsOf(canonical).at(-1)).toBe(`Site address ${DEMO_ROOT}.`);
     expect(boldIn(canonical[1]?.kind === "para" ? canonical[1].line : [])).toEqual([
-      "voicecap.icjia.app",
+      "voicecap.icjia.app/demo-site",
     ]);
   });
 
