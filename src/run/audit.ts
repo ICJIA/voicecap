@@ -25,11 +25,13 @@ import {
   type ReviewerRecord,
   type RunJson,
   type RunSettings,
+  type SampleRecord,
   type SessionRecord,
   type StepCaps,
 } from "../model.js";
 import { chooseCanonicalRoot, isNearbyHost, normalizeCanonical } from "../pages/canonical.js";
 import { compilePattern } from "../pages/filter.js";
+import { sampleRecordOf } from "../pages/sample-record.js";
 import {
   pageSourceFor,
   readWalkthroughFile,
@@ -113,6 +115,14 @@ export interface RunAuditOptions {
    * A repeat that completes says, page by page, how it sounds against the original.
    */
   walkthrough?: string | null;
+  /**
+   * The sitemap the run's pages are a sample of (`--sample-of`), given as `sitemap` is, beside a
+   * page list (`pages`) or `pageUrls` only: refused beside `sitemap` or `walkthrough`, before
+   * anything runs. A new run reads it as it begins, counts its pages by URL path pattern, and records
+   * how many of each the run reads (`RunJson.sample`), so the report says the pages are a sample of
+   * the site, and of what. It isn't one of the run's settings: a resumed run keeps what it recorded.
+   */
+  sampleOf?: string | null;
   limit?: number | null;
   include?: string[];
   exclude?: string[];
@@ -241,6 +251,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   // A repeat is read first: everything it's refused for is refused here, before the config is
   // loaded, the readiness is checked, or a folder is touched.
   const walkthrough = await readRepeat(options, cwd);
+  checkSampleOf(options);
   const siteGiven = walkthrough ? walkthrough.parsed.site : requireSite(options);
   const site = parseSiteUrl(siteGiven);
   // A site under a path on its host (--site https://icjia.illinois.gov/adultredeploy/) is read from
@@ -341,6 +352,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
         logger,
       });
       if (resolved.pages.length === 0) throw noPagesError(resolved.source, resolved.skipped.length);
+      const sample = await sampleOf(options, site, resolved.pages, cwd, logger);
       const createdAt = now();
       run = {
         schemaVersion: 1,
@@ -368,6 +380,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
           flags: [],
           errors: [],
         })),
+        ...(sample === null ? {} : { sample }),
       };
       // Check --compare before any work, so a bad base doesn't surface hours later.
       if (options.compare) await resolveCompareBase(outDir, run, options.compare);
@@ -456,6 +469,55 @@ async function readRepeat(options: RunAuditOptions, cwd: string): Promise<Walkth
     }
   }
   return walkthrough;
+}
+
+/**
+ * --sample-of goes only with a page list or --page: a sitemap run reads the whole sitemap, which is
+ * no sample of it, and a repeat's pages are its file's. Refused before anything runs.
+ */
+function checkSampleOf(options: RunAuditOptions): void {
+  if (options.sampleOf === undefined || options.sampleOf === null) return;
+  if (options.walkthrough !== undefined && options.walkthrough !== null) {
+    throw new UsageError(
+      "--walkthrough repeats the pages and passes its file lists, so it can't be used with --sample-of.",
+    );
+  }
+  if (options.sitemap !== undefined && options.sitemap !== null) {
+    throw new UsageError(
+      "--sample-of says which sitemap a page list or --page chose its pages from, so it can't be used with --sitemap, which reads every page the sitemap lists.",
+    );
+  }
+}
+
+/**
+ * The record of a run's pages as a sample of the sitemap --sample-of names (see sampleRecordOf),
+ * read as the run is made, with the cleanup a run gives a sitemap but none of its --include,
+ * --exclude, or --limit, which choose from the run's pages, not the site's. Says what it found.
+ * Null for a run given none.
+ */
+async function sampleOf(
+  options: RunAuditOptions,
+  site: URL,
+  pages: readonly { url: string; key: string }[],
+  cwd: string,
+  logger: Logger,
+): Promise<SampleRecord | null> {
+  if (options.sampleOf === undefined || options.sampleOf === null) return null;
+  const listed = await resolvePages({
+    site,
+    sitemap: options.sampleOf,
+    cwd,
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+    logger,
+  });
+  if (listed.pageSource.kind !== "sitemap") throw new Error("--sample-of read no sitemap.");
+  const record = sampleRecordOf(listed.pageSource.url, listed.pages, pages);
+  const outside =
+    record.notInSitemap === 0 ? "" : `, and ${plural(record.notInSitemap, "page")} it doesn't list`;
+  logger.info(
+    `A sample of the ${plural(record.sitePages, "page")} ${record.sitemap} lists: ${plural(pages.length - record.notInSitemap, "page")} of them${outside}.`,
+  );
+  return record;
 }
 
 /** The site's address a run that repeats no walkthrough must be given. */

@@ -95,6 +95,7 @@ interface RunOptions {
   reviewer?: string;
   replayFrom?: string;
   walkthrough?: string;
+  sampleOf?: string;
 }
 
 /** review's options. Without --replay, --page and --status are required (see the command). */
@@ -188,6 +189,10 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
     .option(
       "--walkthrough <file>",
       "repeat a run from its walkthrough file: the same pages, in the same order, with the same passes and limits",
+    )
+    .option(
+      "--sample-of <sitemap>",
+      "with --pages or --page: the sitemap the pages were chosen from, so the report says they're a sample of the site, and of what",
     )
     .option("--limit <n>", "transcribe at most n pages", positiveInt("--limit"))
     .option(
@@ -785,6 +790,7 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
       pages: options.pages ?? null,
       ...(options.page.length > 0 ? { pageUrls: options.page } : {}),
       walkthrough: options.walkthrough ?? null,
+      sampleOf: options.sampleOf ?? null,
       limit: options.limit ?? null,
       include: options.include,
       exclude: options.exclude,
@@ -922,12 +928,14 @@ export function nvdaRunningOn(
 function checkUrlOptions(options: {
   site?: string;
   sitemap?: string;
+  sampleOf?: string;
   page?: string[];
   include: string[];
   exclude: string[];
 }): void {
   if (options.site) assertNotRewritten("--site", options.site);
   if (options.sitemap) assertNotRewritten("--sitemap", options.sitemap);
+  if (options.sampleOf) assertNotRewritten("--sample-of", options.sampleOf);
   for (const page of options.page ?? []) assertNotRewritten("--page", page);
   for (const pattern of options.include) assertNotRewritten("--include", pattern);
   for (const pattern of options.exclude) assertNotRewritten("--exclude", pattern);

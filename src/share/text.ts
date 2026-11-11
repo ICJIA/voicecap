@@ -136,6 +136,40 @@ export const FIX_FIRST_TEXT = {
 };
 
 /**
+ * "These pages are a sample of the site", in At a glance, for a report whose latest run is a sample
+ * of its sitemap (`--sample-of`): what the pages are a sample of, why a sample of each type of page
+ * stands for the rest, as professional audits test, what a sample can't promise, and each type of
+ * page with how many the site has and how many are in the report. The Word copy, the report for AI
+ * tools, and the website's card say the same.
+ */
+const pagesOf = (n: number): string => (n === 1 ? "1 page" : `${count(n)} pages`);
+
+export const SAMPLE_TEXT = {
+  title: "These pages are a sample of the site",
+  lead: (
+    pages: number,
+    listed: number,
+    sitePages: number,
+    sitemap: string,
+    outside: number,
+  ): string =>
+    `This report covers ${pagesOf(pages)}: ${count(listed)} of the ${pagesOf(sitePages)} the sitemap ${sitemap} lists, chosen to stand for the rest${
+      outside === 0 ? "" : `, and ${pagesOf(outside)} it doesn't list`
+    }.`,
+  why: "A large site is mostly a few types of page, each built from one template: a news post, a publication, a meeting. A problem in a template, in its headings, its navigation, its links, or its forms, is on every page built from it, and NVDA finds it on any one of them. So accessibility audits test a sample: every page that's one of a kind, the pages people need to get things done, the pages of each type that differ most, and more chosen at random, as the W3C's evaluation method, WCAG-EM, describes. Professional auditors who test with a screen reader don't go through every page of a large site either.",
+  limit:
+    "What a sample can't promise is a problem written into one page's own text, such as a link that says “click here” or an image with no description: those can be on pages the sample doesn't hold, so check every page's text for them, from the site's content.",
+  fold: "Each type of page: how many the site has, and how many are in this report",
+  type: "Type of page",
+  onSite: "On the site",
+  sampled: "In this report",
+  notListed: "Not in the sitemap (search, forms, and pages it leaves out)",
+  card: "In the sample as",
+  site: (pages: number, sitePages: number): string =>
+    `A sample of the site: ${pagesOf(pages)}, chosen by type of page from the ${pagesOf(sitePages)} its sitemap lists.`,
+};
+
+/**
  * "The details, for reviewers and auditors": the section that gathers how the test was run, what it
  * covered, and the evidence behind it, after the page's cards. Its heading, the line under it that
  * says what is in it, and the words of the link to it ("The details", in the links to the page's

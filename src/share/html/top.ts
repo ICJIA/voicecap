@@ -24,6 +24,7 @@ import { names } from "../format.js";
 import { fixFirstOf } from "../fix-first.js";
 import { glanceBannerOf } from "../forms-view.js";
 import type { ShareModel } from "../model.js";
+import { sampleTypeName } from "../sample.js";
 import type { Summary } from "../summary.js";
 import {
   ATTENTION_TEXT,
@@ -34,6 +35,7 @@ import {
   HOW_STEPS,
   HOW_TEXT,
   PAGES_TEXT,
+  SAMPLE_TEXT,
   SUMMARY_TEXT,
   TOP_TEXT,
   WHEN_TO_RUN,
@@ -58,6 +60,7 @@ import {
   lineHtml,
   notRecorded,
   ring,
+  scroll,
   track,
   type RingPart,
 } from "./parts.js";
@@ -225,6 +228,42 @@ function fixFirst(model: ShareModel): string[] {
 }
 
 /**
+ * "These pages are a sample of the site", for a report of a sample (../sample.ts): what the pages
+ * are a sample of, why a sample of each type of page stands for the rest, and what a sample can't
+ * promise, in the open; then, in a fold, a table of each type of page, with how many the site has
+ * and how many are in the report, and a row for the pages the sitemap doesn't list. Nothing for a
+ * report that isn't one.
+ */
+function sampleBox(model: ShareModel): string[] {
+  const { sample } = model;
+  if (sample === undefined) return [];
+  const cell = (n: number) => `<td class="num">${count(n)}</td>`;
+  const rows = sample.types.map(
+    (type) =>
+      `<tr><th scope="row">${esc(sampleTypeName(type))}</th>${cell(type.onSite)}${cell(type.sampled)}</tr>`,
+  );
+  if (sample.notInSitemap > 0) {
+    rows.push(
+      `<tr><th scope="row">${esc(SAMPLE_TEXT.notListed)}</th><td class="num">–</td>${cell(sample.notInSitemap)}</tr>`,
+    );
+  }
+  const table = scroll(
+    SAMPLE_TEXT.fold,
+    `<table class="plain"><caption class="sr">${esc(SAMPLE_TEXT.fold)}</caption><thead><tr><th scope="col">${esc(SAMPLE_TEXT.type)}</th><th scope="col" class="num">${esc(SAMPLE_TEXT.onSite)}</th><th scope="col" class="num">${esc(SAMPLE_TEXT.sampled)}</th></tr></thead><tbody>${rows.join("")}</tbody></table>`,
+  );
+  const lead = SAMPLE_TEXT.lead(
+    model.result.pages,
+    sample.listed,
+    sample.sitePages,
+    sample.sitemap,
+    sample.notInSitemap,
+  );
+  return [
+    `<div class="sample"><h3 id="sample-h">${esc(SAMPLE_TEXT.title)}</h3><p>${esc(lead)}</p><p>${esc(SAMPLE_TEXT.why)}</p><p>${esc(SAMPLE_TEXT.limit)}</p>${fold(esc(SAMPLE_TEXT.fold), table)}</div>`,
+  ];
+}
+
+/**
  * The links to the page's sections: What needs attention, which is there only when there is a card,
  * Every page, and The details. Each says its section's own words, and goes to its heading's id.
  *
@@ -261,6 +300,7 @@ export function renderGlance(model: ShareModel): string {
     `<h2 id="glance-h">${esc(GLANCE_TEXT.title)}</h2>`,
     ...(hasPages ? [verdict(result), ...fixFirst(model)] : []),
     `<p class="lead">${esc(summary.sentence)}</p>`,
+    ...sampleBox(model),
     ...(hasPages ? [ringRow(model), tiles(model)] : []),
     ...formsLine(model),
     `<p class="gist">${esc(summary.second)}</p>`,

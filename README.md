@@ -779,6 +779,7 @@ npx @icjia/voicecap --walkthrough <file> [options]
 | `--pages <file>` | Take pages from a page list: `.csv` or `.json` (see [Page sources](#page-sources)). |
 | `--page <url>` | Take this page: a full URL, or a path like `/faq/`, resolved against `--site` (repeatable). |
 | `--walkthrough <file>` | Repeat a run from its walkthrough file (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)): the same pages in the same order, with the same passes, step limits, capture mode, and readiness settings (this computer's readiness settings, when the file has none). Refused beside `--sitemap`, `--pages`, `--page`, `--limit`, `--include`, `--exclude`, `--passes`, `--max-steps`, and a `--site` that isn't the file's. A live repeat of a file whose site is an IP address, a local address, or a one-word name needs `--site` naming it. |
+| `--sample-of <sitemap>` | With `--pages` or `--page`: the sitemap the pages were chosen from, so the report says they're a sample of the site, and of what (see [A sample of a large site](#a-sample-of-a-large-site)). Given as `--sitemap` is. Refused beside `--sitemap` and `--walkthrough`. |
 | `--limit <n>` | Transcribe at most n pages (after include and exclude). |
 | `--include <pattern>` | Only URL paths matching. Glob by default; `re:` for a regular expression. Repeatable. |
 | `--exclude <pattern>` | Skip URL paths matching. Same syntax. Repeatable. |
@@ -1007,6 +1008,20 @@ npx @icjia/voicecap list-urls --site https://i2i.illinois.gov --sitemap sitemap.
 ```
 
 With `--sample N`, voicecap drafts a sample for you to curate: N pages per URL path pattern, with the pattern in the `template` column. The pattern is the page's parent path plus `/*` (`/news/*`, `/researchhub/articles/*`); top-level pages share `/*` and the home page is its own group. Pages are picked evenly spaced through each group, and voicecap prints what it chose and why. A run never samples on its own: the page list decides.
+
+### A sample of a large site
+
+A site of thousands of pages is mostly a few types of page, each built from one template: news posts, publications, meetings. A problem in a template is on every page built from it, and NVDA finds it on any one of them, so reading every page hears the same thing again and again: at about 2 minutes a page, a site of 2,466 pages is about 85 hours. Accessibility audits test a sample instead, as the W3C's evaluation method, [WCAG-EM](https://www.w3.org/TR/WCAG-EM/), describes: every page that's one of a kind, the pages people need to get things done (search, forms), the pages of each type that differ most, and more chosen at random. Professional auditors who test with a screen reader don't go through every page of a large site either.
+
+Choose the pages in a page list, with each page's type in `template` and why it's in the sample in `notes`, and give the sitemap they were chosen from with `--sample-of`:
+
+```bash
+npx @icjia/voicecap --site https://icjia.illinois.gov --pages pages.csv --sample-of sitemap.xml
+```
+
+As the run begins, voicecap reads that sitemap, counts its pages by URL path pattern (as `--sample` groups them), and records in the run how many of each the run reads, and how many of the run's pages the sitemap doesn't list. The report then says, in At a glance, under "These pages are a sample of the site": how many pages it covers, of how many the sitemap lists; why a sample of each type stands for the rest; and what a sample can't promise, a problem written into one page's own text, such as a link that says "click here", which can be on pages the sample doesn't hold. A table, in a fold, gives each type of page (by the `template` its pages share, and its pattern) with how many the site has and how many are in the report. Each page's card says why it's in the sample, from its `notes`. The Word copy and the report for AI tools say the same, and the website's card says "A sample of the site: 171 pages, chosen by type of page from the 2,466 pages its sitemap lists."
+
+So check every page's text as well, from the site's content (its CMS), for the problems a sample can miss, and read the pages you fix again with `--page`. `--sample-of` isn't one of the run's settings: the same command without it resumes the same run, which keeps what it recorded.
 
 ## What voicecap does on each page
 

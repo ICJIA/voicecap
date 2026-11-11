@@ -18,6 +18,7 @@ import { fixFirstOf } from "../fix-first.js";
 import { bannerLine, glanceBannerOf } from "../forms-view.js";
 import type { Line } from "../line.js";
 import type { ShareModel } from "../model.js";
+import { sampleTypeName } from "../sample.js";
 import type { Summary } from "../summary.js";
 import {
   ATTENTION_TEXT,
@@ -26,6 +27,7 @@ import {
   GLANCE_TEXT,
   HOW_STEPS,
   HOW_TEXT,
+  SAMPLE_TEXT,
   SUMMARY_TEXT,
   TOP_TEXT,
   WHEN_TO_RUN,
@@ -188,6 +190,38 @@ function fixFirstBlocks(model: ShareModel): Block[] {
 }
 
 /**
+ * "These pages are a sample of the site", as the page has it (../sample.ts): what they're a sample
+ * of, why a sample stands for the rest, and what it can't promise; then the table of each type of
+ * page, open, since a document has no folds. Nothing for a report that isn't a sample.
+ */
+function sampleBlocks(model: ShareModel): Block[] {
+  const { sample } = model;
+  if (sample === undefined) return [];
+  const rows = sample.types.map((type) => [
+    sampleTypeName(type),
+    count(type.onSite),
+    count(type.sampled),
+  ]);
+  if (sample.notInSitemap > 0) rows.push([SAMPLE_TEXT.notListed, "–", count(sample.notInSitemap)]);
+  return [
+    heading(2, SAMPLE_TEXT.title),
+    para(
+      SAMPLE_TEXT.lead(
+        model.result.pages,
+        sample.listed,
+        sample.sitePages,
+        sample.sitemap,
+        sample.notInSitemap,
+      ),
+    ),
+    para(SAMPLE_TEXT.why),
+    para(SAMPLE_TEXT.limit),
+    para({ text: SAMPLE_TEXT.fold, bold: true }),
+    table([SAMPLE_TEXT.type, SAMPLE_TEXT.onSite, SAMPLE_TEXT.sampled], rows, [60, 20, 20]),
+  ];
+}
+
+/**
  * At a glance's line on the forms, once the run has the forms pass: its sign and words in bold
  * ("✓ All 4 forms work with NVDA", or "⚠ 3 of 4 forms work with NVDA") and, when some don't, the
  * line that names their pages; the same words as the page's banner (../forms-view.ts). A run from
@@ -223,6 +257,7 @@ export function wordGlance(model: ShareModel): Block[] {
     heading(1, GLANCE_TEXT.title),
     ...(hasPages ? [verdictBlock(result), ...fixFirstBlocks(model)] : []),
     para(summary.sentence),
+    ...sampleBlocks(model),
     ...(hasPages ? [ringTable(model), numbersTable(model)] : []),
     ...formsGlanceBlocks(model),
     para(summary.second),

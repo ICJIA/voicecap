@@ -47,6 +47,7 @@ import { folderSafe } from "../run/paths.js";
 import { markdownInline } from "../share/ai/escape.js";
 import { count as countWords, longDate, sizeWords } from "../share/format.js";
 import { formsResultLine } from "../share/forms-view.js";
+import { SAMPLE_TEXT } from "../share/text.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf, type VerdictKind } from "../share/verdict.js";
 import type { VoicecapFacts, VoicecapRelease } from "./facts.js";
@@ -276,6 +277,18 @@ function formsLine(result: ShareResult | undefined): string[] {
   ];
 }
 
+/**
+ * The line that says a report's pages are a sample of the site, for a share that records the
+ * sitemap's count (`--sample-of`): plain words under its verdict, at the report's own word for it.
+ * Nothing for a report that isn't one.
+ */
+function sampleLine(result: ShareResult | undefined): string[] {
+  if (result?.sample === undefined) return [];
+  return [
+    `<p class="forms-note">${esc(SAMPLE_TEXT.site(result.pages, result.sample.sitePages))}</p>`,
+  ];
+}
+
 /** A report's file of this kind, its page or its Word copy, say, when it's published. */
 function fileOf(shared: PublishedReport, kind: PublishedFile["kind"]): PublishedFile | undefined {
   return shared.files.find((file) => file.kind === kind);
@@ -376,7 +389,11 @@ function capturedTile(shared: PublishedReport): string[] {
  * the site (see capturedTile). Nothing for a report with neither.
  */
 function result(shared: PublishedReport): string[] {
-  const said = [...verdict(shared.result), ...formsLine(shared.result)];
+  const said = [
+    ...verdict(shared.result),
+    ...formsLine(shared.result),
+    ...sampleLine(shared.result),
+  ];
   const day = capturedTile(shared);
   if (said.length === 0 && day.length === 0) return [];
   const outcome = said.length === 0 ? "" : `<div class="outcome">${said.join("")}</div>`;

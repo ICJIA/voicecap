@@ -26,6 +26,7 @@
  * lists is as it was read, and a part that shows one shows only its path. The run records, the
  * walkthrough files, and a problem's record keep the address voicecap read.
  */
+import { sampleViewOf, type SampleView } from "./sample.js";
 import {
   DEFAULT_PASS_NAMES,
   PASS_NAMES,
@@ -203,6 +204,12 @@ export interface ShareModel {
    */
   forms: FormsGlance | { notRecorded: string } | null;
   /**
+   * The pages as a sample of the site, for a report whose latest run was given `--sample-of`: the
+   * sitemap, how many pages it lists, and each type of page with how many the site has and how many
+   * are here (see sampleViewOf). Absent for a report that isn't a sample.
+   */
+  sample?: SampleView;
+  /**
    * What needs attention: a card for each problem across the pages in scope, most pages first, from
    * the shown transcripts' flags (the current rules'), the pages the latest run couldn't read, open
    * issues, and pages changed since their review (see attentionCards).
@@ -361,6 +368,23 @@ export function buildShareModel(input: ShareInput): ShareModel {
   const recordOf = recordsOf(input.records);
   const header = headerOf(input, standing);
   const forms = formsOf(latest, pages);
+  const sample = sampleViewOf(latest ?? null, shown, redact);
+  // A sample's cards say why each page is in it: the page list's notes, as the latest run has them.
+  const chosen = new Map(
+    sample === null
+      ? []
+      : (latest?.pages ?? []).flatMap((page) => {
+          const notes = page.notes?.trim();
+          return notes === undefined || notes === "" ? [] : [[page.key, redact(notes)] as const];
+        }),
+  );
+  const cards =
+    chosen.size === 0
+      ? pages
+      : pages.map((card) => {
+          const why = chosen.get(card.key);
+          return why === undefined ? card : { ...card, chosen: why };
+        });
   return {
     header,
     summary,
@@ -378,12 +402,14 @@ export function buildShareModel(input: ShareInput): ShareModel {
               notChecked: forms.notChecked,
             },
           }),
+      ...(sample === null ? {} : { sample: { sitePages: sample.sitePages } }),
     },
     forms,
+    ...(sample === null ? {} : { sample }),
     ring: ringOf(pages, attention),
     attention,
     heard: heardOf(standing.pages, input.transcripts, nameOf),
-    pages,
+    pages: cards,
     voicePage: voiceNoteOf(standing, pages, input.voiceName, redact),
     noLongerListed: noLongerListedOf(standing, nameOf, shown),
     changes,

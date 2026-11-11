@@ -72,6 +72,7 @@ import {
   ownWords,
   PAGES_TEXT,
   PROBLEMS_TEXT,
+  SAMPLE_TEXT,
   WORD_TEXT,
 } from "../text.js";
 import { verdictOf, type VerdictKind } from "../verdict.js";
@@ -390,6 +391,8 @@ export interface AiPage {
    * forms record.
    */
   forms: AiNotRecorded | AiForm[] | null;
+  /** Why the page is in the sample (the page list's notes), for a report of a sample. Absent otherwise. */
+  chosen?: string;
   /** What axe found; null for a card that says nothing of axe. */
   axe: AiNotRecorded | AiAxeResults | null;
   /** The person's review as far as the records show it. Nothing for a page with none. */
@@ -551,6 +554,19 @@ export interface AiReport {
    * take it.
    */
   forms: AiFormsGlance | AiNotRecorded | null;
+  /**
+   * The pages as a sample of the site, for a report whose latest run was given `--sample-of`: the
+   * sitemap, how many pages it lists, why a sample stands for the rest and what it can't promise
+   * (the page's own words), and each type of page, by its URL path pattern and the page list's name
+   * for it, with how many the site has and how many are here. Absent for a report that isn't one.
+   */
+  sample?: {
+    sitemap: string;
+    sitePages: number;
+    notInSitemap: number;
+    said: string[];
+    types: { name: string | null; pattern: string; onSite: number; sampled: number }[];
+  };
   attention: AiCard[];
   pages: AiPage[];
   noLongerListed: AiGone[];
@@ -872,6 +888,7 @@ function pageOf(
     })),
     flagsNote: flagsNoteOf(card),
     forms: formsOfCard(card, passTaken),
+    ...(card.chosen === undefined ? {} : { chosen: card.chosen }),
     axe: axeOf(card),
     review: [...card.reviewChips, ...card.manual.map(manualLine)],
     transcriptsFrom: originOf(card, transcripts, latest),
@@ -1058,6 +1075,27 @@ export function aiReportOf(model: ShareModel): AiReport {
     summary: { sentence: summary.sentence, method: summary.second },
     counts: countsOf(model),
     forms: formsOfModel(model),
+    ...(model.sample === undefined
+      ? {}
+      : {
+          sample: {
+            sitemap: model.sample.sitemap,
+            sitePages: model.sample.sitePages,
+            notInSitemap: model.sample.notInSitemap,
+            said: [
+              SAMPLE_TEXT.lead(
+                model.result.pages,
+                model.sample.listed,
+                model.sample.sitePages,
+                model.sample.sitemap,
+                model.sample.notInSitemap,
+              ),
+              SAMPLE_TEXT.why,
+              SAMPLE_TEXT.limit,
+            ],
+            types: model.sample.types.map((type) => ({ ...type })),
+          },
+        }),
     attention: model.attention.map((card, at) => cardOf(card, at + 1, numbers)),
     pages: model.pages.map((card, at) =>
       pageOf(card, at + 1, transcripts.get(card.slug), latest, passTaken),

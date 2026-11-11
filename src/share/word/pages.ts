@@ -49,6 +49,7 @@ import {
   FORMS_TEXT,
   PAGES_TEXT,
   passTitle,
+  SAMPLE_TEXT,
   VOICE_TEXT,
   WORD_TEXT,
 } from "../text.js";
@@ -169,6 +170,7 @@ function statusLine(card: PageCard): Line {
   const from = fromRun(card);
   const sentences: Line[] = [
     ...(title === null ? [] : [[sentence(title)]]),
+    ...(card.chosen === undefined ? [] : [[sentence(`${SAMPLE_TEXT.card}: ${card.chosen}`)]]),
     [sentence(card.statusText)],
     ...(card.failure === null ? [] : [[sentence(card.failure)]]),
     ...(from === null ? [] : [[sentence(from)]]),

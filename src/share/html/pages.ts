@@ -40,7 +40,15 @@ import {
   type AxeViewRule,
 } from "../axe-view.js";
 import type { AppendixFile, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, AXE_TEXT, FORMS_TEXT, PAGES_TEXT, passTitle, VOICE_TEXT } from "../text.js";
+import {
+  APPENDIX_TEXT,
+  AXE_TEXT,
+  FORMS_TEXT,
+  PAGES_TEXT,
+  passTitle,
+  SAMPLE_TEXT,
+  VOICE_TEXT,
+} from "../text.js";
 import {
   axeFingerprint,
   capturedOf,
@@ -247,6 +255,7 @@ function cardOf(
     heading(card, number),
     voiceLine(card),
     titleLine(card),
+    card.chosen === undefined ? "" : small(`${SAMPLE_TEXT.card}: ${card.chosen}`),
     chipsOf(card),
     card.failure === null ? "" : `<p>${esc(card.failure)}</p>`,
     ...formBanners(card),
