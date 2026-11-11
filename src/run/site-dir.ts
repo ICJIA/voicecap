@@ -3,7 +3,7 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { isWebRoot, normalizeCanonical, recordedCanonical } from "../pages/canonical.js";
-import { hasScheme, parseSiteUrl, withoutUserInfo } from "../pages/url.js";
+import { hasScheme, parseSiteUrl, siteUnderAPath, withoutUserInfo } from "../pages/url.js";
 import { newestSealed, readShares } from "../share/shares.js";
 import { UsageError } from "../util/errors.js";
 import { assertNotRewritten } from "../util/git-bash.js";
@@ -36,7 +36,8 @@ export async function chooseSiteDir(options: {
   if (page !== undefined && page !== null) {
     assertNotRewritten("--page", page);
     const url = fullPageUrl(page);
-    if (url) return siteDirFor(home, url);
+    // A page's folder is its host's: nothing in a full URL says where a site under a path ends.
+    if (url) return siteDirFor(home, new URL(url.origin));
   }
 
   const sites = await siteFolders(home);
@@ -75,7 +76,7 @@ export async function chooseSiteDir(options: {
  * asks for the address voicecap read, which names one folder.
  */
 async function siteDirNamed(home: string, site: string): Promise<string> {
-  const named = siteDirFor(home, parseSiteUrl(site));
+  const named = siteDirFor(home, siteUnderAPath(site) ?? parseSiteUrl(site));
   const root = canonicalRoot(site);
   const recorded = async () => (root === null ? null : await folderRecording(home, root));
   const underAPath = root !== null && new URL(root).pathname !== "/";
@@ -89,6 +90,10 @@ async function siteDirNamed(home: string, site: string): Promise<string> {
     const found = await recorded();
     if (found !== null) return found;
   }
+  // Before 0.26.0 a site under a path was filed in its host's folder: with no folder of its own
+  // yet, that one is still looked in.
+  const host = siteDirFor(home, parseSiteUrl(site));
+  if (host !== named && !existsSync(named) && (await isSiteFolder(host))) return host;
   return named;
 }
 
@@ -216,7 +221,7 @@ export async function chooseSiteDirOfRun(options: {
   const root = canonicalRoot(site);
   if (root === null) return siteDirNamed(home, site);
 
-  const namedFolder = siteFolder(url);
+  const namedFolder = siteFolder(siteUnderAPath(site) ?? url);
   const named = (await isSiteFolder(path.join(home, namedFolder)))
     ? [{ folder: namedFolder, read: null }]
     : [];

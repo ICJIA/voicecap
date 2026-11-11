@@ -139,10 +139,20 @@ export function folderSafe(name: string): string {
  * `com1`, `aux.example.org`: see isWindowsReservedName), which can't be made on a Windows computer.
  * An address that parseSiteUrl or a walkthrough file's reader takes never gives one; this is for any
  * other way a host gets here, such as a record.
+ *
+ * A site under a path on its host (`https://icjia.illinois.gov/adultredeploy/`, see siteUnderAPath)
+ * has a folder of its own, its host's name then its path, each "/" a "_"
+ * (`icjia.illinois.gov_adultredeploy`), so it never shares one with the host's own site. `site` is
+ * a site's address, never a page's: a page's folder is its site's.
  */
 export function siteFolder(site: string | URL): string {
   const url = typeof site === "string" ? new URL(site) : site;
-  const folder = folderSafe(url.host);
+  const under = url.pathname
+    .toLowerCase()
+    .split("/")
+    .filter((part) => part !== "");
+  const hostFolder = folderSafe(url.host);
+  const folder = /^\.*$/.test(hostFolder) ? hostFolder : folderSafe([url.host, ...under].join("_"));
   if (/^\.*$/.test(folder)) {
     throw new UsageError(
       `A site whose host is only dots (or has none) can't be a folder in the transcripts home (got "${url.host}").`,

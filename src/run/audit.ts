@@ -36,7 +36,7 @@ import {
   resolvePages,
   type WalkthroughFile,
 } from "../pages/resolve.js";
-import { displayPath, parseSiteUrl } from "../pages/url.js";
+import { displayPath, parseSiteUrl, siteUnderAPath } from "../pages/url.js";
 import type { PassSettings } from "../passes/index.js";
 import { InterruptedError, throwIfAborted } from "../passes/steps.js";
 import type { PlatformReadiness, PreflightResult } from "../readiness/model.js";
@@ -133,7 +133,8 @@ export interface RunAuditOptions {
   /**
    * The address people visit, for reports to name the site by (--canonical): normalized to a root
    * (see normalizeCanonical) before anything starts, so a bad one is a usage error, and the record
-   * never holds an unnormalized one. Default: the root most of the inner pages' own canonical tags
+   * never holds an unnormalized one. Default: for a --site under a path on its host, that path's
+   * root (see siteUnderAPath); otherwise the root most of the inner pages' own canonical tags
    * name, and the home page's only when no inner page's names one (see chooseCanonicalRoot), and
    * none when no page names one. It isn't one of the run's settings, so it doesn't change which run
    * resumes: the value given to the session that completes the run is the one recorded. A replayed
@@ -232,7 +233,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   const signal = options.signal ?? new AbortController().signal;
 
   // A bad --canonical is refused before anything is read, loaded, or touched.
-  const canonical =
+  const canonicalGiven =
     options.canonical === undefined || options.canonical === null
       ? null
       : normalizeCanonical(options.canonical);
@@ -240,7 +241,13 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   // A repeat is read first: everything it's refused for is refused here, before the config is
   // loaded, the readiness is checked, or a folder is touched.
   const walkthrough = await readRepeat(options, cwd);
-  const site = parseSiteUrl(walkthrough ? walkthrough.parsed.site : requireSite(options));
+  const siteGiven = walkthrough ? walkthrough.parsed.site : requireSite(options);
+  const site = parseSiteUrl(siteGiven);
+  // A site under a path on its host (--site https://icjia.illinois.gov/adultredeploy/) is read from
+  // its origin, as any site is, but it's a site of its own: it has a folder of its own (see
+  // siteFolder), and, with no --canonical, the reports name it by its path too.
+  const under = siteUnderAPath(siteGiven);
+  const canonical = canonicalGiven ?? (under === null ? null : rootOrNull(under.href));
   // A repeat takes its site from its file, so nothing in the command says which site it is about to
   // read: say which run it repeats, of which site, from which file (as the person gave it), and how
   // many pages. A resumed repeat says it too. (When a file was read, `options.walkthrough` is its
@@ -307,7 +314,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
     options.driver ?? (await createDriver(selection, { config: { ...config, passes }, logger }));
 
   const home = resolveHome({ out: options.out, env: options.env ?? process.env, cwd });
-  const outDir = siteDirFor(home, site);
+  const outDir = siteDirFor(home, under ?? site);
   await mkdir(outDir, { recursive: true });
   await ensureGitFiles(home);
   noteOldLayout(home, logger);
@@ -452,6 +459,19 @@ async function readRepeat(options: RunAuditOptions, cwd: string): Promise<Walkth
 }
 
 /** The site's address a run that repeats no walkthrough must be given. */
+/**
+ * `address` as a canonical root (see normalizeCanonical), or null when it can't be one: an IP
+ * address or a local address, which readers can't visit by name.
+ */
+function rootOrNull(address: string): string | null {
+  try {
+    return normalizeCanonical(address);
+  } catch (error) {
+    if (error instanceof UsageError) return null;
+    throw error;
+  }
+}
+
 function requireSite(options: RunAuditOptions): string {
   if (options.site === undefined) {
     throw new UsageError(

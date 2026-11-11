@@ -177,10 +177,13 @@ function carriesPath(pathname: string, rootPath: string): boolean {
 }
 
 /**
- * The name readers know a site by: the host of its canonical `root`, with its port if it has one.
+ * The name readers know a site by: the host of its canonical `root`, with its port if it has one,
+ * and its path when it's under one, without the `/` on the end (`icjia.illinois.gov/adultredeploy`),
+ * so it's never taken for the host's own site.
  */
 export function canonicalName(root: string): string {
-  return new URL(root).host;
+  const url = new URL(root);
+  return `${url.host}${url.pathname.replace(/\/+$/, "")}`;
 }
 
 /** Whether `name` is four dotted decimal numbers, each from 0 to 255. */
