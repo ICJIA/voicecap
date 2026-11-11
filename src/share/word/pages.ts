@@ -440,7 +440,10 @@ function transcriptsBlocks(
  */
 function voiceBlocks(card: PageCard, voiceName: string | null): Block[] {
   if (card.voice === null || voiceName === null) return [];
-  return [para(VOICE_TEXT.card.word(card.voice.seconds, voiceName, card.path))];
+  // The part of the voice page that holds the page, as its card's link names it: the voice page
+  // itself for a report of up to 100 pages (../voice-parts.ts).
+  const part = card.voice.href.split("#")[0] || voiceName;
+  return [para(VOICE_TEXT.card.word(card.voice.seconds, part, card.path))];
 }
 
 /**

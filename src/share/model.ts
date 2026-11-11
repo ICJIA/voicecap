@@ -228,7 +228,7 @@ export interface ShareModel {
    * for a report that draws on no run from a voicecap that records NVDA's voice and has no
    * recording, which says nothing of it. See `voiceNoteOf`.
    */
-  voicePage: { name: string } | { why: string } | null;
+  voicePage: { name: string; parts?: string[] } | { why: string } | null;
   noLongerListed: NoLongerListed[];
   /** What sounds different since the run before; null when there's no run before. */
   changes: Changes | null;

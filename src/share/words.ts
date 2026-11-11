@@ -391,7 +391,26 @@ export function voiceDetails({ voicePage }: ShareModel): Line | null {
   const { lead, open } = VOICE_TEXT.details;
   if ("why" in voicePage) return [lead, ` ${voicePage.why}`];
   const { name } = voicePage;
-  return [lead, " ", { text: open, href: name }, " (", { text: name, mono: true }, ")."];
+  const first: Line = [
+    lead,
+    " ",
+    { text: open, href: name },
+    " (",
+    { text: name, mono: true },
+    ").",
+  ];
+  const others = (voicePage.parts ?? []).slice(1);
+  if (others.length === 0) return first;
+  // A report of more than 100 pages has its voice page in parts (../voice-parts.ts).
+  return [
+    ...first,
+    ` ${VOICE_TEXT.details.parts(others.length + 1)} `,
+    ...others.flatMap((part, at): Line => [
+      ...(at === 0 ? [] : [", "]),
+      { text: part, href: part, mono: true },
+    ]),
+    ".",
+  ];
 }
 
 // What changed since the last run.

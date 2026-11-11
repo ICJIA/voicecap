@@ -21,6 +21,7 @@
 import { esc } from "../../report/html.js";
 import { formatDuration } from "../../util/time.js";
 import { names } from "../format.js";
+import { fixFirstOf } from "../fix-first.js";
 import { glanceBannerOf } from "../forms-view.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
@@ -28,6 +29,7 @@ import {
   ATTENTION_TEXT,
   AXE_TEXT,
   DETAILS_TEXT,
+  FIX_FIRST_TEXT,
   GLANCE_TEXT,
   HOW_STEPS,
   HOW_TEXT,
@@ -191,6 +193,38 @@ function formsLine(model: ShareModel): string[] {
 }
 
 /**
+ * "Fix these first", under the verdict (../fix-first.ts): up to 3 problems, each its title and
+ * count, the first line NVDA said of it, and its first fix with its code, as its card says them,
+ * then a link to its card under What needs attention for its pages and the rest. A line after them
+ * says how many more there are. Nothing when nothing needs attention. Its parts take the cards'
+ * own classes (`.place`, `.fix`), so they look as the cards do. Each link names its problem for a
+ * screen reader, so no two sound alike.
+ */
+function fixFirst(model: ShareModel): string[] {
+  const box = fixFirstOf(model.attention);
+  if (box === null) return [];
+  const items = box.items.map((item, index) => {
+    const said =
+      item.said === null
+        ? ""
+        : `<div class="place"><p><span class="pass">${esc(FIX_FIRST_TEXT.nvda)}, ${esc(item.said.pass)}:</span> <code>“${esc(item.said.line)}”</code></p></div>`;
+    const fix =
+      item.fix !== null
+        ? `<div class="fix"><p><b>${esc(FIX_FIRST_TEXT.fix)}:</b> ${esc(item.fix.lead)}</p><pre><code>${esc(item.fix.code)}</code></pre></div>`
+        : item.step === null
+          ? ""
+          : `<p><b>${esc(FIX_FIRST_TEXT.next)}:</b> ${esc(item.step)}</p>`;
+    const link = `<p><a href="#${esc(item.id)}">${esc(FIX_FIRST_TEXT.link(item.pages))}<span class="sr">: ${esc(item.title)}</span></a></p>`;
+    return `<li><p><b>${index + 1}. ${esc(item.title)}</b> <span class="sub">${esc(item.count)}</span></p>${said}${fix}${link}</li>`;
+  });
+  const more =
+    box.more === 0 ? "" : `<p><a href="#need-h">${esc(FIX_FIRST_TEXT.more(box.more))}</a></p>`;
+  return [
+    `<div class="fix-first"><h3 id="fix-first-h">${esc(FIX_FIRST_TEXT.title)}</h3><ol role="list">${items.join("")}</ol>${more}</div>`,
+  ];
+}
+
+/**
  * The links to the page's sections: What needs attention, which is there only when there is a card,
  * Every page, and The details. Each says its section's own words, and goes to its heading's id.
  *
@@ -209,7 +243,8 @@ function onThisPage(model: ShareModel): string {
 
 /**
  * At a glance, written for a manager who reads nothing else, in this order: the verdict, in words
- * (the one rule for it is `verdictOf`, and the style block draws its sign); the result in a
+ * (the one rule for it is `verdictOf`, and the style block draws its sign); "Fix these first", the
+ * problems and their fixes, when something needs attention (`fixFirst`); the result in a
  * sentence; the ring of the pages; four numbers; the line on what voicecap and the person each did;
  * and the links to the page's sections. Its panels and bars are parts of the details now (`todoPart`
  * and the rest, below).
@@ -224,7 +259,7 @@ export function renderGlance(model: ShareModel): string {
   const hasPages = result.pages > 0;
   const parts = [
     `<h2 id="glance-h">${esc(GLANCE_TEXT.title)}</h2>`,
-    ...(hasPages ? [verdict(result)] : []),
+    ...(hasPages ? [verdict(result), ...fixFirst(model)] : []),
     `<p class="lead">${esc(summary.sentence)}</p>`,
     ...(hasPages ? [ringRow(model), tiles(model)] : []),
     ...formsLine(model),

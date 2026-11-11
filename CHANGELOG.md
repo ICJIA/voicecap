@@ -4,6 +4,17 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+A site under a path on its host is a site of its own, the problems and their fixes lead At a glance, and a report of more than 100 pages has its voice page in parts.
+
+### Added
+
+- **Fix these first, at the top of At a glance.** Under the verdict, when something needs attention: up to 3 problems, those on the most pages, each with its title and count, the first line NVDA said of it, its first fix with its code, and a link to its card under What needs attention; then how many more there are. The Word copy and the report for AI tools have it in the same place. So a reader sees each problem and its fix without scrolling.
+- **The voice page in parts, for a report of more than 100 pages.** Each part holds the sections of up to 100 pages, so no file grows past what a Git host takes (GitHub warns at 50 MB and refuses 100 MB; a site of 301 pages made a voice page of 60 MB). The first part keeps the voice page's name, and the others are named `<name>.part-2.voice.html` and on. Each is a whole voice page of its own, which says which pages it holds and links the other parts; each card links to the part that holds its page, and the details name every part. A report of up to 100 pages has one voice page, as before.
+
+### Changed
+
+- **A site under a path on its host is named by its host and its path.** `--site https://icjia.illinois.gov/adultredeploy/` makes that path's root the site's canonical address when no `--canonical` is given, and the page, its Word copy, the dated copies' names, the walkthrough files' names, and the website name it `icjia.illinois.gov/adultredeploy`, never `icjia.illinois.gov`, the host's own site. Its runs go in a folder of their own, `icjia.illinois.gov_adultredeploy`, so they never share one with the host's own site; a `--site` with a path still finds a run filed in its host's folder before 0.26.0 while no folder of its own exists. `voicecap share --site` with such an address names the site by it, unless `report.canonical` does, so runs from before 0.26.0 are named right when they're shared again, and `voicecap verify` accepts a run or a manual session in the folder of a site under a path on its host. The demo, whose canonical address is `https://voicecap.icjia.app/demo-site/`, is now named `voicecap.icjia.app/demo-site`.
+
 ## [0.25.1] - 2026-11-11
 
 On the shareable page, the fold of the pages with nothing to note now starts open, so its cards show without a click.

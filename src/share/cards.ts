@@ -31,6 +31,7 @@ import type { ShareInput, TranscriptStore } from "./load.js";
 import { READ_STOPPED, readStoppedOf, type ProblemsSection } from "./problems.js";
 import { cardFormsOf, type CardForm } from "./forms-view.js";
 import { axeRecordOf, formsRecordOf, screenshotRecordOf, voiceRecordOf } from "./records.js";
+import { voicePartName, voicePartNames, voicePartOf } from "./voice-parts.js";
 import type { PageReview } from "./review.js";
 import {
   keepsAxe,
@@ -236,7 +237,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
   const asRecorded = new Set(input.flagsAsRecorded.map(({ run, slug }) => `${run}/${slug}`));
   const tookAny = new Map<RunJson, boolean>();
   const checkedAny = new Map<RunJson, boolean>();
-  return standing.pages.map((page) => {
+  return standing.pages.map((page, index) => {
     const { shown } = page;
     const flags = shown?.page.flags ?? [];
     const review = input.review.get(page.key) ?? null;
@@ -291,7 +292,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
         flags.some((flag) => flag.rule === "unlabeled"),
       ),
       speaksFor: source === null ? null : { run: source.run.id, slug: source.page.slug },
-      voice: voiceOf(source, page, input),
+      voice: voiceOf(source, page, input, index),
       from:
         shown !== null && shown.run !== standing.latest
           ? { run: shown.run.id, date: longDate(shown.run.createdAt) }
@@ -486,6 +487,7 @@ function voiceOf(
   source: { run: RunJson; page: PageRecord } | null,
   card: PageStanding,
   input: CardsInput,
+  index: number,
 ): PageCard["voice"] {
   if (source === null || input.voiceName === null) return null;
   const record = voiceRecordOf(source.page);
@@ -495,7 +497,9 @@ function voiceOf(
   return {
     seconds:
       typeof seconds === "number" && Number.isFinite(seconds) && seconds >= 0 ? seconds : null,
-    href: `${input.voiceName}#${voiceAnchor(card.slug)}`,
+    // The part of the voice page that holds this page (../voice-parts.ts): the voice page itself
+    // for a report of up to 100 pages.
+    href: `${voicePartName(input.voiceName, voicePartOf(index))}#${voiceAnchor(card.slug)}`,
   };
 }
 
@@ -515,12 +519,15 @@ export function voiceNoteOf(
   cards: PageCard[],
   voiceName: string | null,
   redact: (text: string) => string,
-): { name: string } | { why: string } | null {
+): { name: string; parts?: string[] } | { why: string } | null {
   const recorded = cards.some((card) => card.voice !== null);
   const records = standing.drawnOn.some((run) => keepsVoice(versionOf(run)));
   if (!recorded && !records) return null;
   if (voiceName === null) return { why: VOICE_TEXT.details.liveCopy };
-  if (recorded) return { name: voiceName };
+  if (recorded) {
+    const parts = voicePartNames(voiceName, cards.length);
+    return parts.length === 1 ? { name: voiceName } : { name: voiceName, parts };
+  }
   const reason = latestReasonOf(standing, redact);
   return {
     why:
