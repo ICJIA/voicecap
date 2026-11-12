@@ -943,17 +943,20 @@ describe("renderSharePage", () => {
     // 0.26.0's "Fix these first" re-pinned the three pages and the Word copies of i2i and the demo,
     // whose runs have problems: the box is under the verdict on those, and its style is in all
     // three pages (467 characters); the logged run has no problem, so its Word copy is as it was.
+    // The sample box (--sample-of) re-pinned the three pages: its style is in every page (423
+    // characters), and none of the three runs is a sample, so nothing else of them, nor any Word copy,
+    // changed.
     const before = {
       i2i: {
-        page: [213_981, "19bd71b7be1e43e498b27da1185cfcc8acbbf8962e67fdfcab87140929c0401a"],
+        page: [214_404, "29505bc3b388d2363ba769c5ecd88b4c081e0ef9a27bdaae3141e7e43fb0a083"],
         word: [54_399, "7fb418ec20074109d6910f3e3df0149c7a17b66af1d46c558d377d560513a823"],
       },
       demo: {
-        page: [249_565, "5dc32d944d8953c3eab6d2e7bb4a9f66580474c61181ad7ddc528696031c2189"],
+        page: [249_988, "73c272a5637645b3b30eb92d146790f4fe02ebc63bcfac7bd9c8fdb0f9b13fdf"],
         word: [77_874, "59f9c4b15e90961eb1e84e927b64d23f976baa28de3cf64a831db35ef0d2ece6"],
       },
       logged: {
-        page: [130_012, "2afabb1c0e1767774b337e707b08fe8db1ea45106e0bc0334fb14b817ae4601d"],
+        page: [130_435, "fe626bdb6f06007301b43af2af3e6989d6db18a3458c9a4df943aed64af0d11c"],
         word: [35_212, "18bb422a5ff5d74558dabc5a46f9f7871f7e4379c13e300569dc39d3351ff629"],
       },
     };

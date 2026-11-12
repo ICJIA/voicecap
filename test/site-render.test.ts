@@ -25,7 +25,7 @@ import { DEMO_CANONICAL } from "../src/demo/server.js";
 import { folderSafe } from "../src/run/paths.js";
 import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { SHARE_CSS, THEME_CSS } from "../src/share/html/style.js";
-import { VOICE_TEXT } from "../src/share/text.js";
+import { SAMPLE_TEXT, VOICE_TEXT } from "../src/share/text.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import { backLink, siteBar, siteFooter, sitePage, type SitePage } from "../src/site/frame.js";
 import { inlineHashes } from "../src/site/headers.js";
@@ -44,6 +44,7 @@ import { SITE_CSS } from "../src/site/style.js";
 import { renderTechnical } from "../src/site/technical.js";
 import { SITE_TEXT } from "../src/site/text.js";
 import { renderTrustPage } from "../src/site/trust.js";
+import { renderWcagEm } from "../src/site/wcag-em.js";
 import { renderWhatsNew } from "../src/site/whats-new.js";
 import { decode, summariesIn, textOf } from "./helpers/share-html.js";
 import {
@@ -72,14 +73,16 @@ const INDEX_HREF = "index.html";
 const TRUST_PAGE_HREF = "trust.html";
 const WHATS_NEW_HREF = "whats-new.html";
 const TECHNICAL_HREF = "technical-details.html";
-/** The website's four pages, as the frame knows them. */
-const PAGES: SitePage[] = ["index", "trust", "whats-new", "technical"];
+const WCAG_EM_HREF = "wcag-em.html";
+/** The website's five pages, as the frame knows them. */
+const PAGES: SitePage[] = ["index", "trust", "whats-new", "technical", "wcag-em"];
 /** Each page's own link, in both bars: the front page's is the website's name, in the top bar alone. */
 const OWN_HREF: Record<SitePage, string> = {
   index: INDEX_HREF,
   trust: TRUST_PAGE_HREF,
   "whats-new": WHATS_NEW_HREF,
   technical: TECHNICAL_HREF,
+  "wcag-em": WCAG_EM_HREF,
 };
 
 /** The website's own page, drawn by the voicecap of FACTS: its bottom bar says FACTS's version. */
@@ -92,6 +95,7 @@ function fourPages(): [SitePage, string][] {
     ["trust", renderTrustPage({ voicecap: FACTS, records: RECORDS })],
     ["whats-new", renderWhatsNew({ voicecap: FACTS })],
     ["technical", renderTechnical({ voicecap: FACTS, records: RECORDS, keptPerSite: 3 })],
+    ["wcag-em", renderWcagEm({ voicecap: FACTS, sampled: [] })],
   ];
 }
 
@@ -417,6 +421,7 @@ describe("renderSiteIndex", () => {
       TRUST_PAGE_HREF,
       WHATS_NEW_HREF,
       TECHNICAL_HREF,
+      WCAG_EM_HREF,
       DEMO_PAGES_HREF,
       GITHUB,
       CHANGELOG,
@@ -932,6 +937,61 @@ describe("renderSiteIndex", () => {
       const card = cardWith(undefined);
       expect(lineOf(card)).toBeNull();
       expect(card).not.toMatch(/forms? (work|on these|checked)/i);
+    });
+  });
+
+  // --sample-of: the card says, in the open, under the result, why its pages are a sample of the site.
+  describe("the sample note on the current report's card", () => {
+    const cardWith = (sample: ShareResult["sample"]): string =>
+      articleOf(
+        frontPage({
+          demo: null,
+          sites: [
+            {
+              name: DVFR,
+              folders: [DVFR],
+              reports: [
+                {
+                  ...DVFR_NEWEST,
+                  result: {
+                    pages: 171,
+                    read: 171,
+                    problems: 0,
+                    problemPages: 0,
+                    ...(sample === undefined ? {} : { sample }),
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+        DVFR_NEWEST.id,
+      );
+
+    it("asks why so few pages as its heading, says why, how they were chosen, and its limit, and links to the report's box", () => {
+      const card = cardWith({ sitePages: 2466 });
+      const note = /<div class="sample-note">[\s\S]*?<\/div>/.exec(card)?.[0] ?? "";
+      expect(note).toContain(`<h5>${SAMPLE_TEXT.note.title(171, 2466)}</h5>`);
+      expect(SAMPLE_TEXT.note.title(171, 2466)).toBe("Why 171 pages, and not all 2,466?");
+      expect(note).toContain("This site has 2,466 pages, but most of them are a few kinds of page");
+      // WCAG-EM, which a manager has never heard of, links to the website's own page on it, which
+      // explains it in pictures and links to the W3C's; and a link of its own says so.
+      expect(note).toContain('<a href="wcag-em.html">WCAG-EM</a>, the step-by-step method');
+      expect(note).toMatch(
+        /<a href="wcag-em\.html">What WCAG-EM is, and why a sample works, in pictures<span class="sr">/,
+      );
+      expect(note).toContain("don&#39;t go through every page of a site this large either");
+      expect(note).toContain("click here");
+      expect(note).toMatch(
+        /<a href="[^"]+#sample-h">How the pages were chosen, kind by kind<span class="sr">/,
+      );
+      // Under the result it qualifies, before the tiles.
+      expect(card.indexOf('class="sample-note"')).toBeGreaterThan(card.indexOf('class="result"'));
+      expect(card.indexOf('class="sample-note"')).toBeLessThan(card.indexOf('class="glance"'));
+    });
+
+    it("says nothing of a sample for a report that isn't one", () => {
+      expect(cardWith(undefined)).not.toContain("sample-note");
     });
   });
 
@@ -1823,6 +1883,7 @@ describe("renderSiteIndex", () => {
     expect(linksOf(topBarOf(html)).map(({ href }) => href)).toEqual([
       INDEX_HREF,
       TRUST_PAGE_HREF,
+      WCAG_EM_HREF,
       WHATS_NEW_HREF,
       TECHNICAL_HREF,
     ]);
@@ -2172,13 +2233,14 @@ describe("renderSiteIndex", () => {
     expect(html).toContain(
       '<button class="theme" id="theme-toggle" type="button" hidden aria-label="Switch to the light theme">',
     );
-    // The bottom bar: its five links' words, and the version, as a reader sees it and as a screen
+    // The bottom bar: its six links' words, and the version, as a reader sees it and as a screen
     // reader hears it.
     expect(textsOf(bottomBarOf(html), "a")).toEqual([
       "GitHub",
       "Changelog",
       "What's New",
       "Can I trust this?",
+      "How pages are chosen",
       "Technical details",
     ]);
     expect(bottomBarOf(html)).toContain(
@@ -2215,7 +2277,7 @@ describe("renderSiteIndex", () => {
     expect(note).toBeLessThan(html.indexOf("</main>"));
     // The bottom bar is a list, and nothing else: no line of words about voicecap.
     expect(textsOf(bottomBarOf(html), "p")).toEqual([]);
-    expect(textsOf(bottomBarOf(html), "li")).toHaveLength(6);
+    expect(textsOf(bottomBarOf(html), "li")).toHaveLength(7);
   });
 
   it("never calls voicecap automated, or says a person listened", () => {
@@ -2232,12 +2294,13 @@ describe("renderLlmsTxt", () => {
   /** The summary line, as one line. */
   const SUMMARY =
     "Each site's current report from a person's review of the site with a real screen reader, sped up by voicecap, as Markdown and as JSON, for AI tools such as Claude or ChatGPT.";
-  /** The section that ends the file: the website's other two pages, which a short context can skip. */
+  /** The section that ends the file: the website's other three pages, which a short context can skip. */
   const OPTIONAL = [
     "## Optional",
     "",
     "- [Can I trust this?](trust.html): Who built voicecap, how what it records can be checked, and how it tests itself.",
     "- [Technical details](technical-details.html): How a review runs, what it records, and how this website is built and protected.",
+    "- [How pages are chosen](wcag-em.html): How the pages of a large site's report are chosen, by the W3C's evaluation method, WCAG-EM, and what a sample can and can't promise.",
   ];
   /** Where the newest report of the first site is, without its extension. */
   const NEWEST = `${DVFR}/${DVFR}_2026-10-03`;
@@ -2636,16 +2699,17 @@ describe("renderSitesJson", () => {
 });
 
 describe("siteBar", () => {
-  it("heads every page with the website's name, then three links, then the theme button", () => {
+  it("heads every page with the website's name, then four links, then the theme button", () => {
     const bar = siteBar("trust");
 
     // The website's name, a link to the front page.
     expect(bar).toContain('<a class="name" href="index.html">ICJIA Screen Reader Tests</a>');
-    // Then the navigation, named for the website, with its three pages in this order, by their
+    // Then the navigation, named for the website, with its four pages in this order, by their
     // names.
     const nav = /<nav aria-label="This website">([\s\S]*?)<\/nav>/.exec(bar)?.[1] ?? "";
     expect(linksWithWordsOf(nav)).toEqual([
       { href: TRUST_PAGE_HREF, words: "Can I trust this?", current: true },
+      { href: WCAG_EM_HREF, words: "How pages are chosen", current: false },
       { href: WHATS_NEW_HREF, words: "What's New", current: false },
       { href: TECHNICAL_HREF, words: "Technical details", current: false },
     ]);
@@ -2654,6 +2718,7 @@ describe("siteBar", () => {
       '<a class="name"',
       '<nav aria-label="This website">',
       `href="${TRUST_PAGE_HREF}"`,
+      `href="${WCAG_EM_HREF}"`,
       `href="${WHATS_NEW_HREF}"`,
       `href="${TECHNICAL_HREF}"`,
       '<button class="theme"',
@@ -2677,14 +2742,14 @@ describe("siteBar", () => {
     },
   );
 
-  it("is the same bar on every page but for which link is the page it's on, so the four can't drift apart", () => {
+  it("is the same bar on every page but for which link is the page it's on, so the five can't drift apart", () => {
     const bars = PAGES.map((page) => siteBar(page).replace(' aria-current="page"', ""));
 
     expect(new Set(bars).size).toBe(1);
-    // It's the header, the name, and the navigation with its three links and the button: nothing
+    // It's the header, the name, and the navigation with its four links and the button: nothing
     // else, and none of the front page's views, which its "On this page" row links to.
     expect(siteBar("whats-new")).toMatch(
-      /^<header class="bar">\n<a class="name" href="index\.html">[^<]*<\/a>\n<nav aria-label="This website">\n(?:<a href="[^"#]*"[^>]*>[^<]*<\/a>\n){3}<button\b[^>]*>[\s\S]*<\/button>\n<\/nav>\n<\/header>$/,
+      /^<header class="bar">\n<a class="name" href="index\.html">[^<]*<\/a>\n<nav aria-label="This website">\n(?:<a href="[^"#]*"[^>]*>[^<]*<\/a>\n){4}<button\b[^>]*>[\s\S]*<\/button>\n<\/nav>\n<\/header>$/,
     );
   });
 
@@ -2717,33 +2782,34 @@ describe("siteFooter", () => {
       ...(/<ul\b[^>]*>([\s\S]*?)<\/ul>/.exec(footer)?.[1] ?? "").matchAll(/<li>([\s\S]*?)<\/li>/g),
     ].map(([, item = ""]) => item);
 
-  it("ends every page with a list of six", () => {
+  it("ends every page with a list of seven", () => {
     const footer = siteFooter("technical", "0.15.0");
     const items = itemsOf(footer);
 
-    // A list, and nothing else, so a screen reader hears a list of six, and no dividers: those are
+    // A list, and nothing else, so a screen reader hears a list of seven, and no dividers: those are
     // the style's.
-    expect(footer).toMatch(/^<footer>\n<ul role="list">\n(?:<li>.*<\/li>\n){6}<\/ul>\n<\/footer>$/);
-    expect(items).toHaveLength(6);
-    // GitHub, the CHANGELOG, and the website's three pages, by their names, each in the same tab.
+    expect(footer).toMatch(/^<footer>\n<ul role="list">\n(?:<li>.*<\/li>\n){7}<\/ul>\n<\/footer>$/);
+    expect(items).toHaveLength(7);
+    // GitHub, the CHANGELOG, and the website's four pages, by their names, each in the same tab.
     expect(linksWithWordsOf(footer)).toEqual([
       { href: GITHUB, words: "GitHub", current: false },
       { href: CHANGELOG, words: "Changelog", current: false },
       { href: WHATS_NEW_HREF, words: "What's New", current: false },
       { href: TRUST_PAGE_HREF, words: "Can I trust this?", current: false },
+      { href: WCAG_EM_HREF, words: "How pages are chosen", current: false },
       { href: TECHNICAL_HREF, words: "Technical details", current: true },
     ]);
     expect(footer).not.toContain("target=");
     // Then the version, which a reader sees as "v0.15.0", and a screen reader hears as "voicecap
     // version 0.15.0".
-    expect(items[5]).toBe(
+    expect(items[6]).toBe(
       '<span aria-hidden="true">v0.15.0</span><span class="sr">voicecap version 0.15.0</span>',
     );
     // An icon before each link's words, each hidden from a screen reader.
     const icons = footer.match(/<svg\b[^>]*>/g) ?? [];
-    expect(icons).toHaveLength(5);
+    expect(icons).toHaveLength(6);
     for (const icon of icons) expect(icon).toMatch(/\saria-hidden="true"/);
-    for (const item of items.slice(0, 5)) expect(item).toMatch(/^<a\b[^>]*><svg\b/);
+    for (const item of items.slice(0, 6)) expect(item).toMatch(/^<a\b[^>]*><svg\b/);
   });
 
   it.each(PAGES)(
@@ -3341,7 +3407,8 @@ describe("SITE_CSS", () => {
     // that a larger size makes narrow. The trust page's four big numbers go two across from 36em,
     // and four from 60em, and Technical details' steps of a run two a row from 36em, and three
     // from 60em, by the same measure, and a site's card has less room inside it up to 30em, on a
-    // phone. The one other is no width at all: `screen`, for the footer at the window's bottom,
+    // phone. The WCAG-EM page's steps put their parts beside them from 60em, and its template's
+    // picture lays out in a row, with its arrow turned to the right, from 48em. The one other is no width at all: `screen`, for the footer at the window's bottom,
     // which print leaves as it was.
     const queries = [...SITE_CSS.matchAll(/@media ([^{]*)\{/g)].map(([, query = ""]) =>
       query.trim(),
@@ -3354,6 +3421,9 @@ describe("SITE_CSS", () => {
       "(min-width: 60em)",
       "(min-width: 36em)",
       "(min-width: 60em)",
+      "(min-width: 60em)",
+      "(min-width: 48em)",
+      "(min-width: 48em)",
       "screen",
     ]);
   });

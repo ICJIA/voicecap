@@ -92,6 +92,8 @@ export const SITE_TEXT = {
    */
   trust: "Can I trust this?",
   technical: "Technical details",
+  /** The words of the links to the WCAG-EM page, how a large site's pages are chosen, in both bars. */
+  wcagEm: "How pages are chosen",
   /** The label of the front page's row of links to its views, and of Technical details' list. */
   onThisPage: "On this page",
   /** The three views: each one's heading, which is also its link in "On this page", and its lead. */
@@ -291,6 +293,8 @@ export const SITE_TEXT = {
     optional: "Optional",
     trust: "Who built voicecap, how what it records can be checked, and how it tests itself.",
     technical: "How a review runs, what it records, and how this website is built and protected.",
+    wcagEm:
+      "How the pages of a large site's report are chosen, by the W3C's evaluation method, WCAG-EM, and what a sample can and can't promise.",
   },
   /** voicecap on GitHub: the bottom bar links to it, and the pages to its code there. */
   github: TOP_TEXT.github,

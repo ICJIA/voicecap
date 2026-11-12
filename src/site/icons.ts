@@ -92,6 +92,10 @@ export const FRAME_ICONS = {
     "sun",
   ),
   moon: picture('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>', "moon"),
+  // A grid of nine pages, three of them marked: a sample, chosen from the pages of a site.
+  sample: picture(
+    '<rect x="3.5" y="3.5" width="4.5" height="4.5" rx="1"/><rect x="9.75" y="3.5" width="4.5" height="4.5" rx="1"/><rect x="16" y="3.5" width="4.5" height="4.5" rx="1"/><rect x="3.5" y="9.75" width="4.5" height="4.5" rx="1"/><rect x="9.75" y="9.75" width="4.5" height="4.5" rx="1"/><rect x="16" y="9.75" width="4.5" height="4.5" rx="1"/><rect x="3.5" y="16" width="4.5" height="4.5" rx="1"/><rect x="9.75" y="16" width="4.5" height="4.5" rx="1"/><rect x="16" y="16" width="4.5" height="4.5" rx="1"/><path d="m4.6 5.9 1 1 1.6-1.8M10.85 12.15l1 1 1.6-1.8M17.1 18.4l1 1 1.6-1.8"/>',
+  ),
   // A left arrow: back to the test results.
   back: picture('<path d="M19 12H5M11 6l-6 6 6 6"/>'),
 };

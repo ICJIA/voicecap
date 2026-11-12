@@ -136,6 +136,70 @@ export const FIX_FIRST_TEXT = {
 };
 
 /**
+ * "These pages are a sample of the site", in At a glance, for a report whose latest run is a sample
+ * of its sitemap (`--sample-of`): what the pages are a sample of, why a sample of each type of page
+ * stands for the rest, as professional audits test, what a sample can't promise, and each type of
+ * page with how many the site has and how many are in the report. The Word copy, the report for AI
+ * tools, and the website's card say the same.
+ */
+const pagesOf = (n: number): string => (n === 1 ? "1 page" : `${count(n)} pages`);
+
+export const SAMPLE_TEXT = {
+  /** The box's heading: the question a manager asks first. */
+  title: (pages: number, sitePages: number): string =>
+    `Why this report covers ${pagesOf(pages)}, not all ${count(sitePages)} of the site's`,
+  lead: (
+    pages: number,
+    listed: number,
+    sitePages: number,
+    sitemap: string,
+    outside: number,
+  ): string =>
+    `This report covers ${pagesOf(pages)}: ${count(listed)} of the ${pagesOf(sitePages)} the sitemap ${sitemap} lists, chosen to stand for the rest${
+      outside === 0 ? "" : `, and ${pagesOf(outside)} it doesn't list`
+    }.`,
+  why: "A large website is mostly a few kinds of page, each made from one template: the same design, filled in with different words. Every news post looks and works like every other news post; so does every publication and every meeting notice. A problem in a template, in its headings, its menus, its links, or its forms, is on every page made from it, and NVDA finds it on any one of them. Reading hundreds more pages of the same kind would find the same problem again on each one, and nothing new.",
+  how: "So this report tests a sample, chosen by WCAG-EM, the Website Accessibility Conformance Evaluation Methodology: the step-by-step method for checking a whole website that the World Wide Web Consortium (W3C), the body that writes the web's accessibility standards, publishes for anyone to use. It calls for every page that's one of a kind, such as the home page, the contact page, and the accessibility page; the pages people use to get things done, such as search and forms; several pages of each kind, picked because they differ most from each other; and more picked at random. Professional auditors who test with a screen reader work the same way: none of them goes through every page of a site this large.",
+  /** The W3C's own page on WCAG-EM, in plain words: what it is, and who it's for. */
+  wcagEm: "https://www.w3.org/WAI/test-evaluate/conformance/wcag-em/",
+  /**
+   * A text that names WCAG-EM, as the words before its first mention and after it, for a page, a
+   * Word copy, or a Markdown file to link the name, which a manager or an auditor won't have heard
+   * of, to the W3C's page on it.
+   */
+  aroundWcagEm: (text: string): [before: string, after: string] => {
+    const at = text.indexOf("WCAG-EM");
+    return at < 0 ? [text, ""] : [text.slice(0, at), text.slice(at + "WCAG-EM".length)];
+  },
+  limit:
+    "What a sample can't promise is a mistake written into one page's own text, such as a link that only says “click here” or a picture with no description. Those can be on pages the sample doesn't hold, so the text of every page needs a check of its own, from the site's content.",
+  fold: "Each kind of page: how many the site has, and how many are in this report",
+  type: "Kind of page",
+  onSite: "On the site",
+  sampled: "In this report",
+  notListed: "Not in the sitemap (search, forms, and pages it leaves out)",
+  card: "In the sample as",
+  site: (pages: number, sitePages: number): string =>
+    `A sample of the site: ${pagesOf(pages)}, chosen by kind of page from the ${pagesOf(sitePages)} its sitemap lists.`,
+  /**
+   * The note on the website's card for the report (src/site/render.ts), for a manager or an auditor
+   * who reads only the card: its heading, why a sample, how it was chosen, what it can't promise, and
+   * the link to the report's box, with the table of each kind of page.
+   */
+  note: {
+    title: (pages: number, sitePages: number): string =>
+      `Why ${pagesOf(pages)}, and not all ${count(sitePages)}?`,
+    why: (sitePages: number): string =>
+      `This site has ${pagesOf(sitePages)}, but most of them are a few kinds of page, each made from one template: every news post is built the same way, and so is every publication and every meeting notice. A problem in a template, in its headings, menus, links, or forms, is on every page of that kind, so testing a few pages of each kind finds it as surely as testing them all.`,
+    how: "The pages were chosen by WCAG-EM, the step-by-step method for checking a whole website that the W3C, the body that writes the web's accessibility standards, publishes, and that professional accessibility auditors use: every one-of-a-kind page, such as the home page and the contact page; the pages people use to get things done, such as search and forms; several of each kind, picked because they differ most; and more at random. Auditors who test with a screen reader don't go through every page of a site this large either.",
+    limit:
+      "What a sample can't promise is a mistake typed into one page's own words, such as a link that only says “click here”: the text of every page needs a check of its own.",
+    link: "How the pages were chosen, kind by kind",
+    method: "What WCAG-EM is, and why a sample works, in pictures",
+  },
+};
+
+/**
  * "The details, for reviewers and auditors": the section that gathers how the test was run, what it
  * covered, and the evidence behind it, after the page's cards. Its heading, the line under it that
  * says what is in it, and the words of the link to it ("The details", in the links to the page's

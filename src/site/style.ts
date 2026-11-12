@@ -299,6 +299,10 @@ tbody tr:last-child > * { border-bottom: 0; }
 .outcome > .reading > p { font-size: 1.0625rem; }
 .outcome > .verdict.forms-line { font-size: 1.0625rem; letter-spacing: 0.01em; padding: 5px 12px; border-radius: 8px; }
 .outcome > .forms-note { margin: 0; color: var(--muted); font-size: 1.0625rem; }
+/* why a report's pages are a sample of the site: a note in the open, under the result it qualifies, with an edge in --act so a manager can't miss it */
+.sample-note { display: grid; gap: 10px; min-width: 0; padding: 18px 20px; border: 1px solid var(--line); border-left: 5px solid var(--act); border-radius: 14px; background: var(--act-tint); }
+.sample-note > h4, .sample-note > h5 { margin: 0; font-size: 1.1875rem; line-height: 1.25; font-weight: 800; color: var(--heading); }
+.sample-note > p { margin: 0; color: var(--text); max-width: 72ch; }
 .site .glance-tile:not(a), .site .files li, .site > details.fold { background: var(--site-tile); }
 .site .glance-tile { padding: 18px 20px; border-radius: 14px; }
 .site .glance-label > .icon { width: 1.375rem; height: 1.375rem; }
@@ -501,6 +505,82 @@ main > .kicker { margin-bottom: 18px; }
 .news > .released { grid-area: released; color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
 /* The link to every update stays whole on a line where it fits, and wraps inside it where it doesn't, at a large text size: a box of its own in the line, not text that never breaks. It's the line's last: a box before the dot would let the line break between them, and the dot start the next line. */
 .news > .released > a { display: inline-block; }
+/* the WCAG-EM page's pictures, each drawn from real HTML: what's only for the eye is hidden from a screen reader in the page */
+.em-numbers .n { color: var(--act); }
+.em-pair { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); gap: 14px; }
+.em-doc { border-top: 5px solid var(--act); }
+.em-doc > p.em-name, .em-source > p.em-name { margin: 0; font-family: var(--mono); font-weight: 900; font-size: clamp(1.75rem, 5vw, 2.5rem); line-height: 1.05; color: var(--heading); }
+.em-source > p.em-name { font-size: clamp(1.25rem, 3vw, 1.625rem); }
+.em-doc > p.em-long { margin: 0; color: var(--muted); font-weight: 700; }
+.em-callout { margin: 0; padding: 14px 18px; border-left: 5px solid var(--act); border-radius: 10px; background: var(--act-tint); color: var(--text); max-width: 80ch; }
+.em-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.em-step { position: relative; display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); column-gap: 16px; row-gap: 8px; align-content: start; border-left: 5px solid var(--act); }
+.em-step > :not(.em-badge) { grid-column: 2; }
+.em-step > p.em-badge { grid-column: 1; grid-row: 1 / span 4; align-self: start; }
+.em-step:not(:last-child)::after { content: ""; position: absolute; left: 38px; top: 100%; width: 3px; height: 16px; background: var(--act); }
+@media (min-width: 60em) {
+  .em-step { grid-template-columns: 2.5rem minmax(0, 1.25fr) minmax(0, 1fr); }
+  .em-step > .em-subs { grid-column: 3; grid-row: 1 / span 3; padding: 0 0 0 16px; border-top: 0; border-left: 1px solid var(--line); align-self: start; }
+}
+.em-step > p.em-badge { margin: 0; width: 2.5rem; height: 2.5rem; display: grid; place-items: center; border-radius: 999px; background: var(--act); color: var(--bg); font-family: var(--mono); font-weight: 900; font-size: 1.25rem; }
+.em-step > h3 { color: var(--heading); font-size: 1.125rem; }
+.em-step > p { margin: 0; color: var(--text-2); }
+.em-subs { list-style: none; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--line); display: grid; gap: 4px; font-size: 0.875rem; color: var(--muted); }
+.em-step > .em-here { padding: 10px 12px; border-radius: 8px; background: var(--panel-2); font-size: 0.9375rem; }
+.em-here > strong { color: var(--heading); }
+.em-stage { display: grid; gap: 10px; }
+.em-stage-label { margin: 0; font-weight: 800; color: var(--heading); }
+.em-boxes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr)); gap: 12px; }
+.em-boxes > .card { gap: 6px; padding: 16px 18px; }
+.em-stage.from .card { border-left: 5px solid var(--line); }
+.em-stage.into .card { border-left: 5px solid var(--act); }
+.em-boxes p.em-box-name { margin: 0; font-weight: 800; color: var(--heading); }
+.em-boxes p:not(.em-box-name) { margin: 0; color: var(--text-2); font-size: 0.9375rem; }
+.em-down { margin: 0; text-align: center; font-size: 1.75rem; line-height: 1; color: var(--muted); }
+.em-figure { margin: 0; gap: 14px; }
+.em-figure > h3 { color: var(--heading); }
+.em-figure > figcaption { color: var(--text-2); max-width: 80ch; }
+.em-bar { display: flex; height: 2.25rem; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+.em-bar > .s { flex: 80 1 0; background: var(--act); }
+.em-bar > .r { flex: 8 1 0; background: var(--warn); }
+.em-legend { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--text); }
+.em-legend > .sw { display: inline-block; width: 0.9rem; height: 0.9rem; border-radius: 3px; }
+.em-legend > .sw.s { background: var(--act); } .em-legend > .sw.r { background: var(--warn); }
+.em-template-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: center; }
+@media (min-width: 48em) { .em-template-row { grid-template-columns: minmax(0, 14rem) auto minmax(0, 1fr); } }
+.em-source { display: grid; gap: 6px; padding: 18px; border: 2px dashed var(--act); border-radius: 12px; text-align: center; }
+.em-source > p { margin: 0; color: var(--text-2); }
+.em-arrow { margin: 0; text-align: center; color: var(--muted); font-size: 1.5rem; line-height: 1.2; }
+.em-arrow > span { display: block; font-size: 0.875rem; }
+.em-arrow::after { content: "↓"; content: "↓" / ""; display: block; }
+@media (min-width: 48em) { .em-arrow::after { content: "→"; content: "→" / ""; } }
+.em-pages { display: grid; gap: 8px; justify-items: center; }
+.em-pages > p { margin: 0; color: var(--text-2); font-weight: 700; }
+.em-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; width: 100%; max-width: 30rem; }
+.em-grid > span { aspect-ratio: 3 / 4; border-radius: 3px; background: color-mix(in srgb, var(--act) 22%, var(--panel-2)); border: 1px solid var(--line); }
+.em-grid > span.read { background: var(--act); border-color: var(--act); }
+.em-decide { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; justify-items: center; }
+.em-decide > li { box-sizing: border-box; width: min(100%, 44rem); text-align: center; }
+.em-decide > .em-question { position: relative; }
+.em-decide > .em-question::before { content: "↓"; content: "↓" / ""; position: absolute; top: -32px; left: 50%; transform: translateX(-50%); font-size: 1.5rem; line-height: 1; color: var(--muted); }
+.em-start { font-weight: 700; color: var(--heading); }
+.em-question { font-weight: 800; color: var(--heading); border: 2px solid var(--act); margin-top: 22px; }
+.em-branches { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr)); gap: 12px; text-align: left; font-weight: 400; }
+.em-branch { gap: 6px; padding: 14px 16px; background: var(--panel-2); }
+.em-branch > p { margin: 0; color: var(--text-2); }
+.em-branch > p.em-answer { font-weight: 900; font-size: 1.25rem; color: var(--heading); }
+.em-branch.no { border-left: 5px solid var(--good); } .em-branch.yes { border-left: 5px solid var(--warn); }
+.em-sides { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); gap: 14px; }
+.em-side.finds { border-top: 5px solid var(--good); } .em-side.cannot { border-top: 5px solid var(--bad); }
+.em-side > h3 { color: var(--heading); }
+.em-marks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.em-marks > li { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr); gap: 6px; color: var(--text-2); }
+.em-mark { font-weight: 900; }
+.em-side.finds .em-mark { color: var(--good); } .em-side.cannot .em-mark { color: var(--bad); }
+.em-reports, .em-questions { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); gap: 14px; }
+.em-reports > .card > h3, .em-questions > .card > h3 { color: var(--heading); font-size: 1.0625rem; }
+.em-reports p, .em-questions p { margin: 0; color: var(--text-2); }
+.em-reports meter { width: 100%; height: 1.25rem; }
 /* On screen, a page shorter than the window ends at its bottom: the main part grows, keeping its measure, so the footer sits there. */
 @media screen {
   body { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }

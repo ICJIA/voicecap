@@ -52,6 +52,11 @@ export interface PageCard {
   name: string;
   /** The page list gave the page a label (one that isn't blank): `name` is it, whatever it says. */
   labeled: boolean;
+  /**
+   * Why the page is in the sample, for a report of a sample of the site (ShareModel.sample): the
+   * page list's notes for it ("newest; kind: article"). Absent otherwise, and for a page with none.
+   */
+  chosen?: string;
   /** Its address without the site's: "/how-a-run-works/". */
   path: string;
   /**

@@ -86,6 +86,9 @@ export async function appendShare(
                     notChecked: result.forms.notChecked,
                   },
                 }),
+            ...(result.sample === undefined
+              ? {}
+              : { sample: { sitePages: result.sample.sitePages } }),
           },
         }),
     files: entry.files,
@@ -199,6 +202,15 @@ export function shareResultOf(value: unknown): ShareResult | null {
       return null;
     }
     result.forms = { found, working, notChecked };
+  }
+  const sample = value.sample;
+  if (sample !== undefined) {
+    if (!isObject(sample)) return null;
+    const { sitePages } = sample;
+    if (typeof sitePages !== "number" || !Number.isSafeInteger(sitePages) || sitePages < 0) {
+      return null;
+    }
+    result.sample = { sitePages };
   }
   const fits =
     counts.every((count) => (count as number) >= 0) &&

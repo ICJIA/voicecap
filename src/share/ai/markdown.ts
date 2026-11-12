@@ -67,6 +67,7 @@ import type {
   ShareModel,
 } from "../model.js";
 import type { Problem } from "../problems.js";
+import { sampleTypeName } from "../sample.js";
 import { notRecordedBy, versionOf } from "../run-evidence.js";
 import type { Summary } from "../summary.js";
 import {
@@ -86,6 +87,7 @@ import {
   passTitle,
   passWords,
   PROBLEMS_TEXT,
+  SAMPLE_TEXT,
   SUMMARY_TEXT,
   TOP_TEXT,
   WORD_TEXT,
@@ -157,6 +159,16 @@ const heading = (level: number, words: string): Block =>
 
 /** A paragraph of words. */
 const paragraph = (words: string): Block => markdownText(words);
+
+/**
+ * A paragraph that names WCAG-EM, with the name a link to the W3C's page on it. Its words before the
+ * link end with a space, which markdownText would trim.
+ */
+function wcagEmParagraph(text: string): Block {
+  const [before, after] = SAMPLE_TEXT.aroundWcagEm(text);
+  if (before === text) return paragraph(text);
+  return `${markdownText(before.trimEnd())} [WCAG-EM](${SAMPLE_TEXT.wcagEm})${escapeInline(after)}`;
+}
 
 /** A bold label, alone in its paragraph, before what it labels. */
 const label = (words: string): Block => `**${markdownInline(words)}**`;
@@ -320,6 +332,39 @@ function fixFirstBlocks(model: ShareModel): Block[] {
 }
 
 /**
+ * "These pages are a sample of the site", as the page has it (../sample.ts): what they're a sample
+ * of, why a sample stands for the rest, and what it can't promise; then each type of page with how
+ * many the site has and how many are in the report, a line each. Nothing for a report that isn't one.
+ */
+function sampleBlocks(model: ShareModel): Block[] {
+  const { sample } = model;
+  if (sample === undefined) return [];
+  const of = (sampled: number, onSite: number) => `${count(sampled)} of ${count(onSite)}`;
+  const lines = sample.types.map(
+    (type) => `${sampleTypeName(type)}: ${of(type.sampled, type.onSite)}`,
+  );
+  if (sample.notInSitemap > 0)
+    lines.push(`${SAMPLE_TEXT.notListed}: ${count(sample.notInSitemap)}`);
+  return [
+    heading(3, SAMPLE_TEXT.title(model.result.pages, sample.sitePages)),
+    paragraph(
+      SAMPLE_TEXT.lead(
+        model.result.pages,
+        sample.listed,
+        sample.sitePages,
+        sample.sitemap,
+        sample.notInSitemap,
+      ),
+    ),
+    paragraph(SAMPLE_TEXT.why),
+    wcagEmParagraph(SAMPLE_TEXT.how),
+    paragraph(SAMPLE_TEXT.limit),
+    label(`${SAMPLE_TEXT.fold}:`),
+    bullets(lines),
+  ];
+}
+
+/**
  * At a glance, in the page's order and words: the verdict, the result in a sentence, the ring of the
  * pages in its three parts, the four numbers, and the line on what voicecap and the person each did.
  * The ring's parts and the four numbers are two lists, each under a label of its own
@@ -345,6 +390,7 @@ function glanceBlocks(model: ShareModel): Block[] {
       ? [`**${markdownInline(verdictOf(result).headline)}**`, ...fixFirstBlocks(model)]
       : []),
     paragraph(summary.sentence),
+    ...sampleBlocks(model),
     ...(hasPages
       ? [
           label(`${AI_TEXT.glance.pages}:`),
@@ -549,6 +595,7 @@ function factsBlock(card: PageCard): Block {
   const title = titleOf(card);
   return [
     ...(title === null ? [] : [item(title)]),
+    ...(card.chosen === undefined ? [] : [item(`${SAMPLE_TEXT.card}: ${card.chosen}`)]),
     item(`${AI_TEXT.result}: ${resultOf(card)}`),
     ...flagLines(card),
     ...reviewLines(card),

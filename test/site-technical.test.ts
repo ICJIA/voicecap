@@ -215,6 +215,7 @@ describe("renderTechnical", () => {
     expect(linksOf(bar)).toEqual([
       { href: "index.html", words: "ICJIA Screen Reader Tests" },
       { href: "trust.html", words: "Can I trust this?" },
+      { href: "wcag-em.html", words: "How pages are chosen" },
       { href: "whats-new.html", words: "What's New" },
       { href: "technical-details.html", words: "Technical details" },
     ]);
@@ -417,6 +418,7 @@ describe("renderTechnical", () => {
     expect(linksOf(bar).map(({ href }) => href)).toEqual([
       "index.html",
       "trust.html",
+      "wcag-em.html",
       "whats-new.html",
       "technical-details.html",
     ]);
@@ -630,6 +632,7 @@ describe("renderTechnical", () => {
       "trust.html",
       "whats-new.html",
       "technical-details.html",
+      "wcag-em.html",
       GITHUB,
       `${GITHUB}/blob/main/README.md`,
       `${GITHUB}/blob/main/CHANGELOG.md`,
@@ -646,7 +649,7 @@ describe("renderTechnical", () => {
     // Each is a part of this page, a page of the website, or on GitHub or npm.
     for (const href of hrefs) {
       expect(href, href).toMatch(
-        /^(?:#[a-z-]+|(?:index|trust|whats-new|technical-details)\.html|https:\/\/(?:github\.com|www\.npmjs\.com)\/\S+)$/,
+        /^(?:#[a-z-]+|(?:index|trust|whats-new|technical-details|wcag-em)\.html|https:\/\/(?:github\.com|www\.npmjs\.com)\/\S+)$/,
       );
     }
   });

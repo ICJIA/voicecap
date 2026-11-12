@@ -709,10 +709,31 @@ export interface RunJson {
    */
   formSignatures?: FormSignatures;
   /**
+   * What the run's pages are a sample of, for a run given `--sample-of <sitemap>` beside its page
+   * list or --page: the sitemap's pages counted by URL path pattern as the run began, and how many
+   * of each the run reads. Set when the run is made, so a resumed run keeps it. Absent for a run
+   * that isn't a sample, and in runs from before voicecap 0.27.0.
+   */
+  sample?: SampleRecord;
+  /**
    * SHA-256 seal of this record (see sealOf), set once every other field is final at completion.
    * Absent while the run is incomplete, and on runs written before this field existed.
    */
   seal?: string;
+}
+
+/**
+ * A run's pages as a sample of the site (`--sample-of`): the sitemap it was chosen from, the pages
+ * that sitemap lists on the site (after the cleanup a run gives a sitemap: off-origin and non-HTML
+ * addresses and duplicates dropped), and, for each URL path pattern (`urlPattern`: "/news/*"), how
+ * many of them it lists and how many of them the run reads, most pages first. A page the run reads
+ * that the sitemap doesn't list (a search page, the home page, a 404) is counted in `notInSitemap`.
+ */
+export interface SampleRecord {
+  sitemap: string;
+  sitePages: number;
+  groups: { pattern: string; onSite: number; sampled: number }[];
+  notInSitemap: number;
 }
 
 export const REVIEW_STATUSES = ["unreviewed", "reviewed", "issue", "fixed"] as const;
@@ -812,6 +833,12 @@ export interface ShareResult {
    * that took the pass, so the website says it beside the verdict. Absent for a run without it.
    */
   forms?: { found: number; working: number; notChecked: number };
+  /**
+   * How many pages the site's sitemap lists, for a report whose latest run is a sample of it
+   * (`--sample-of`), so the website says the pages are a sample: `pages` of `sitePages`. Absent
+   * for a report that isn't one.
+   */
+  sample?: { sitePages: number };
 }
 
 export interface SharesFile {

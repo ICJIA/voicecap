@@ -47,10 +47,12 @@ import { folderSafe } from "../run/paths.js";
 import { markdownInline } from "../share/ai/escape.js";
 import { count as countWords, longDate, sizeWords } from "../share/format.js";
 import { formsResultLine } from "../share/forms-view.js";
+import { SAMPLE_TEXT } from "../share/text.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf, type VerdictKind } from "../share/verdict.js";
 import type { VoicecapFacts, VoicecapRelease } from "./facts.js";
-import { sitePage, TECHNICAL_HREF, TRUST_HREF, WHATS_NEW_HREF } from "./frame.js";
+import { sitePage, TECHNICAL_HREF, TRUST_HREF, WCAG_EM_HREF, WHATS_NEW_HREF } from "./frame.js";
+import type { SampledReport } from "./wcag-em.js";
 import { SITE_ICONS } from "./icons.js";
 import { printable } from "./records.js";
 import { type KickerPart, SITE_TEXT, type Sentence } from "./text.js";
@@ -276,6 +278,58 @@ function formsLine(result: ShareResult | undefined): string[] {
   ];
 }
 
+/**
+ * The note that says why a report's pages are a sample of the site, for a share that records the
+ * sitemap's count (`--sample-of`), under its result, where a manager or an auditor who reads only
+ * the card can't miss it: its question as a heading, why a sample of each kind of page stands for
+ * the rest, how the pages were chosen, what a sample can't promise, and a link to the report's own
+ * box, with the table of each kind of page. A screen reader hears `of`, the site's name and the
+ * report's line, after the link's words. Nothing for a report that isn't one.
+ */
+function sampleNote(shared: PublishedReport, level: 4 | 5, of: string): string[] {
+  const sample = shared.result?.sample;
+  if (shared.result === undefined || sample === undefined) return [];
+  const words = SAMPLE_TEXT.note;
+  const page = fileOf(shared, "page");
+  const how = SAMPLE_TEXT.aroundWcagEm(words.how);
+  // WCAG-EM leads to the website's own page on it, which a manager can be sent to, and which links to the W3C's.
+  return [
+    [
+      '<div class="sample-note">',
+      `<h${level}>${esc(words.title(shared.result.pages, sample.sitePages))}</h${level}>`,
+      `<p>${esc(words.why(sample.sitePages))}</p>`,
+      `<p>${esc(how[0])}<a href="${WCAG_EM_HREF}">WCAG-EM</a>${esc(how[1])}</p>`,
+      `<p>${esc(words.limit)}</p>`,
+      ...(page === undefined
+        ? []
+        : [`<p><a href="${esc(page.href)}#sample-h">${esc(words.link)}${of}</a></p>`]),
+      `<p><a href="${WCAG_EM_HREF}">${esc(words.method)}${of}</a></p>`,
+      "</div>",
+    ].join(""),
+  ];
+}
+
+/**
+ * The sites whose current report is a sample of the site (`--sample-of`), in the front page's order,
+ * for the WCAG-EM page: each one's name, how many pages its report covers and its sitemap lists, and
+ * its report's page, when it's published.
+ */
+export function sampledReports(content: SiteContent): SampledReport[] {
+  return bySiteOrder(content.sites).flatMap(([site]) => {
+    const current = site.reports[0];
+    const sample = current?.result?.sample;
+    if (current?.result === undefined || sample === undefined) return [];
+    return [
+      {
+        name: site.name,
+        pages: current.result.pages,
+        sitePages: sample.sitePages,
+        href: fileOf(current, "page")?.href ?? null,
+      },
+    ];
+  });
+}
+
 /** A report's file of this kind, its page or its Word copy, say, when it's published. */
 function fileOf(shared: PublishedReport, kind: PublishedFile["kind"]): PublishedFile | undefined {
   return shared.files.find((file) => file.kind === kind);
@@ -480,6 +534,8 @@ function currentReport(shared: PublishedReport, level: 3 | 4, name: string): str
     `<h${level}><span class="label">${esc(SITE_TEXT.current)}</span> ${timeOf(shared.at)}</h${level}>`,
     // What a manager asks first: did it pass, and when was it read?
     ...result(shared),
+    // Why the pages are a sample of the site, when they are: right under the result it qualifies.
+    ...sampleNote(shared, level === 3 ? 4 : 5, of),
     // Where to look closer: every page, the audio transcripts, and the whole report.
     ...glance(shared, of),
     `<p class="by">${esc(SITE_TEXT.preparedBy(shared.by))}</p>`,
@@ -850,6 +906,7 @@ export function renderLlmsTxt(content: SiteContent): string {
     "",
     `- [${SITE_TEXT.trust}](${TRUST_HREF}): ${words.trust}`,
     `- [${SITE_TEXT.technical}](${TECHNICAL_HREF}): ${words.technical}`,
+    `- [${SITE_TEXT.wcagEm}](${WCAG_EM_HREF}): ${words.wcagEm}`,
     "",
   ].join("\n");
 }
