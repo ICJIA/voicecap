@@ -1091,6 +1091,7 @@ export function aiReportOf(model: ShareModel): AiReport {
                 model.sample.notInSitemap,
               ),
               SAMPLE_TEXT.why,
+              SAMPLE_TEXT.how.replace("WCAG-EM", `WCAG-EM (${SAMPLE_TEXT.wcagEm})`),
               SAMPLE_TEXT.limit,
             ],
             types: model.sample.types.map((type) => ({ ...type })),

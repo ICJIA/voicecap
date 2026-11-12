@@ -37,7 +37,7 @@ import { SITE_CSS } from "./style.js";
 import { SITE_TEXT } from "./text.js";
 
 /** The pages of the website: its own, the trust page, What's New, and Technical details. */
-export type SitePage = "index" | "trust" | "technical" | "whats-new";
+export type SitePage = "index" | "trust" | "technical" | "whats-new" | "wcag-em";
 
 /** The website's own page, with the test results, as the other pages link to it: beside them. */
 const INDEX_HREF = "index.html";
@@ -54,6 +54,12 @@ export const WHATS_NEW_HREF = "whats-new.html";
  */
 export const TRUST_HREF = "trust.html";
 export const TECHNICAL_HREF = "technical-details.html";
+
+/**
+ * The WCAG-EM page, how a large site's pages are chosen (./wcag-em.ts), beside the others: both bars
+ * link to it, and so does a sampled report's note on the front page.
+ */
+export const WCAG_EM_HREF = "wcag-em.html";
 
 /** One of the website's three other pages: its address beside this page, its words, and its icon. */
 interface OtherPage {
@@ -81,13 +87,19 @@ const TECHNICAL: OtherPage = {
   words: SITE_TEXT.technical,
   icon: FRAME_ICONS.technical,
 };
+const WCAG_EM: OtherPage = {
+  page: "wcag-em",
+  href: WCAG_EM_HREF,
+  words: SITE_TEXT.wcagEm,
+  icon: FRAME_ICONS.sample,
+};
 
 /**
  * The three pages in each bar's order, as the audit tool's bars give theirs: the top bar leads with
  * the trust page, and the bottom bar, after GitHub and the CHANGELOG, with What's New.
  */
-const TOP_BAR_PAGES: readonly OtherPage[] = [TRUST, WHATS_NEW, TECHNICAL];
-const BOTTOM_BAR_PAGES: readonly OtherPage[] = [WHATS_NEW, TRUST, TECHNICAL];
+const TOP_BAR_PAGES: readonly OtherPage[] = [TRUST, WCAG_EM, WHATS_NEW, TECHNICAL];
+const BOTTOM_BAR_PAGES: readonly OtherPage[] = [WHATS_NEW, TRUST, WCAG_EM, TECHNICAL];
 
 /** What a link's tag says when it's the link of the page the reader is on, and nothing else. */
 const currentIf = (here: boolean): string => (here ? ' aria-current="page"' : "");

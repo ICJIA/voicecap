@@ -160,6 +160,16 @@ const heading = (level: number, words: string): Block =>
 /** A paragraph of words. */
 const paragraph = (words: string): Block => markdownText(words);
 
+/**
+ * A paragraph that names WCAG-EM, with the name a link to the W3C's page on it. Its words before the
+ * link end with a space, which markdownText would trim.
+ */
+function wcagEmParagraph(text: string): Block {
+  const [before, after] = SAMPLE_TEXT.aroundWcagEm(text);
+  if (before === text) return paragraph(text);
+  return `${markdownText(before.trimEnd())} [WCAG-EM](${SAMPLE_TEXT.wcagEm})${escapeInline(after)}`;
+}
+
 /** A bold label, alone in its paragraph, before what it labels. */
 const label = (words: string): Block => `**${markdownInline(words)}**`;
 
@@ -336,7 +346,7 @@ function sampleBlocks(model: ShareModel): Block[] {
   if (sample.notInSitemap > 0)
     lines.push(`${SAMPLE_TEXT.notListed}: ${count(sample.notInSitemap)}`);
   return [
-    heading(3, SAMPLE_TEXT.title),
+    heading(3, SAMPLE_TEXT.title(model.result.pages, sample.sitePages)),
     paragraph(
       SAMPLE_TEXT.lead(
         model.result.pages,
@@ -347,6 +357,7 @@ function sampleBlocks(model: ShareModel): Block[] {
       ),
     ),
     paragraph(SAMPLE_TEXT.why),
+    wcagEmParagraph(SAMPLE_TEXT.how),
     paragraph(SAMPLE_TEXT.limit),
     label(`${SAMPLE_TEXT.fold}:`),
     bullets(lines),

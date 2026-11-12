@@ -9,7 +9,7 @@
  * and the website's name going to this page), for the theme button (its icon and its words follow
  * the theme), and for being complete without JavaScript, its folds too.
  *
- * The two bars are checked whole at 200% and 400% text, on all four pages, in a wide window and a
+ * The two bars are checked whole at 200% and 400% text, on all five pages, in a wide window and a
  * phone's: nothing in them overlaps or leaves the window, and focus shows on each of their links
  * and on the button. And a version 40 characters long fits the bottom bar at 320 pixels. The front
  * page's kicker is heard with commas where it shows dots, and its What's New banner, which opens
@@ -45,6 +45,7 @@ import { renderTechnical } from "../src/site/technical.js";
 import { TECHNICAL_TEXT } from "../src/site/technical-text.js";
 import { renderTrustPage } from "../src/site/trust.js";
 import { TRUST_TEXT } from "../src/site/trust-text.js";
+import { renderWcagEm } from "../src/site/wcag-em.js";
 import { renderWhatsNew } from "../src/site/whats-new.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { footerInTwoWindows } from "./helpers/footer.js";
@@ -270,6 +271,7 @@ let files: {
   technical: string;
   technicalBare: string;
   technicalLong: string;
+  wcagEm: string;
 };
 const contexts: BrowserContext[] = [];
 /** What each page opened in a test reported going wrong: errors thrown, and errors in its console. */
@@ -353,6 +355,8 @@ beforeAll(async () => {
         keptPerSite: 3,
       }),
     ),
+    // How pages are chosen, beside index.html, as the website has it.
+    wcagEm: await writeHtml("wcag-em.html", renderWcagEm({ voicecap: FACTS, sampled: [] })),
   };
 });
 
@@ -1194,7 +1198,7 @@ describe("the site's page", () => {
     }
   });
 
-  it("centers the bottom bar's six items under the page, in one row on a wide window, and in rows that wrap, each centered, on a phone's", async () => {
+  it("centers the bottom bar's seven items under the page, in one row on a wide window, and in rows that wrap, each centered, on a phone's", async () => {
     const page = await open(files.page, { width: 1600 });
     const rows = () =>
       page.evaluate(() => {
@@ -1219,7 +1223,7 @@ describe("the site's page", () => {
 
     // As the audit tool's bottom bar is: one row across the window's middle.
     const wide = await rows();
-    expect(wide.items).toBe(6);
+    expect(wide.items).toBe(7);
     expect(wide.rows).toHaveLength(1);
     for (const row of wide.rows) {
       expect(Math.abs((row.left + row.right) / 2 - wide.middle)).toBeLessThanOrEqual(1);
@@ -1284,7 +1288,7 @@ describe("the site's page", () => {
     const page = await open(files.page, { width: 1100, height: 500 });
     const stops = (): Promise<number> =>
       page.evaluate((selector) => document.querySelectorAll(selector).length, STOPS);
-    // The skip link, the top bar's four links (the website's name and its three pages) and its
+    // The skip link, the top bar's five links (the website's name and its four pages) and its
     // button, the banner's link to every update, the "On this page" row's three links, the link to
     // the demo's pages, the link to the first site itself (the second has no address people
     // visit), the current reports' links (the demo's five and the first site's five: its page, its
@@ -1292,8 +1296,8 @@ describe("the site's page", () => {
     // the second site's two: its page and its page at "Every page", as its Word copy is missing,
     // and it has no report for AI tools), the earlier report's one (its
     // Word copy changed), the three folds' summaries, each report's page by date, and the bottom
-    // bar's five links.
-    const closed = 1 + 4 + 1 + 1 + 3 + 1 + 1 + 12 + 1 + 3 + reportsOf(CONTENT).length + 5;
+    // bar's six links.
+    const closed = 1 + 5 + 1 + 1 + 3 + 1 + 1 + 12 + 1 + 3 + reportsOf(CONTENT).length + 6;
     expect(await stops()).toBe(closed);
     expect(await stopsUnderTheBar(page)).toEqual([]);
 
@@ -1371,7 +1375,7 @@ describe("the site's page", () => {
         bar,
       ).toEqual([expect.closeTo(0.15, 3)]);
       expect(others.map(look), bar).toEqual(
-        Array.from({ length: bar === "footer" ? 4 : 2 }, () => ({
+        Array.from({ length: bar === "footer" ? 5 : 3 }, () => ({
           weight: "400",
           line: "underline",
           thickness: "auto",
@@ -2586,12 +2590,12 @@ describe("Technical details", () => {
 });
 
 describe("the two bars at 200% and 400% text", () => {
-  /** The website's four pages, as files beside each other. */
-  const FOUR_PAGES = ["page", "trust", "whatsNew", "technical"] as const;
+  /** The website's five pages, as files beside each other. */
+  const FIVE_PAGES = ["page", "trust", "whatsNew", "technical", "wcagEm"] as const;
 
   /**
-   * What the Tab key reaches in the two bars: the website's name, the top bar's three links and its
-   * button, once the script has shown it, and the bottom bar's five links.
+   * What the Tab key reaches in the two bars: the website's name, the top bar's four links and its
+   * button, once the script has shown it, and the bottom bar's six links.
    */
   const BAR_STOPS = ".bar a[href], .bar button:not([hidden]), footer a[href]";
 
@@ -2604,7 +2608,7 @@ describe("the two bars at 200% and 400% text", () => {
 
   /**
    * What's wrong with the two bars as they're drawn now, a line each: an item of either (the top
-   * bar's name, links, and button, and each of the bottom bar's six items) that isn't drawn, whose
+   * bar's name, links, and button, and each of the bottom bar's seven items) that isn't drawn, whose
    * box or text a reader sees leaves the window, or that overlaps another. The words only a screen
    * reader gets are clipped to a pixel, and drawn nowhere.
    */
@@ -2731,9 +2735,9 @@ describe("the two bars at 200% and 400% text", () => {
     ["400%", 1280],
     ["400%", 320],
   ] as const)(
-    "keeps both bars whole at %s text, %i pixels wide, on all four pages, with focus visible on each of their links and on the button",
+    "keeps both bars whole at %s text, %i pixels wide, on all five pages, with focus visible on each of their links and on the button",
     async (size, width) => {
-      for (const which of FOUR_PAGES) {
+      for (const which of FIVE_PAGES) {
         const page = await open(files[which], { width, height: 800 });
         await textAt(page, size);
         const where = `${which}, ${size} text, ${width} px`;
@@ -2743,7 +2747,7 @@ describe("the two bars at 200% and 400% text", () => {
           await page.evaluate(() => getComputedStyle(document.documentElement).fontSize),
           where,
         ).toBe(`${16 * (size === "200%" ? 2 : 4)}px`);
-        expect(await page.locator(BAR_STOPS).count(), where).toBe(4 + 1 + 5);
+        expect(await page.locator(BAR_STOPS).count(), where).toBe(5 + 1 + 6);
         expect(await barProblems(page), where).toEqual([]);
         expect(await focusProblems(page), where).toEqual([]);
       }

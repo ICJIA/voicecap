@@ -87,6 +87,7 @@ The main sections, with the subsections people look for most. Many sections have
   - [What was sent: shares.json](#what-was-sent-sharesjson)
 - [The website: voicecap site](#the-website-voicecap-site)
   - [Can I trust this?](#can-i-trust-this)
+  - [How pages are chosen](#how-pages-are-chosen)
   - [Technical details](#technical-details)
   - [What's New](#whats-new)
   - [Linking to the results from another website: sites.json](#linking-to-the-results-from-another-website-sitesjson)
@@ -1019,7 +1020,7 @@ Choose the pages in a page list, with each page's type in `template` and why it'
 npx @icjia/voicecap --site https://icjia.illinois.gov --pages pages.csv --sample-of sitemap.xml
 ```
 
-As the run begins, voicecap reads that sitemap, counts its pages by URL path pattern (as `--sample` groups them), and records in the run how many of each the run reads, and how many of the run's pages the sitemap doesn't list. The report then says, in At a glance, under "These pages are a sample of the site": how many pages it covers, of how many the sitemap lists; why a sample of each type stands for the rest; and what a sample can't promise, a problem written into one page's own text, such as a link that says "click here", which can be on pages the sample doesn't hold. A table, in a fold, gives each type of page (by the `template` its pages share, and its pattern) with how many the site has and how many are in the report. Each page's card says why it's in the sample, from its `notes`. The Word copy and the report for AI tools say the same, and the website's card says "A sample of the site: 171 pages, chosen by type of page from the 2,466 pages its sitemap lists."
+As the run begins, voicecap reads that sitemap, counts its pages by URL path pattern (as `--sample` groups them), and records in the run how many of each the run reads, and how many of the run's pages the sitemap doesn't list. The report then says, in At a glance, under a heading that asks the question a manager asks first ("Why this report covers 171 pages, not all 2,466 of the site's"): how many pages it covers, of how many the sitemap lists; why a sample of each kind of page stands for the rest; how the pages were chosen, by the W3C's WCAG-EM, as professional auditors choose them (the name links to [the W3C's page on WCAG-EM](https://www.w3.org/WAI/test-evaluate/conformance/wcag-em/), here and on the website's card, since few managers have heard of it); and what a sample can't promise, a problem written into one page's own text, such as a link that says "click here", which can be on pages the sample doesn't hold. A table, in a fold, gives each type of page (by the `template` its pages share, and its pattern) with how many the site has and how many are in the report. Each page's card says why it's in the sample, from its `notes`. The Word copy and the report for AI tools say the same, and the website's card has a note of its own under the report's result, for a manager or an auditor who reads only the card: "Why 171 pages, and not all 2,466?", in plain words, why a sample, how it was chosen, what it can't promise, and a link to the report's table of each kind of page.
 
 So check every page's text as well, from the site's content (its CMS), for the problems a sample can miss, and read the pages you fix again with `--page`. `--sample-of` isn't one of the run's settings: the same command without it resumes the same run, which keeps what it recorded.
 
@@ -2100,7 +2101,7 @@ The dated copies, the report for AI tools, the walkthrough files, and `shares.js
 
 ## The website: `voicecap site`
 
-`voicecap site` builds a website of the reports voicecap has shared: each site's current report, with the two before it, and the demo's. It gives people one address to open, in place of a file to send. Around the reports are three more pages: "Can I trust this?", for a manager who shouldn't have to take one person's tool on trust (see [Can I trust this?](#can-i-trust-this)); "Technical details", how voicecap works, for auditors and developers (see [Technical details](#technical-details)); and "What's New", every release of voicecap, from its CHANGELOG (see [What's New](#whats-new)). Netlify can build it from the transcripts home's repository every time the repository is pushed. voicecap's own repository stays code only.
+`voicecap site` builds a website of the reports voicecap has shared: each site's current report, with the two before it, and the demo's. It gives people one address to open, in place of a file to send. Around the reports are four more pages: "Can I trust this?", for a manager who shouldn't have to take one person's tool on trust (see [Can I trust this?](#can-i-trust-this)); "How pages are chosen", WCAG-EM in pictures, for whoever asks why a large site's report covers a sample of its pages (see [How pages are chosen](#how-pages-are-chosen)); "Technical details", how voicecap works, for auditors and developers (see [Technical details](#technical-details)); and "What's New", every release of voicecap, from its CHANGELOG (see [What's New](#whats-new)). Netlify can build it from the transcripts home's repository every time the repository is pushed. voicecap's own repository stays code only.
 
 ```bash
 npx @icjia/voicecap site [--home <dir>] [--out <dir>]
@@ -2108,23 +2109,24 @@ npx @icjia/voicecap site [--home <dir>] [--out <dir>]
 
 `--home` is the transcripts home, and `--out` is the folder to build the site in: `_site` in the home, by default. Here `--out` isn't the home, as it is in the other commands (see [Other commands](#other-commands)). The command needs no screen reader.
 
-**It builds four pages.** Each is one self-contained file, under a Content Security Policy of its own, which it has at each of its two addresses: its `.html` one, and the one without `.html` that Netlify serves a page at too (the front page's are `/index.html` and `/`):
+**It builds five pages.** Each is one self-contained file, under a Content Security Policy of its own, which it has at each of its two addresses: its `.html` one, and the one without `.html` that Netlify serves a page at too (the front page's are `/index.html` and `/`):
 
 | Page | File | Addresses |
 | --- | --- | --- |
 | The front page, "Screen reader test results": the reports | `index.html` | `/` and `/index.html` |
 | [Can I trust this?](#can-i-trust-this) | `trust.html` | `/trust` and `/trust.html` |
 | [Technical details](#technical-details) | `technical-details.html` | `/technical-details` and `/technical-details.html` |
+| [How pages are chosen](#how-pages-are-chosen) | `wcag-em.html` | `/wcag-em` and `/wcag-em.html` |
 | [What's New](#whats-new) | `whats-new.html` | `/whats-new` and `/whats-new.html` |
 
-All four share a look and two bars. Each shared report keeps the look it was shared with: the website changes only its own pages. Every page but the front page has a link at its top, "Back to the test results", which opens the front page.
+All five share a look and two bars. Each shared report keeps the look it was shared with: the website changes only its own pages. Every page but the front page has a link at its top, "Back to the test results", which opens the front page.
 
 **The look is that of ICJIA's audit tool, [audit.icjia.app](https://audit.icjia.app):** a near-black page with its main part in one centered column; a small, spaced-out line, the kicker, over a very heavy headline, then a quieter lead; cards with thin borders and rounded corners; a line between the parts of a page; and big numbers in a fixed-width font. The colors are the audit tool's: near-black (`#0a0a0a`) with white headlines and a blue for links, a green for what's good, an amber for what needs attention, a red for what wasn't read, and a cyan for the words that matter in a kicker. A page opens dark, and the theme button switches it to the audit tool's light colors, which print uses too. The words are in the system's own fonts, and the big numbers, commands, and fingerprints in its fixed-width one. **No page of the website embeds a font,** so each loads nothing, and its policy allows no font from anywhere (`font-src 'none'`: see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)). The shared reports embed IBM Plex, and keep it.
 
 **The four pages have the same two bars,** as the audit tool's pages do:
 
-- **The top bar** scrolls with the page. At its left is the website's name, "ICJIA Screen Reader Tests", a link to the front page. At its right is a navigation, named "This website" for a screen reader, with three links, "Can I trust this?", "What's New", and "Technical details", and last the theme button.
-- **The bottom bar** ends the page: one row of six items. Five are links, each an icon and its words: "GitHub", to voicecap's repository; "Changelog", to its CHANGELOG on GitHub; "What's New"; "Can I trust this?"; and "Technical details". The sixth is the version of the voicecap that built the website, such as `v0.15.0`, which a screen reader hears as "voicecap version 0.15.0". The icons are hidden from a screen reader, and so are the lines between the items: it hears a list of six.
+- **The top bar** scrolls with the page. At its left is the website's name, "ICJIA Screen Reader Tests", a link to the front page. At its right is a navigation, named "This website" for a screen reader, with four links, "Can I trust this?", "How pages are chosen", "What's New", and "Technical details", and last the theme button.
+- **The bottom bar** ends the page: one row of seven items. Six are links, each an icon and its words: "GitHub", to voicecap's repository; "Changelog", to its CHANGELOG on GitHub; "What's New"; "Can I trust this?"; "How pages are chosen"; and "Technical details". The seventh is the version of the voicecap that built the website, such as `v0.15.0`, which a screen reader hears as "voicecap version 0.15.0". The icons are hidden from a screen reader, and so are the lines between the items: it hears a list of seven.
 
 A link to the page the reader is on is marked as the current page for a screen reader. On the trust page, What's New, and Technical details it's also drawn in bold and underlined more heavily than the other links, so the eye tells it by more than its color; on the front page it's the website's name, which is drawn as it always is. On a narrow window, the website's name takes a line of its own, the top bar's links wrap under it, and the bottom bar's row wraps.
 
@@ -2208,6 +2210,21 @@ So the page is a function of the package and the records: the same records and t
 **Two things are quoted, not generated.** The Title II card gives the compliance dates of the Department of Justice's rule as the rule states them, with a link to it. And the "Every word on the record" card says that each report keeps every transcript and, since voicecap 0.11.0, a screenshot of each page NVDA read: the version is a part of voicecap's history, not a fact of this build, since a report shared before 0.11.0 has none.
 
 </details>
+
+### How pages are chosen
+
+`wcag-em.html` is the page to send someone who asks "what's WCAG-EM?" about a report that covers a sample of its site (see [A sample of a large site](#a-sample-of-a-large-site)). It explains, mostly in pictures, the method the W3C publishes for evaluating a whole website, [WCAG-EM](https://www.w3.org/WAI/test-evaluate/conformance/wcag-em/), in its current version, WCAG-EM 2 (a W3C Group Note of 23 July 2026), and how a voicecap report follows it:
+
+- **What WCAG-EM is:** WCAG, the standard a site must meet, beside WCAG-EM, how to check a whole site against it.
+- **Its five steps,** a card each in a line of steps, with each step's parts as WCAG-EM 2 numbers and names them (1.1 to 5.5), what the step means in plain words, and how a voicecap report does it.
+- **What goes into a sample:** what Step 2 finds (common pages, essential functionality, each kind of page, technologies), which feeds Step 3's three parts (the structured sample, the random sample, complete processes), and a bar of the random part's size, WCAG-EM 2's own example: 80 chosen pages and 8 at random, 10% of 80, for 88.
+- **Why a sample works:** one template, and a grid of the pages built from it, three of them read.
+- **The check on the sample** (Step 4.3): what happens when the random pages show problems the chosen ones didn't.
+- **What a sample finds, and what it can't promise,** side by side, and how the rest is covered: a check of every page's text.
+- **The reports here that are samples,** each with its share of its site as a meter and a link to its report's account of how its pages were chosen. This part is drawn from the records.
+- **Questions people ask,** among them whether a sample means only those pages must meet the standard (no), and whether the ADA Title II rule requires WCAG-EM (it sets the standard, not a test method).
+
+Its pictures are drawn by the website's own style from real HTML: the steps are an ordered list, the parts of a sample lists under their labels, the random part's size a bar for the eye with a caption that says it, the template's pages a grid for the eye with its caption, and each report's share of its site a `meter`. So a screen reader hears each picture as what it is, the page loads nothing from outside it, and its Content Security Policy is as strict as the other pages'. A sampled report's card on the front page links to it, and so do both bars.
 
 ### Technical details
 

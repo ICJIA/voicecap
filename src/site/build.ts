@@ -116,11 +116,13 @@ import {
   renderLlmsTxt,
   renderSiteIndex,
   renderSitesJson,
+  sampledReports,
   type PublishedFile,
   type PublishedReport,
   type SiteContent,
 } from "./render.js";
 import { renderTechnical } from "./technical.js";
+import { renderWcagEm } from "./wcag-em.js";
 import { renderTrustPage } from "./trust.js";
 import { renderWhatsNew } from "./whats-new.js";
 
@@ -188,6 +190,9 @@ const WHATS_NEW_SHORT = WHATS_NEW_FILE.slice(0, -".html".length);
 /** Technical details' file, beside the others (see ./technical.ts), and its other address. */
 const TECHNICAL_FILE = "technical-details.html";
 const TECHNICAL_SHORT = TECHNICAL_FILE.slice(0, -".html".length);
+/** The WCAG-EM page's file, how a large site's pages are chosen (see ./wcag-em.ts), and its other address. */
+const WCAG_EM_FILE = "wcag-em.html";
+const WCAG_EM_SHORT = WCAG_EM_FILE.slice(0, -".html".length);
 /** The file for AI tools, at the site's top (see renderLlmsTxt in ./render.ts). */
 const LLMS_FILE = "llms.txt";
 /**
@@ -211,6 +216,8 @@ const OWN_FILES: ReadonlySet<string> = new Set([
   WHATS_NEW_SHORT,
   TECHNICAL_FILE,
   TECHNICAL_SHORT,
+  WCAG_EM_FILE,
+  WCAG_EM_SHORT,
   LLMS_FILE,
   SITES_FILE,
   "robots.txt",
@@ -394,6 +401,9 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   await writeFile(path.join(out, TRUST_FILE), trust);
   await writeFile(path.join(out, WHATS_NEW_FILE), whatsNew);
   await writeFile(path.join(out, TECHNICAL_FILE), technical);
+  // The WCAG-EM page lists the reports that are samples, from what was just published.
+  const wcagEm = renderWcagEm({ voicecap, sampled: sampledReports(content) });
+  await writeFile(path.join(out, WCAG_EM_FILE), wcagEm);
   // For AI tools: each site's current report's Markdown and JSON, from what was just published.
   await writeFile(path.join(out, LLMS_FILE), renderLlmsTxt(content));
   // For another website that links to the results: each site, and its current report.
@@ -408,7 +418,12 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   await writeFile(
     path.join(out, HEADERS_FILE),
     headersFile(
-      headerRules(content, { index, trust, whatsNew, technical }, demoRules, publishing.rulesOf),
+      headerRules(
+        content,
+        { index, trust, whatsNew, technical, wcagEm },
+        demoRules,
+        publishing.rulesOf,
+      ),
     ),
   );
   // A home that has no .gitignore gets voicecap's now, with _site/ in it, so the check below warns
@@ -1068,7 +1083,7 @@ function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
  */
 function headerRules(
   content: SiteContent,
-  pages: { index: string; trust: string; whatsNew: string; technical: string },
+  pages: { index: string; trust: string; whatsNew: string; technical: string; wcagEm: string },
   demoRules: readonly HeaderRule[],
   rulesOf: ReadonlyMap<PublishedFile, HeaderRule[]>,
 ): HeaderRule[] {
@@ -1076,6 +1091,7 @@ function headerRules(
   const trustPolicy = contentSecurityPolicy(inlineHashes(pages.trust), { fonts: false });
   const whatsNewPolicy = contentSecurityPolicy(inlineHashes(pages.whatsNew), { fonts: false });
   const technicalPolicy = contentSecurityPolicy(inlineHashes(pages.technical), { fonts: false });
+  const wcagEmPolicy = contentSecurityPolicy(inlineHashes(pages.wcagEm), { fonts: false });
   const rules: HeaderRule[] = [
     { path: "/", headers: [[POLICY_HEADER, indexPolicy]] },
     { path: "/index.html", headers: [[POLICY_HEADER, indexPolicy]] },
@@ -1085,6 +1101,8 @@ function headerRules(
     { path: `/${WHATS_NEW_SHORT}`, headers: [[POLICY_HEADER, whatsNewPolicy]] },
     { path: `/${TECHNICAL_FILE}`, headers: [[POLICY_HEADER, technicalPolicy]] },
     { path: `/${TECHNICAL_SHORT}`, headers: [[POLICY_HEADER, technicalPolicy]] },
+    { path: `/${WCAG_EM_FILE}`, headers: [[POLICY_HEADER, wcagEmPolicy]] },
+    { path: `/${WCAG_EM_SHORT}`, headers: [[POLICY_HEADER, wcagEmPolicy]] },
     {
       path: `/${SITES_FILE}`,
       headers: [

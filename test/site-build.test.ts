@@ -57,9 +57,11 @@ import {
   renderSitesJson,
   type SitesJson,
 } from "../src/site/render.js";
+import { sampledReports } from "../src/site/render.js";
 import type * as RenderModule from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { renderTechnical } from "../src/site/technical.js";
+import { renderWcagEm } from "../src/site/wcag-em.js";
 import type * as TechnicalModule from "../src/site/technical.js";
 import { renderTrustPage } from "../src/site/trust.js";
 import type * as TrustModule from "../src/site/trust.js";
@@ -236,7 +238,7 @@ const DEMO_FILES = [
 const FIRST_WORD = `${FIXTURE_PREFIX}_2027-01-15.docx`;
 const FIRST_WORD_PATH = `${FIXTURE_FOLDER}/share/${FIRST_WORD}`;
 /**
- * The files a build writes at the site's top besides each report's: its four pages, llms.txt for AI
+ * The files a build writes at the site's top besides each report's: its five pages, llms.txt for AI
  * tools, sites.json for another website, robots.txt, _redirects, and _headers.
  */
 const SITE_OWN_FILES = [
@@ -248,6 +250,7 @@ const SITE_OWN_FILES = [
   "sites.json",
   "technical-details.html",
   "trust.html",
+  "wcag-em.html",
   "whats-new.html",
 ];
 /**
@@ -530,7 +533,7 @@ describe("buildSite", () => {
       // Each file is read once, and it's the same bytes that are checked and written.
       expect(reads.filter((read) => read === from)).toHaveLength(1);
     }
-    // Only those, the site's own nine files (its four pages, llms.txt, sites.json, robots.txt,
+    // Only those, the site's own ten files (its five pages, llms.txt, sites.json, robots.txt,
     // _redirects, and _headers), and the demo's own pages in demo-site/.
     expect(await filesUnder(out)).toEqual(
       [
@@ -695,6 +698,7 @@ describe("buildSite", () => {
     const trust = await readFile(path.join(out, "trust.html"), "utf8");
     const whatsNew = await readFile(path.join(out, "whats-new.html"), "utf8");
     const technical = await readFile(path.join(out, "technical-details.html"), "utf8");
+    const wcagEm = await readFile(path.join(out, "wcag-em.html"), "utf8");
 
     // The page is what renderSiteIndex makes of the content the result gives, drawn once, with the
     // facts voicecap reads of itself, whose version its bottom bar says.
@@ -718,8 +722,8 @@ describe("buildSite", () => {
       { scripts: [sourceOf(SITE_SCRIPT)], styles: [sourceOf(`\n${SITE_CSS}`)] },
       { fonts: false },
     );
-    // The index at both its addresses, the trust page, What's New, and Technical details at both
-    // their own (each with the policy of its own bytes), the demo's own pages by a rule for each
+    // The index at both its addresses, the trust page, What's New, Technical details, and the
+    // WCAG-EM page at both their own (each with the policy of its own bytes), the demo's own pages by a rule for each
     // address each answers at, then each published file in the order the site lists them: a page
     // at both its addresses, with the policy of its own bytes, fonts and all, a Word copy or a
     // walkthrough file as a download, and the report for AI tools as text to read, with its type
@@ -727,6 +731,7 @@ describe("buildSite", () => {
     const trustPolicy = contentSecurityPolicy(inlineHashes(trust), { fonts: false });
     const whatsNewPolicy = contentSecurityPolicy(inlineHashes(whatsNew), { fonts: false });
     const technicalPolicy = contentSecurityPolicy(inlineHashes(technical), { fonts: false });
+    const wcagEmPolicy = contentSecurityPolicy(inlineHashes(wcagEm), { fonts: false });
     const expected: [string, [string, string][]][] = [
       ["/", [[CSP, indexPolicy]]],
       ["/index.html", [[CSP, indexPolicy]]],
@@ -736,6 +741,8 @@ describe("buildSite", () => {
       ["/whats-new", [[CSP, whatsNewPolicy]]],
       ["/technical-details.html", [[CSP, technicalPolicy]]],
       ["/technical-details", [[CSP, technicalPolicy]]],
+      ["/wcag-em.html", [[CSP, wcagEmPolicy]]],
+      ["/wcag-em", [[CSP, wcagEmPolicy]]],
       [
         "/sites.json",
         [
@@ -774,10 +781,11 @@ describe("buildSite", () => {
       }
     }
     expect(rules).toEqual(expected);
-    // The index, the trust page, What's New, and Technical details at two addresses each,
-    // sites.json, the demo's twenty-three addresses, four pages at two addresses each, ten
-    // downloads, and the six files for AI tools (the Markdown and the JSON of each of three shares).
-    expect(rules).toHaveLength(2 + 2 + 2 + 2 + 1 + 23 + 4 * 2 + 4 + 6 + 3 * 2);
+    // The index, the trust page, What's New, Technical details, and the WCAG-EM page at two
+    // addresses each, sites.json, the demo's twenty-three addresses, four pages at two addresses
+    // each, ten downloads, and the six files for AI tools (the Markdown and the JSON of each of
+    // three shares).
+    expect(rules).toHaveLength(2 + 2 + 2 + 2 + 2 + 1 + 23 + 4 * 2 + 4 + 6 + 3 * 2);
 
     // A page's policy is its own: the page written by hand has a script and a style no other has.
     const written = rules.find(
@@ -924,7 +932,7 @@ describe("buildSite", () => {
 
     // The page is what renderTechnical makes of the facts it was given, the records' facts counted
     // from the content the result gives, and how many shares a site keeps, drawn once, and it's a
-    // file beside the other three pages.
+    // file beside the other four pages.
     const input = {
       voicecap: FACTS,
       records: recordFactsOf(content),
@@ -952,8 +960,9 @@ describe("buildSite", () => {
       ["/technical-details.html", [[CSP, policy]]],
       ["/technical-details", [[CSP, policy]]],
     ]);
-    // They come after What's New's two rules, and before sites.json's and the demo's.
-    expect(rules.slice(0, 10).map(([rulePath]) => rulePath)).toEqual([
+    // They come after What's New's two rules, and before the WCAG-EM page's, sites.json's, and the
+    // demo's.
+    expect(rules.slice(0, 12).map(([rulePath]) => rulePath)).toEqual([
       "/",
       "/index.html",
       "/trust.html",
@@ -962,8 +971,31 @@ describe("buildSite", () => {
       "/whats-new",
       "/technical-details.html",
       "/technical-details",
+      "/wcag-em.html",
+      "/wcag-em",
       "/sites.json",
       DEMO_ADDRESSES[0],
+    ]);
+  });
+
+  it("writes the WCAG-EM page from the reports that are samples, with its own policy at both its addresses", async () => {
+    const home = await newHome();
+
+    const { out, content } = await build(home, { voicecapFacts: FACTS });
+
+    // The page is what renderWcagEm makes of the facts and of the sites whose current report is a
+    // sample, as the content the result gives counts them.
+    const page = await readFile(path.join(out, "wcag-em.html"), "utf8");
+    expect(page).toBe(renderWcagEm({ voicecap: FACTS, sampled: sampledReports(content) }));
+    expect(page).toContain("<h1>How the pages are chosen: WCAG-EM</h1>");
+
+    // Each of its two addresses has the policy of the page's own bytes, with no font.
+    const policy = contentSecurityPolicy(inlineHashes(page), { fonts: false });
+    expect(policy).toContain("; font-src 'none';");
+    const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
+    expect(rules.filter(([rulePath]) => rulePath.startsWith("/wcag-em"))).toEqual([
+      ["/wcag-em.html", [[CSP, policy]]],
+      ["/wcag-em", [[CSP, policy]]],
     ]);
   });
 
@@ -1063,6 +1095,8 @@ describe("buildSite", () => {
       "/whats-new",
       "/technical-details.html",
       "/technical-details",
+      "/wcag-em.html",
+      "/wcag-em",
     ]) {
       expect(policyAt(where), where).toMatch(/^default-src 'none'; script-src 'sha256-/);
       expect(policyAt(where), where).toContain("; font-src 'none';");
@@ -1114,13 +1148,14 @@ describe("buildSite", () => {
     ]);
   });
 
-  it("writes the same four pages, llms.txt, and sites.json for the same records and facts, whatever the day", async () => {
+  it("writes the same five pages, llms.txt, and sites.json for the same records and facts, whatever the day", async () => {
     const home = await newHome();
     const pages = [
       "index.html",
       "trust.html",
       "whats-new.html",
       "technical-details.html",
+      "wcag-em.html",
       "llms.txt",
       "sites.json",
     ];
@@ -1435,7 +1470,7 @@ describe("buildSite", () => {
       expect(text).toContain("No report for AI tools has been shared yet.");
     });
 
-    it("writes llms.txt: the website's name, a one-line summary, each site's current report's Markdown and JSON with its date and verdict, and links to the trust page and Technical details", async () => {
+    it("writes llms.txt: the website's name, a one-line summary, each site's current report's Markdown and JSON with its date and verdict, and links to the trust page, Technical details, and How pages are chosen", async () => {
       const home = await newHome();
 
       const { out, content } = await build(home);
@@ -1462,12 +1497,13 @@ describe("buildSite", () => {
           "",
           "- [Can I trust this?](trust.html): Who built voicecap, how what it records can be checked, and how it tests itself.",
           "- [Technical details](technical-details.html): How a review runs, what it records, and how this website is built and protected.",
+          "- [How pages are chosen](wcag-em.html): How the pages of a large site's report are chosen, by the W3C's evaluation method, WCAG-EM, and what a sample can and can't promise.",
           "",
         ].join("\n"),
       );
       // Each link goes to a file this build published.
       const links = [...text.matchAll(/\]\(([^)]+)\)/g)].map(([, href = ""]) => href);
-      expect(links).toHaveLength(4);
+      expect(links).toHaveLength(5);
       for (const href of links) expect(existsSync(path.join(out, href)), href).toBe(true);
     });
 
@@ -3409,8 +3445,8 @@ describe("buildSite", () => {
       );
       // Only the site's own files, and the demo's own pages, which are the site's whether or not
       // any report is shared; and each page's policy at its two addresses (the site's, the trust
-      // page's, What's New's, then Technical details'), then sites.json's rule, then each of the
-      // demo's.
+      // page's, What's New's, Technical details', then the WCAG-EM page's), then sites.json's rule,
+      // then each of the demo's.
       expect(await filesUnder(out)).toEqual(
         [...SITE_OWN_FILES, ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`)].sort(),
       );
@@ -3427,6 +3463,8 @@ describe("buildSite", () => {
         "/whats-new",
         "/technical-details.html",
         "/technical-details",
+        "/wcag-em.html",
+        "/wcag-em",
         "/sites.json",
         ...DEMO_ADDRESSES,
       ]);
@@ -3931,6 +3969,8 @@ describe("buildSite", () => {
         ["/whats-new", await own("whats-new.html")],
         ["/technical-details.html", await own("technical-details.html")],
         ["/technical-details", await own("technical-details.html")],
+        ["/wcag-em.html", await own("wcag-em.html")],
+        ["/wcag-em", await own("wcag-em.html")],
         [
           "/sites.json",
           [
@@ -4444,6 +4484,7 @@ describe("buildSite", () => {
         "trust.html",
         "whats-new.html",
         "technical-details.html",
+        "wcag-em.html",
       ]);
       const links = [...index.matchAll(/<a (?:class="[^"]*" )?href="([^"#]+\.html)"/g)]
         .map(([, href = ""]) => href)
@@ -4457,7 +4498,8 @@ describe("buildSite", () => {
         expect((await readFile(path.join(out, folder, ...rest))).equals(shared), href).toBe(true);
       }
       // And each page has its own rules in _headers, at both its addresses, after the index's, the
-      // trust page's, What's New's, Technical details', sites.json's, and the demo's own pages'.
+      // trust page's, What's New's, Technical details', the WCAG-EM page's, sites.json's, and the
+      // demo's own pages'.
       const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
         ([rulePath]) => rulePath,
       );
@@ -4470,6 +4512,8 @@ describe("buildSite", () => {
         "/whats-new",
         "/technical-details.html",
         "/technical-details",
+        "/wcag-em.html",
+        "/wcag-em",
         "/sites.json",
         ...DEMO_ADDRESSES,
         `/${NAME}/${page}`,

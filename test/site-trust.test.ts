@@ -252,11 +252,12 @@ describe("renderTrustPage", () => {
   it("has its own title, and the two bars of the trust page, whose link to it is the page the reader is on", () => {
     expect(html).toMatch(/^<!doctype html>\n<html lang="en">\n<head>\n/);
     expect(html).toContain("<title>Can I trust this? · Screen reader test results</title>");
-    // The top bar: the website's name, then its three pages, of which this is the current one.
+    // The top bar: the website's name, then its four pages, of which this is the current one.
     const bar = /<header class="bar">[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
     expect(linksOf(bar)).toEqual([
       { href: "index.html", words: "ICJIA Screen Reader Tests" },
       { href: "trust.html", words: "Can I trust this?" },
+      { href: "wcag-em.html", words: "How pages are chosen" },
       { href: "whats-new.html", words: "What's New" },
       { href: "technical-details.html", words: "Technical details" },
     ]);
@@ -1093,6 +1094,7 @@ describe("renderTrustPage", () => {
       "trust.html",
       "whats-new.html",
       "technical-details.html",
+      "wcag-em.html",
       GITHUB,
       CHANGELOG,
       ...Object.values(README),

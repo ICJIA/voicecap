@@ -144,12 +144,16 @@ describe("--sample-of", () => {
     expect(logger.text()).not.toContain("5 pages to transcribe.");
 
     const page = await readFile(path.join(outDir(dir), "share", "current.html"), "utf8");
-    expect(page).toContain(`<h3 id="sample-h">${SAMPLE_TEXT.title}</h3>`);
+    expect(page).toContain(
+      `<h3 id="sample-h">${SAMPLE_TEXT.title(3, 5).replace("'", "&#39;")}</h3>`,
+    );
     expect(page).toContain(
       `This report covers 3 pages: 2 of the 5 pages the sitemap ${SITEMAP} lists, chosen to stand for the rest, and 1 page it doesn&#39;t list.`,
     );
+    expect(SAMPLE_TEXT.title(3, 5)).toBe("Why this report covers 3 pages, not all 5 of the site's");
+    expect(page).toContain("none of them goes through every page of a site this large");
     expect(page).toContain(
-      "Professional auditors who test with a screen reader don&#39;t go through every page",
+      'chosen by <a href="https://www.w3.org/WAI/test-evaluate/conformance/wcag-em/">WCAG-EM</a>, the Website Accessibility Conformance Evaluation Methodology',
     );
     expect(page).toContain(
       '<th scope="row">/news/*</th><td class="num">3</td><td class="num">0</td>',
@@ -178,7 +182,7 @@ describe("--sample-of", () => {
     const recorded = shareResultOf(shares.shares.at(-1)?.result);
     expect(recorded?.sample).toEqual({ sitePages: 5 });
     expect(SAMPLE_TEXT.site(recorded!.pages, 5)).toBe(
-      "A sample of the site: 3 pages, chosen by type of page from the 5 pages its sitemap lists.",
+      "A sample of the site: 3 pages, chosen by kind of page from the 5 pages its sitemap lists.",
     );
     const files = await readdir(path.join(outDir(dir), "share"));
     const markdown = await readFile(
@@ -189,8 +193,11 @@ describe("--sample-of", () => {
       ),
       "utf8",
     );
-    expect(markdown).toContain(`### ${SAMPLE_TEXT.title}`);
+    expect(markdown).toContain(`### ${SAMPLE_TEXT.title(3, 5)}`);
     expect(markdown).toContain("- /news/\\*: 0 of 3");
+    expect(markdown).toContain(
+      "chosen by [WCAG-EM](https://www.w3.org/WAI/test-evaluate/conformance/wcag-em/), the Website",
+    );
     const json = JSON.parse(
       await readFile(
         path.join(

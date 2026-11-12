@@ -234,6 +234,14 @@ function fixFirst(model: ShareModel): string[] {
  * and how many are in the report, and a row for the pages the sitemap doesn't list. Nothing for a
  * report that isn't one.
  */
+/** A paragraph that names WCAG-EM, with the name a link to the W3C's page on it. */
+function wcagEmParagraph(text: string): string {
+  const [before, after] = SAMPLE_TEXT.aroundWcagEm(text);
+  return after === "" && before === text
+    ? `<p>${esc(text)}</p>`
+    : `<p>${esc(before)}<a href="${esc(SAMPLE_TEXT.wcagEm)}">WCAG-EM</a>${esc(after)}</p>`;
+}
+
 function sampleBox(model: ShareModel): string[] {
   const { sample } = model;
   if (sample === undefined) return [];
@@ -259,7 +267,7 @@ function sampleBox(model: ShareModel): string[] {
     sample.notInSitemap,
   );
   return [
-    `<div class="sample"><h3 id="sample-h">${esc(SAMPLE_TEXT.title)}</h3><p>${esc(lead)}</p><p>${esc(SAMPLE_TEXT.why)}</p><p>${esc(SAMPLE_TEXT.limit)}</p>${fold(esc(SAMPLE_TEXT.fold), table)}</div>`,
+    `<div class="sample"><h3 id="sample-h">${esc(SAMPLE_TEXT.title(model.result.pages, sample.sitePages))}</h3><p>${esc(lead)}</p><p>${esc(SAMPLE_TEXT.why)}</p>${wcagEmParagraph(SAMPLE_TEXT.how)}<p>${esc(SAMPLE_TEXT.limit)}</p>${fold(esc(SAMPLE_TEXT.fold), table)}</div>`,
   ];
 }
 

@@ -154,6 +154,7 @@ describe("renderWhatsNew", () => {
     expect(linksOf(bar)).toEqual([
       { href: "index.html", words: "ICJIA Screen Reader Tests" },
       { href: "trust.html", words: "Can I trust this?" },
+      { href: "wcag-em.html", words: "How pages are chosen" },
       { href: "whats-new.html", words: "What's New" },
       { href: "technical-details.html", words: "Technical details" },
     ]);
@@ -402,6 +403,7 @@ describe("renderWhatsNew", () => {
       "trust.html",
       "whats-new.html",
       "technical-details.html",
+      "wcag-em.html",
       GITHUB,
       `${GITHUB}/blob/main/CHANGELOG.md`,
       ...FACTS.releases.map((release) => changelogHref(release)),

@@ -204,7 +204,7 @@ function sampleBlocks(model: ShareModel): Block[] {
   ]);
   if (sample.notInSitemap > 0) rows.push([SAMPLE_TEXT.notListed, "–", count(sample.notInSitemap)]);
   return [
-    heading(2, SAMPLE_TEXT.title),
+    heading(2, SAMPLE_TEXT.title(model.result.pages, sample.sitePages)),
     para(
       SAMPLE_TEXT.lead(
         model.result.pages,
@@ -215,6 +215,11 @@ function sampleBlocks(model: ShareModel): Block[] {
       ),
     ),
     para(SAMPLE_TEXT.why),
+    para(
+      SAMPLE_TEXT.aroundWcagEm(SAMPLE_TEXT.how)[0],
+      { text: "WCAG-EM", href: SAMPLE_TEXT.wcagEm },
+      SAMPLE_TEXT.aroundWcagEm(SAMPLE_TEXT.how)[1],
+    ),
     para(SAMPLE_TEXT.limit),
     para({ text: SAMPLE_TEXT.fold, bold: true }),
     table([SAMPLE_TEXT.type, SAMPLE_TEXT.onSite, SAMPLE_TEXT.sampled], rows, [60, 20, 20]),

@@ -467,9 +467,9 @@ describe("the site, served as Netlify serves it", () => {
     expect(text).toBe(await readFile(path.join(built.out, "llms.txt"), "utf8"));
     expect(text.startsWith("# ICJIA Screen Reader Tests\n")).toBe(true);
     // Each link is to a file the site serves, relative to llms.txt: the reports' files, and the
-    // two pages.
+    // three pages.
     const links = [...text.matchAll(/\]\(([^)]+)\)/g)].map(([, href = ""]) => href);
-    expect(links).toHaveLength(4);
+    expect(links).toHaveLength(5);
     for (const href of links) {
       expect((await page.request.get(new URL(href, server.url).href)).status(), href).toBe(200);
     }
@@ -606,7 +606,7 @@ describe("the site, served as Netlify serves it", () => {
     expect(await violationsOf(page)).toEqual([]);
   });
 
-  it("follows every link of both bars on all four pages to a page that's there", async () => {
+  it("follows every link of both bars on all five pages to a page that's there", async () => {
     const page = await newPage();
     // Where each link is followed to, in a page of its own, so the page it's on stays as it is.
     const other = await newPage();
@@ -615,10 +615,11 @@ describe("the site, served as Netlify serves it", () => {
       "Can I trust this? · Screen reader test results",
       "What's New · Screen reader test results",
       "Technical details · Screen reader test results",
+      "How pages are chosen · Screen reader test results",
     ]);
     const followed = new Set<string>();
 
-    for (const where of ["", "trust", "whats-new.html", "technical-details"]) {
+    for (const where of ["", "trust", "whats-new.html", "technical-details", "wcag-em"]) {
       await visit(page, new URL(where, server.url).href);
       // Each link of the top bar, of the bottom bar, and the way back, as the browser resolves it.
       const links = await page.evaluate(() =>
@@ -626,7 +627,7 @@ describe("the site, served as Netlify serves it", () => {
           (link) => link.href,
         ),
       );
-      expect(links.length, where).toBeGreaterThanOrEqual(4 + 5);
+      expect(links.length, where).toBeGreaterThanOrEqual(5 + 6);
       // The website's own pages answer here; voicecap on GitHub and its CHANGELOG are on GitHub,
       // which the tests never reach.
       const own = links.filter((link) => link.startsWith(server.url));
@@ -643,9 +644,15 @@ describe("the site, served as Netlify serves it", () => {
         followed.add(new URL(link).pathname);
       }
     }
-    // Between them, the bars reach each of the four pages.
+    // Between them, the bars reach each of the five pages.
     expect([...followed].toSorted()).toEqual(
-      ["/index.html", "/trust.html", "/whats-new.html", "/technical-details.html"].toSorted(),
+      [
+        "/index.html",
+        "/trust.html",
+        "/whats-new.html",
+        "/technical-details.html",
+        "/wcag-em.html",
+      ].toSorted(),
     );
   });
 
@@ -654,7 +661,7 @@ describe("the site, served as Netlify serves it", () => {
     contexts.push(context);
     const page = await context.newPage();
 
-    for (const where of ["", "trust.html", "whats-new", "technical-details.html"]) {
+    for (const where of ["", "trust.html", "whats-new", "technical-details.html", "wcag-em.html"]) {
       const response = await page.goto(new URL(where, server.url).href);
       expect(response?.status(), where).toBe(200);
       // The button does nothing without the script, so it stays hidden, and the page is dark.
@@ -664,9 +671,9 @@ describe("the site, served as Netlify serves it", () => {
         await page.evaluate(() => getComputedStyle(document.body).backgroundColor),
         where,
       ).toBe("rgb(10, 10, 10)");
-      // Both bars are there, whole: the name and three links above, and six items below.
-      expect(await page.locator(".bar a").count(), where).toBe(4);
-      expect(await page.locator("footer li").count(), where).toBe(6);
+      // Both bars are there, whole: the name and four links above, and seven items below.
+      expect(await page.locator(".bar a").count(), where).toBe(5);
+      expect(await page.locator("footer li").count(), where).toBe(7);
       for (const bar of await page.locator(".bar, footer").all()) {
         expect(await bar.isVisible(), where).toBe(true);
       }
