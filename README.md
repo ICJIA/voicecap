@@ -1112,6 +1112,7 @@ Values are never set by script: a field a keyboard can't fill shows up as one, s
 | Form | What voicecap does |
 | --- | --- |
 | A form with a submit button | Tests it |
+| A form with no submit button, but a plain button inside it whose words say it sends ("Submit", "Send", "Apply", "Request", "Sign up"…), as a script-run app's form often has: Vue's and Vuetify's `<v-btn @click="submit">` is `<button type="button">` | Tests it, with that button as its submit button. A button that clears, resets, cancels, or goes back never counts, nor one Tab can't reach |
 | A search form (`role="search"`, or a GET form whose only field is a search or text field) | Doesn't test it, and says so: it has no required fields to learn from. It's a search form even when it has no submit button or sends by script (a `javascript:` action), as a site's own search often does, so its gray banner says "It's a search form." |
 | The same form on many pages (a sign-up in the footer) | Tests it once in the run, and later pages say where it was tested ("Checked on /about, where its result is.") |
 | A form that answers a press with a JavaScript dialog box (an alert, or "Are you sure?") | Keeps the dialog's words, dismisses it, and records the form as not tested: voicecap doesn't test dialogs yet |
@@ -1120,7 +1121,7 @@ Values are never set by script: a field a keyboard can't fill shows up as one, s
 | A CAPTCHA | Tests it empty, and says the CAPTCHA stops voicecap there |
 | A form in another site's frame (Google Forms, Microsoft Forms, and the like) | Doesn't test it, and names the site that holds it |
 | A form that sends by email (`mailto:`), or by anything but a web address | Doesn't press it, and says so |
-| Fields with no `<form>`, or a form with no submit button | Doesn't test it, and says so |
+| Fields with no `<form>`, or a form with no submit button and no button that says it sends | Doesn't test it, and says so |
 | A form with several steps | Tests the first step only |
 | A required field of a type voicecap has no value for (a file, a color, a range, a time, a month, a week, or a date and time, `datetime-local`) | Goes no further, and records the form as not tested (gray), with why: give it a value in `forms.values` |
 

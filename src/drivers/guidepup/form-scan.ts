@@ -70,10 +70,28 @@ const SCAN = `(() => {
   // Every submit control of a form, an image button too, hidden or disabled or not: the one list
   // that decides whether the form can be pressed, and where it sends. (form.elements leaves out
   // image buttons.)
-  const submitsOf = (form) =>
+  const realSubmitsOf = (form) =>
     Array.from(document.querySelectorAll("button, input")).filter(
       (element) => (element.type === "submit" || element.type === "image") && formOf(element) === form,
     );
+  // A script-run app's form often sends by a plain button that runs its code on a click, with no
+  // submit control at all: Vue's and Vuetify's <v-btn @click="submit"> is <button type="button">.
+  // A form with no real submit control takes a button inside it, one Tab reaches, as its submit
+  // control when its words say it sends; one that clears, resets, cancels, or goes back never is.
+  const SENDS = /^(?:submit|send|apply|request|register|sign up|subscribe|save|continue|next|finish|complete|confirm|go)\\b/i;
+  const NOT_SENDS = /\\b(?:clear|reset|cancel|close|back|previous|delete|remove)\\b/i;
+  const scriptSubmitsOf = (form) =>
+    Array.from(form.querySelectorAll('button[type="button"], input[type="button"], [role="button"]')).filter(
+      (element) => {
+        if (element.tabIndex < 0) return false;
+        const name = submitNameOf(element);
+        return SENDS.test(name) && !NOT_SENDS.test(name);
+      },
+    );
+  const submitsOf = (form) => {
+    const real = realSubmitsOf(form);
+    return real.length > 0 ? real : scriptSubmitsOf(form);
+  };
   const canPress = (element) => !element.disabled && visible(element);
   // A radio group is one stop for Tab, so one field.
   const fieldsOf = (controls) => {
@@ -111,7 +129,9 @@ const SCAN = `(() => {
   const submitNameOf = (control) =>
     control
       ? text(getAttribute(control, "aria-label") ||
-          (control.localName === "button" ? control.textContent : control.value || control.alt))
+          (control.localName === "button" || control.localName !== "input"
+            ? control.textContent
+            : control.value || control.alt))
       : "";
 
   // A submit button's formaction replaces the form's action for that button; a non-web one wins.

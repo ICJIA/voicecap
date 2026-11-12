@@ -129,6 +129,13 @@ const PAGES: Record<string, string> = {
       <label><input id="r1" type="radio" name="c" required> Red</label>
       <label><input id="r2" type="radio" name="c"> Blue</label></fieldset><button>Go</button></form>`,
   "/empty": `${HEAD}<form method="post"><input aria-label="Name"><button>Go</button></form>`,
+  // A script-run app's forms (Vue and Vuetify's v-btn @click): no submit control, a plain button.
+  "/script-sent": `${HEAD}
+    <form><label>Name <input required></label><label>Details <textarea required></textarea></label><button type="button" id="send">submit</button><button type="button">clear</button></form>
+    <form action="/x" method="post"><input aria-label="A" required><button type="button">Clear</button><div role="button" tabindex="0">Cancel</div></form>
+    <form action="/y" method="post"><input aria-label="B" required><div role="button">Send</div></form>
+    <form action="/z" method="post"><input aria-label="C" required><button type="button">Send request</button><button>Real</button></form>
+    <form action="/w" method="post"><input aria-label="D" required><div role="button" tabindex="0" aria-label="Send request">Go!</div></form>`,
   "/images": `${HEAD}
     <form action="/ok" method="post"><input aria-label="A"><input type="image" src="data:," alt="Go" formaction="mailto:x@example.org"></form>
     <form id="o" action="/ok" method="post"><input aria-label="B"></form>
@@ -227,6 +234,21 @@ describe.skipIf(!haveChromium)("scanForms", () => {
   it("calls a site's own search a search form, by a javascript: action or with no submit control", async () => {
     const forms = await (await open("/searches")).scanForms();
     expect(forms.map((form) => form.kind)).toEqual(["search", "search", "not-web"]);
+  });
+
+  it("takes a plain button whose words say it sends as the submit control of a form with none, but never one that clears or cancels, one Tab can't reach, or one beside a real submit", async () => {
+    const session = await open("/script-sent");
+    const forms = await session.scanForms();
+    expect(forms.map((form) => [form.kind, form.submitName])).toEqual([
+      ["test", "submit"],
+      ["no-submit", null],
+      ["no-submit", null],
+      ["test", "Real"],
+      ["test", "Send request"],
+    ]);
+    // Tab reaches it, and the pass knows it has.
+    await pageOf(session).focus("#send");
+    expect(await session.readFormState(0)).toMatchObject({ focusedSubmit: true });
   });
 
   it("counts an empty action as the page's own", async () => {
