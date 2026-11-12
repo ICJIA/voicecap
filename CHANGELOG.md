@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-12
+
+A report can say its pages are a sample of a large site, why a sample stands for the rest, and what it can't promise, and the website explains WCAG-EM, the method behind a sample, in pictures; a form that sends by script to its own API counts as sent.
+
 ### Added
 
 - **A sample of a large site: `--sample-of <sitemap>`.** Beside a page list or `--page`, it names the sitemap the pages were chosen from. As the run begins, voicecap reads it, counts its pages by URL path pattern, and records how many of each the run reads. The report then says, in At a glance, under a heading that asks "Why this report covers 171 pages, not all 2,466 of the site's", how many pages it covers of how many the sitemap lists; that a problem in a template is on every page built from it, so accessibility audits test a sample of each type of page, as the W3C's WCAG-EM describes, and professional auditors who test with a screen reader don't go through every page of a large site either; and what a sample can't promise, a problem in one page's own text. A table in a fold gives each type of page with how many the site has and how many are in the report, and each page's card says why it's in the sample, from the page list's notes. The Word copy and the report for AI tools say it too, and the website's card has a note in the open under the report's result, "Why 171 pages, and not all 2,466?", in plain words for a manager or an auditor, with a link to the report's table. A run without it is as before.
@@ -946,7 +950,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.26.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/ICJIA/voicecap/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/ICJIA/voicecap/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/ICJIA/voicecap/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/ICJIA/voicecap/compare/v0.24.1...v0.25.0
