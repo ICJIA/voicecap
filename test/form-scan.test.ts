@@ -129,6 +129,13 @@ const PAGES: Record<string, string> = {
       <label><input id="r1" type="radio" name="c" required> Red</label>
       <label><input id="r2" type="radio" name="c"> Blue</label></fieldset><button>Go</button></form>`,
   "/empty": `${HEAD}<form method="post"><input aria-label="Name"><button>Go</button></form>`,
+  // Vuetify 2's v-select: a read-only text box inside a list button; and one with the role itself.
+  "/script-list": `${HEAD}<form action="/l" method="post">
+    <div role="button" aria-haspopup="listbox"><input aria-label="Kind" readonly required></div>
+    <input aria-label="Pick" role="combobox" readonly>
+    <input aria-label="Locked" readonly>
+    <div role="combobox"><input aria-label="Type here"></div>
+    <button>Send</button></form>`,
   // A script-run app's forms (Vue and Vuetify's v-btn @click): no submit control, a plain button.
   "/script-sent": `${HEAD}
     <form><label>Name <input required></label><label>Details <textarea required></textarea></label><button type="button" id="send">submit</button><button type="button">clear</button></form>
@@ -249,6 +256,11 @@ describe.skipIf(!haveChromium)("scanForms", () => {
     // Tab reaches it, and the pass knows it has.
     await pageOf(session).focus("#send");
     expect(await session.readFormState(0)).toMatchObject({ focusedSubmit: true });
+  });
+
+  it("takes a read-only text box that opens a list as a list the arrows pick from", async () => {
+    const [form] = await (await open("/script-list")).scanForms();
+    expect(form?.fields.map((field) => field.type)).toEqual(["select-one", "select-one", "text", "text"]);
   });
 
   it("counts an empty action as the page's own", async () => {

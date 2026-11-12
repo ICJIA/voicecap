@@ -883,6 +883,22 @@ describe("fieldValueOf", () => {
     }
   });
 
+  it("gives a plain text field whose name says e-mail or phone that type's value", () => {
+    const named = (name: string, type = "text") => ({ ...field(type), name });
+    for (const name of ["E-mail", "Email address", "Your e-mail *"]) {
+      expect(fieldValueOf(named(name), settings)).toEqual({ kind: "text", text: "a@example.com" });
+    }
+    for (const name of ["Phone number", "Telephone", "Mobile", "Cell phone"]) {
+      expect(fieldValueOf(named(name), settings)).toEqual({ kind: "text", text: "1" });
+    }
+    expect(fieldValueOf(named("E-mail"), { values: {} })).toEqual({ kind: "text", text: "test@example.com" });
+    for (const name of ["Name", "Emailing preferences", "Request details"]) {
+      expect(fieldValueOf(named(name), settings)).toEqual({ kind: "text", text: "words" });
+    }
+    // Only a plain text field: a textarea's name is never taken as its type.
+    expect(fieldValueOf(named("E-mail", "textarea"), settings)).toEqual({ kind: "text", text: "words" });
+  });
+
   it("takes the default for a type a config's values leave out", () => {
     expect(fieldValueOf(field("email"), { values: { text: "words" } })).toEqual({
       kind: "text",

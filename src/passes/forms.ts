@@ -129,10 +129,21 @@ export function fieldValueOf(
 ): FieldValue | null {
   if (field.type === "checkbox" || field.type === "radio") return { kind: "space" };
   if (field.type === "select-one" || field.type === "select-multiple") return { kind: "arrow" };
-  const own = settings.values[field.type] ?? FORMS_DEFAULTS.values[field.type];
+  // A plain text field whose name says what it takes, as script-run apps' e-mail and phone fields
+  // often are (Vuetify's v-text-field is type="text" with its own check), takes that type's value.
+  const type = (field.type === "text" ? typeNamed(field.name) : null) ?? field.type;
+  const own = settings.values[type] ?? FORMS_DEFAULTS.values[type];
   if (own !== undefined) return { kind: "text", text: own };
-  if (NO_VALUE_TYPES.has(field.type)) return null;
+  if (NO_VALUE_TYPES.has(type)) return null;
   return { kind: "text", text: (settings.values.text ?? FORMS_DEFAULTS.values.text) as string };
+}
+
+/** The input type a text field's name says it takes: an e-mail address or a phone number. */
+function typeNamed(name: string | null): "email" | "tel" | null {
+  if (name === null) return null;
+  if (/\be-?mail\b/i.test(name)) return "email";
+  if (/\b(?:phone|telephone|mobile|cell)\b/i.test(name)) return "tel";
+  return null;
 }
 
 /** How one walk goes. */

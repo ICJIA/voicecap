@@ -94,6 +94,11 @@ const SCAN = `(() => {
   };
   const canPress = (element) => !element.disabled && visible(element);
   // A radio group is one stop for Tab, so one field.
+  // A script-run list over a read-only text box (Vuetify's v-select, a combobox): the keyboard
+  // picks from it with the arrows, as from a select, and can't type into it.
+  const LISTBOX = '[role="combobox"], [aria-haspopup="listbox"]';
+  const typeOf = (element) =>
+    element.type === "text" && element.readOnly && element.closest(LISTBOX) !== null ? "select-one" : element.type;
   const fieldsOf = (controls) => {
     const seen = new Set();
     return controls.filter(isField).filter((element) => {
@@ -173,7 +178,7 @@ const SCAN = `(() => {
     fields: fields.map((element, at) => ({
       index: at,
       name: null,
-      type: element.type,
+      type: typeOf(element),
       required: requiredBy(element, controls),
       tabIndex: tabIndexOf(element, controls),
       autocomplete: getAttribute(element, "autocomplete") || "",
