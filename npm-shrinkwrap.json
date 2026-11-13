@@ -1,12 +1,12 @@
 {
   "name": "@icjia/voicecap",
-  "version": "0.27.0",
+  "version": "0.27.1",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "@icjia/voicecap",
-      "version": "0.27.0",
+      "version": "0.27.1",
       "license": "MIT",
       "dependencies": {
         "@guidepup/guidepup": "0.36.4",
@@ -362,9 +362,9 @@
       }
     },
     "node_modules/fast-xml-builder": {
-      "version": "1.3.1",
-      "resolved": "https://registry.npmjs.org/fast-xml-builder/-/fast-xml-builder-1.3.1.tgz",
-      "integrity": "sha512-pIM/1n3ntFXKYrUZwW7QCK0gAW7XY+wzj1YMIV3tLDvPj/V+zTGJK5e3/4WJfwj0qWw2ElNXiTixda/R+3YSug==",
+      "version": "1.3.2",
+      "resolved": "https://registry.npmjs.org/fast-xml-builder/-/fast-xml-builder-1.3.2.tgz",
+      "integrity": "sha512-OX91VSlShLPDgRZV7tk/YQ4l8tT75QziF5Ixg8g4PFbCVPjuTWwN+yQfAxLJ0dufJpprdOd6HlM74Jhd39TcBQ==",
       "funding": [
         {
           "type": "github",
@@ -438,10 +438,10 @@
       }
     },
     "node_modules/graceful-fs": {
-      "version": "4.2.11",
-      "resolved": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.11.tgz",
-      "integrity": "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==",
-      "license": "ISC"
+      "version": "4.2.12",
+      "resolved": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.12.tgz",
+      "integrity": "sha512-iuyGF2E4oafQfPsRrG2wtY2ILupMhvtdrhzrxB+0VcjsPpSPttpfYdjnGFGsTi5MaJFjI1jOKHPQ6UTbTj9TAw==",
+      "license": "BlueOak-1.0.0"
     },
     "node_modules/has-flag": {
       "version": "4.0.0",
