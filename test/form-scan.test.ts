@@ -268,7 +268,12 @@ describe.skipIf(!haveChromium)("scanForms", () => {
 
   it("takes a read-only text box that opens a list as a list the arrows pick from", async () => {
     const [form] = await (await open("/script-list")).scanForms();
-    expect(form?.fields.map((field) => field.type)).toEqual(["select-one", "select-one", "text", "text"]);
+    expect(form?.fields.map((field) => field.type)).toEqual([
+      "select-one",
+      "select-one",
+      "text",
+      "text",
+    ]);
   });
 
   it("counts a list box's choice, shown beside it, as filling it, and nothing else as one", async () => {
