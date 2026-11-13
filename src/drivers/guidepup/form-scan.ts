@@ -116,10 +116,19 @@ const SCAN = `(() => {
   // A group of radios is reached by whichever of them Tab may stop at.
   const tabIndexOf = (element, controls) =>
     Math.max(...groupOf(element, controls).map((member) => member.tabIndex));
+  // Such a list shows its choice beside its box, not in it, and names the box by both (Vuetify's
+  // v-select adds the choice to the box's aria-labelledby), so a choice is anything it's named by
+  // that isn't the box itself or its label.
+  const choiceShown = (element) =>
+    (getAttribute(element, "aria-labelledby") || "").split(/\\s+/).some((id) => {
+      const target = id ? document.getElementById(id) : null;
+      return target !== null && target !== element && !Array.from(element.labels || []).includes(target) &&
+        (target.textContent || "").trim() !== "";
+    });
   const isEmpty = (element, controls) =>
     element.type === "radio" || element.type === "checkbox"
       ? !groupOf(element, controls).some((member) => member.checked)
-      : element.value === "";
+      : element.value === "" && !(typeOf(element) === "select-one" && element.tagName === "INPUT" && choiceShown(element));
   const requiredBy = (element, controls) => {
     if (element.required || getAttribute(element, "aria-required") === "true") return true;
     if (element.type !== "radio" && element.type !== "checkbox") return false;

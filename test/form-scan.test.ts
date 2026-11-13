@@ -136,6 +136,14 @@ const PAGES: Record<string, string> = {
     <input aria-label="Locked" readonly>
     <div role="combobox"><input aria-label="Type here"></div>
     <button>Send</button></form>`,
+  // Its choice shows beside the box, which is named by its label and the choice, as Vuetify's is.
+  "/script-list-chosen": `${HEAD}<form action="/l" method="post">
+    <span id="chosen">Contract status</span><span id="none"></span>
+    <input id="k1" aria-labelledby="k1 chosen" role="combobox" readonly required>
+    <input id="k2" aria-labelledby="k2 none" role="combobox" readonly required>
+    <label id="l3" for="k3">Kind</label><input id="k3" aria-labelledby="l3" role="combobox" readonly required>
+    <input id="k4" aria-labelledby="k4 chosen" aria-label="Text" required>
+    <button>Send</button></form>`,
   // A script-run app's forms (Vue and Vuetify's v-btn @click): no submit control, a plain button.
   "/script-sent": `${HEAD}
     <form><label>Name <input required></label><label>Details <textarea required></textarea></label><button type="button" id="send">submit</button><button type="button">clear</button></form>
@@ -261,6 +269,12 @@ describe.skipIf(!haveChromium)("scanForms", () => {
   it("takes a read-only text box that opens a list as a list the arrows pick from", async () => {
     const [form] = await (await open("/script-list")).scanForms();
     expect(form?.fields.map((field) => field.type)).toEqual(["select-one", "select-one", "text", "text"]);
+  });
+
+  it("counts a list box's choice, shown beside it, as filling it, and nothing else as one", async () => {
+    const session = await open("/script-list-chosen");
+    await session.scanForms();
+    expect((await session.readFormState(0)).emptyRequired).toEqual([1, 2, 3]);
   });
 
   it("counts an empty action as the page's own", async () => {
