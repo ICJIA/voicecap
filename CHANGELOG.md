@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-11-13
+
+The forms pass tests a script-run app's forms, as Vue's and Vuetify's are: one that sends by a plain button, an e-mail or phone field that's a plain text box, and a list that's a read-only text box.
+
 ### Changed
 
 - **The forms pass tests a form that sends by a plain button.** A script-run app's form often has no submit control at all: Vue's and Vuetify's `<v-btn @click="submit">` is `<button type="button">`, which runs the form's code on a click. Such a form was left untested ("it has no submit control"), as icjia.illinois.gov's Language Access Request and Grant Status Request forms were. A form with no real submit control now takes a button inside it as its submit control when the button's words say it sends ("Submit", "Send", "Apply", "Request", "Sign up", and the like) and Tab reaches it; one that clears, resets, cancels, or goes back never counts, and a real submit control, when there is one, always wins.
@@ -955,7 +959,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.27.1...HEAD
+[0.27.1]: https://github.com/ICJIA/voicecap/compare/v0.27.0...v0.27.1
 [0.27.0]: https://github.com/ICJIA/voicecap/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/ICJIA/voicecap/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/ICJIA/voicecap/compare/v0.25.0...v0.25.1
