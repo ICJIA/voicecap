@@ -4,6 +4,15 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.27.2] - 2026-11-14
+
+Two rules no longer mistake what a page says or does for a problem NVDA heard.
+
+### Changed
+
+- **"Unlabeled" counts only when NVDA says it.** The unlabeled rule took the word anywhere in what NVDA read, so a page's own sentence about unlabeled things was flagged: icjia.illinois.gov's accessibility statement says it gives "icon-only buttons and unlabeled form fields a name", and the report said a button there had no name. The word now counts only as an item of NVDA's own, at its start, as NVDA says "Unlabeled graphic".
+- **No skip link is asked for when the page puts focus in its main content as it loads.** A search page that focuses its search box, inside the main landmark, has already let the user in; the first Tab goes on from there, past the main content, so the Tab stops before it aren't on the way in. icjia.illinois.gov's /search was flagged for "Many Tab stops before the main content, and no skip link" for that reason. A page that puts focus outside the main content on load is judged as before.
+
 ## [0.27.1] - 2026-11-13
 
 The forms pass tests a script-run app's forms, as Vue's and Vuetify's are: one that sends by a plain button, an e-mail or phone field that's a plain text box, and a list that's a read-only text box.
@@ -959,7 +968,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.27.1...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.27.2...HEAD
+[0.27.2]: https://github.com/ICJIA/voicecap/compare/v0.27.1...v0.27.2
 [0.27.1]: https://github.com/ICJIA/voicecap/compare/v0.27.0...v0.27.1
 [0.27.0]: https://github.com/ICJIA/voicecap/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/ICJIA/voicecap/compare/v0.25.1...v0.26.0
