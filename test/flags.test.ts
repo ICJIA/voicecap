@@ -168,6 +168,21 @@ describe("unlabeled items", () => {
     expect(flags.find((f) => f.rule === "unlabeled")?.count).toBe(3);
   });
 
+  it("doesn't take a page's own words about unlabeled things for NVDA saying something is unlabeled", () => {
+    // icjia.illinois.gov's /accessibility/ (2026-11-12): a sentence of the page, not NVDA's word.
+    const flags = evaluateFlags(
+      {
+        read: read([
+          "bullet automatically corrects common accessibility problems, giving",
+          "icon-only buttons and unlabeled form fields a name that assistive technologies can announce, and",
+          "Footer",
+        ]),
+      },
+      rules,
+    );
+    expect(rulesOf(flags)).not.toContain("unlabeled:read");
+  });
+
   it("leaves a form field's role alone on a browse line to the tab pass: NVDA reads its label as separate text", () => {
     // NVDA 2026.2 reading the demo's /ask-a-question/: a labeled textarea, its label a line of its own.
     const flags = evaluateFlags(
@@ -380,6 +395,24 @@ describe("structure rules", () => {
     expect(rulesOf(evaluateFlags({ tab: tab([...nav.slice(0, 3), main]) }, rules))).not.toContain(
       "tab-before-main:tab",
     );
+  });
+
+  it("doesn't ask for a skip link when the page puts focus in its main content on load", () => {
+    // icjia.illinois.gov's /search (2026-11-12) focuses its search box, inside main, on load; the
+    // first Tab goes on from there, past main, so the stops before it aren't the user's way in.
+    const nav = Array.from({ length: 13 }, (_, i) => ({
+      spoken: `Nav ${i}, link`,
+      focused: el(`Nav ${i}`),
+    }));
+    const box = el("Search ICJIA", { tag: "input", role: "textbox", inMain: true });
+    expect(
+      rulesOf(evaluateFlags({ tab: { ...tab(nav), initialFocus: box } }, rules)),
+    ).not.toContain("tab-before-main:tab");
+    // Focus put outside main on load still counts every stop.
+    const outside = el("Menu", { tag: "button", role: "button" });
+    expect(
+      rulesOf(evaluateFlags({ tab: { ...tab(nav), initialFocus: outside } }, rules)),
+    ).toContain("tab-before-main:tab");
   });
 
   it("judges skip links from the focused element, not from speech", () => {

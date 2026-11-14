@@ -1,4 +1,5 @@
 import type { VoicecapConfig } from "../config/schema.js";
+import type { FocusedElement } from "../drivers/types.js";
 import {
   PASS_NAMES,
   type FlagResult,
@@ -43,6 +44,8 @@ export interface PassData {
    * read back), which the forms rules read, beside the pass's steps.
    */
   forms?: readonly FormFlagInput[];
+  /** The tab pass only: what was focused before the first Tab (TranscriptRecord.initialFocus). */
+  initialFocus?: FocusedElement | null;
 }
 
 export type PagePasses = Partial<Record<PassName, PassData>>;
@@ -97,7 +100,7 @@ export function evaluateFlags(passes: PagePasses, rules: FlagRules): FlagResult[
       });
     }
     if (rules.tabBeforeMain.enabled && stops.length > 0) {
-      const flag = tabBeforeMain(stops, rules.tabBeforeMain);
+      const flag = tabBeforeMain(stops, rules.tabBeforeMain, passes.tab.initialFocus);
       if (flag) flags.push(flag);
     }
   }
@@ -368,7 +371,8 @@ function unlabeledMatcher(
   const phrases = rule.phrases.map(lower);
   return (speech, pass) => {
     const list = items(speech);
-    const phrase = list.find((item) => phrases.some((p) => item.includes(p)));
+    // NVDA's own word leads its item ("unlabeled graphic"); one inside a sentence is the page's.
+    const phrase = list.find((item) => phrases.some((p) => item === p || item.startsWith(`${p} `)));
     if (phrase !== undefined) return phrase;
     const rest = withoutLeadingContext(list, context.contextItems);
     if (pass === "tab") {
@@ -466,7 +470,14 @@ function stopsBeforeMain(stops: StepRecord[]): { before: StepRecord[]; reachedMa
     : { before: stops.slice(0, firstInMain), reachedMain: true };
 }
 
-function tabBeforeMain(stops: StepRecord[], rule: FlagRules["tabBeforeMain"]): FlagResult | null {
+function tabBeforeMain(
+  stops: StepRecord[],
+  rule: FlagRules["tabBeforeMain"],
+  initialFocus: FocusedElement | null | undefined,
+): FlagResult | null {
+  // A page that puts focus in its main content on load (a search box) has already let the user in:
+  // the first Tab goes on from there, so the stops counted aren't on the way to the main content.
+  if (initialFocus?.inMain === true) return null;
   const { before, reachedMain } = stopsBeforeMain(stops);
   const first = stops[0]?.focused;
   const skipName = new RegExp(rule.skipLinkName, "i");
